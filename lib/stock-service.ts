@@ -1,7 +1,7 @@
 /**
  * Centralized Stock Service
  *
- * ทุก stock operation (เพิ่ม, ลด, จอง, ปล่อยจอง, โอน, คืน, ปรับ, transit)
+ * ทุก stock operation (เพิ่ม, ลด, จอง, ปล่อยจอง, โอน, คืน, ปรับ, ชดเชยส่วนต่าง, transit)
  * ต้องเรียกผ่าน service นี้เท่านั้น — ห้าม inline ใน route
  *
  * รับ SupabaseClient จาก caller เพื่อรองรับทั้ง authenticated routes
@@ -439,6 +439,61 @@ export async function adjustStock(
   });
 
   return { balanceAfter: params.newQuantity, inventoryId: inv.id };
+}
+
+/**
+ * 8b. offsetStock — ชดเชยด้วย "ส่วนต่าง" (type: 'adjust')
+ *
+ * `params.qty` = delta (+/−) ไม่ใช่ยอดปลายทาง — ต่างจาก `adjustStock` ตรงนี้
+ * ใช้ตอน **ย้อนรอบซิงค์สต็อก**: รอบนั้นทำให้ยอดขยับไป d ก็คืนด้วย −d
+ * ต้องคิดแบบส่วนต่างเท่านั้น เพราะระหว่างที่รอย้อนอาจมีคนขายของไปแล้ว —
+ * ถ้าไปตั้งยอดปลายทางตรง ๆ (`adjustStock`) จะกลืนยอดที่ขายไประหว่างนั้นทิ้ง
+ *
+ * `floorAtZero=true` — คืนแล้วติดลบ (ขายเกินไปแล้ว) ให้หยุดที่ 0 แล้วคืน `clamped`
+ * = จำนวนที่คืนไม่ได้ ให้ผู้เรียกเอาไปรายงานว่า "ขายเกินไป n ชิ้น"
+ *
+ * ⛔ เดินผ่าน `applyDelta` (RPC) เหมือน op อื่นเสมอ — DB มี trigger ปฏิเสธการเขียน
+ *    `inventory` ตรง ๆ และ read-modify-write ทำยอดหายตอนคำขอชนกัน (fix-bug.md 2026-09-13)
+ * ⛔ สินค้าชุดไม่มีสต็อกของตัวเอง — เหมือน `adjustStock` คือ DB guard
+ *    (`trg_guard_composite_inventory`) ปฏิเสธตอนสร้างแถว inventory ให้ชุดย่อย
+ */
+export async function offsetStock(
+  params: StockOpParams & { floorAtZero?: boolean },
+): Promise<StockOpResult & { clamped?: number }> {
+  const inv = await getOrCreateInventory(params.supabase, params.companyId, params.warehouseId, params.variationId);
+  const delta = params.qty;
+  if (delta === 0) return { balanceAfter: inv.quantity, inventoryId: inv.id };
+
+  const levels = await applyDelta(params.supabase, inv.id, { qty: delta });
+  let newQty = levels?.quantity ?? inv.quantity + delta;
+  // ยอดก่อนหน้าที่แท้จริง — อ่านย้อนจากค่าที่ DB คืน ไม่ใช่ค่าที่อ่านมาก่อนหน้า (อาจเก่าแล้ว)
+  const before = newQty - delta;
+  let clamped: number | undefined;
+
+  if (params.floorAtZero && newQty < 0) {
+    // ดันกลับด้วย "ส่วนต่างบวก" ไม่ใช่ setQuantity(0) — ถ้ามีคนเขียนแทรกระหว่างสองคำสั่ง
+    // การบวกกลับจะไม่กลืนของที่เขาเพิ่งใส่เข้ามา (RPC ไม่ได้กัน quantity ติดลบให้)
+    clamped = Math.abs(newQty);
+    const fixed = await applyDelta(params.supabase, inv.id, { qty: clamped });
+    newQty = fixed?.quantity ?? 0;
+  }
+
+  // log แถวเดียวด้วย delta จริงที่เกิดขึ้น (กรณี clamp = น้อยกว่าที่ขอ)
+  const actualDelta = newQty - before;
+  await logTransaction(params.supabase, {
+    companyId: params.companyId,
+    warehouseId: params.warehouseId,
+    variationId: params.variationId,
+    type: 'adjust',
+    quantity: Math.abs(actualDelta),
+    balanceAfter: newQty,
+    referenceType: params.referenceType,
+    referenceId: params.referenceId,
+    notes: clamped ? `${params.notes} · คืนได้ไม่ครบ ขาดอีก ${clamped} ชิ้น (ขายไปแล้ว)` : params.notes,
+    createdBy: params.createdBy,
+  });
+
+  return { balanceAfter: newQty, inventoryId: inv.id, ...(clamped ? { clamped } : {}) };
 }
 
 /**

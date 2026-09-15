@@ -512,6 +512,9 @@ async function seedStockFillBlank(
     mode: 'fill_blank',
     dryRun: false,
     referenceType: stockSyncReferenceType(ctx.platform),
+    // ขานี้ไม่ใช่ "รอบซิงค์" ที่ย้อนได้ (เป็นผลพลอยได้ของการนำเข้าสินค้า) จึงยังอ้าง id ของร้าน
+    // — ต่างจากปุ่มดึง/ส่งสต็อกที่อ้าง id ของรอบ (`lib/marketplace/sync-runs.ts`)
+    referenceId: ctx.accountId,
     result,
   });
   for (const err of result.errors) console.error('[Product Import] ลงสต็อกตั้งต้นไม่สำเร็จ:', err);

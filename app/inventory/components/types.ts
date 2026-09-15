@@ -230,6 +230,7 @@ export const REFERENCE_TYPE_LABELS: Record<string, string> = {
   shopee_sync: 'ดึงสต็อกจาก Shopee',
   lazada_sync: 'ดึงสต็อกจาก Lazada',
   tiktok_sync: 'ดึงสต็อกจาก TikTok',
+  marketplace_sync_revert: 'ย้อนการซิงค์สต็อก',
 };
 
 /** ลิงก์ไปเอกสารต้นทาง — ที่มาที่ไม่มีหน้าให้เปิดคืน null (แสดงเป็นข้อความเฉย ๆ) */
@@ -241,7 +242,10 @@ export function MOVEMENT_REFERENCE_LINK(type: string | null, id: string | null):
     case 'transfer': return `/inventory/transfers/${id}`;
     case 'receive': return `/inventory/receives/${id}`;
     case 'issue': return `/inventory/issues/${id}`;
-    default: return null;
+    // งานซิงค์สต็อกทุกแพลตฟอร์ม (`shopee_sync` · `lazada_sync` · …) และการย้อนรอบ
+    // อ้าง `reference_id` = id ของ "รอบ" (`marketplace_sync_runs`) → เปิดดูรอบนั้นได้เลย
+    case 'marketplace_sync_revert': return `/marketplace/sync?run=${id}`;
+    default: return type.endsWith('_sync') ? `/marketplace/sync?run=${id}` : null;
   }
 }
 

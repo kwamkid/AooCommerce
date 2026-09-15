@@ -27,6 +27,10 @@ const RETENTION: { table: string; days: number }[] = [
   // ad_events 90 วัน: ตัวกวาดมองย้อนแค่ 7 วัน (เพดานของ Meta) ที่เหลือเก็บไว้ตอบคำถามว่า
   // "ออเดอร์ใบนี้ถูกส่งเข้า Meta หรือยัง" ย้อนได้ประมาณหนึ่งไตรมาส
   { table: 'ad_events', days: 90 },
+  // marketplace_sync_runs 180 วัน: เป็นหลักฐานว่า "ยอดเปลี่ยนเพราะรอบไหน" ที่ลิงก์มาจาก
+  // ความเคลื่อนไหวสต็อก จึงต้องอยู่นานกว่า log ทั่วไป · `marketplace_sync_run_items`
+  // ตามไปเองด้วย FK cascade (ไม่ต้องใส่เป็นอีกแถวที่นี่)
+  { table: 'marketplace_sync_runs', days: 180 },
 ];
 
 export interface LogRetentionResult {

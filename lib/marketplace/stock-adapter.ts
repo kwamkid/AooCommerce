@@ -51,6 +51,12 @@ export interface PushStockResult {
    * (ค่านี้คือสัญญาณจับ "พังเงียบ" จึงต้องมาจาก adapter ที่รู้ว่าใบไหนผ่าน ไม่ใช่เดาเอา)
    */
   pushed_link_ids?: string[];
+  /**
+   * จำนวน call ที่ยิงขึ้น platform จริงในรอบนี้ — ลง `marketplace_sync_runs.quota_used`
+   * adapter ที่นับได้ค่อยใส่ (ไม่ใส่ = 0) · **ห้ามประมาณจาก batch size ที่ประกาศไว้**
+   * ตัวเลขที่เดามาแล้วเอาไปคิดโควตาต่อ = หลอกตัวเองว่ายังเหลือทั้งที่หมดแล้ว
+   */
+  api_calls?: number;
 }
 
 /**
@@ -79,6 +85,10 @@ export interface PullStockResult {
   changes?: PullStockChange[];       // รายการที่จะเปลี่ยน (ใส่ครบเสมอ ใช้ทำ preview)
   desired?: Record<string, number>;  // variation_id → ยอดบนร้าน (ทุกตัวที่เจอ ไม่ใช่แค่ที่เปลี่ยน)
   errors: string[];
+  /** รอบที่บันทึกงานนี้ (`marketplace_sync_runs`) — route คืนต่อให้จอไปเปิดหน้ารอบได้ */
+  run_id?: string;
+  /** จำนวน call ที่ยิงจริง เท่าที่ adapter นับให้ (ไม่มี = 0) */
+  quota_used?: number;
 }
 
 /** ผลการอ่านยอดจากร้าน — ชั้นกลางเป็นคนเขียนลง inventory ต่อเอง */
@@ -86,6 +96,11 @@ export interface PlatformStockRead {
   /** variation_id → ยอดที่ขายได้บนร้าน */
   stock: Map<string, number>;
   errors: string[];
+  /**
+   * จำนวน call ที่ยิงไปอ่านจริง — ชั้นกลางเอาไปลง `quota_used` ของรอบ
+   * adapter ที่นับได้ค่อยใส่ (ไม่ใส่ = ชั้นกลางลง 0 ไม่เดาแทน)
+   */
+  apiCalls?: number;
 }
 
 export interface StockAdapter {
