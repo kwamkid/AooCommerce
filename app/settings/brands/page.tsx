@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Award, Edit2, Factory, PackageSearch, Plus, Trash2 } from 'lucide-react';
+import { DEFAULT_RECORDS_PER_PAGE, RECORDS_PER_PAGE_OPTIONS } from '@/app/components/Pagination';
 import Layout from '@/components/layout/Layout';
 import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
 import Alert from '@/components/ui/Alert';
@@ -54,6 +55,11 @@ function BrandsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get('q') || '';
+  const requestedPage = Math.max(1, Number(searchParams.get('page')) || 1);
+  const requestedLimit = Number(searchParams.get('limit'));
+  const recordsPerPage = RECORDS_PER_PAGE_OPTIONS.includes(requestedLimit as typeof RECORDS_PER_PAGE_OPTIONS[number])
+    ? requestedLimit
+    : DEFAULT_RECORDS_PER_PAGE;
 
   const [loading, setLoading] = useState(true);
   const [brands, setBrands] = useState<BrandItem[]>([]);
@@ -109,6 +115,7 @@ function BrandsPageInner() {
       const params = new URLSearchParams(searchParams.toString());
       if (value.trim()) params.set('q', value.trim());
       else params.delete('q');
+      params.delete('page');
       const queryString = params.toString();
       router.replace(queryString ? `?${queryString}` : window.location.pathname);
     }, 300);
@@ -120,6 +127,23 @@ function BrandsPageInner() {
     return brands.filter(brand => brand.name.toLowerCase().includes(query)
       || brand.supplier?.name?.toLowerCase().includes(query));
   }, [brands, searchQuery]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredBrands.length / recordsPerPage));
+  const currentPage = Math.min(requestedPage, totalPages);
+  const paginatedBrands = filteredBrands.slice(
+    (currentPage - 1) * recordsPerPage,
+    currentPage * recordsPerPage,
+  );
+
+  const setPagination = (page: number, limit: number = recordsPerPage) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (page > 1) params.set('page', String(page));
+    else params.delete('page');
+    if (limit !== DEFAULT_RECORDS_PER_PAGE) params.set('limit', String(limit));
+    else params.delete('limit');
+    const queryString = params.toString();
+    router.replace(queryString ? `?${queryString}` : window.location.pathname);
+  };
 
   const closeAddModal = () => {
     if (saving) return;
@@ -287,11 +311,13 @@ function BrandsPageInner() {
           <Badge tone="orange">{brands.length} แบรนด์</Badge>
         </div>
         <DataTable
-          storageKey="settings-brands" columns={columns} data={filteredBrands} loading={loading}
+          storageKey="settings-brands" columns={columns} data={paginatedBrands} loading={loading}
           getRowId={brand => brand.id} emptyMessage={searchQuery ? 'ไม่พบแบรนด์ที่ค้นหา' : 'ยังไม่มีแบรนด์สินค้า'}
-          emptyIcon={<Award className="w-10 h-10" />} currentPage={1} totalPages={1}
-          totalRecords={filteredBrands.length} recordsPerPage={Math.max(filteredBrands.length, 1)}
-          onPageChange={() => undefined} onRecordsPerPageChange={() => undefined} hidePagination
+          emptyIcon={<Award className="w-10 h-10" />} currentPage={currentPage} totalPages={totalPages}
+          totalRecords={filteredBrands.length} recordsPerPage={recordsPerPage}
+          onPageChange={page => setPagination(page)}
+          onRecordsPerPageChange={limit => setPagination(1, limit)}
+          onLimitChange={(limit, page) => setPagination(page, limit)}
           mobileCardRender={brand => (
             <div className="flex items-center gap-3 p-4">
               <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Award className="w-5 h-5" /></span>

@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { CornerDownRight, Edit2, Folder, FolderTree, Plus, Tag, Trash2 } from 'lucide-react';
+import { DEFAULT_RECORDS_PER_PAGE, RECORDS_PER_PAGE_OPTIONS } from '@/app/components/Pagination';
 import Layout from '@/components/layout/Layout';
 import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
 import Badge from '@/components/ui/Badge';
@@ -48,6 +49,11 @@ function CategoriesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get('q') || '';
+  const requestedPage = Math.max(1, Number(searchParams.get('page')) || 1);
+  const requestedLimit = Number(searchParams.get('limit'));
+  const recordsPerPage = RECORDS_PER_PAGE_OPTIONS.includes(requestedLimit as typeof RECORDS_PER_PAGE_OPTIONS[number])
+    ? requestedLimit
+    : DEFAULT_RECORDS_PER_PAGE;
 
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState<CategoryItem[]>([]);
@@ -87,6 +93,7 @@ function CategoriesPage() {
       const params = new URLSearchParams(searchParams.toString());
       if (value.trim()) params.set('q', value.trim());
       else params.delete('q');
+      params.delete('page');
       const queryString = params.toString();
       router.replace(queryString ? `?${queryString}` : window.location.pathname);
     }, 300);
@@ -108,6 +115,22 @@ function CategoriesPage() {
 
   const parentCount = categories.length;
   const childCount = rows.length - parentCount;
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / recordsPerPage));
+  const currentPage = Math.min(requestedPage, totalPages);
+  const paginatedRows = filteredRows.slice(
+    (currentPage - 1) * recordsPerPage,
+    currentPage * recordsPerPage,
+  );
+
+  const setPagination = (page: number, limit: number = recordsPerPage) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (page > 1) params.set('page', String(page));
+    else params.delete('page');
+    if (limit !== DEFAULT_RECORDS_PER_PAGE) params.set('limit', String(limit));
+    else params.delete('limit');
+    const queryString = params.toString();
+    router.replace(queryString ? `?${queryString}` : window.location.pathname);
+  };
 
   const openAddModal = (parentId: string | null = null) => {
     setAddName('');
@@ -259,11 +282,13 @@ function CategoriesPage() {
           </div>
         </div>
         <DataTable
-          storageKey="settings-categories" columns={columns} data={filteredRows} loading={loading}
+          storageKey="settings-categories" columns={columns} data={paginatedRows} loading={loading}
           getRowId={row => row.id} emptyMessage={searchQuery ? 'ไม่พบหมวดหมู่ที่ค้นหา' : 'ยังไม่มีหมวดหมู่สินค้า'}
-          emptyIcon={<FolderTree className="w-10 h-10" />} currentPage={1} totalPages={1}
-          totalRecords={filteredRows.length} recordsPerPage={Math.max(filteredRows.length, 1)}
-          onPageChange={() => undefined} onRecordsPerPageChange={() => undefined} hidePagination
+          emptyIcon={<FolderTree className="w-10 h-10" />} currentPage={currentPage} totalPages={totalPages}
+          totalRecords={filteredRows.length} recordsPerPage={recordsPerPage}
+          onPageChange={page => setPagination(page)}
+          onRecordsPerPageChange={limit => setPagination(1, limit)}
+          onLimitChange={(limit, page) => setPagination(page, limit)}
           mobileCardRender={row => (
             <div className="flex items-center gap-3 p-4">
               <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg ${row.level === 0 ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-slate-300'}`}>

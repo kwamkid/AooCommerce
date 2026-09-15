@@ -21,8 +21,8 @@
 **ที่เกิด**: [app/settings/categories/page.tsx](app/settings/categories/page.tsx), [app/settings/brands/page.tsx](app/settings/brands/page.tsx)
 **อาการ**: ข้อมูลเรียงเป็นการ์ดยาว แยกหมวดหลักกับหมวดย่อยได้ยาก; การเพิ่มและแก้ไขแทรกอยู่กลางรายการ; หน้าแบรนด์วางหลาย input ในแถวเดียวจนแน่นและพฤติกรรมบนมือถือไม่สม่ำเสมอ
 **Root cause**: สองหน้าสร้าง input, search, icon button, warning และ form layout เองแทน shared components ทำให้โครงสร้าง list page ต่างจากหน้าอื่นและมี style ซ้ำจำนวนมาก
-**วิธีแก้**: เปลี่ยนทั้งสองหน้าเป็น `PageHeader` + `SearchInput` + `DataTable` + `ActionMenu`; ใช้ `Modal`, `FormInput`, `FormSelect`, `EntitySearchInput`, `Alert`, `Button` และ `SaveButton` สำหรับทุก action/form; หน้า category flatten hierarchy พร้อม icon, badge และชื่อหมวดหลัก ส่วนหน้า brand แยก Supplier, GP และฐานราคาเป็นคอลัมน์ — พร้อม mobile card ของแต่ละหน้า
-**ป้องกัน regression**: หน้า master-data list ใหม่ต้องเริ่มจาก shared list-page composition; ห้ามเพิ่ม native input/button/select ในตัวหน้า และหน้าที่ columns ขึ้นกับ feature flag ต้องรอ `featuresFetched` ก่อน mount `DataTable` เพื่อไม่ให้ column visibility ถูกสร้างจาก schema ที่ยังไม่ครบ
+**วิธีแก้**: เปลี่ยนทั้งสองหน้าเป็น `PageHeader` + `SearchInput` + `DataTable` + `ActionMenu`; ใช้ `Modal`, `FormInput`, `FormSelect`, `EntitySearchInput`, `Alert`, `Button` และ `SaveButton` สำหรับทุก action/form; หน้า category flatten hierarchy พร้อม icon, badge และชื่อหมวดหลัก ส่วนหน้า brand แยก Supplier, GP และฐานราคาเป็นคอลัมน์ — พร้อม mobile card และ pagination มาตรฐาน 20/50/100/200 รายการต่อหน้าที่จำ `page`/`limit` ใน URL
+**ป้องกัน regression**: หน้า master-data list ใหม่ต้องเริ่มจาก shared list-page composition; ห้ามเพิ่ม native input/button/select ในตัวหน้า และหน้าที่ columns ขึ้นกับ feature flag ต้องรอ `featuresFetched` ก่อน mount `DataTable` เพื่อไม่ให้ column visibility ถูกสร้างจาก schema ที่ยังไม่ครบ; การค้นหาต้องรีเซ็ตกลับหน้า 1 และจำนวนแถวต่อหน้าต้องใช้ enum กลางของ `Pagination`
 
 ## 2026-09-15 — Placeholder สินค้าไม่มีรูปในตารางถูกยืดเป็นสี่เหลี่ยมผืนผ้า
 
