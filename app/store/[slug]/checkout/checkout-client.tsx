@@ -125,6 +125,8 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
   const [account, setAccount] = useState<{ signedIn: boolean; isStaff: boolean; customer: LinkedCustomer | null }>(
     { signedIn: false, isStaff: false, customer: null },
   );
+  /** ถาม `/api/storefront/me` เสร็จหรือยัง — ก่อนเสร็จห้ามวาดแถบบัญชีแบบเดา (ดู CheckoutAccountBar) */
+  const [accountReady, setAccountReady] = useState(false);
 
   useEffect(() => {
     const saved = readContact(shop);
@@ -145,6 +147,7 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
       try {
         const res = await fetch(`/api/storefront/me?shop=${encodeURIComponent(shop)}`);
         if (!res.ok) return;
+        setAccountReady(true);
         const d = await res.json();
         if (!alive) return;
         setAccount({ signedIn: !!d.signed_in, isStaff: !!d.is_staff, customer: d.customer || null });
@@ -177,6 +180,9 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
         if (!c?.email && u.email) setEmail(u.email);
       } catch {
         // ล็อกอินไม่ได้/เน็ตหลุด ก็แค่กรอกเองตามปกติ ไม่ควรบล็อกการสั่งซื้อ
+      } finally {
+        // ถามไม่สำเร็จก็ต้องเลิกรอ ไม่งั้นแถบบัญชีค้างเป็นโครงเทาตลอดกาล
+        if (alive) setAccountReady(true);
       }
     })();
     return () => { alive = false; };
@@ -500,6 +506,7 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
             isStaff={account.isStaff}
             lineLogin={lineLogin}
             lineChannelId={lineChannelId}
+            ready={accountReady}
             onSignedOut={() => setAccount({ signedIn: false, isStaff: false, customer: null })}
           />
           <section className="sf-fieldset">

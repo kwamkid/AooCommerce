@@ -25,10 +25,18 @@ interface Props {
   lineChannelId: string;
   /** ออกจากระบบแล้วให้ฟอร์มกลับไปโหมดไม่ล็อกอิน โดยไม่โหลดหน้าใหม่ (ที่พิมพ์ไว้จะได้ไม่หาย) */
   onSignedOut: () => void;
+  /**
+   * รู้ผลแล้วหรือยังว่าลูกค้าล็อกอินอยู่ไหม (`/api/storefront/me` ตอบกลับมาหรือยัง)
+   *
+   * ⚠️ ก่อนรู้ผล **ห้ามเดาว่ายังไม่ล็อกอิน** — เดาแล้ววาดปุ่ม "เข้าสู่ระบบด้วย Google"
+   * ทิ้งไว้ครู่หนึ่ง พอคำตอบมาถึงก็สลับเป็นชื่อผู้ใช้ คนที่ล็อกอินอยู่แล้วจะเห็นปุ่ม
+   * ชวนล็อกอินกะพริบขึ้นมาทุกครั้งที่เปิดหน้า (เจ้าของแจ้ง 2026-09-16)
+   */
+  ready: boolean;
 }
 
 export default function CheckoutAccountBar({
-  shop, signedIn, linkedName, avatarUrl, isStaff, lineLogin, lineChannelId, onSignedOut,
+  shop, signedIn, linkedName, avatarUrl, isStaff, lineLogin, lineChannelId, onSignedOut, ready,
 }: Props) {
   const [busy, setBusy] = useState('');
   const [profile, setProfile] = useState<{ name: string; avatar: string | null } | null>(null);
@@ -58,6 +66,17 @@ export default function CheckoutAccountBar({
     setBusy('');
     onSignedOut();
   };
+
+  // ยังไม่รู้คำตอบ = วางโครงสูงเท่าแถบตอนล็อกอินไว้ก่อน ไม่วาดปุ่มชวนล็อกอิน
+  // (คนที่ล็อกอินอยู่แล้วจะไม่เห็นอะไรกะพริบเลย เพราะความสูงเท่ากันพอดี)
+  if (!ready) {
+    return (
+      <div className="sf-acctbar" aria-busy="true" aria-label="กำลังตรวจสอบบัญชี">
+        <span className="sf-skel sf-acct-avatar sf-skel-acct-avatar" />
+        <span className="sf-acct-name"><span className="sf-skel sf-skel-acct-name" /></span>
+      </div>
+    );
+  }
 
   if (signedIn) {
     return (
