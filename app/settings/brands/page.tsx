@@ -307,8 +307,10 @@ function BrandsPageInner() {
         <PageHeader icon={<Award />} title="แบรนด์" subtitle={`จัดการแบรนด์ Supplier และค่า GP เริ่มต้น รวม ${brands.length} แบรนด์`}
           actions={<Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => setAddModalOpen(true)}>เพิ่มแบรนด์</Button>} />
         <div className="data-filter-card">
-          <SearchInput value={searchInput} onChange={handleSearchChange} placeholder="ค้นหาแบรนด์หรือ Supplier..." className="w-full md:w-96" />
-          <Badge tone="orange">{brands.length} แบรนด์</Badge>
+          <div className="flex items-center gap-3">
+            <SearchInput value={searchInput} onChange={handleSearchChange} placeholder="ค้นหาแบรนด์หรือ Supplier..." className="min-w-0 flex-1 md:max-w-96" />
+            <Badge tone="orange">{brands.length} แบรนด์</Badge>
+          </div>
         </div>
         <DataTable
           storageKey="settings-brands" columns={columns} data={paginatedBrands} loading={loading}

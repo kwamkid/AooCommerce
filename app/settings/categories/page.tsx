@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { CornerDownRight, Edit2, Folder, FolderTree, Plus, Tag, Trash2 } from 'lucide-react';
+import { ChevronDown, CornerDownRight, Edit2, Folder, FolderTree, Plus, Tag, Trash2 } from 'lucide-react';
 import { DEFAULT_RECORDS_PER_PAGE, RECORDS_PER_PAGE_OPTIONS } from '@/app/components/Pagination';
 import Layout from '@/components/layout/Layout';
 import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
@@ -32,10 +32,11 @@ interface CategoryItem {
   children?: CategoryItem[];
 }
 
-interface CategoryRow extends CategoryItem {
+interface CategoryRow extends Omit<CategoryItem, 'children'> {
   level: 0 | 1;
   parentName: string | null;
   childCount: number;
+  children?: CategoryRow[];
 }
 
 export default function CategoriesPageWrapper() {
@@ -66,6 +67,7 @@ function CategoriesPage() {
   const [editingName, setEditingName] = useState('');
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [expandedMobileIds, setExpandedMobileIds] = useState<Set<string>>(() => new Set());
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const fetchCategories = useCallback(async () => {
@@ -99,25 +101,39 @@ function CategoriesPage() {
     }, 300);
   }, [router, searchParams]);
 
-  const rows = useMemo<CategoryRow[]>(() => categories.flatMap(parent => [
-    { ...parent, level: 0, parentName: null, childCount: parent.children?.length || 0 },
-    ...(parent.children || []).map(child => ({
-      ...child, level: 1 as const, parentName: parent.name, childCount: 0,
+  const parentRows = useMemo<CategoryRow[]>(() => categories.map(parent => ({
+    ...parent,
+    level: 0,
+    parentName: null,
+    childCount: parent.children?.length || 0,
+    children: (parent.children || []).map(child => ({
+      id: child.id,
+      name: child.name,
+      parent_id: child.parent_id,
+      sort_order: child.sort_order,
+      level: 1,
+      parentName: parent.name,
+      childCount: 0,
     })),
-  ]), [categories]);
+  })), [categories]);
 
-  const filteredRows = useMemo(() => {
+  const rows = useMemo(
+    () => parentRows.flatMap(parent => [parent, ...(parent.children || [])]),
+    [parentRows],
+  );
+
+  const displayRows = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return rows;
+    if (!query) return parentRows;
     return rows.filter(row => row.name.toLowerCase().includes(query)
       || row.parentName?.toLowerCase().includes(query));
-  }, [rows, searchQuery]);
+  }, [parentRows, rows, searchQuery]);
 
   const parentCount = categories.length;
   const childCount = rows.length - parentCount;
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / recordsPerPage));
+  const totalPages = Math.max(1, Math.ceil(displayRows.length / recordsPerPage));
   const currentPage = Math.min(requestedPage, totalPages);
-  const paginatedRows = filteredRows.slice(
+  const paginatedRows = displayRows.slice(
     (currentPage - 1) * recordsPerPage,
     currentPage * recordsPerPage,
   );
@@ -234,6 +250,15 @@ function CategoriesPage() {
   ];
   const renderActions = (row: CategoryRow) => <ActionMenu items={actionItems(row)} />;
 
+  const toggleMobileExpanded = (id: string) => {
+    setExpandedMobileIds(previous => {
+      const next = new Set(previous);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   const columns: DataTableColumn<CategoryRow>[] = [
     {
       key: 'name', label: 'หมวดหมู่', alwaysVisible: true, grow: true,
@@ -275,30 +300,51 @@ function CategoriesPage() {
           actions={<Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => openAddModal()}>เพิ่มหมวดหมู่</Button>}
         />
         <div className="data-filter-card">
-          <SearchInput value={searchInput} onChange={handleSearchChange} placeholder="ค้นหาหมวดหมู่หรือหมวดย่อย..." className="w-full md:w-96" />
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            <SearchInput value={searchInput} onChange={handleSearchChange} placeholder="ค้นหาหมวดหมู่หรือหมวดย่อย..." className="min-w-0 flex-1 md:max-w-96" />
+            <div className="flex flex-shrink-0 items-center gap-2">
             <Badge tone="orange">{parentCount} หมวดหลัก</Badge>
             <Badge tone="gray">{childCount} หมวดย่อย</Badge>
+            </div>
           </div>
         </div>
         <DataTable
           storageKey="settings-categories" columns={columns} data={paginatedRows} loading={loading}
           getRowId={row => row.id} emptyMessage={searchQuery ? 'ไม่พบหมวดหมู่ที่ค้นหา' : 'ยังไม่มีหมวดหมู่สินค้า'}
           emptyIcon={<FolderTree className="w-10 h-10" />} currentPage={currentPage} totalPages={totalPages}
-          totalRecords={filteredRows.length} recordsPerPage={recordsPerPage}
+          totalRecords={displayRows.length} recordsPerPage={recordsPerPage}
           onPageChange={page => setPagination(page)}
           onRecordsPerPageChange={limit => setPagination(1, limit)}
           onLimitChange={(limit, page) => setPagination(page, limit)}
+          getSubRows={searchQuery.trim() ? undefined : row => row.children}
           mobileCardRender={row => (
-            <div className="flex items-center gap-3 p-4">
-              <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg ${row.level === 0 ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-slate-300'}`}>
-                {row.level === 0 ? <Folder className="w-5 h-5" /> : <CornerDownRight className="w-5 h-5" />}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="data-primary truncate">{row.name}</p>
-                <p className="page-subtitle">{row.level === 0 ? `${row.childCount} หมวดย่อย` : `หมวดย่อยของ ${row.parentName}`}</p>
+            <div>
+              <div className="flex items-center gap-3">
+                <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg ${row.level === 0 ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-slate-300'}`}>
+                  {row.level === 0 ? <Folder className="w-5 h-5" /> : <CornerDownRight className="w-5 h-5" />}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="data-primary truncate">{row.name}</p>
+                  <p className="page-subtitle">{row.level === 0 ? `${row.childCount} หมวดย่อย` : `หมวดย่อยของ ${row.parentName}`}</p>
+                </div>
+                {!searchQuery.trim() && row.children && row.children.length > 0 && (
+                  <Button variant="ghost" size="sm" onClick={() => toggleMobileExpanded(row.id)} aria-label={expandedMobileIds.has(row.id) ? 'ซ่อนหมวดย่อย' : 'แสดงหมวดย่อย'}>
+                    <ChevronDown className={`w-4 h-4 transition-transform ${expandedMobileIds.has(row.id) ? 'rotate-180' : ''}`} />
+                  </Button>
+                )}
+                {renderActions(row)}
               </div>
-              {renderActions(row)}
+              {!searchQuery.trim() && expandedMobileIds.has(row.id) && row.children && (
+                <div className="mt-3 divide-y divide-gray-100 border-t border-gray-100 pl-10 dark:divide-slate-700 dark:border-slate-700">
+                  {row.children.map(child => (
+                    <div key={child.id} className="flex items-center gap-2 py-3">
+                      <CornerDownRight className="w-4 h-4 flex-shrink-0 text-gray-400" />
+                      <span className="min-w-0 flex-1 truncate">{child.name}</span>
+                      {renderActions(child)}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         />
