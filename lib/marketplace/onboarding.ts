@@ -28,8 +28,8 @@ export interface OnboardingAccount {
   metadata: Record<string, unknown> | null;
 }
 
-/** ตั้งยอดตั้งต้นแล้วหรือยัง — route ดึง/ส่งสต็อกทั้งร้านเป็นคนประทับเวลานี้ */
-export function stockInitializedAt(account: OnboardingAccount): string | null {
+/** ตั้งยอดตั้งต้นแล้วหรือยัง — route ดึง/ส่งสต็อกทั้งร้านเป็นคนประทับเวลานี้ (ถามได้จากแค่ metadata) */
+export function stockInitializedAt(account: Pick<OnboardingAccount, 'metadata'>): string | null {
   const raw = account.metadata?.stock_initialized_at;
   return typeof raw === 'string' ? raw : null;
 }

@@ -16,6 +16,9 @@ import { BEAM_RECONCILE_NOTE } from '@/lib/beam/settle';
 // ตรวจสุขภาพช่องทางแชทแบบถามแพลตฟอร์มจริง — แทนการเดาจาก "ความเงียบ" ที่เตือนผิดตลอด
 import { runChatChannelHealthChecks, chatHealthFix } from '@/lib/chat/channel-health';
 import { AD_ACCOUNT_FIX } from '@/lib/ads/accounts';
+// "ตั้งยอดตั้งต้นแล้วหรือยัง" มีเจ้าของอยู่แล้ว — ห้ามแกะ metadata.stock_initialized_at เองที่นี่
+import { stockInitializedAt } from '@/lib/marketplace/onboarding';
+import { getStockConfig } from '@/lib/stock-utils';
 
 export type WatchdogSeverity = 'critical' | 'warning';
 
@@ -96,7 +99,7 @@ export async function collectWatchdogIssues(
 
   let accountQuery = supabaseAdmin
     .from('marketplace_accounts')
-    .select('id, company_id, platform, shop_id, shop_name, is_active, last_sync_at, created_at, refresh_token, refresh_token_expires_at, chat_access_token, chat_refresh_token_expires_at, updated_at, metadata');
+    .select('id, company_id, platform, shop_id, shop_name, is_active, auto_sync_stock, last_sync_at, created_at, refresh_token, refresh_token_expires_at, chat_access_token, chat_refresh_token_expires_at, updated_at, metadata');
   if (opts.companyId) accountQuery = accountQuery.eq('company_id', opts.companyId);
 
   const [{ data: accounts }, { data: companies }] = await Promise.all([
@@ -107,6 +110,11 @@ export async function collectWatchdogIssues(
   ]);
 
   const companyName = new Map((companies || []).map(c => [c.id, c.name as string]));
+
+  /** ร้านที่เปิดซิงค์สต็อกอัตโนมัติไว้ทั้งที่ยังไม่เคยตั้งยอดตั้งต้น — เช็คต่อหลังลูป
+   *  (ต้องถาม marketplace_product_links + แพ็กเกจของบริษัท ทำทีเดียวจะได้ไม่ยิงทีละร้านในลูป) */
+  type AccountBase = Pick<WatchdogIssue, 'companyId' | 'companyName' | 'channel'>;
+  const stockInitPending: { id: string; label: string; shop: string; base: AccountBase }[] = [];
 
   for (const a of accounts || []) {
     const platform = a.platform || 'shopee';
@@ -231,6 +239,65 @@ export async function collectWatchdogIssues(
         url: chatSettingsUrl(platform),
       });
     }
+
+    // เปิดซิงค์สต็อกอัตโนมัติไว้ทั้งที่ยังไม่เคยตั้งยอดตั้งต้น — เก็บไว้เช็คต่อหลังลูป
+    // (ยังขาดอีก 2 เงื่อนไข: ต้องมีสินค้าที่ผูกไว้จริง + บริษัทต้องเปิดระบบคลัง)
+    const autoSyncOn = a.auto_sync_stock !== false;
+    const stockReady = stockInitializedAt({ metadata: a.metadata as Record<string, unknown> | null }) !== null;
+    if (autoSyncOn && !stockReady) {
+      stockInitPending.push({ id: a.id as string, label, shop, base });
+    }
+  }
+
+  // ── ร้านที่เปิดซิงค์สต็อกอัตโนมัติ แต่ยังไม่เคยตั้งยอดสต็อกตั้งต้น ──
+  //
+  // อันตรายเงียบที่สุดของสายสต็อก: ทุกครั้งที่สต็อกในระบบขยับ ชั้นกลางจะส่งยอดของ
+  // คลังที่ยังไม่เคยตั้ง (ศูนย์) ขึ้นไปทับของจริงบนร้าน = ปิดการขายทั้งร้านโดยไม่มีอาการ
+  // ⇒ เตือนก่อนที่สต็อกจะขยับ ไม่ใช่รอให้ของบนร้านหายแล้วค่อยรู้
+  try {
+    if (stockInitPending.length > 0) {
+      // ยังไม่ผูกสินค้าสักตัว = ยังไม่มีอะไรให้ส่งขึ้นร้าน (ขั้นนำเข้าสินค้าเตือนอยู่แล้ว)
+      // ถามทีละร้านด้วย limit(1) — ร้านที่ค้างขั้นนี้มีไม่กี่ร้าน และ idx_mpl_account รับตรง ๆ
+      const linked = await Promise.all(stockInitPending.map(async c => {
+        const { data } = await supabaseAdmin
+          .from('marketplace_product_links')
+          .select('id')
+          .eq('account_id', c.id)
+          .eq('sync_enabled', true)
+          .limit(1);
+        return (data || []).length > 0 ? c : null;
+      }));
+      const pending = linked.filter((c): c is NonNullable<typeof c> => c !== null);
+
+      // แพ็กเกจที่ไม่มีระบบคลัง = ไม่มียอดให้ตั้งตั้งแต่แรก (ขั้นนี้ถูกซ่อนในหน้าต้อนรับด้วย)
+      // ถามครั้งเดียวต่อบริษัท ไม่ใช่ต่อร้าน
+      const stockEnabled = new Map<string, boolean>();
+      await Promise.all([...new Set(pending.map(c => c.base.companyId as string))].map(
+        async id => { stockEnabled.set(id, (await getStockConfig(id)).stockEnabled); }
+      ));
+
+      for (const c of pending) {
+        if (!stockEnabled.get(c.base.companyId as string)) continue;
+        issues.push({
+          ...c.base,
+          code: `stock_not_initialized:${c.id}`,
+          groupKey: 'stock_not_initialized',
+          scope: 'company',
+          // ยังไม่ใช่ของพัง แต่พังทันทีที่สต็อกขยับ — เตือน ไม่ใช่ critical แบบ token ตาย
+          severity: 'warning',
+          title: `${c.label} "${c.shop}" ยังไม่ได้ตั้งยอดสต็อกตั้งต้น`,
+          detail: 'เปิดซิงค์สต็อกอัตโนมัติไว้ทั้งที่ยังไม่ได้ตั้งยอดตั้งต้น — ทุกครั้งที่สต็อกขยับ ระบบส่งยอดของคลังที่ยังไม่เคยตั้งขึ้นไปทับของจริงบนร้าน',
+          fix: `เปิดหน้า ซิงค์สินค้า & สต็อก ของร้าน ${c.shop} แล้วตั้งยอดตั้งต้นครั้งเดียว — "ดึงสต็อกจากร้าน" ถ้ายอดบนร้านถูกต้องกว่า หรือ "ส่งสต็อกขึ้นร้าน" ถ้ายอดในระบบถูกต้องกว่า · ยังไม่พร้อมตั้งตอนนี้ให้ปิดสวิตช์ซิงค์สต็อกอัตโนมัติของร้านนี้ไว้ก่อน`,
+          actionLabel: 'ไปตั้งยอดตั้งต้น',
+          url: `/marketplace/sync?job=pull_stock&account=${c.id}`,
+          // งานตั้งค่าที่ต้องมีคนลงมือ ไม่ใช่ของที่หายเองใน 6 ชม. — วันละครั้งพอ
+          renotifyHours: 24,
+        });
+      }
+    }
+  } catch (err) {
+    // เรื่องนี้ล้มต้องไม่ทำให้ check อื่นทั้งหมดหายไป
+    console.error('[watchdog] stock init check failed:', err instanceof Error ? err.message : err);
   }
 
   // ── ช่องทางแชท push (LINE/Facebook) — ตรวจจริงกับ API ของแพลตฟอร์ม ──
