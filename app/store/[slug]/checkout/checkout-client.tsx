@@ -147,10 +147,13 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
       try {
         const res = await fetch(`/api/storefront/me?shop=${encodeURIComponent(shop)}`);
         if (!res.ok) return;
-        setAccountReady(true);
         const d = await res.json();
         if (!alive) return;
+        // ⚠️ ปลดธง "รู้ผลแล้ว" พร้อมกับค่าจริงเสมอ ห้ามปลดก่อน — ปลดตอนยังอ่าน json ไม่เสร็จ
+        // จะมีจังหวะที่ ready=true แต่ signedIn ยัง false ปุ่มชวนล็อกอินก็โผล่มาวาบหนึ่ง
+        // แล้วสลับ ซึ่งคือปัญหาเดิมที่ ready ตั้งใจจะแก้ (React batch สอง setState นี้ให้เป็น render เดียว)
         setAccount({ signedIn: !!d.signed_in, isStaff: !!d.is_staff, customer: d.customer || null });
+        setAccountReady(true);
 
         if (readContact(shop)) return;
         const c: LinkedCustomer | null = d.customer;
