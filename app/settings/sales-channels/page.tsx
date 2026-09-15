@@ -178,10 +178,10 @@ export default function SalesChannelsPage() {
   // ร้าน marketplace ทุกแพลตฟอร์มดึงครั้งเดียวที่นี่ — ตัวเลขบนแท็บต้องรู้ตั้งแต่ก่อนเปิดแท็บนั้น
   // (MarketplaceConnections รับไปใช้ต่อ ไม่ดึงซ้ำ)
   const mpAccounts = useMarketplaceAccounts(marketplaceTabVisible);
-  // ปุ่มงานซิงค์ขึ้นเมื่อเปิด feature marketplace **และ** มีร้านเชื่อมไว้แล้วอย่างน้อย 1 ร้าน
-  // — ยังไม่มีร้าน กดเข้าไปก็เจอรายการเปล่า
+  // ปุ่มงานซิงค์ขึ้นเมื่อเปิด feature marketplace **และ** เชื่อมร้านไว้มากกว่า 1 ร้าน
+  // (เจ้าของกำหนดเอง — เปิด feature เฉย ๆ ยังไม่ให้ขึ้น)
   const hasMarketplaceShops =
-    mpAccounts.shopee.length + mpAccounts.tiktok.length + mpAccounts.lazada.length > 0;
+    mpAccounts.shopee.length + mpAccounts.tiktok.length + mpAccounts.lazada.length > 1;
 
   // เริ่ม OAuth เชื่อมร้าน marketplace — สำเร็จแล้ว browser จะ redirect ออกไปเลย
   // จึงไม่ reset connecting ในเส้นทางสำเร็จ (bfcache reset ด้านบนจัดการตอนกด back)
