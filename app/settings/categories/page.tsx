@@ -1,24 +1,27 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { CornerDownRight, Edit2, Folder, FolderTree, Plus, Tag, Trash2 } from 'lucide-react';
 import Layout from '@/components/layout/Layout';
+import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
+import Badge from '@/components/ui/Badge';
+import Button from '@/components/ui/Button';
+import Container from '@/components/ui/Container';
+import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
+import FormInput from '@/components/ui/FormInput';
+import FormSelect from '@/components/ui/FormSelect';
+import Modal from '@/components/ui/Modal';
+import PageHeader from '@/components/ui/PageHeader';
+import SaveButton from '@/components/ui/SaveButton';
+import SearchInput from '@/components/ui/SearchInput';
+import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
+import { apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { can } from '@/lib/permissions';
+import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useToast } from '@/lib/toast-context';
-import { useConfirmDialog } from '@/lib/useConfirmDialog';
-import { apiFetch } from '@/lib/api-client';
-import {
-  Loader2, Plus, Check, X, Edit2, Trash2, Tag, ChevronRight, Search
-} from 'lucide-react';
-import FormSelect from '@/components/ui/FormSelect';
-import Container from '@/components/ui/Container';
-import PageHeader from '@/components/ui/PageHeader';
-import Card from '@/components/ui/Card';
-import Button from '@/components/ui/Button';
-import SaveButton from '@/components/ui/SaveButton';
-import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 
 interface CategoryItem {
   id: string;
@@ -28,92 +31,38 @@ interface CategoryItem {
   children?: CategoryItem[];
 }
 
+interface CategoryRow extends CategoryItem {
+  level: 0 | 1;
+  parentName: string | null;
+  childCount: number;
+}
+
 export default function CategoriesPageWrapper() {
-  return (
-    <Suspense fallback={
-      <Layout>
-        <LoadingCard />
-      </Layout>
-    }>
-      <CategoriesPage />
-    </Suspense>
-  );
+  return <Suspense fallback={<Layout><LoadingCard /></Layout>}><CategoriesPage /></Suspense>;
 }
 
 function CategoriesPage() {
   const { userProfile } = useAuth();
   const { showToast } = useToast();
   const { confirmDialog, confirm } = useConfirmDialog();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialQuery = searchParams.get('q') || '';
 
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState<CategoryItem[]>([]);
-
-  // Inline edit
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [searchInput, setSearchInput] = useState(initialQuery);
+  const [searchQuery, setSearchQuery] = useState(initialQuery);
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [addParentId, setAddParentId] = useState<string | null>(null);
+  const [addName, setAddName] = useState('');
+  const [editingCategory, setEditingCategory] = useState<CategoryRow | null>(null);
   const [editingName, setEditingName] = useState('');
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-
-  // Add form
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [addParentId, setAddParentId] = useState<string | null>(null);
-  const [addName, setAddName] = useState('');
-
-  // Add sub-category inline
-  const [addingChildParentId, setAddingChildParentId] = useState<string | null>(null);
-  const [childName, setChildName] = useState('');
-
-  // Search
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const initialQ = searchParams.get('q') || '';
-  const [searchInput, setSearchInput] = useState(initialQ);
-  const [searchQuery, setSearchQuery] = useState(initialQ);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  const handleSearchChange = useCallback((value: string) => {
-    setSearchInput(value);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setSearchQuery(value);
-      const params = new URLSearchParams(searchParams.toString());
-      if (value.trim()) {
-        params.set('q', value.trim());
-      } else {
-        params.delete('q');
-      }
-      const qs = params.toString();
-      router.replace(qs ? `?${qs}` : window.location.pathname);
-    }, 300);
-  }, [searchParams, router]);
-
-  useEffect(() => {
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, []);
-
-  const filteredCategories = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return categories;
-    return categories
-      .map(parent => {
-        const parentMatch = parent.name.toLowerCase().includes(q);
-        if (parentMatch) return parent; // show parent with all children
-        const matchedChildren = parent.children?.filter(child =>
-          child.name.toLowerCase().includes(q)
-        );
-        if (matchedChildren && matchedChildren.length > 0) {
-          return { ...parent, children: matchedChildren };
-        }
-        return null;
-      })
-      .filter((p): p is CategoryItem => p !== null);
-  }, [categories, searchQuery]);
-
-  useFetchOnce(() => {
-    fetchCategories();
-  }, can(userProfile, 'masterdata.categories'));
-
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     try {
       const res = await apiFetch('/api/categories');
       if (!res.ok) throw new Error('Failed to fetch');
@@ -125,387 +74,235 @@ function CategoriesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showToast]);
 
-  const resetAddForm = () => {
-    setShowAddForm(false);
-    setAddParentId(null);
+  useFetchOnce(fetchCategories, can(userProfile, 'masterdata.categories'));
+  useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current); }, []);
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchInput(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setSearchQuery(value);
+      const params = new URLSearchParams(searchParams.toString());
+      if (value.trim()) params.set('q', value.trim());
+      else params.delete('q');
+      const queryString = params.toString();
+      router.replace(queryString ? `?${queryString}` : window.location.pathname);
+    }, 300);
+  }, [router, searchParams]);
+
+  const rows = useMemo<CategoryRow[]>(() => categories.flatMap(parent => [
+    { ...parent, level: 0, parentName: null, childCount: parent.children?.length || 0 },
+    ...(parent.children || []).map(child => ({
+      ...child, level: 1 as const, parentName: parent.name, childCount: 0,
+    })),
+  ]), [categories]);
+
+  const filteredRows = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return rows;
+    return rows.filter(row => row.name.toLowerCase().includes(query)
+      || row.parentName?.toLowerCase().includes(query));
+  }, [rows, searchQuery]);
+
+  const parentCount = categories.length;
+  const childCount = rows.length - parentCount;
+
+  const openAddModal = (parentId: string | null = null) => {
     setAddName('');
+    setAddParentId(parentId);
+    setAddModalOpen(true);
   };
-
-  const resetChildForm = () => {
-    setAddingChildParentId(null);
-    setChildName('');
+  const closeAddModal = () => {
+    if (saving) return;
+    setAddModalOpen(false);
+    setAddName('');
+    setAddParentId(null);
   };
-
-  const cancelEdit = () => {
-    setEditingId(null);
+  const openEditModal = (category: CategoryRow) => {
+    setEditingCategory(category);
+    setEditingName(category.name);
+  };
+  const closeEditModal = () => {
+    if (saving) return;
+    setEditingCategory(null);
     setEditingName('');
   };
 
-  const startEdit = (cat: CategoryItem) => {
-    setEditingId(cat.id);
-    setEditingName(cat.name);
-    resetAddForm();
-    resetChildForm();
-  };
-
-  const handleSaveEdit = async () => {
-    if (!editingName.trim()) {
-      showToast('กรุณากรอกชื่อหมวดหมู่', 'error');
-      return;
-    }
-    setSaving(true);
-    try {
-      const res = await apiFetch('/api/categories', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: editingId, name: editingName.trim() }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to update');
-      }
-      showToast('อัปเดตหมวดหมู่สำเร็จ');
-      cancelEdit();
-      await fetchCategories();
-    } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : 'บันทึกไม่สำเร็จ';
-      showToast(msg, 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const handleAdd = async () => {
-    if (!addName.trim()) {
-      showToast('กรุณากรอกชื่อหมวดหมู่', 'error');
-      return;
-    }
+    if (!addName.trim()) return showToast('กรุณากรอกชื่อหมวดหมู่', 'error');
     setSaving(true);
     try {
       const res = await apiFetch('/api/categories', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: addName.trim(), parent_id: addParentId }),
       });
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || 'Failed to create');
       }
-      showToast('เพิ่มหมวดหมู่สำเร็จ');
-      resetAddForm();
+      showToast(addParentId ? 'เพิ่มหมวดย่อยสำเร็จ' : 'เพิ่มหมวดหมู่สำเร็จ');
+      setAddModalOpen(false);
+      setAddName('');
+      setAddParentId(null);
       await fetchCategories();
     } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : 'เพิ่มไม่สำเร็จ';
-      showToast(msg, 'error');
-    } finally {
-      setSaving(false);
-    }
+      showToast(error instanceof Error ? error.message : 'เพิ่มไม่สำเร็จ', 'error');
+    } finally { setSaving(false); }
   };
 
-  const handleAddChild = async (parentId: string) => {
-    if (!childName.trim()) {
-      showToast('กรุณากรอกชื่อหมวดย่อย', 'error');
-      return;
-    }
+  const handleSaveEdit = async () => {
+    if (!editingCategory || !editingName.trim()) return showToast('กรุณากรอกชื่อหมวดหมู่', 'error');
     setSaving(true);
     try {
       const res = await apiFetch('/api/categories', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: childName.trim(), parent_id: parentId }),
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editingCategory.id, name: editingName.trim() }),
       });
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || 'Failed to create');
+        throw new Error(data.error || 'Failed to update');
       }
-      showToast('เพิ่มหมวดย่อยสำเร็จ');
-      resetChildForm();
+      showToast('อัปเดตหมวดหมู่สำเร็จ');
+      setEditingCategory(null);
+      setEditingName('');
       await fetchCategories();
     } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : 'เพิ่มไม่สำเร็จ';
-      showToast(msg, 'error');
-    } finally {
-      setSaving(false);
-    }
+      showToast(error instanceof Error ? error.message : 'บันทึกไม่สำเร็จ', 'error');
+    } finally { setSaving(false); }
   };
 
-  const handleDelete = async (cat: CategoryItem) => {
-    const childCount = cat.children?.length || 0;
-    const msg = childCount > 0
-      ? `หมวดหมู่ "${cat.name}" มีหมวดย่อย ${childCount} รายการ จะถูกลบด้วย ต้องการลบ?`
-      : `ต้องการลบหมวดหมู่ "${cat.name}"?`;
-    const ok = await confirm({ title: msg, variant: 'danger' }); if (!ok) return;
-
-    setDeletingId(cat.id);
+  const handleDelete = async (category: CategoryRow) => {
+    const source = category.level === 0 ? categories.find(item => item.id === category.id) : category;
+    const children = source?.children || [];
+    const title = children.length
+      ? `หมวดหมู่ “${category.name}” มีหมวดย่อย ${children.length} รายการ หมวดย่อยจะถูกลบด้วย`
+      : `ต้องการลบ${category.level === 1 ? 'หมวดย่อย' : 'หมวดหมู่'} “${category.name}” หรือไม่`;
+    if (!await confirm({ title, variant: 'danger' })) return;
+    setDeletingId(category.id);
     try {
-      // Delete children first if any
-      if (childCount > 0) {
-        for (const child of cat.children!) {
-          await apiFetch(`/api/categories?id=${child.id}`, { method: 'DELETE' });
-        }
+      for (const child of children) {
+        const childRes = await apiFetch(`/api/categories?id=${child.id}`, { method: 'DELETE' });
+        if (!childRes.ok) throw new Error(`ลบหมวดย่อย “${child.name}” ไม่สำเร็จ`);
       }
-      const res = await apiFetch(`/api/categories?id=${cat.id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to delete');
+      const res = await apiFetch(`/api/categories?id=${category.id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'ลบไม่สำเร็จ');
+      }
       showToast('ลบหมวดหมู่สำเร็จ');
       await fetchCategories();
     } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : 'ลบไม่สำเร็จ';
-      showToast(msg, 'error');
-    } finally {
-      setDeletingId(null);
-    }
+      showToast(error instanceof Error ? error.message : 'ลบไม่สำเร็จ', 'error');
+    } finally { setDeletingId(null); }
   };
 
-  const handleDeleteChild = async (child: CategoryItem) => {
-    const ok = await confirm({ title: `ต้องการลบหมวดย่อย "${child.name}"?`, variant: 'danger' }); if (!ok) return;
-    setDeletingId(child.id);
-    try {
-      const res = await apiFetch(`/api/categories?id=${child.id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to delete');
-      showToast('ลบหมวดย่อยสำเร็จ');
-      await fetchCategories();
-    } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : 'ลบไม่สำเร็จ';
-      showToast(msg, 'error');
-    } finally {
-      setDeletingId(null);
-    }
-  };
+  const actionItems = (row: CategoryRow): ActionItem[] => [
+    ...(row.level === 0 ? [{
+      key: 'add-child', label: 'เพิ่มหมวดย่อย', icon: <Plus className="w-4 h-4" />,
+      onClick: () => openAddModal(row.id), primary: true,
+    }] : []),
+    { key: 'edit', label: 'แก้ไขชื่อ', icon: <Edit2 className="w-4 h-4" />, onClick: () => openEditModal(row) },
+    {
+      key: 'delete', label: 'ลบ', icon: <Trash2 className="w-4 h-4" />,
+      onClick: () => void handleDelete(row), danger: true, disabled: deletingId === row.id, dividerBefore: true,
+    },
+  ];
+  const renderActions = (row: CategoryRow) => <ActionMenu items={actionItems(row)} />;
 
-  // Admin guard
-  if (userProfile && !can(userProfile, 'masterdata.categories')) {
-    return (
-      <Layout>
-        <NoPermissionCard />
-      </Layout>
-    );
-  }
+  const columns: DataTableColumn<CategoryRow>[] = [
+    {
+      key: 'name', label: 'หมวดหมู่', alwaysVisible: true, grow: true,
+      render: row => (
+        <div className={`flex items-center gap-3 ${row.level === 1 ? 'pl-7' : ''}`}>
+          <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg ${row.level === 0 ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-slate-300'}`}>
+            {row.level === 0 ? <Folder className="w-4 h-4" /> : <CornerDownRight className="w-4 h-4" />}
+          </span>
+          <div className="min-w-0">
+            <p className="data-primary truncate">{row.name}</p>
+            {row.parentName && <p className="page-subtitle truncate">อยู่ใน {row.parentName}</p>}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'type', label: 'ประเภท', defaultWidth: 150,
+      render: row => <Badge tone={row.level === 0 ? 'orange' : 'gray'}>{row.level === 0 ? 'หมวดหลัก' : 'หมวดย่อย'}</Badge>,
+    },
+    {
+      key: 'children', label: 'หมวดย่อย', align: 'center', defaultWidth: 120,
+      render: row => row.level === 0 ? `${row.childCount} รายการ` : '—',
+    },
+    {
+      key: 'actions', label: '', alwaysVisible: true, stopPropagation: true, align: 'right', defaultWidth: 64,
+      render: renderActions,
+    },
+  ];
+
+  if (userProfile && !can(userProfile, 'masterdata.categories')) return <Layout><NoPermissionCard /></Layout>;
 
   return (
     <Layout>
       <Container size="full">
-        <PageHeader title="หมวดหมู่สินค้า" subtitle="จัดการหมวดหมู่และหมวดหมู่ย่อยของสินค้า" />
-        {loading ? (
-          <LoadingCard />
-        ) : (
-          <div className="space-y-4">
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                value={searchInput}
-                onChange={e => handleSearchChange(e.target.value)}
-                placeholder="ค้นหาหมวดหมู่..."
-                className="w-full h-[42px] pl-9 pr-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
-              />
-            </div>
-
-            {/* Category count */}
-            <p className="data-text text-gray-500 dark:text-slate-400">
-              {filteredCategories.length} หมวดหมู่
-            </p>
-
-            {/* Category Cards */}
-            {filteredCategories.map(parent => (
-              <Card key={parent.id} padding="none" className="overflow-hidden">
-                {/* Parent row */}
-                <div className="flex items-center gap-3 p-4">
-                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                    <Tag className="w-4 h-4 text-primary" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    {editingId === parent.id ? (
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={editingName}
-                          onChange={e => setEditingName(e.target.value)}
-                          onKeyDown={e => { if (e.key === 'Enter') handleSaveEdit(); if (e.key === 'Escape') cancelEdit(); }}
-                          className="flex-1 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
-                          autoFocus
-                        />
-                        <button onClick={handleSaveEdit} disabled={saving} className="p-1 text-green-600 hover:text-green-700 disabled:opacity-50">
-                          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                        </button>
-                        <button onClick={cancelEdit} className="p-1 text-gray-400 hover:text-gray-600">
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium text-gray-900 dark:text-white">{parent.name}</p>
-                        {parent.children && parent.children.length > 0 && (
-                          <span className="text-xs text-gray-400 dark:text-slate-500">
-                            ({parent.children.length} หมวดย่อย)
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  {editingId !== parent.id && (
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <button
-                        onClick={() => { resetChildForm(); setAddingChildParentId(parent.id); cancelEdit(); }}
-                        className="p-1.5 text-gray-400 hover:text-primary transition-colors"
-                        title="เพิ่มหมวดย่อย"
-                      >
-                        <Plus className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => startEdit(parent)}
-                        className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors"
-                        title="แก้ไข"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(parent)}
-                        disabled={deletingId === parent.id}
-                        className="p-1.5 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
-                        title="ลบ"
-                      >
-                        {deletingId === parent.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Children */}
-                {parent.children && parent.children.length > 0 && (
-                  <div className="border-t border-gray-100 dark:border-slate-700">
-                    {parent.children.map(child => (
-                      <div key={child.id} className="flex items-center gap-3 px-4 py-2.5 pl-12 border-b border-gray-50 dark:border-slate-700/50 last:border-b-0">
-                        <ChevronRight className="w-3 h-3 text-gray-300 dark:text-slate-600 flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          {editingId === child.id ? (
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="text"
-                                value={editingName}
-                                onChange={e => setEditingName(e.target.value)}
-                                onKeyDown={e => { if (e.key === 'Enter') handleSaveEdit(); if (e.key === 'Escape') cancelEdit(); }}
-                                className="flex-1 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
-                                autoFocus
-                              />
-                              <button onClick={handleSaveEdit} disabled={saving} className="p-1 text-green-600 hover:text-green-700 disabled:opacity-50">
-                                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                              </button>
-                              <button onClick={cancelEdit} className="p-1 text-gray-400 hover:text-gray-600">
-                                <X className="w-4 h-4" />
-                              </button>
-                            </div>
-                          ) : (
-                            <p className="data-text text-gray-700 dark:text-slate-300">{child.name}</p>
-                          )}
-                        </div>
-                        {editingId !== child.id && (
-                          <div className="flex items-center gap-1 flex-shrink-0">
-                            <button
-                              onClick={() => startEdit(child)}
-                              className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
-                              title="แก้ไข"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteChild(child)}
-                              disabled={deletingId === child.id}
-                              className="p-1 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
-                              title="ลบ"
-                            >
-                              {deletingId === child.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Add child inline form */}
-                {addingChildParentId === parent.id && (
-                  <div className="border-t border-gray-100 dark:border-slate-700 px-4 py-3 pl-12 bg-gray-50 dark:bg-slate-800/50">
-                    <div className="flex items-center gap-2">
-                      <ChevronRight className="w-3 h-3 text-gray-300 dark:text-slate-600 flex-shrink-0" />
-                      <input
-                        type="text"
-                        value={childName}
-                        onChange={e => setChildName(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter') handleAddChild(parent.id); if (e.key === 'Escape') resetChildForm(); }}
-                        placeholder="ชื่อหมวดย่อย"
-                        className="flex-1 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
-                        autoFocus
-                      />
-                      <button onClick={() => handleAddChild(parent.id)} disabled={saving} className="p-1 text-green-600 hover:text-green-700 disabled:opacity-50">
-                        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                      </button>
-                      <button onClick={resetChildForm} className="p-1 text-gray-400 hover:text-gray-600">
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </Card>
-            ))}
-
-            {/* Add parent category form */}
-            {showAddForm ? (
-              <Card padding="md" className="space-y-3">
-                <div className="data-primary text-gray-700 dark:text-slate-300 flex items-center gap-2">
-                  <Tag className="w-4 h-4 text-primary" />
-                  เพิ่มหมวดหมู่
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">ชื่อหมวดหมู่ *</label>
-                  <input
-                    type="text"
-                    value={addName}
-                    onChange={e => setAddName(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') handleAdd(); if (e.key === 'Escape') resetAddForm(); }}
-                    placeholder="เช่น เครื่องดื่ม, อาหาร"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
-                    autoFocus
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">หมวดหมู่หลัก (ไม่ระบุ = เป็นหมวดหลักเอง)</label>
-                  <FormSelect
-                    value={addParentId || ''}
-                    onChange={value => setAddParentId(value || null)}
-                    options={categories.map(p => ({ id: p.id, label: p.name }))}
-                    clearLabel="-- ไม่มี (เป็นหมวดหลัก) --"
-                    searchThreshold={99}
-                  />
-                </div>
-                <div className="flex gap-2 pt-1">
-                  <SaveButton
-                    onClick={handleAdd}
-                    loading={saving}
-                  />
-                  <Button
-                    variant="secondary"
-                    onClick={resetAddForm}
-                    icon={<X className="w-4 h-4" />}
-                  >
-                    ยกเลิก
-                  </Button>
-                </div>
-              </Card>
-            ) : (
-              <button
-                onClick={() => { cancelEdit(); resetChildForm(); setShowAddForm(true); }}
-                className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-base text-gray-500 dark:text-slate-400 hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                เพิ่ม<span className="hidden md:inline">หมวดหมู่</span>
-              </button>
-            )}
+        <PageHeader
+          icon={<FolderTree />}
+          title="หมวดหมู่สินค้า"
+          subtitle={`จัดโครงสร้างสินค้า ${parentCount} หมวดหลัก และ ${childCount} หมวดย่อย`}
+          actions={<Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => openAddModal()}>เพิ่มหมวดหมู่</Button>}
+        />
+        <div className="data-filter-card">
+          <SearchInput value={searchInput} onChange={handleSearchChange} placeholder="ค้นหาหมวดหมู่หรือหมวดย่อย..." className="w-full md:w-96" />
+          <div className="flex items-center gap-2">
+            <Badge tone="orange">{parentCount} หมวดหลัก</Badge>
+            <Badge tone="gray">{childCount} หมวดย่อย</Badge>
           </div>
-        )}
+        </div>
+        <DataTable
+          storageKey="settings-categories" columns={columns} data={filteredRows} loading={loading}
+          getRowId={row => row.id} emptyMessage={searchQuery ? 'ไม่พบหมวดหมู่ที่ค้นหา' : 'ยังไม่มีหมวดหมู่สินค้า'}
+          emptyIcon={<FolderTree className="w-10 h-10" />} currentPage={1} totalPages={1}
+          totalRecords={filteredRows.length} recordsPerPage={Math.max(filteredRows.length, 1)}
+          onPageChange={() => undefined} onRecordsPerPageChange={() => undefined} hidePagination
+          mobileCardRender={row => (
+            <div className="flex items-center gap-3 p-4">
+              <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg ${row.level === 0 ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-slate-300'}`}>
+                {row.level === 0 ? <Folder className="w-5 h-5" /> : <CornerDownRight className="w-5 h-5" />}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="data-primary truncate">{row.name}</p>
+                <p className="page-subtitle">{row.level === 0 ? `${row.childCount} หมวดย่อย` : `หมวดย่อยของ ${row.parentName}`}</p>
+              </div>
+              {renderActions(row)}
+            </div>
+          )}
+        />
       </Container>
+
+      <Modal open={addModalOpen} onClose={closeAddModal} title={addParentId ? 'เพิ่มหมวดย่อย' : 'เพิ่มหมวดหมู่'}
+        icon={<Tag className="w-5 h-5 text-primary" />} size="md"
+        footer={<div className="flex justify-end gap-2"><Button variant="secondary" onClick={closeAddModal} disabled={saving}>ยกเลิก</Button><SaveButton onClick={handleAdd} loading={saving} /></div>}
+      >
+        <div className="space-y-4">
+          <FormInput label="ชื่อหมวดหมู่" required value={addName} onChange={event => setAddName(event.target.value)}
+            onKeyDown={event => { if (event.key === 'Enter') void handleAdd(); }} placeholder="เช่น เครื่องดื่ม, อาหาร" autoFocus />
+          <div>
+            <label className="form-label">หมวดหมู่หลัก</label>
+            <FormSelect value={addParentId || ''} onChange={value => setAddParentId(value || null)}
+              options={categories.map(category => ({ id: category.id, label: category.name }))}
+              clearLabel="ไม่มี — สร้างเป็นหมวดหลัก" searchThreshold={8} />
+            <p className="page-subtitle mt-1">เลือกหมวดหลักเมื่อต้องการสร้างหมวดย่อย</p>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={Boolean(editingCategory)} onClose={closeEditModal} title="แก้ไขชื่อหมวดหมู่"
+        icon={<Edit2 className="w-5 h-5 text-primary" />} size="md"
+        footer={<div className="flex justify-end gap-2"><Button variant="secondary" onClick={closeEditModal} disabled={saving}>ยกเลิก</Button><SaveButton onClick={handleSaveEdit} loading={saving} /></div>}
+      >
+        <FormInput label="ชื่อหมวดหมู่" required value={editingName} onChange={event => setEditingName(event.target.value)}
+          onKeyDown={event => { if (event.key === 'Enter') void handleSaveEdit(); }} autoFocus />
+      </Modal>
       {confirmDialog}
     </Layout>
   );

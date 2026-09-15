@@ -1,26 +1,30 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
-import Layout from '@/components/layout/Layout';
-import { useAuth } from '@/lib/auth-context';
-import { can } from '@/lib/permissions';
-import { useToast } from '@/lib/toast-context';
-import { useFeatures } from '@/lib/features-context';
-import { useConfirmDialog } from '@/lib/useConfirmDialog';
-import { apiFetch } from '@/lib/api-client';
-import {
-  Loader2, Plus, Check, X, Edit2, Trash2, Award, Factory, ChevronRight, Search,
-} from 'lucide-react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import EntitySearchInput, { EntitySearchOption } from '@/components/ui/EntitySearchInput';
-import Container from '@/components/ui/Container';
-import PageHeader from '@/components/ui/PageHeader';
-import Card from '@/components/ui/Card';
+import { Award, Edit2, Factory, PackageSearch, Plus, Trash2 } from 'lucide-react';
+import Layout from '@/components/layout/Layout';
+import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
+import Alert from '@/components/ui/Alert';
+import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
+import Container from '@/components/ui/Container';
+import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
+import EntitySearchInput from '@/components/ui/EntitySearchInput';
+import FormInput from '@/components/ui/FormInput';
+import FormSelect from '@/components/ui/FormSelect';
+import Modal from '@/components/ui/Modal';
+import PageHeader from '@/components/ui/PageHeader';
 import SaveButton from '@/components/ui/SaveButton';
+import SearchInput from '@/components/ui/SearchInput';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
-import PostfixInput from '@/components/ui/PostfixInput';
+import { apiFetch } from '@/lib/api-client';
+import { useAuth } from '@/lib/auth-context';
+import { useFeatures } from '@/lib/features-context';
+import { can } from '@/lib/permissions';
+import { useConfirmDialog } from '@/lib/useConfirmDialog';
+import { useToast } from '@/lib/toast-context';
 
 interface SupplierRef {
   id: string;
@@ -39,15 +43,7 @@ interface BrandItem {
 }
 
 export default function BrandsPage() {
-  return (
-    <Suspense fallback={
-      <Layout>
-        <LoadingCard />
-      </Layout>
-    }>
-      <BrandsPageInner />
-    </Suspense>
-  );
+  return <Suspense fallback={<Layout><LoadingCard /></Layout>}><BrandsPageInner /></Suspense>;
 }
 
 function BrandsPageInner() {
@@ -55,64 +51,27 @@ function BrandsPageInner() {
   const { showToast } = useToast();
   const { features, fetched: featuresFetched } = useFeatures();
   const { confirmDialog, confirm } = useConfirmDialog();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialQuery = searchParams.get('q') || '';
 
   const [loading, setLoading] = useState(true);
   const [brands, setBrands] = useState<BrandItem[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierRef[]>([]);
-
-  // Inline edit
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [searchInput, setSearchInput] = useState(initialQuery);
+  const [searchQuery, setSearchQuery] = useState(initialQuery);
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [addName, setAddName] = useState('');
+  const [editingBrand, setEditingBrand] = useState<BrandItem | null>(null);
   const [editingName, setEditingName] = useState('');
   const [editingSupplierId, setEditingSupplierId] = useState('');
   const [editingGpRate, setEditingGpRate] = useState('');
   const [editingGpBase, setEditingGpBase] = useState<'retail' | 'discounted'>('retail');
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  // Add form
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [addName, setAddName] = useState('');
-
-  // Search
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const initialQ = searchParams.get('q') || '';
-  const [searchInput, setSearchInput] = useState(initialQ);
-  const debounceRef = useRef<NodeJS.Timeout | null>(null);
-
-  const handleSearchChange = useCallback((value: string) => {
-    setSearchInput(value);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      const params = new URLSearchParams(searchParams.toString());
-      if (value.trim()) {
-        params.set('q', value.trim());
-      } else {
-        params.delete('q');
-      }
-      const qs = params.toString();
-      router.replace(qs ? `?${qs}` : window.location.pathname);
-    }, 300);
-  }, [router, searchParams]);
-
-  const searchQuery = (searchParams.get('q') || '').toLowerCase();
-  const filteredBrands = searchQuery
-    ? brands.filter(b => {
-        const nameMatch = b.name.toLowerCase().includes(searchQuery);
-        const supplierMatch = b.supplier?.name?.toLowerCase().includes(searchQuery);
-        return nameMatch || supplierMatch;
-      })
-    : brands;
-
-  useEffect(() => {
-    if (can(userProfile, 'masterdata.brands')) {
-      fetchBrands();
-      if (features.supplier) fetchSuppliers();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userProfile, features.supplier]);
-
-  const fetchBrands = async () => {
+  const fetchBrands = useCallback(async () => {
     try {
       const res = await apiFetch('/api/brands');
       if (!res.ok) throw new Error('Failed to fetch');
@@ -121,59 +80,106 @@ function BrandsPageInner() {
     } catch (error) {
       console.error('Error fetching brands:', error);
       showToast('โหลดข้อมูลไม่สำเร็จ', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
+    } finally { setLoading(false); }
+  }, [showToast]);
 
-  const fetchSuppliers = async () => {
+  const fetchSuppliers = useCallback(async () => {
     try {
       const res = await apiFetch('/api/suppliers');
       if (res.ok) {
         const data = await res.json();
         setSuppliers(data.data || []);
       }
-    } catch { /* ignore */ }
-  };
+    } catch { /* Supplier is optional on this page. */ }
+  }, []);
 
+  useEffect(() => {
+    if (!featuresFetched || !can(userProfile, 'masterdata.brands')) return;
+    void fetchBrands();
+    if (features.supplier) void fetchSuppliers();
+  }, [features.supplier, featuresFetched, fetchBrands, fetchSuppliers, userProfile]);
 
-  const resetAddForm = () => {
-    setShowAddForm(false);
+  useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current); }, []);
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchInput(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setSearchQuery(value);
+      const params = new URLSearchParams(searchParams.toString());
+      if (value.trim()) params.set('q', value.trim());
+      else params.delete('q');
+      const queryString = params.toString();
+      router.replace(queryString ? `?${queryString}` : window.location.pathname);
+    }, 300);
+  }, [router, searchParams]);
+
+  const filteredBrands = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return brands;
+    return brands.filter(brand => brand.name.toLowerCase().includes(query)
+      || brand.supplier?.name?.toLowerCase().includes(query));
+  }, [brands, searchQuery]);
+
+  const closeAddModal = () => {
+    if (saving) return;
+    setAddModalOpen(false);
     setAddName('');
   };
 
-  const cancelEdit = () => {
-    setEditingId(null);
+  const openEditModal = (brand: BrandItem) => {
+    setEditingBrand(brand);
+    setEditingName(brand.name);
+    setEditingSupplierId(brand.supplier_id || '');
+    setEditingGpRate(brand.default_gp_rate == null ? '' : String(brand.default_gp_rate));
+    setEditingGpBase(brand.gp_base_price || 'retail');
+  };
+
+  const closeEditModal = () => {
+    if (saving) return;
+    setEditingBrand(null);
     setEditingName('');
     setEditingSupplierId('');
     setEditingGpRate('');
     setEditingGpBase('retail');
   };
 
-  const startEdit = (brand: BrandItem) => {
-    setEditingId(brand.id);
-    setEditingName(brand.name);
-    setEditingSupplierId(brand.supplier_id || '');
-    setEditingGpRate(brand.default_gp_rate != null ? String(brand.default_gp_rate) : '');
-    setEditingGpBase(brand.gp_base_price || 'retail');
-    resetAddForm();
+  const handleAdd = async () => {
+    if (!addName.trim()) return showToast('กรุณากรอกชื่อแบรนด์', 'error');
+    setSaving(true);
+    try {
+      const res = await apiFetch('/api/brands', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: addName.trim() }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to create');
+      }
+      showToast('เพิ่มแบรนด์สำเร็จ');
+      setAddModalOpen(false);
+      setAddName('');
+      await fetchBrands();
+    } catch (error: unknown) {
+      showToast(error instanceof Error ? error.message : 'เพิ่มไม่สำเร็จ', 'error');
+    } finally { setSaving(false); }
   };
 
   const handleSaveEdit = async () => {
-    if (!editingName.trim()) {
-      showToast('กรุณากรอกชื่อแบรนด์', 'error');
-      return;
+    if (!editingBrand || !editingName.trim()) return showToast('กรุณากรอกชื่อแบรนด์', 'error');
+    const parsedGpRate = editingGpRate === '' ? null : Number(editingGpRate);
+    if (parsedGpRate != null && (!Number.isFinite(parsedGpRate) || parsedGpRate < 0 || parsedGpRate > 100)) {
+      return showToast('GP ต้องอยู่ระหว่าง 0–100%', 'error');
     }
     setSaving(true);
     try {
       const res = await apiFetch('/api/brands', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id: editingId,
+          id: editingBrand.id,
           name: editingName.trim(),
           supplier_id: editingSupplierId || null,
-          default_gp_rate: editingGpRate !== '' ? parseFloat(editingGpRate) : null,
+          default_gp_rate: parsedGpRate,
           gp_base_price: editingGpBase,
         }),
       });
@@ -182,273 +188,160 @@ function BrandsPageInner() {
         throw new Error(data.error || 'Failed to update');
       }
       showToast('อัปเดตแบรนด์สำเร็จ');
-      cancelEdit();
+      closeEditModalAfterSave();
       await fetchBrands();
     } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : 'บันทึกไม่สำเร็จ';
-      showToast(msg, 'error');
-    } finally {
-      setSaving(false);
-    }
+      showToast(error instanceof Error ? error.message : 'บันทึกไม่สำเร็จ', 'error');
+    } finally { setSaving(false); }
   };
 
-  const handleAdd = async () => {
-    if (!addName.trim()) {
-      showToast('กรุณากรอกชื่อแบรนด์', 'error');
-      return;
-    }
-    setSaving(true);
-    try {
-      const res = await apiFetch('/api/brands', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: addName.trim() }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to create');
-      }
-      showToast('เพิ่มแบรนด์สำเร็จ');
-      resetAddForm();
-      await fetchBrands();
-    } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : 'เพิ่มไม่สำเร็จ';
-      showToast(msg, 'error');
-    } finally {
-      setSaving(false);
-    }
+  const closeEditModalAfterSave = () => {
+    setEditingBrand(null);
+    setEditingName('');
+    setEditingSupplierId('');
+    setEditingGpRate('');
+    setEditingGpBase('retail');
   };
 
   const handleDelete = async (brand: BrandItem) => {
-    const ok = await confirm({ title: `ต้องการลบแบรนด์ "${brand.name}"?`, variant: 'danger' }); if (!ok) return;
+    if (!await confirm({ title: `ต้องการลบแบรนด์ “${brand.name}” หรือไม่`, variant: 'danger' })) return;
     setDeletingId(brand.id);
     try {
       const res = await apiFetch(`/api/brands?id=${brand.id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to delete');
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'ลบไม่สำเร็จ');
+      }
       showToast('ลบแบรนด์สำเร็จ');
       await fetchBrands();
     } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : 'ลบไม่สำเร็จ';
-      showToast(msg, 'error');
-    } finally {
-      setDeletingId(null);
-    }
+      showToast(error instanceof Error ? error.message : 'ลบไม่สำเร็จ', 'error');
+    } finally { setDeletingId(null); }
   };
 
-  // Admin guard
-  if (userProfile && !can(userProfile, 'masterdata.brands')) {
-    return (
-      <Layout>
-        <NoPermissionCard />
-      </Layout>
-    );
-  }
+  const actionItems = (brand: BrandItem): ActionItem[] => [
+    {
+      key: 'products', label: 'จัดการสินค้าในแบรนด์', icon: <PackageSearch className="w-4 h-4" />,
+      onClick: () => router.push(`/settings/brands/${brand.id}`), primary: true,
+    },
+    { key: 'edit', label: 'แก้ไขแบรนด์', icon: <Edit2 className="w-4 h-4" />, onClick: () => openEditModal(brand) },
+    {
+      key: 'delete', label: 'ลบ', icon: <Trash2 className="w-4 h-4" />,
+      onClick: () => void handleDelete(brand), danger: true, disabled: deletingId === brand.id, dividerBefore: true,
+    },
+  ];
+  const renderActions = (brand: BrandItem) => <ActionMenu items={actionItems(brand)} />;
 
-  // Feature gate
+  const columns: DataTableColumn<BrandItem>[] = [
+    {
+      key: 'name', label: 'แบรนด์', alwaysVisible: true, grow: true, defaultWidth: 600,
+      render: brand => (
+        <div className="flex items-center gap-3">
+          <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Award className="w-4 h-4" /></span>
+          <div className="min-w-0">
+            <Link href={`/settings/brands/${brand.id}`} className="data-primary block truncate hover:text-primary">{brand.name}</Link>
+            <p className="page-subtitle">จัดการสินค้าในแบรนด์</p>
+          </div>
+        </div>
+      ),
+    },
+    ...(features.supplier ? [{
+      key: 'supplier', label: 'Supplier', defaultWidth: 260,
+      render: (brand: BrandItem) => brand.supplier ? (
+        <div className="flex items-center gap-2"><Factory className="w-4 h-4 text-gray-400" /><span>{brand.supplier.name}</span></div>
+      ) : <span className="data-secondary text-gray-400">ยังไม่ผูก Supplier</span>,
+    }] : []),
+    ...(features.consignment ? [{
+      key: 'gp', label: 'GP เริ่มต้น', defaultWidth: 180,
+      render: (brand: BrandItem) => brand.default_gp_rate == null
+        ? <Badge tone="gray">ตามค่าเริ่มต้นบริษัท</Badge>
+        : <Badge tone="blue">{brand.default_gp_rate}%</Badge>,
+    }, {
+      key: 'gp-base', label: 'คิด GP จาก', defaultWidth: 150,
+      render: (brand: BrandItem) => brand.gp_base_price === 'discounted' ? 'ราคาลด' : 'ราคาปลีก',
+    }] : []),
+    {
+      key: 'actions', label: '', alwaysVisible: true, stopPropagation: true, align: 'right', defaultWidth: 64,
+      render: renderActions,
+    },
+  ];
+
+  if (userProfile && !can(userProfile, 'masterdata.brands')) return <Layout><NoPermissionCard /></Layout>;
+  if (!featuresFetched) return <Layout><LoadingCard /></Layout>;
   if (featuresFetched && !features.product_brand) {
     return (
-      <Layout>
-        <Container size="full">
-          <PageHeader title="แบรนด์" subtitle="จัดการแบรนด์สินค้า" />
-          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 flex items-start gap-3">
-            <Award className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-base font-medium text-amber-800 dark:text-amber-200">ฟีเจอร์แบรนด์ยังไม่ได้เปิดใช้งาน</p>
-              <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">กรุณาเปิดฟีเจอร์แบรนด์ในการตั้งค่าเพื่อใช้งาน</p>
-            </div>
-          </div>
-        </Container>
-      </Layout>
+      <Layout><Container size="full">
+        <PageHeader icon={<Award />} title="แบรนด์" subtitle="จัดการแบรนด์สินค้า" />
+        <Alert tone="warning" title="ฟีเจอร์แบรนด์ยังไม่ได้เปิดใช้งาน">กรุณาเปิดฟีเจอร์แบรนด์ในการตั้งค่าเพื่อใช้งาน</Alert>
+      </Container></Layout>
     );
   }
 
   return (
     <Layout>
       <Container size="full">
-        <PageHeader title="แบรนด์" subtitle="จัดการแบรนด์สินค้า กำหนด supplier และ GP rate" />
-        {loading ? (
-          <LoadingCard />
-        ) : (
-          <div className="space-y-4">
-            {/* Brand count */}
-            <p className="data-text text-gray-500 dark:text-slate-400">
-              {brands.length} แบรนด์
-            </p>
-
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                value={searchInput}
-                onChange={e => handleSearchChange(e.target.value)}
-                placeholder="ค้นหาแบรนด์..."
-                className="w-full h-[42px] pl-9 pr-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
-              />
+        <PageHeader icon={<Award />} title="แบรนด์" subtitle={`จัดการแบรนด์ Supplier และค่า GP เริ่มต้น รวม ${brands.length} แบรนด์`}
+          actions={<Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => setAddModalOpen(true)}>เพิ่มแบรนด์</Button>} />
+        <div className="data-filter-card">
+          <SearchInput value={searchInput} onChange={handleSearchChange} placeholder="ค้นหาแบรนด์หรือ Supplier..." className="w-full md:w-96" />
+          <Badge tone="orange">{brands.length} แบรนด์</Badge>
+        </div>
+        <DataTable
+          storageKey="settings-brands" columns={columns} data={filteredBrands} loading={loading}
+          getRowId={brand => brand.id} emptyMessage={searchQuery ? 'ไม่พบแบรนด์ที่ค้นหา' : 'ยังไม่มีแบรนด์สินค้า'}
+          emptyIcon={<Award className="w-10 h-10" />} currentPage={1} totalPages={1}
+          totalRecords={filteredBrands.length} recordsPerPage={Math.max(filteredBrands.length, 1)}
+          onPageChange={() => undefined} onRecordsPerPageChange={() => undefined} hidePagination
+          mobileCardRender={brand => (
+            <div className="flex items-center gap-3 p-4">
+              <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Award className="w-5 h-5" /></span>
+              <div className="min-w-0 flex-1">
+                <Link href={`/settings/brands/${brand.id}`} className="data-primary block truncate hover:text-primary">{brand.name}</Link>
+                <p className="page-subtitle truncate">{features.supplier ? brand.supplier?.name || 'ยังไม่ผูก Supplier' : 'จัดการสินค้าในแบรนด์'}</p>
+              </div>
+              {features.consignment && brand.default_gp_rate != null && <Badge tone="blue">GP {brand.default_gp_rate}%</Badge>}
+              {renderActions(brand)}
             </div>
-
-            {/* Brand Cards */}
-            {filteredBrands.map(brand => (
-              <Card key={brand.id} padding="none" className="overflow-hidden">
-                <div className="flex items-center gap-3 p-4">
-                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                    <Award className="w-4 h-4 text-primary" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    {editingId === brand.id ? (
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <input
-                            type="text"
-                            value={editingName}
-                            onChange={e => setEditingName(e.target.value)}
-                            onKeyDown={e => { if (e.key === 'Enter') handleSaveEdit(); if (e.key === 'Escape') cancelEdit(); }}
-                            placeholder="ชื่อแบรนด์"
-                            className="w-40 pl-3 pr-2 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
-                            autoFocus
-                          />
-                          {features.supplier && (
-                            <div className="w-48 min-w-0">
-                              <EntitySearchInput
-                                value={editingSupplierId}
-                                onChange={(id) => setEditingSupplierId(id)}
-                                onClear={() => setEditingSupplierId('')}
-                                options={suppliers.map(s => ({ id: s.id, label: s.name, subtitle: s.supplier_type }))}
-                                placeholder="ค้นหา Supplier..."
-                                selectedDisplay={
-                                  editingSupplierId ? (
-                                    <div className="flex items-center gap-2 px-3 py-2.5 border border-primary/30 bg-orange-50 dark:bg-orange-900/20 rounded-lg text-base">
-                                      <Factory className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                                      <span className="truncate text-gray-900 dark:text-slate-200">{suppliers.find(s => s.id === editingSupplierId)?.name}</span>
-                                    </div>
-                                  ) : undefined
-                                }
-                              />
-                            </div>
-                          )}
-                          <button onClick={handleSaveEdit} disabled={saving} className="p-1 text-green-600 hover:text-green-700 disabled:opacity-50 flex-shrink-0">
-                            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                          </button>
-                          <button onClick={cancelEdit} className="p-1 text-gray-400 hover:text-gray-600 flex-shrink-0">
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                        {/* GP Settings row */}
-                        {features.consignment && (
-                          <div className="flex items-center gap-3 pl-1 flex-wrap">
-                            <span className="text-xs text-gray-500 dark:text-slate-400 whitespace-nowrap">GP default:</span>
-                            <PostfixInput
-                              postfix="%"
-                              value={editingGpRate}
-                              onChange={setEditingGpRate}
-                              placeholder="เช่น 30"
-                              compact
-                              width="w-20"
-                              inputClassName="w-full"
-                            />
-                            <span className="text-xs text-gray-500 dark:text-slate-400 whitespace-nowrap">คิดจากราคา:</span>
-                            <div className="flex items-center gap-2 text-sm">
-                              <label className="flex items-center gap-1 cursor-pointer">
-                                <input type="radio" name={`gpbase_${brand.id}`} checked={editingGpBase === 'retail'} onChange={() => setEditingGpBase('retail')} className="accent-primary" />
-                                <span className="text-gray-700 dark:text-slate-300 text-xs">ราคาปลีก</span>
-                              </label>
-                              <label className="flex items-center gap-1 cursor-pointer">
-                                <input type="radio" name={`gpbase_${brand.id}`} checked={editingGpBase === 'discounted'} onChange={() => setEditingGpBase('discounted')} className="accent-primary" />
-                                <span className="text-gray-700 dark:text-slate-300 text-xs">ราคาลด</span>
-                              </label>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-3">
-                        <Link href={`/settings/brands/${brand.id}`} className="font-medium text-gray-900 dark:text-white hover:text-primary dark:hover:text-primary transition-colors">
-                          {brand.name}
-                        </Link>
-                        {features.supplier && brand.supplier && (
-                          <div className="flex items-center gap-1.5">
-                            <Factory className="w-3 h-3 text-gray-400 flex-shrink-0" />
-                            <span className="data-secondary text-gray-500 dark:text-slate-400">{brand.supplier.name}</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  {editingId !== brand.id && (
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <button
-                        onClick={() => startEdit(brand)}
-                        className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors"
-                        title="แก้ไข"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(brand)}
-                        disabled={deletingId === brand.id}
-                        className="p-1.5 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
-                        title="ลบ"
-                      >
-                        {deletingId === brand.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                      </button>
-                      <Link
-                        href={`/settings/brands/${brand.id}`}
-                        className="p-1.5 text-gray-400 hover:text-primary transition-colors"
-                        title="ดูรายละเอียด"
-                      >
-                        <ChevronRight className="w-4 h-4" />
-                      </Link>
-                    </div>
-                  )}
-                </div>
-              </Card>
-            ))}
-
-            {/* Add brand form */}
-            {showAddForm ? (
-              <Card padding="md" className="space-y-3">
-                <div className="data-primary text-gray-700 dark:text-slate-300 flex items-center gap-2">
-                  <Award className="w-4 h-4 text-primary" />
-                  เพิ่มแบรนด์
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">ชื่อแบรนด์ *</label>
-                  <input
-                    type="text"
-                    value={addName}
-                    onChange={e => setAddName(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') handleAdd(); if (e.key === 'Escape') resetAddForm(); }}
-                    placeholder="เช่น Nike, Samsung"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
-                    autoFocus
-                  />
-                </div>
-                <div className="flex gap-2 pt-1">
-                  <SaveButton
-                    onClick={handleAdd}
-                    loading={saving}
-                  />
-                  <Button
-                    variant="secondary"
-                    onClick={resetAddForm}
-                    icon={<X className="w-4 h-4" />}
-                  >
-                    ยกเลิก
-                  </Button>
-                </div>
-              </Card>
-            ) : (
-              <button
-                onClick={() => { cancelEdit(); setShowAddForm(true); }}
-                className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-base text-gray-500 dark:text-slate-400 hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                เพิ่ม<span className="hidden md:inline">แบรนด์</span>
-              </button>
-            )}
-          </div>
-        )}
+          )}
+        />
       </Container>
+
+      <Modal open={addModalOpen} onClose={closeAddModal} title="เพิ่มแบรนด์" icon={<Award className="w-5 h-5 text-primary" />} size="md"
+        footer={<div className="flex justify-end gap-2"><Button variant="secondary" onClick={closeAddModal} disabled={saving}>ยกเลิก</Button><SaveButton onClick={handleAdd} loading={saving} /></div>}
+      >
+        <FormInput label="ชื่อแบรนด์" required value={addName} onChange={event => setAddName(event.target.value)}
+          onKeyDown={event => { if (event.key === 'Enter') void handleAdd(); }} placeholder="เช่น Nike, Samsung" autoFocus />
+      </Modal>
+
+      <Modal open={Boolean(editingBrand)} onClose={closeEditModal} title="แก้ไขแบรนด์" icon={<Edit2 className="w-5 h-5 text-primary" />} size="lg"
+        footer={<div className="flex justify-end gap-2"><Button variant="secondary" onClick={closeEditModal} disabled={saving}>ยกเลิก</Button><SaveButton onClick={handleSaveEdit} loading={saving} /></div>}
+      >
+        <div className="space-y-4">
+          <FormInput label="ชื่อแบรนด์" required value={editingName} onChange={event => setEditingName(event.target.value)} autoFocus />
+          {features.supplier && (
+            <div>
+              <label className="form-label">Supplier</label>
+              <EntitySearchInput value={editingSupplierId} onChange={setEditingSupplierId} onClear={() => setEditingSupplierId('')}
+                options={suppliers.map(supplier => ({ id: supplier.id, label: supplier.name, subtitle: supplier.supplier_type }))}
+                placeholder="ค้นหา Supplier..."
+                selectedDisplay={editingSupplierId ? (
+                  <div className="form-control-md flex items-center gap-2"><Factory className="w-4 h-4 text-gray-400" /><span className="truncate">{suppliers.find(supplier => supplier.id === editingSupplierId)?.name}</span></div>
+                ) : undefined} />
+            </div>
+          )}
+          {features.consignment && (
+            <div className="grid gap-4 md:grid-cols-2">
+              <FormInput label="GP เริ่มต้น" type="number" min={0} max={100} postfix="%" value={editingGpRate}
+                onChange={event => setEditingGpRate(event.target.value)} hint="เว้นว่างเพื่อใช้ค่าของบริษัท" />
+              <div>
+                <label className="form-label">คิด GP จากราคา</label>
+                <FormSelect value={editingGpBase} onChange={value => setEditingGpBase(value as 'retail' | 'discounted')}
+                  options={[{ id: 'retail', label: 'ราคาปลีก' }, { id: 'discounted', label: 'ราคาลด' }]} searchThreshold={99} />
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
       {confirmDialog}
     </Layout>
   );
