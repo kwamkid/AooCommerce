@@ -71,6 +71,8 @@ interface MarketplaceAccountCardProps {
   onToggleExpand?: () => void;
   onDisconnect: () => void;
   disconnecting?: boolean;
+  /** ของที่อยู่บรรทัดเดียวกับชื่อร้าน ชิดขวา (สวิตช์ auto-sync) — เห็นได้โดยไม่ต้องกางการ์ด */
+  headerActions?: ReactNode;
   /** รายการเพิ่มในเมนู ⋮ (เชื่อมต่อใหม่ ฯลฯ) — งานที่นาน ๆ ทำที ไม่ควรเป็นปุ่มลอยบนการ์ด */
   menuItems?: ActionItem[];
   /** เนื้อหาการ์ด (รายละเอียด/toggle/ปุ่ม sync) — expandable=true จะโชว์เฉพาะตอนกางออก */
@@ -79,7 +81,7 @@ interface MarketplaceAccountCardProps {
 
 export default function MarketplaceAccountCard({
   account, avatar, title, titleExtra, showProductCount,
-  expandable, expanded, onToggleExpand, onDisconnect, disconnecting, menuItems, children,
+  expandable, expanded, onToggleExpand, onDisconnect, disconnecting, menuItems, headerActions, children,
 }: MarketplaceAccountCardProps) {
   const bodyVisible = expandable ? expanded : true;
   return (
@@ -106,6 +108,7 @@ export default function MarketplaceAccountCard({
             )}
           </div>
         </div>
+        {headerActions && <div className="flex items-center flex-shrink-0">{headerActions}</div>}
         <div className="flex items-center gap-1 flex-shrink-0">
           {expandable && (
             <button

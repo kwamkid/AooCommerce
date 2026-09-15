@@ -755,39 +755,36 @@ export default function MarketplaceConnections({
   /**
    * สวิตช์ auto-sync ของการ์ดร้าน — ใช้ร่วมทั้ง 3 แพลตฟอร์ม
    * `productInfo` = การ์ดนั้นมีสวิตช์ชื่อ/ราคาด้วย (ตอนนี้มีแต่ Shopee ที่ push ราคา/ชื่อได้)
-   * บรรทัดอธิบายใต้สวิตช์ใส่เฉพาะแพลตฟอร์มที่เพิ่งเปิดให้ส่งสต็อก (ยังไม่เคยตั้งยอดในระบบ = เสี่ยงส่ง 0 ไปทับร้าน)
+   *
+   * อยู่บนหัวการ์ด (บรรทัดเดียวกับชื่อร้าน) — เห็นและสลับได้โดยไม่ต้องกางการ์ดก่อน
+   * จอแคบไม่พอวางข้างชื่อร้าน จึงตกไปอยู่ในเนื้อการ์ดแทน (`className` เป็นตัวสลับ)
+   * ⛔ ห้ามเอาคำอธิบายความเสี่ยง "ยังไม่ได้ตั้งยอด = ส่ง 0 ไปทับร้าน" กลับมาไว้ใต้สวิตช์
+   *    แถบสถานะการตั้งร้าน (onboardingBanner) พูดเรื่องนี้ให้แล้ว และพูดเฉพาะตอนที่เป็นจริง
    */
-  const autoSyncToggles = (account: MarketplaceAccount, opts?: { productInfo?: boolean }) => {
+  const autoSyncToggles = (account: MarketplaceAccount, opts?: { productInfo?: boolean; className?: string }) => {
     const productInfo = opts?.productInfo === true;
     if (!stockEnabled && !productInfo) return null;
     return (
-      <div className="pt-1 space-y-1">
-        <div className="flex flex-wrap gap-x-6 gap-y-2">
-          {stockEnabled && (
-            <div className="flex items-center gap-2">
-              <Toggle
-                checked={account.auto_sync_stock !== false}
-                onChange={v => handleToggleSync(account.id, 'auto_sync_stock', v)}
-                aria-label="Sync Stock อัตโนมัติ"
-              />
-              <span className="text-xs text-gray-700 dark:text-slate-300">Sync Stock อัตโนมัติ</span>
-            </div>
-          )}
-          {productInfo && (
-            <div className="flex items-center gap-2">
-              <Toggle
-                checked={account.auto_sync_product_info !== false}
-                onChange={v => handleToggleSync(account.id, 'auto_sync_product_info', v)}
-                aria-label="Sync ชื่อ/ราคา อัตโนมัติ"
-              />
-              <span className="text-xs text-gray-700 dark:text-slate-300">Sync ชื่อ/ราคา อัตโนมัติ</span>
-            </div>
-          )}
-        </div>
-        {stockEnabled && !productInfo && (
-          <p className="helper-text">
-            เปิดแล้วทุกครั้งที่สต็อกขยับ ระบบส่งยอดของคลังที่เลือกขึ้นร้าน — ถ้ายังไม่ได้ตั้งยอดในระบบ ให้ดึงสต็อกจากร้านมาก่อน
-          </p>
+      <div className={`flex flex-wrap items-center gap-x-5 gap-y-1 ${opts?.className || ''}`}>
+        {stockEnabled && (
+          <div className="flex items-center gap-2">
+            <Toggle
+              checked={account.auto_sync_stock !== false}
+              onChange={v => handleToggleSync(account.id, 'auto_sync_stock', v)}
+              aria-label="Sync Stock อัตโนมัติ"
+            />
+            <span className="text-xs text-gray-700 dark:text-slate-300 whitespace-nowrap">Sync Stock อัตโนมัติ</span>
+          </div>
+        )}
+        {productInfo && (
+          <div className="flex items-center gap-2">
+            <Toggle
+              checked={account.auto_sync_product_info !== false}
+              onChange={v => handleToggleSync(account.id, 'auto_sync_product_info', v)}
+              aria-label="Sync ชื่อ/ราคา อัตโนมัติ"
+            />
+            <span className="text-xs text-gray-700 dark:text-slate-300 whitespace-nowrap">Sync ชื่อ/ราคา อัตโนมัติ</span>
+          </div>
         )}
       </div>
     );
@@ -901,6 +898,7 @@ export default function MarketplaceConnections({
                 onDisconnect={() => handleDisconnect(account.id)}
                 disconnecting={disconnectingId === account.id}
                 menuItems={cardMenuItems('shopee')}
+                headerActions={autoSyncToggles(account, { productInfo: true, className: 'hidden sm:flex mr-1' })}
                 avatar={
                   <Tooltip
                     text={(account.metadata?.shop_logo as string) ? 'เปลี่ยนโลโก้ร้าน' : 'ใส่โลโก้ร้าน'}
@@ -932,7 +930,7 @@ export default function MarketplaceConnections({
                 {warehousePicker(account)}
 
                 {/* Auto-Sync Toggles */}
-                {autoSyncToggles(account, { productInfo: true })}
+                {autoSyncToggles(account, { productInfo: true, className: 'sm:hidden pt-1' })}
 
                 {/* Sync Controls */}
                 <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -989,6 +987,7 @@ export default function MarketplaceConnections({
                 onDisconnect={() => handleDisconnect(account.id)}
                 disconnecting={disconnectingId === account.id}
                 menuItems={cardMenuItems('tiktok')}
+                headerActions={autoSyncToggles(account, { className: 'hidden sm:flex mr-1' })}
                 avatar={
                   <Tooltip
                     text={(account.metadata?.shop_logo as string) ? 'เปลี่ยนโลโก้ร้าน' : 'ใส่โลโก้ร้าน'}
@@ -1018,7 +1017,7 @@ export default function MarketplaceConnections({
 
                 {warehousePicker(account)}
 
-                {autoSyncToggles(account)}
+                {autoSyncToggles(account, { className: 'sm:hidden pt-1' })}
 
                 <div className="flex flex-wrap items-center gap-2 pt-1">
                   <SyncRangeSelect
@@ -1065,6 +1064,7 @@ export default function MarketplaceConnections({
                 onDisconnect={() => handleDisconnect(account.id)}
                 disconnecting={disconnectingId === account.id}
                 menuItems={cardMenuItems('lazada')}
+                headerActions={autoSyncToggles(account, { className: 'hidden sm:flex mr-1' })}
                 avatar={
                   <Tooltip
                     text={(account.metadata?.shop_logo as string) ? 'เปลี่ยนโลโก้ร้าน' : 'ใส่โลโก้ร้าน'}
@@ -1085,7 +1085,7 @@ export default function MarketplaceConnections({
 
                 {warehousePicker(account)}
 
-                {autoSyncToggles(account)}
+                {autoSyncToggles(account, { className: 'sm:hidden pt-1' })}
 
                 <div className="flex flex-wrap items-center gap-2">
                   <SyncRangeSelect

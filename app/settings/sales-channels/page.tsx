@@ -621,7 +621,18 @@ export default function SalesChannelsPage() {
           actions={
             /* ปุ่มหลักของแท็บที่เปิดอยู่ — บรรทัดเดียวกับ title เหมือนหน้า ช่องทาง Chat
                ไอคอนแพลตฟอร์มบนปุ่ม primary ใช้ mono (สีเดียวตามตัวหนังสือ) โลโก้สีแบรนด์เต็มตัวจะตีกับพื้นส้ม */
-            effectiveTab === 'manual' ? (
+            <>
+            {/* งานซิงค์เลือกร้านเองอยู่แล้ว จึงกดได้จากทุกแท็บ ไม่ต้องไปยืนที่แท็บของแพลตฟอร์มก่อน */}
+            {marketplaceTabVisible && (
+              <Button
+                variant="secondary"
+                icon={<RefreshCw className="w-5 h-5" />}
+                onClick={() => setSyncHubOpen(true)}
+              >
+                ซิงค์สินค้า &amp; สต็อก
+              </Button>
+            )}
+            {effectiveTab === 'manual' ? (
               <Button variant="primary" icon={<Plus className="w-5 h-5" />} onClick={() => openCreate('')}>
                 เพิ่มช่องทาง
               </Button>
@@ -634,18 +645,7 @@ export default function SalesChannelsPage() {
               <Button variant="primary" icon={<PlatformIcon id="line" size={16} mono />} onClick={() => confirmConnectChat('line')}>
                 เชื่อม LINE OA
               </Button>
-            ) : (
-              <>
-                {/* งานที่ไปแตะข้อมูลจริง (นำเข้า/ส่งสินค้า · ดึง/ส่งสต็อก) อยู่หลังปุ่มนี้ทั้งหมด
-                    — เดิมเป็นปุ่มเรียงอยู่บนการ์ดของทุกร้านจนไม่มีใครกล้ากด */}
-                <Button
-                  variant="secondary"
-                  icon={<RefreshCw className="w-5 h-5" />}
-                  onClick={() => setSyncHubOpen(true)}
-                >
-                  ซิงค์สินค้า &amp; สต็อก
-                </Button>
-                {effectiveTab === 'shopee' ? (
+            ) : effectiveTab === 'shopee' ? (
               /* Shopee มี 2 ทางเชื่อม (app กลางของระบบ / app ที่บริษัทจดเอง — แชทได้) จึงเป็นเมนู
                  ทางที่สองโชว์เสมอ: บริษัทยังไม่ได้เพิ่ม app ของตัวเองก็บอกตรง ๆ แทนที่จะหายไป
                  เฉย ๆ แล้วคนไปกดเชื่อมผ่าน app กลางแทน (เกิดจริง 5 ก.ย. 2026)
@@ -690,9 +690,8 @@ export default function SalesChannelsPage() {
               >
                 {effectiveTab === 'tiktok' ? 'เชื่อมต่อ TikTok Shop' : 'เชื่อมต่อร้าน Lazada'}
               </Button>
-                )}
-              </>
-            )
+            )}
+            </>
           }
         />
 
