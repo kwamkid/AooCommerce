@@ -311,6 +311,7 @@ export function useCompositeEditor(source: Source) {
   });
 
   return {
+    dirtySnapshot: JSON.stringify({ slots, overrides }),
     isEditing: initial.isEditing,
     selfProductId: initial.selfProductId,
     slots,

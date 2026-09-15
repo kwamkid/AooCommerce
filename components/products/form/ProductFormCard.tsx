@@ -16,6 +16,8 @@
 // สินค้ามีตัวเลือก: parent ส่ง VariantOptionsEditor มาทาง `variantsSlot`
 'use client';
 
+import Button from '@/components/ui/Button';
+
 import { useMemo, type ReactNode } from 'react';
 import Link from 'next/link';
 import { BoxSelect, Boxes, Layers, Plus } from 'lucide-react';
@@ -111,15 +113,15 @@ function PickerField({ label, value, onChange, options, onAdd, addLabel, searchP
     <div>
       <div className="flex items-center justify-between gap-2">
         <FieldLabel>{label}</FieldLabel>
-        <button
+        <Button variant="ghost" size="sm"
           type="button"
           onClick={onAdd}
           aria-label={addLabel}
-          className="field-label flex items-center gap-1 text-primary hover:underline"
+
         >
           <Plus className="w-3.5 h-3.5" />
           เพิ่มใหม่
-        </button>
+        </Button>
       </div>
       <FormSelect
         value={value}

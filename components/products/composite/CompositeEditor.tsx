@@ -7,6 +7,7 @@
  */
 import { useMemo } from 'react';
 import { Plus, Trash2, RefreshCw, Loader2, ImagePlus } from 'lucide-react';
+import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import Checkbox from '@/components/ui/Checkbox';
@@ -24,7 +25,6 @@ import { formatNumber, formatPrice } from '@/lib/utils/format';
 import type { CompositeSlot } from '@/lib/composite-shared';
 import type { ComboRow, CompositeEditorState } from './useCompositeEditor';
 
-const SECTION = 'bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5';
 const PRICE_INPUT = 'w-full px-3 text-right bg-white dark:bg-slate-700 text-gray-900 dark:text-white rounded-lg border focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-colors';
 const ERROR_TEXT = 'text-red-600 dark:text-red-400';
 
@@ -171,13 +171,13 @@ function SlotCard({ editor, slot, index }: { editor: CompositeEditorState; slot:
             <div className="flex items-center justify-between gap-3 mb-2">
               <span className="field-label !mb-0">ตัวเลือกที่ขายในชุด</span>
               {!product.is_simple && activeOptions.length > 1 && (
-                <button
+                <Button variant="ghost" size="sm"
                   type="button"
                   onClick={() => editor.setAllOptions(slot.key, !allSelected)}
-                  className="text-base font-medium text-[#C0400E] hover:underline"
+
                 >
                   {allSelected ? 'ไม่เลือกทั้งหมด' : 'เลือกทั้งหมด'}
-                </button>
+                </Button>
               )}
             </div>
             {visibleOptions.length === 0 ? (
@@ -299,7 +299,7 @@ function CombosSection({ editor, images, onImagesChange }: { editor: CompositeEd
   const allActive = rows.length > 0 && rows.every(r => r.setting.is_active);
 
   return (
-    <div className={SECTION}>
+    <Card>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <h3 className="heading-3">ชุดย่อย ({rows.length} แบบ)</h3>
         <div className="flex items-center gap-2">
@@ -437,14 +437,14 @@ function CombosSection({ editor, images, onImagesChange }: { editor: CompositeEd
           </div>
         </>
       )}
-    </div>
+    </Card>
   );
 }
 
 export default function CompositeEditor({ editor, images, onImagesChange }: { editor: CompositeEditorState } & ComboImagesProps) {
   return (
     <div className="space-y-5" data-field="composite">
-      <div className={SECTION}>
+      <Card>
         <h3 className="heading-3">ส่วนประกอบของชุด</h3>
         <p className="section-desc mb-4">เลือกสินค้าของแต่ละส่วน และตัวเลือกที่ลูกค้าเลือกได้</p>
         <div className="space-y-4">
@@ -460,7 +460,7 @@ export default function CompositeEditor({ editor, images, onImagesChange }: { ed
         {editor.visibleGeneralError && (
           <p className={`mt-3 text-base ${ERROR_TEXT}`}>{editor.visibleGeneralError}</p>
         )}
-      </div>
+      </Card>
 
       <CombosSection editor={editor} images={images} onImagesChange={onImagesChange} />
     </div>

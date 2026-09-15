@@ -29,7 +29,7 @@ paths:
 
 ## ตัวเลือกตั้งต้นของหน้าร้าน — `product_variations.is_default`
 
-- ร้านตั้งเองที่**แถวตัวเลือกในฟอร์มสินค้า** (คอลัมน์ "ตั้งต้น" ใน `VariantOptionsEditor` · radio กดซ้ำ = ยกเลิก) — **1 ตัวต่อสินค้า** บังคับที่ DB ด้วย partial unique index `product_variations_one_default_per_product` (`(product_id) where is_default and deleted_at is null`)
+- ร้านตั้งเองที่ **dropdown "ตัวเลือกตั้งต้นหน้าร้าน" เหนือตารางใน `VariantOptionsEditor`** · "อัตโนมัติ — ขายดีสุดก่อน" = ไม่ตั้งตัวใดไว้ · ตัวเลือกที่ปิดขายแสดงจางพร้อมเหตุผล — **1 ตัวต่อสินค้า** บังคับที่ DB ด้วย partial unique index `product_variations_one_default_per_product` (`(product_id) where is_default and deleted_at is null`)
 - **ไม่ตั้ง = หน้าร้านเลือกเองตามกติกา 3 ชั้น** (ตั้งแล้วแต่ของหมดก็ตกชั้น) — ดู `domains/storefront.md`
 - **invariant: `is_default` ⟹ `is_active`** — ตัวที่ปิดขายเป็นตัวตั้งต้นไม่ได้ (ฟอร์ม disable + ปลดธงให้เองเมื่อปิดขาย · `/api/products` ปัดเป็น false ให้อีกชั้น · ส่งมาเกิน 1 ตัว = 400)
 - ⛔ **เส้นที่เขียน `product_variations` แล้วไม่ได้ส่ง `is_default` มา ต้องไม่ทับธงนี้** (อัปเดตเฉพาะ field ที่ส่งมา) — ไม่งั้นร้านตั้งไว้แล้วหายตอนแก้ราคา/ซิงค์ marketplace · เส้นที่ไล่แล้ว: `/api/products` POST/PUT (PUT ปลดธงเก่าทั้งสินค้าก่อน แล้วค่อยตั้งตัวใหม่ — ไม่งั้นชน unique index) · RPC `bulk_update_variation_prices` / `recompute_composite_prices` / `update_weighted_average_cost` (อัปเดตเป็นคอลัมน์ ไม่แตะ) · `lib/composite-save.ts` · import/ซิงค์ marketplace (อัปเดตเป็นคอลัมน์)
@@ -90,3 +90,10 @@ paths:
 - ~~`/api/products/bulk-import`~~ → แทนที่ด้วย `/api/products/bulk/<action>/apply`
 - `bulk_upsert_products` RPC ยังอยู่ใน DB (รอ drop ใน migration ต่อไป)
 
+
+### Product editor navigation (2026-09-15)
+- ชื่อสินค้าใช้ Link เปิดแท็บเดิม; ผู้ใช้ยังเปิดแท็บใหม่เองได้ผ่าน modifier/right-click หรือ ActionMenu
+- สร้างลิงก์เพิ่ม/คัดลอก/แก้ไขด้วย `lib/product-navigation.ts` พก `returnTo` ของ `/products` รวมคำค้น ตัวกรอง และเลขหน้า; ห้ามพึ่ง history ของอีกแท็บ
+- บันทึกใหม่ → replace ไป edit ของ ID ที่สร้าง; บันทึกแก้ไข → โหลด persisted data และ remount ProductForm เพื่อใช้ variation/image IDs จริง แล้วอยู่หน้าเดิม
+- Back/Cancel ใช้ `useProductNavigation`; ฟอร์มหลักและ marketplace แจ้ง dirty เพื่อถามก่อนทิ้ง; save-and-add-next remount ทั้งฟอร์มรวม composite state
+- แท็บ marketplace ทั้ง single/variation ใช้ `components/products/form/MarketplaceListingCard.tsx` ร่วมกับหน้าต้นแบบ; platform-specific fields ผ่าน extra/modelExtras และใช้ StickyActionBar ของหน้าจริง

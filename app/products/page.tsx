@@ -3,6 +3,8 @@
 
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+import { productEditorUrl } from '@/lib/product-navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import Container from '@/components/ui/Container';
@@ -302,14 +304,16 @@ function WarehouseBreakdown({ entry, variationId, comboIds }: {
   );
 }
 
-function ProductActionMenu({ onEdit, onDuplicate, onDelete }: {
+function ProductActionMenu({ onEdit, onOpenNewTab, onDuplicate, onDelete }: {
   onEdit: () => void;
+  onOpenNewTab: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
 }) {
   return (
     <SharedActionMenu items={[
       { key: 'edit', label: 'แก้ไข', icon: <Edit2 className="w-3.5 h-3.5" />, onClick: onEdit },
+      { key: 'new-tab', label: 'เปิดในแท็บใหม่', icon: <Edit2 className="w-3.5 h-3.5" />, onClick: onOpenNewTab },
       { key: 'duplicate', label: 'คัดลอก', icon: <Copy className="w-3.5 h-3.5" />, onClick: onDuplicate },
       { key: 'delete', label: 'ลบ', icon: <Trash2 className="w-3.5 h-3.5" />, danger: true, onClick: onDelete },
     ]} />
@@ -901,7 +905,9 @@ function ProductsPageContent() {
     </HelpHint>
   );
 
-  const openEdit = (productId: string) => window.open(`/products/${productId}/edit`, '_blank');
+  const returnTo = `/products${searchParams.size ? `?${searchParams}` : ''}`;
+  const editHref = (id: string) => productEditorUrl(id, returnTo);
+  const openEdit = (productId: string) => router.push(editHref(productId));
 
   // ── Column definitions for DataTable ──
   const costColumns: DataTableColumn<ProductRow>[] = canViewCost ? [{
@@ -995,7 +1001,7 @@ function ProductsPageContent() {
           return (
             <div className="pl-4">
               <div className="flex items-center gap-1.5 text-base text-gray-700 dark:text-slate-300">
-                <span className="line-clamp-2">{v.variation_label || '-'}</span>
+                <Link href={editHref(row.product.product_id)} onClick={e => e.stopPropagation()} className="line-clamp-2 hover:underline">{v.variation_label || '-'}</Link>
                 {!v.is_active && <Badge tone="gray" shape="square" size="sm">ปิด</Badge>}
               </div>
               {v.sku && <div className="code-text text-gray-400 dark:text-slate-500">{v.sku}</div>}
@@ -1006,9 +1012,9 @@ function ProductsPageContent() {
         const isVariationType = product.product_type === 'variation';
         return (
           <div>
-            <div className="data-primary text-gray-900 dark:text-slate-100 text-base line-clamp-2">
+            <Link href={editHref(product.product_id)} onClick={e => e.stopPropagation()} className="data-primary text-gray-900 dark:text-slate-100 text-base line-clamp-2 hover:underline">
               {product.name}
-            </div>
+            </Link>
             <div className="text-sm text-gray-400 dark:text-slate-500">
               {product.code && <span className="code-text">{product.code}</span>}
               {isVariationType && (
@@ -1132,7 +1138,8 @@ function ProductsPageContent() {
       render: (row) => row.kind === 'product' ? (
         <ProductActionMenu
           onEdit={() => openEdit(row.product.product_id)}
-          onDuplicate={() => router.push(`/products/new?duplicate=${row.product.product_id}`)}
+          onOpenNewTab={() => window.open(editHref(row.product.product_id), '_blank', 'noopener,noreferrer')}
+          onDuplicate={() => router.push(productEditorUrl(null, returnTo, row.product.product_id))}
           onDelete={() => handleDelete(row.product)}
         />
       ) : null,
@@ -1162,13 +1169,14 @@ function ProductsPageContent() {
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
-              <p className="text-base font-semibold text-gray-900 dark:text-white line-clamp-2">{product.name}</p>
+              <Link href={editHref(product.product_id)} onClick={e => e.stopPropagation()} className="text-base font-semibold text-gray-900 dark:text-white line-clamp-2 hover:underline">{product.name}</Link>
               {product.code && <p className="text-sm text-gray-400 dark:text-slate-500 font-mono">{product.code}</p>}
             </div>
             <div className="flex-shrink-0" onClick={e => e.stopPropagation()}>
               <ProductActionMenu
                 onEdit={() => openEdit(product.product_id)}
-                onDuplicate={() => router.push(`/products/new?duplicate=${product.product_id}`)}
+                onOpenNewTab={() => window.open(editHref(product.product_id), '_blank', 'noopener,noreferrer')}
+                onDuplicate={() => router.push(productEditorUrl(null, returnTo, product.product_id))}
                 onDelete={() => handleDelete(product)}
               />
             </div>
@@ -1273,7 +1281,7 @@ function ProductsPageContent() {
             <Button
               variant="primary"
               icon={<Plus className="w-5 h-5" />}
-              onClick={() => router.push('/products/new')}
+              onClick={() => router.push(productEditorUrl(null, returnTo))}
             >
               เพิ่ม<span className="hidden md:inline">สินค้า</span>
             </Button>

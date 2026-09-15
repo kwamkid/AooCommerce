@@ -5,6 +5,8 @@
 // รูปเป็น SVG ในโค้ด ใช้คลาส fill/stroke ของ Tailwind จึงสลับโหมดมืดได้เอง ไม่ต้องมีไฟล์รูป
 'use client';
 
+import Button from '@/components/ui/Button';
+
 import { useState } from 'react';
 import { HelpCircle } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
@@ -139,14 +141,15 @@ export default function ProductCodesHelp({ focus = 'code' }: { focus?: ProductCo
   return (
     <>
       <Tooltip text="รหัสสินค้า · SKU · บาร์โค้ด ต่างกันยังไง" box="inline-flex">
-        <button
+        <Button variant="ghost" size="sm"
           type="button"
           onClick={() => setOpen(true)}
           aria-label="ดูความต่างของรหัสสินค้า SKU และบาร์โค้ด"
-          className="inline-flex items-center justify-center w-5 h-5 rounded-full text-gray-400 hover:text-primary transition-colors"
+          className="!h-5 !min-h-0 !w-5 !p-0"
+
         >
           <HelpCircle className="w-4 h-4" strokeWidth={2} />
-        </button>
+        </Button>
       </Tooltip>
 
       <Modal open={open} onClose={() => setOpen(false)} title="รหัสสินค้า · SKU · บาร์โค้ด ต่างกันยังไง" size="3xl">

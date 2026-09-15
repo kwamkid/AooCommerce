@@ -48,7 +48,7 @@ export interface ListingModel {
   /** price on the platform (string — PostfixInput state) */
   platformPrice: string;
   /** our price in the system, for comparison */
-  systemPrice: number;
+  systemPrice?: number;
 }
 
 /** attribute ของหมวดบนแพลตฟอร์ม (shopee_attributes) — อ่านอย่างเดียว */
@@ -86,7 +86,11 @@ export interface MarketplaceListingCardProps {
   brandName?: string | null;
   attributes?: ListingAttribute[];
   onSync: () => void;
-  onUnlink: () => void;
+  onUnlink?: () => void;
+  imageUploading?: boolean;
+  hideActions?: boolean;
+  descriptionImages?: string[];
+  modelExtras?: (model: ListingModel) => ReactNode;
   dirty: boolean;
   saving?: boolean;
   onSave: () => void;
@@ -119,7 +123,7 @@ export default function MarketplaceListingCard({
   platform, shopName, itemId, productUrl, lastSyncedText, image, onChangeImage, name, onNameChange,
   description, onDescriptionChange, categorySlot, weight, onWeightChange, price, onPriceChange,
   systemPrice, models, onModelPriceChange, brandName, attributes, onSync, onUnlink, dirty, saving,
-  onSave, onCancel, extra,
+  onSave, onCancel, extra, imageUploading, hideActions, descriptionImages, modelExtras,
 }: MarketplaceListingCardProps) {
   const label = PLATFORM_LABEL[platform];
   const nameLength = name.length;
@@ -166,9 +170,9 @@ export default function MarketplaceListingCard({
             <Tooltip text="ซิงค์กับร้านนี้">
               <Button variant="ghost" icon={<RefreshCw className="w-4 h-4" />} onClick={onSync} aria-label="ซิงค์กับร้านนี้" />
             </Tooltip>
-            <Tooltip text="ยกเลิกการเชื่อมกับร้านนี้">
+            {onUnlink && <Tooltip text="ยกเลิกการเชื่อมกับร้านนี้">
               <Button variant="ghost" icon={<Unlink2 className="w-4 h-4" />} onClick={onUnlink} aria-label="ยกเลิกการเชื่อมกับร้านนี้" />
-            </Tooltip>
+            </Tooltip>}
           </div>
         </div>
 
@@ -179,7 +183,7 @@ export default function MarketplaceListingCard({
             <ProductImageThumb src={image} alt={name} size="lg" className="!w-24 !h-24" />
             <div className="min-w-0">
               {onChangeImage && (
-                <Button variant="secondary" size="sm" icon={<Camera className="w-4 h-4" />} onClick={onChangeImage}>
+                <Button variant="secondary" size="sm" icon={<Camera className="w-4 h-4" />} onClick={onChangeImage} loading={imageUploading}>
                   เปลี่ยนรูป
                 </Button>
               )}
@@ -237,6 +241,7 @@ export default function MarketplaceListingCard({
                     <th className="data-th w-[180px]">SKU บน {label}</th>
                     <th className="data-th w-[170px] text-right">ราคาบน {label}</th>
                     <th className="data-th w-[130px] text-right">ราคาในระบบ</th>
+                    {modelExtras && <th className="data-th">เพิ่มเติม</th>}
                   </tr>
                 </thead>
                 <tbody className="data-tbody">
@@ -249,8 +254,9 @@ export default function MarketplaceListingCard({
                         <PostfixInput postfix="฿" value={m.platformPrice} onChange={v => onModelPriceChange?.(m.id, v)} placeholder="ไม่ได้ตั้ง" {...POSTFIX_PROPS} />
                       </td>
                       <td className="px-3 py-3 text-right text-base text-gray-600 dark:text-slate-400 tabular-nums">
-                        ฿{formatNumber(m.systemPrice)}
+                        {m.systemPrice == null ? '—' : `฿${formatNumber(m.systemPrice)}`}
                       </td>
+                      {modelExtras && <td className="px-3 py-3 min-w-[180px]">{modelExtras(m)}</td>}
                     </tr>
                   ))}
                 </tbody>
@@ -268,7 +274,8 @@ export default function MarketplaceListingCard({
                     </div>
                   </div>
                   <PostfixInput postfix="฿" value={m.platformPrice} onChange={v => onModelPriceChange?.(m.id, v)} placeholder="ไม่ได้ตั้ง" {...POSTFIX_PROPS} />
-                  <p className="helper-text">ราคาในระบบ ฿{formatNumber(m.systemPrice)}</p>
+                  <p className="helper-text">ราคาในระบบ {m.systemPrice == null ? '—' : `฿${formatNumber(m.systemPrice)}`}</p>
+                  {modelExtras?.(m)}
                 </div>
               ))}
             </div>
@@ -303,7 +310,10 @@ export default function MarketplaceListingCard({
           placeholder={`คำอธิบายสำหรับร้านนี้ — ใช้ตอนส่งสินค้าขึ้น ${label}`}
         />
 
-        {dirty && (
+        {!!descriptionImages?.length && <div className="flex flex-wrap gap-2">
+          {descriptionImages.map((src, index) => <ProductImageThumb key={`${src}:${index}`} src={src} alt={`รูปคำอธิบาย ${index + 1}`} size="sm" />)}
+        </div>}
+        {dirty && !hideActions && (
           <div className="flex justify-end gap-3 border-t border-gray-100 dark:border-slate-700 pt-4">
             <Button variant="secondary" onClick={onCancel}>ยกเลิก</Button>
             <SaveButton loading={saving} onClick={onSave} />

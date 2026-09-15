@@ -44,6 +44,8 @@ interface DiscountPriceInputProps {
   showHint?: boolean;
   /** ข้อความเมื่อยังไม่มีส่วนลด */
   emptyHint?: string;
+  /** Narrow table columns: shorten the bulk chip to its value/unit; tooltip keeps the full meaning. */
+  compact?: boolean;
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -59,6 +61,7 @@ export default function DiscountPriceInput({
   'aria-label': ariaLabel = 'ลดเหลือ',
   showHint = true,
   emptyHint = 'ว่าง = ขายราคาปกติ',
+  compact = false,
 }: DiscountPriceInputProps) {
   const [open, setOpen] = useState(false);
   const calcBtnRef = useRef<HTMLButtonElement>(null);
@@ -71,6 +74,10 @@ export default function DiscountPriceInput({
   const base = basePrice ?? 0;
   const summary = hasBase ? reduceSummary(base, value) : null;
   const bulkChip = !hasBase && spec && spec.mode !== 'price' && spec.input > 0 ? spec : null;
+  const bulkChipValue = bulkChip
+    ? (bulkChip.mode === 'percent' ? `${fmtPercent(bulkChip.input)}%` : `${formatPrice(bulkChip.input)} ฿`)
+    : '';
+  const bulkChipLabel = bulkChip ? `${bulkChip.mode === 'percent' ? 'ลด' : 'ลดไป'} ${bulkChipValue}` : '';
 
   const openCalc = () => {
     setPct(summary ? summary.percent : 0);
@@ -116,10 +123,19 @@ export default function DiscountPriceInput({
     <div>
       <div className={frameClass}>
         {bulkChip ? (
-          <div className={`min-w-0 flex-1 flex items-center px-2 ${align === 'right' ? 'justify-end' : ''}`}>
-            <Badge tone="orange" onRemove={() => onChange(0, NO_REDUCE)} removeLabel="ล้าง">
-              {bulkChip.mode === 'percent' ? `ลด ${fmtPercent(bulkChip.input)}%` : `ลดไป ${formatPrice(bulkChip.input)} ฿`}
-            </Badge>
+          <div className={`min-w-0 flex-1 flex items-center ${compact ? 'px-1' : 'px-2'} ${align === 'right' ? 'justify-end' : ''}`}>
+            <Tooltip text={bulkChipLabel}>
+              <Badge
+                tone="orange"
+                size={compact ? 'sm' : 'md'}
+                className="min-w-0 max-w-full [&_.badge-remove]:shrink-0"
+                aria-label={bulkChipLabel}
+                onRemove={() => onChange(0, NO_REDUCE)}
+                removeLabel={`ล้าง${bulkChipLabel}`}
+              >
+                <span className="truncate">{compact ? bulkChipValue : bulkChipLabel}</span>
+              </Badge>
+            </Tooltip>
           </div>
         ) : (
           <NumberInput

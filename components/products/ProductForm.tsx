@@ -17,6 +17,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { productEditorUrl } from '@/lib/product-navigation';
 import { apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { useFeatures } from '@/lib/features-context';
@@ -97,6 +98,11 @@ export interface FormOptions {
 }
 
 interface ProductFormProps {
+  returnTo?: string;
+  onCancel?: () => void;
+  onSaved?: (id: string) => Promise<void>;
+  onDirtyChange?: (dirty: boolean) => void;
+  onAddNext?: () => void;
   editingProduct?: ProductItem | null;
   initialImages?: ProductImage[];
   initialVariationImages?: Record<string, ProductImage[]>;
@@ -146,6 +152,11 @@ export default function ProductForm({
   initialImages,
   initialVariationImages,
   formOptions,
+  returnTo = '/products',
+  onCancel,
+  onSaved,
+  onDirtyChange,
+  onAddNext,
 }: ProductFormProps) {
   const router = useRouter();
   const { userProfile } = useAuth();
@@ -239,6 +250,9 @@ export default function ProductForm({
   };
 
   const [values, setValues] = useState<ProductFormValues>(initValues);
+  const fingerprint = JSON.stringify({ values, productImages, variationImages, composite: composite.dirtySnapshot });
+  const [baseline, setBaseline] = useState(fingerprint);
+  useEffect(() => { onDirtyChange?.(fingerprint !== baseline); }, [fingerprint, baseline, onDirtyChange]);
   const rows = values.variations;
   const [groups, setGroups] = useState<OptionGroup[]>([]);
   const [groupsError, setGroupsError] = useState<string | null>(null);
@@ -574,7 +588,7 @@ export default function ProductForm({
   };
 
   const doSave = async (mode: 'close' | 'again') => {
-    if (!validate()) return;
+    if (saving || !validate()) return;
     setSaving(true);
     try {
       const method = editingProduct?.product_id ? 'PUT' : 'POST';
@@ -595,7 +609,12 @@ export default function ProductForm({
             ...values,
             variation_label: values.product_type === 'variation' ? '' : (values.variation_label.trim() || '-'),
             // `_tempId`/`available` เป็นของฝั่งหน้าจอ ไม่ต้องส่งไป API
-            variations: rows.map(({ _tempId, available, ...rest }) => rest),
+            variations: rows.map(row => {
+              const persisted = { ...row };
+              delete (persisted as Partial<VariantRow>)._tempId;
+              delete persisted.available;
+              return persisted;
+            }),
           };
       const body = editingProduct?.product_id
         ? { id: editingProduct.product_id, ...submitData }
@@ -656,11 +675,23 @@ export default function ProductForm({
 
       if (mode === 'again') {
         showToast(`บันทึก "${values.name}" แล้ว — เพิ่มสินค้าตัวถัดไปได้เลย`);
-        resetForNext();
+        onDirtyChange?.(false);
+        if (onAddNext) onAddNext();
+        else resetForNext();
         setSaving(false);
         return;
       }
-      router.push('/products');
+      setBaseline(fingerprint);
+      onDirtyChange?.(false);
+      showToast('บันทึกสินค้าแล้ว');
+      // Keep saving disabled until persisted rows/images have been reloaded. Reusing
+      // temporary variation IDs after save would create duplicates on the next PUT.
+      if (newProductId) {
+        if (onSaved) await onSaved(newProductId);
+        else router.replace(productEditorUrl(newProductId, returnTo));
+      } else {
+        setSaving(false);
+      }
     } catch (err) {
       console.error('Error saving:', err);
       showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการบันทึก', 'error');
@@ -683,7 +714,7 @@ export default function ProductForm({
 
   return (
     <>
-      <div className="space-y-5">
+      <fieldset disabled={saving} className="space-y-5 min-w-0">
         <ProductFormCard
           values={{ ...values, variations: rowsWithStock }}
           onChange={setFormValues}
@@ -741,12 +772,12 @@ export default function ProductForm({
         <StickyActionBar
           saving={saving}
           onSave={() => doSave('close')}
-          onCancel={() => router.push('/products')}
+          onCancel={onCancel ?? (() => router.push(returnTo))}
           extraActions={!isEditMode
             ? <Button variant="secondary" onClick={() => doSave('again')} disabled={saving}>บันทึกแล้วเพิ่มต่อ</Button>
             : undefined}
         />
-      </div>
+      </fieldset>
 
       {/* Type-change confirmation (edit mode only) — API soft-DELETES the old
           variations (deleted_at = now) so they vanish from the new shape's UI

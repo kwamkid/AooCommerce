@@ -3,10 +3,17 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { useProductNavigation } from '@/lib/useProductNavigation';
+import { productEditorUrl } from '@/lib/product-navigation';
+import MarketplaceListingCard from '@/components/products/form/MarketplaceListingCard';
+import PlatformIcon from '@/components/ui/PlatformIcon';
+import ListRow from '@/components/ui/ListRow';
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
+import Radio from '@/components/ui/Radio';
+import StickyActionBar from '@/components/ui/StickyActionBar';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
 import Button from '@/components/ui/Button';
-import SaveButton from '@/components/ui/SaveButton';
 import Modal from '@/components/ui/Modal';
 import PageHeader from '@/components/ui/PageHeader';
 import { LoadingCard } from '@/components/ui/StateCard';
@@ -21,12 +28,11 @@ import { supabase } from '@/lib/supabase';
 import imageCompression from 'browser-image-compression';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
-import { ArrowLeft, Loader2, ExternalLink, Unlink2, Package2, Camera, Merge, Search, X, ChevronRight, Trash2, HelpCircle, RefreshCw } from 'lucide-react';
+import { Loader2, Unlink2, Package2, Merge, Search, Trash2, HelpCircle } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
 import CategoryPicker from '@/components/marketplace/CategoryPicker';
 import { MARKETPLACE_PLATFORMS } from '@/lib/marketplace/platforms';
 import ProductSyncModal from '@/components/marketplace/ProductSyncModal';
-import PostfixInput from '@/components/ui/PostfixInput';
 import Tabs from '@/components/ui/Tabs';
 import { storageSafeName } from '@/lib/storage-key';
 
@@ -76,12 +82,12 @@ interface MarketplaceLink {
   shopee_brand_id: number | null;
   shopee_brand_name: string | null;
   platform_data?: {
-    category_id?: any;
-    category_name?: any;
-    attributes?: any[];
-    brand_id?: any;
-    brand_name?: any;
-    [key: string]: any;
+    category_id?: string | number;
+    category_name?: string;
+    attributes?: NonNullable<MarketplaceLink['shopee_attributes']>;
+    brand_id?: string | number;
+    brand_name?: string;
+    [key: string]: unknown;
   } | null;
   products: {
     id: string;
@@ -118,6 +124,9 @@ function formatPriceValue(value: number | null | undefined) {
 export default function EditProductPage() {
   const params = useParams();
   const router = useRouter();
+  const navigation = useProductNavigation();
+  const [formVersion, setFormVersion] = useState(0);
+  const [formDirty, setFormDirty] = useState(false);
   const { userProfile, loading: authLoading } = useAuth();
   const { features } = useFeatures();
   const productId = params.id as string;
@@ -143,7 +152,7 @@ export default function EditProductPage() {
   });
   const setActiveTab = (tab: string) => {
     setActiveTabState(tab);
-    window.history.replaceState(null, '', `#${tab}`);
+    window.history.replaceState(window.history.state, '', `#${tab}`);
   };
   const { showToast } = useToast();
   const { confirmDialog, confirm } = useConfirmDialog();
@@ -159,6 +168,8 @@ export default function EditProductPage() {
   const [weightValues, setWeightValues] = useState<Record<string, string>>({});
   const [savingLink, setSavingLink] = useState<Record<string, boolean>>({});
   const [dirtyLinks, setDirtyLinks] = useState<Set<string>>(new Set());
+  const setNavigationDirty = navigation.setDirty;
+  useEffect(() => { setNavigationDirty(formDirty || dirtyLinks.size > 0); }, [formDirty, dirtyLinks, setNavigationDirty]);
 
   // Merge modal state
   const [mergeModal, setMergeModal] = useState(false);
@@ -179,11 +190,13 @@ export default function EditProductPage() {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [uploadingImage, setUploadingImage] = useState<string | null>(null); // link_id being uploaded
 
-  const fetchedRef = useRef(false);
+  const fetchedRef = useRef<string | null>(null);
   useEffect(() => {
     if (authLoading || !userProfile || !productId) return;
-    if (fetchedRef.current) return;
-    fetchedRef.current = true;
+    if (fetchedRef.current === productId) return;
+    fetchedRef.current = productId;
+    setLoading(true);
+    setError('');
 
     const loadProduct = async () => {
       try {
@@ -217,12 +230,12 @@ export default function EditProductPage() {
           const catNames: Record<string, string> = {};
           const weights: Record<string, string> = {};
           links.forEach((l: MarketplaceLink) => {
-            platNames[l.id] = l.platform_product_name || product?.name || '';
+            platNames[l.id] = l.platform_product_name || data.product.name || '';
             platDescriptions[l.id] = l.platform_description || '';
             prices[l.id] = l.platform_price?.toString() || '';
             discounts[l.id] = l.platform_discount_price?.toString() || '';
             barcodes[l.id] = l.platform_barcode || '';
-            catIds[l.id] = l.platform_data?.category_id ?? l.shopee_category_id;
+            catIds[l.id] = l.platform_data?.category_id != null ? Number(l.platform_data.category_id) : l.shopee_category_id;
             catNames[l.id] = (l.platform_data?.category_name ?? l.shopee_category_name) || '';
             weights[l.id] = l.weight?.toString() || '';
           });
@@ -282,12 +295,16 @@ export default function EditProductPage() {
   const reloadProductData = async () => {
     try {
       const res = await apiFetch(`/api/products/${productId}`);
-      if (!res.ok) return;
+      if (!res.ok) return false;
       const data = await res.json();
-      if (data.product) setProduct(data.product as ProductItem);
+      if (!data.product) return false;
+      setProduct(data.product as ProductItem);
       setProductImages(data.images || []);
       setVariationImages(data.variation_images || {});
-    } catch { /* ปล่อยผ่าน — ค่าที่ค้างอยู่ยังใช้ได้ ผู้ใช้กด refresh เองได้ */ }
+      setFormDirty(false);
+      setFormVersion(version => version + 1);
+      return true;
+    } catch { return false; }
   };
 
   const refreshLinks = async () => {
@@ -310,7 +327,7 @@ export default function EditProductPage() {
           prices[l.id] = l.platform_price?.toString() || '';
           discounts[l.id] = l.platform_discount_price?.toString() || '';
           barcodes[l.id] = l.platform_barcode || '';
-          catIds[l.id] = l.platform_data?.category_id ?? l.shopee_category_id;
+          catIds[l.id] = l.platform_data?.category_id != null ? Number(l.platform_data.category_id) : l.shopee_category_id;
           catNames[l.id] = (l.platform_data?.category_name ?? l.shopee_category_name) || '';
           weights[l.id] = l.weight?.toString() || '';
         });
@@ -371,7 +388,7 @@ export default function EditProductPage() {
       const res = await apiFetch(`/api/products?id=${productId}`, { method: 'DELETE' });
       if (res.ok) {
         showToast('ลบสินค้าสำเร็จ');
-        router.push('/products');
+        router.push(navigation.returnTo);
       } else {
         const data = await res.json();
         showToast(data.error || 'ไม่สามารถลบสินค้าได้', 'error');
@@ -387,9 +404,7 @@ export default function EditProductPage() {
   };
 
   // Cancel all changes — reset to original values from marketplaceLinks
-  const handleCancelChanges = () => {
-    router.push('/products');
-  };
+  const handleCancelChanges = navigation.back;
 
   // Save all dirty links
   const handleSaveAllLinks = async () => {
@@ -626,10 +641,10 @@ export default function EditProductPage() {
         closeMergeModal();
         // Redirect to master product edit page
         if (masterProd.product_id !== product.product_id) {
-          router.push(`/products/${masterProd.product_id}/edit`);
+          router.push(productEditorUrl(masterProd.product_id, navigation.returnTo));
         } else {
           // Reload current page
-          fetchedRef.current = false;
+          fetchedRef.current = null;
           window.location.reload();
         }
       } else {
@@ -668,7 +683,7 @@ export default function EditProductPage() {
     return (
       <Layout>
         <Container size="4xl" gap="sm">
-          <PageHeader title="แก้ไขสินค้า" backHref="/products" />
+          <PageHeader title="แก้ไขสินค้า" backHref={navigation.returnTo} onBack={navigation.back} />
           <Alert tone="danger">{error || 'ไม่พบสินค้า'}</Alert>
         </Container>
       </Layout>
@@ -695,569 +710,64 @@ export default function EditProductPage() {
       : null;
   };
 
-  // Render image with change button (for first link / primary image)
-  const renderPrimaryImage = (link: MarketplaceLink) => {
-    const image = link.platform_primary_image || product.image;
-    const isUploading = uploadingImage === link.id;
-
-    return (
-      <div className="relative group flex-shrink-0">
-        {image ? (
-          <img
-            src={image}
-            alt={product.name}
-            className="w-32 h-32 rounded-lg object-cover border border-gray-200 dark:border-slate-600"
-          />
-        ) : (
-          <div className="w-32 h-32 rounded-lg bg-gray-100 dark:bg-slate-700 flex items-center justify-center border border-gray-200 dark:border-slate-600">
-            <Package2 className="w-10 h-10 text-gray-400" />
-          </div>
-        )}
-        {/* Overlay change button */}
-        <button
-          type="button"
-          onClick={() => {
-            imageInputRef.current?.setAttribute('data-link-id', link.id);
-            imageInputRef.current?.click();
-          }}
-          disabled={isUploading}
-          className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-        >
-          {isUploading ? (
-            <Loader2 className="w-5 h-5 text-white animate-spin" />
-          ) : (
-            <Camera className="w-5 h-5 text-white" />
-          )}
-        </button>
-      </div>
-    );
-  };
-
-  // Render simple product shop tab (card layout, no table)
-  const renderSimpleShopTab = (link: MarketplaceLink, shopId: string | null) => {
-    const systemPrice = getSystemPrice(link);
-    const systemDiscountPrice = getSystemDiscountPrice(link);
-
-    return (
-      <>
-      <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5 space-y-5">
-        {/* Product info */}
-        <div className="space-y-3">
-          {/* รูป | ชื่อ+Item ID | ปุ่ม — โครงเดียวกับแท็บ "ข้อมูลสินค้า" (flex-col บนมือถือ) */}
-          <div className="flex flex-col md:flex-row items-start gap-6">
-            {renderPrimaryImage(link)}
-            <div className="flex-1 min-w-0 w-full">
-              <div className="relative">
-                <textarea
-                  value={platformNameValues[link.id] || ''}
-                  onChange={e => { if (e.target.value.length <= 120) { setPlatformNameValues(prev => ({ ...prev, [link.id]: e.target.value })); markDirty(link.id); } }}
-                  maxLength={120}
-                  rows={2}
-                  className={`w-full px-2 py-1.5 text-base border rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary resize-none ${
-                    (platformNameValues[link.id] || '').length > 0 && (platformNameValues[link.id] || '').length < 20
-                      ? 'border-red-400 dark:border-red-500'
-                      : 'border-gray-300 dark:border-slate-600'
-                  }`}
-                />
-                <span className={`absolute right-2 bottom-2.5 text-[11px] pointer-events-none ${
-                  (platformNameValues[link.id] || '').length < 20 ? 'text-red-500' : 'text-gray-400 dark:text-slate-500'
-                }`}>
-                  {(platformNameValues[link.id] || '').length}/120
-                </span>
-              </div>
-              {(platformNameValues[link.id] || '').length > 0 && (platformNameValues[link.id] || '').length < 20 && (
-                <p className="text-[11px] text-red-500 mt-0.5">ชื่อสินค้าต้องมีอย่างน้อย 20 ตัวอักษร</p>
-              )}
-              <p className="text-sm text-gray-500 dark:text-slate-400 mt-1 font-mono break-all">
-                Item ID: {link.external_item_id}
-              </p>
-              {link.external_sku && (
-                <p className="text-sm text-gray-500 dark:text-slate-400 font-mono break-all">
-                  SKU: {link.external_sku}
-                </p>
-              )}
-            </div>
-            <div className="flex items-center gap-1 flex-shrink-0">
-              {shopId && (
-                <a
-                  href={`https://shopee.co.th/product/${shopId}/${link.external_item_id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="p-2 text-gray-500 hover:text-blue-500 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700"
-                  title="ดูบน Shopee"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                </a>
-              )}
-              <button
-                onClick={() => setSyncTarget(link)}
-                className="p-2 text-gray-500 hover:text-primary transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700"
-                title="ซิงค์กับร้านนี้"
-              >
-                <RefreshCw className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => handleUnlink(link.id)}
-                className="p-2 text-gray-500 hover:text-red-500 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700"
-                title="ยกเลิกเชื่อมโยง"
-              >
-                <Unlink2 className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-          {/* Platform description — full width textarea */}
-          <div>
-            <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
-              คำอธิบายสินค้า ({marketplaceLabel(link.platform)})
-            </label>
-            <textarea
-              value={platformDescriptionValues[link.id] || ''}
-              onChange={e => { setPlatformDescriptionValues(prev => ({ ...prev, [link.id]: e.target.value })); markDirty(link.id); }}
-              rows={6}
-              placeholder="คำอธิบายสินค้าสำหรับร้านนี้ — ใช้ตอนส่งสินค้าออกไปยัง Shopee"
-              className="w-full px-3 py-2 text-base border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary resize-y"
-            />
-            {Array.isArray(link.platform_description_images) && link.platform_description_images.length > 0 && (
-              <div className="mt-2">
-                <p className="text-xs text-gray-500 dark:text-slate-400 mb-1">
-                  รูปประกอบ description (เก็บไว้ ref ตอน export ไปร้านอื่น — ไม่แสดงในรูปสินค้าหลัก)
-                </p>
-                <div className="flex gap-2 flex-wrap">
-                  {link.platform_description_images.map((url, i) => (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img key={i} src={url} alt="" className="w-16 h-16 object-cover rounded border border-gray-200 dark:border-slate-700" />
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* หมวดหมู่ (ยาวตามชื่อหมวด) คู่กับช่องตัวเลขสั้น ๆ ในแถวเดียว — มือถือเรียงลงมา */}
-        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-4">
-        <div className="flex-1 min-w-[260px]">
-          <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
-            หมวดหมู่ {marketplaceLabel(link.platform)}
-          </label>
-          <CategoryPicker
-            accountId={link.account_id}
-            value={categoryIdValues[link.id] != null ? String(categoryIdValues[link.id]) : null}
-            categoryName={categoryNameValues[link.id] || ''}
-            platformLabel={marketplaceLabel(link.platform)}
-            onChange={(catId, catName) => {
-              setCategoryIdValues(prev => ({ ...prev, [link.id]: catId ? Number(catId) : null }));
-              setCategoryNameValues(prev => ({ ...prev, [link.id]: catName }));
-              markDirty(link.id);
-            }}
-          />
-        </div>
-
-        {/* Price + Weight + (Barcode, Discount for non-Shopee) */}
-          {link.platform !== 'shopee' && (
-            <div className="w-full sm:w-[220px]">
-              <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
-                Barcode
-              </label>
-              <input
-                type="text"
-                value={barcodeValues[link.id] || ''}
-                onChange={e => { setBarcodeValues(prev => ({ ...prev, [link.id]: e.target.value })); markDirty(link.id); }}
-                placeholder="-"
-                className="w-full px-3 h-[42px] text-base border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary"
-              />
-            </div>
-          )}
-          <div className="w-full sm:w-[240px]">
-            <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
-              ราคา Platform
-            </label>
-            <div className="flex items-center gap-2">
-              <PostfixInput
-                postfix="฿"
-                value={priceValues[link.id] || ''}
-                onChange={v => { setPriceValues(prev => ({ ...prev, [link.id]: v })); markDirty(link.id); }}
-                placeholder="ไม่ได้ตั้ง"
-                className="flex-1"
-                width="w-full"
-                inputClassName="w-full px-3 h-[42px]"
-                classNames={{ text: 'text-base text-gray-900 dark:text-white' }}
-              />
-              {savingLink[link.id] && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
-            </div>
-            <p className="text-[11px] text-blue-500 dark:text-blue-400 mt-1 font-medium">
-              ราคาในระบบ: {formatPriceValue(systemPrice)}
-            </p>
-          </div>
-          {link.platform !== 'shopee' && (
-            <div className="w-full sm:w-[200px]">
-              <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
-                ราคาลด
-              </label>
-              <PostfixInput
-                postfix="฿"
-                value={discountValues[link.id] || ''}
-                onChange={v => { setDiscountValues(prev => ({ ...prev, [link.id]: v })); markDirty(link.id); }}
-                placeholder="0"
-                width="w-full"
-                inputClassName="w-full px-3 h-[42px]"
-                classNames={{ text: 'text-base text-gray-900 dark:text-white' }}
-              />
-              <p className="text-[11px] text-blue-500 dark:text-blue-400 mt-1 font-medium">
-                ราคาลดในระบบ: {formatPriceValue(systemDiscountPrice)}
-              </p>
-            </div>
-          )}
-          <div className="w-full sm:w-[160px]">
-            <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
-              น้ำหนัก
-            </label>
-            <PostfixInput
-              postfix="kg"
-              value={weightValues[link.id] || ''}
-              onChange={v => { setWeightValues(prev => ({ ...prev, [link.id]: v })); markDirty(link.id); }}
-              placeholder="0.5"
-              width="w-full"
-              inputClassName="w-full px-3 h-[42px]"
-              classNames={{ text: 'text-base text-gray-900 dark:text-white' }}
-            />
-          </div>
-        </div>
-
-      </div>
-
-        {/* Shopee Attributes card */}
-        {((link.platform_data?.brand_name ?? link.shopee_brand_name) || ((link.platform_data?.attributes ?? link.shopee_attributes) && (link.platform_data?.attributes ?? link.shopee_attributes)!.length > 0)) && (
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
-            <h4 className="text-base font-semibold text-gray-800 dark:text-slate-200 mb-3">Shopee Attributes</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {(link.platform_data?.brand_name ?? link.shopee_brand_name) && (
-                <div>
-                  <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">
-                    Brand<span className="text-red-500 ml-0.5">*</span>
-                  </label>
-                  <div className="px-3 py-2 text-base bg-gray-50 dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300">
-                    {link.platform_data?.brand_name ?? link.shopee_brand_name}
-                  </div>
-                </div>
-              )}
-              {((link.platform_data?.attributes ?? link.shopee_attributes) as typeof link.shopee_attributes)?.filter(attr => {
-                const name = (attr.original_attribute_name || '').toLowerCase();
-                return name !== 'weight';
-              }).map((attr) => (
-                <div key={attr.attribute_id}>
-                  <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">
-                    {attr.display_attribute_name || attr.original_attribute_name}
-                    {attr.is_mandatory && <span className="text-red-500 ml-0.5">*</span>}
-                  </label>
-                  <div className="px-3 py-2 text-base bg-gray-50 dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300">
-                    {attr.attribute_value_list && attr.attribute_value_list.length > 0
-                      ? attr.attribute_value_list.map(v => v.display_value_name || v.original_value_name).join(', ')
-                      : <span className="text-gray-400 dark:text-slate-500 italic">ยังไม่ได้ตั้งค่า</span>}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-    </>
-    );
-  };
-
-  // Render variation product shop tab (table layout)
-  const renderVariationShopTab = (links: MarketplaceLink[], shopId: string | null) => {
-    // Use the first link to get the primary image
-    const firstLink = links[0];
-
-    return (
-      <div className="space-y-4">
-        {/* Product header with image */}
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5 space-y-5">
-          <div className="space-y-3">
-            {/* รูป | ชื่อ+Item ID | ปุ่ม — โครงเดียวกับแท็บ "ข้อมูลสินค้า" (flex-col บนมือถือ) */}
-            <div className="flex flex-col md:flex-row items-start gap-6">
-              {renderPrimaryImage(firstLink)}
-              <div className="flex-1 min-w-0 w-full">
-                <div className="relative">
-                  <textarea
-                    value={platformNameValues[firstLink.id] || ''}
-                    onChange={e => {
-                      const val = e.target.value;
-                      if (val.length <= 120) {
-                        setPlatformNameValues(prev => {
-                          const next = { ...prev };
-                          links.forEach(l => { next[l.id] = val; });
-                          return next;
-                        });
-                        links.forEach(l => markDirty(l.id));
-                      }
-                    }}
-                    maxLength={120}
-                    rows={2}
-                    className={`w-full px-2 py-1.5 text-base border rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary resize-none ${
-                      (platformNameValues[firstLink.id] || '').length > 0 && (platformNameValues[firstLink.id] || '').length < 20
-                        ? 'border-red-400 dark:border-red-500'
-                        : 'border-gray-300 dark:border-slate-600'
-                    }`}
-                  />
-                  <span className={`absolute right-2 bottom-2.5 text-[11px] pointer-events-none ${
-                    (platformNameValues[firstLink.id] || '').length < 20 ? 'text-red-500' : 'text-gray-400 dark:text-slate-500'
-                  }`}>
-                    {(platformNameValues[firstLink.id] || '').length}/120
-                  </span>
-                </div>
-                {(platformNameValues[firstLink.id] || '').length > 0 && (platformNameValues[firstLink.id] || '').length < 20 && (
-                  <p className="text-[11px] text-red-500 mt-0.5">ชื่อสินค้าต้องมีอย่างน้อย 20 ตัวอักษร</p>
-                )}
-                <p className="text-sm text-gray-500 dark:text-slate-400 mt-1 font-mono break-all">
-                  Item ID: {firstLink.external_item_id}
-                </p>
-              </div>
-              <div className="flex items-center gap-1 flex-shrink-0">
-                {shopId && (
-                  <a
-                    href={`https://shopee.co.th/product/${shopId}/${firstLink.external_item_id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-2 text-gray-500 hover:text-blue-500 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700"
-                    title="ดูบน Shopee"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                  </a>
-                )}
-                <button
-                  onClick={() => setSyncTarget(firstLink)}
-                  className="p-2 text-gray-500 hover:text-primary transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700"
-                  title="ซิงค์กับร้านนี้"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-            {/* Platform description — shared across all variations of this item */}
-            <div>
-              <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
-                คำอธิบายสินค้า ({firstLink.platform === 'shopee' ? 'Shopee' : firstLink.platform})
-              </label>
-              <textarea
-                value={platformDescriptionValues[firstLink.id] || ''}
-                onChange={e => {
-                  const val = e.target.value;
-                  setPlatformDescriptionValues(prev => {
-                    const next = { ...prev };
-                    links.forEach(l => { next[l.id] = val; });
-                    return next;
-                  });
-                  links.forEach(l => markDirty(l.id));
-                }}
-                rows={6}
-                placeholder="คำอธิบายสินค้าสำหรับร้านนี้ — ใช้ตอนส่งสินค้าออกไปยัง Shopee"
-                className="w-full px-3 py-2 text-base border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary resize-y"
-              />
-              {Array.isArray(firstLink.platform_description_images) && firstLink.platform_description_images.length > 0 && (
-                <div className="mt-2">
-                  <p className="text-xs text-gray-500 dark:text-slate-400 mb-1">
-                    รูปประกอบ description (เก็บไว้ ref ตอน export ไปร้านอื่น — ไม่แสดงในรูปสินค้าหลัก)
-                  </p>
-                  <div className="flex gap-2 flex-wrap">
-                    {firstLink.platform_description_images.map((url, i) => (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img key={i} src={url} alt="" className="w-16 h-16 object-cover rounded border border-gray-200 dark:border-slate-700" />
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* หมวดหมู่ (ยาวตามชื่อหมวด) คู่กับน้ำหนัก (สั้น) ในแถวเดียว */}
-          <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex-1 min-w-0">
-            <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">หมวดหมู่ {marketplaceLabel(firstLink.platform)}</label>
-            <CategoryPicker
-              accountId={firstLink.account_id}
-              value={categoryIdValues[firstLink.id] != null ? String(categoryIdValues[firstLink.id]) : null}
-              categoryName={categoryNameValues[firstLink.id] || ''}
-              platformLabel={marketplaceLabel(firstLink.platform)}
-              onChange={(catId, catName) => {
-                setCategoryIdValues(prev => ({ ...prev, [firstLink.id]: catId ? Number(catId) : null }));
-                setCategoryNameValues(prev => ({ ...prev, [firstLink.id]: catName }));
-                markDirty(firstLink.id);
-              }}
-            />
-          </div>
-
-          <div className="w-full sm:w-[160px] flex-shrink-0">
-            <FormInput
-              label="น้ำหนัก"
-              type="number"
-              value={weightValues[firstLink.id] || ''}
-              onChange={e => { setWeightValues(prev => ({ ...prev, [firstLink.id]: e.target.value })); markDirty(firstLink.id); }}
-              min="0"
-              step="0.1"
-              placeholder="0.5"
-              postfix="kg"
-            />
-          </div>
-          </div>
-
-        </div>
-
-        {/* Variations table */}
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="data-table-fixed">
-              <thead>
-                <tr className="data-thead-tr">
-                  <th className="data-th w-[72px]">รูป</th>
-                  <th className="data-th">ตัวเลือก</th>
-                  <th className="data-th">SKU (Shopee)</th>
-                  {firstLink.platform !== 'shopee' && <th className="data-th">Barcode</th>}
-                  <th className="data-th">ราคา Platform (฿)</th>
-                  {firstLink.platform !== 'shopee' && <th className="data-th">ราคาลด (฿)</th>}
-                  <th className="data-th text-right">จัดการ</th>
-                </tr>
-              </thead>
-              <tbody className="data-tbody">
-                {links.map(link => {
-                  const variation = link.product_variations;
-                  const systemPrice = getSystemPrice(link);
-                  const systemDiscountPrice = getSystemDiscountPrice(link);
-                  const varImages = link.variation_id ? variationImages[link.variation_id] : null;
-                  const varImage = varImages?.[0]?.image_url || product.image;
-
-                  return (
-                    <tr key={link.id} className="data-tr align-top">
-                      <td className="px-3 py-3">
-                        {varImage ? (
-                          <img
-                            src={varImage}
-                            alt={variation?.variation_label || ''}
-                            className="w-14 h-14 rounded-lg object-cover border border-gray-200 dark:border-slate-600"
-                          />
-                        ) : (
-                          <div className="w-14 h-14 rounded-lg bg-gray-100 dark:bg-slate-700 flex items-center justify-center border border-gray-200 dark:border-slate-600">
-                            <Package2 className="w-6 h-6 text-gray-400" />
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-base text-gray-900 dark:text-white">
-                        <div className="pt-1.5">{variation?.variation_label || '-'}</div>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-300 font-mono">
-                        <div className="pt-1.5">{link.external_sku || '-'}</div>
-                      </td>
-                      {firstLink.platform !== 'shopee' && (
-                        <td className="px-4 py-3">
-                          <input
-                            type="text"
-                            value={barcodeValues[link.id] || ''}
-                            onChange={e => { setBarcodeValues(prev => ({ ...prev, [link.id]: e.target.value })); markDirty(link.id); }}
-                            placeholder="-"
-                            className="w-32 px-2 py-1.5 text-xs border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary"
-                          />
-                        </td>
-                      )}
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1.5">
-                          <PostfixInput
-                            postfix="฿"
-                            value={priceValues[link.id] || ''}
-                            onChange={v => { setPriceValues(prev => ({ ...prev, [link.id]: v })); markDirty(link.id); }}
-                            placeholder="ไม่ได้ตั้ง"
-                            compact
-                            width="w-24"
-                            inputClassName="w-full"
-                            classNames={{ text: 'text-xs text-right text-gray-900 dark:text-white' }}
-                          />
-                          {savingLink[link.id] && <Loader2 className="w-3 h-3 animate-spin text-gray-400" />}
-                        </div>
-                        <p className="text-[10px] text-blue-500 dark:text-blue-400 mt-0.5 font-medium">
-                          ราคาในระบบ: {formatPriceValue(systemPrice)}
-                        </p>
-                      </td>
-                      {firstLink.platform !== 'shopee' && (
-                        <td className="px-4 py-3">
-                          <PostfixInput
-                            postfix="฿"
-                            value={discountValues[link.id] || ''}
-                            onChange={v => { setDiscountValues(prev => ({ ...prev, [link.id]: v })); markDirty(link.id); }}
-                            placeholder="0"
-                            compact
-                            width="w-24"
-                            inputClassName="w-full"
-                            classNames={{ text: 'text-xs text-right text-gray-900 dark:text-white' }}
-                          />
-                          <p className="text-[10px] text-blue-500 dark:text-blue-400 mt-0.5 font-medium">
-                            ราคาลดในระบบ: {formatPriceValue(systemDiscountPrice)}
-                          </p>
-                        </td>
-                      )}
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-1">
-                          {shopId && (
-                            <a
-                              href={`https://shopee.co.th/product/${shopId}/${link.external_item_id}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-1.5 text-gray-500 hover:text-blue-500 transition-colors"
-                              title="ดูบน Shopee"
-                            >
-                              <ExternalLink className="w-3.5 h-3.5" />
-                            </a>
-                          )}
-                          <button
-                            onClick={() => handleUnlink(link.id)}
-                            className="p-1.5 text-gray-500 hover:text-red-500 transition-colors"
-                            title="ยกเลิกเชื่อมโยง"
-                          >
-                            <Unlink2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Shopee Attributes card */}
-        {((firstLink.platform_data?.brand_name ?? firstLink.shopee_brand_name) || ((firstLink.platform_data?.attributes ?? firstLink.shopee_attributes) && (firstLink.platform_data?.attributes ?? firstLink.shopee_attributes)!.length > 0)) && (
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
-            <h4 className="text-base font-semibold text-gray-800 dark:text-slate-200 mb-3">Shopee Attributes</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {(firstLink.platform_data?.brand_name ?? firstLink.shopee_brand_name) && (
-                <div>
-                  <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">
-                    Brand<span className="text-red-500 ml-0.5">*</span>
-                  </label>
-                  <div className="px-3 py-2 text-base bg-gray-50 dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300">
-                    {firstLink.platform_data?.brand_name ?? firstLink.shopee_brand_name}
-                  </div>
-                </div>
-              )}
-              {((firstLink.platform_data?.attributes ?? firstLink.shopee_attributes) as typeof firstLink.shopee_attributes)?.filter(attr => {
-                const name = (attr.original_attribute_name || '').toLowerCase();
-                return name !== 'weight';
-              }).map((attr) => (
-                <div key={attr.attribute_id}>
-                  <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">
-                    {attr.display_attribute_name || attr.original_attribute_name}
-                    {attr.is_mandatory && <span className="text-red-500 ml-0.5">*</span>}
-                  </label>
-                  <div className="px-3 py-2 text-base bg-gray-50 dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300">
-                    {attr.attribute_value_list && attr.attribute_value_list.length > 0
-                      ? attr.attribute_value_list.map(v => v.display_value_name || v.original_value_name).join(', ')
-                      : <span className="text-gray-400 dark:text-slate-500 italic">ยังไม่ได้ตั้งค่า</span>}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    );
+  // Both product shapes use the same listing component as the design preview.
+  const renderShopTab = (links: MarketplaceLink[], shopId: string | null) => {
+    const link = links[0];
+    const multiple = !isSimpleProduct || links.length > 1;
+    const updateAll = (setter: React.Dispatch<React.SetStateAction<Record<string, string>>>, value: string) => {
+      setter(previous => ({ ...previous, ...Object.fromEntries(links.map(item => [item.id, value])) }));
+      links.forEach(item => markDirty(item.id));
+    };
+    const extras = (item: MarketplaceLink) => <div className="space-y-3">
+      {item.platform !== 'shopee' && <>
+        <FormInput label="บาร์โค้ด" value={barcodeValues[item.id] || ''}
+          onChange={event => { setBarcodeValues(previous => ({ ...previous, [item.id]: event.target.value })); markDirty(item.id); }} />
+        <FormInput label="ราคาลด" type="number" min="0" step="any" postfix="฿" value={discountValues[item.id] || ''}
+          hint={`ราคาลดในระบบ: ${formatPriceValue(getSystemDiscountPrice(item))}`}
+          onChange={event => { setDiscountValues(previous => ({ ...previous, [item.id]: event.target.value })); markDirty(item.id); }} />
+      </>}
+      {multiple && <Button variant="ghost" size="sm" icon={<Unlink2 className="w-4 h-4" />}
+        onClick={() => handleUnlink(item.id)}>ยกเลิกเชื่อมโยง</Button>}
+    </div>;
+    const attributes = (link.platform_data?.attributes ?? link.shopee_attributes) as MarketplaceLink['shopee_attributes'];
+    return <MarketplaceListingCard
+      platform={link.platform as 'shopee' | 'tiktok' | 'lazada'} shopName={link.account_name || marketplaceLabel(link.platform)}
+      itemId={link.external_item_id}
+      productUrl={link.platform === 'shopee' && shopId ? `https://shopee.co.th/product/${shopId}/${link.external_item_id}` : null}
+      lastSyncedText={formatTimestamp(link.last_synced_at)}
+      image={link.platform_primary_image || product.image}
+      imageUploading={uploadingImage === link.id}
+      onChangeImage={() => { imageInputRef.current?.setAttribute('data-link-id', link.id); imageInputRef.current?.click(); }}
+      name={platformNameValues[link.id] || ''} onNameChange={value => updateAll(setPlatformNameValues, value)}
+      description={platformDescriptionValues[link.id] || ''} onDescriptionChange={value => updateAll(setPlatformDescriptionValues, value)}
+      descriptionImages={link.platform_description_images || []}
+      categorySlot={<CategoryPicker accountId={link.account_id}
+        value={categoryIdValues[link.id] != null ? String(categoryIdValues[link.id]) : null}
+        categoryName={categoryNameValues[link.id] || ''} platformLabel={marketplaceLabel(link.platform)}
+        onChange={(id, name) => {
+          setCategoryIdValues(previous => ({ ...previous, [link.id]: id ? Number(id) : null }));
+          setCategoryNameValues(previous => ({ ...previous, [link.id]: name })); markDirty(link.id);
+        }} />}
+      weight={weightValues[link.id] || ''}
+      onWeightChange={value => { setWeightValues(previous => ({ ...previous, [link.id]: value })); markDirty(link.id); }}
+      price={priceValues[link.id] || ''} systemPrice={getSystemPrice(link)}
+      onPriceChange={value => { setPriceValues(previous => ({ ...previous, [link.id]: value })); markDirty(link.id); }}
+      models={multiple ? links.map(item => ({ id: item.id, label: item.product_variations?.variation_label || '-',
+        sku: item.external_sku || '', image: item.variation_id ? variationImages[item.variation_id]?.[0]?.image_url : null,
+        platformPrice: priceValues[item.id] || '', systemPrice: getSystemPrice(item),
+      })) : undefined}
+      onModelPriceChange={(id, value) => { setPriceValues(previous => ({ ...previous, [id]: value })); markDirty(id); }}
+      modelExtras={multiple ? model => extras(links.find(item => item.id === model.id)!) : undefined}
+      extra={!multiple ? <><p className="helper-text">SKU: {link.external_sku || '-'}</p>{extras(link)}</> : undefined}
+      brandName={link.platform_data?.brand_name ?? link.shopee_brand_name}
+      attributes={attributes?.map(attribute => ({ id: attribute.attribute_id,
+        name: attribute.display_attribute_name || attribute.original_attribute_name, mandatory: attribute.is_mandatory,
+        value: attribute.attribute_value_list?.map(value => value.display_value_name || value.original_value_name).join(', ') || '',
+      }))}
+      onSync={() => setSyncTarget(link)} onUnlink={!multiple ? () => handleUnlink(link.id) : undefined}
+      dirty={dirtyLinks.size > 0} saving={Object.values(savingLink).some(Boolean)}
+      onSave={handleSaveAllLinks} onCancel={handleCancelChanges} hideActions
+    />;
   };
 
   return (
@@ -1287,12 +797,11 @@ export default function EditProductPage() {
               <span className="text-sm text-gray-400 font-mono truncate hidden sm:inline">{product.code}</span>
             </span>
           }
-          backHref="/products"
+          backHref={navigation.returnTo} onBack={navigation.back}
           actions={
             <>
               <Button
                 variant="secondary"
-                size="sm"
                 icon={<Merge className="w-4 h-4" />}
                 onClick={openMergeModal}
                 title="รวมกับสินค้าอื่น"
@@ -1301,7 +810,6 @@ export default function EditProductPage() {
               </Button>
               <Button
                 variant="ghost"
-                size="sm"
                 icon={<HelpCircle className="w-4 h-4" />}
                 onClick={() => setMergeHelpModal(true)}
                 title="ดูคำอธิบาย"
@@ -1309,11 +817,9 @@ export default function EditProductPage() {
               />
               <Button
                 variant="danger"
-                size="sm"
                 icon={<Trash2 className="w-4 h-4" />}
                 onClick={handleDeleteProduct}
                 title="ลบสินค้า"
-                className="!bg-transparent !border !border-red-300 dark:!border-red-700 !text-red-600 dark:!text-red-400 hover:!bg-red-50 dark:hover:!bg-red-900/20"
               >
                 <span className="hidden sm:inline">ลบสินค้า</span>
               </Button>
@@ -1326,15 +832,22 @@ export default function EditProductPage() {
           <Tabs
             className="mb-0"
             activeKey={activeTab}
-            onSelect={setActiveTab}
+            onSelect={async key => {
+              if (key === activeTab || !await navigation.allowLeave()) return;
+              if (dirtyLinks.size) {
+                await refreshLinks();
+                setDirtyLinks(new Set());
+              }
+              setFormDirty(false);
+              setActiveTab(key);
+            }}
             tabs={[
               // ให้แท็บแรกมีไอคอนด้วย จะได้ไม่เป็นแท็บเดียวที่ข้อความชิดซ้ายกว่าเพื่อน
               { key: 'info', label: 'ข้อมูลสินค้า', icon: <Package2 className="w-4 h-4" /> },
               ...shopAccounts.map(([accountId, account]) => ({
                 key: accountId,
                 label: account.name,
-                // eslint-disable-next-line @next/next/no-img-element
-                icon: <img src="/marketplace/shopee.svg" alt="" className="w-4 h-4" />,
+                icon: <PlatformIcon id={account.links[0].platform} size={16} />,
               })),
             ]}
           />
@@ -1344,6 +857,16 @@ export default function EditProductPage() {
         {(!hasTabs || activeTab === 'info') ? (
           /* Info Tab — ProductForm */
           <ProductForm
+            key={`${productId}:${formVersion}`}
+            returnTo={navigation.returnTo}
+            onCancel={navigation.back}
+            onDirtyChange={setFormDirty}
+            onSaved={async () => {
+              if (!await reloadProductData()) {
+                // Save succeeded; use GET rather than retrying stale variation IDs.
+                window.location.reload();
+              }
+            }}
             editingProduct={product}
             initialImages={productImages}
             initialVariationImages={variationImages}
@@ -1361,7 +884,7 @@ export default function EditProductPage() {
                 {/* Shop name + action buttons */}
                 <div className="flex items-center justify-between flex-wrap gap-3">
                   <div className="flex items-center gap-2">
-                    <img src="/marketplace/shopee.svg" alt="Shopee" className="w-5 h-5" />
+                    <PlatformIcon id={links[0].platform} size={20} />
                     <span className="font-medium text-gray-900 dark:text-white">{accountName}</span>
                     <span className="text-xs text-gray-500 dark:text-slate-400">
                       {links.length} รายการ
@@ -1373,24 +896,10 @@ export default function EditProductPage() {
                 </div>
 
                 {/* Content: simple vs variation */}
-                {isSimpleProduct && links.length === 1 ? (
-                  renderSimpleShopTab(links[0], shopId)
-                ) : (
-                  renderVariationShopTab(links, shopId)
-                )}
+                {renderShopTab(links, shopId)}
 
-                {/* Save / Cancel buttons — show when dirty */}
-                {dirtyLinks.size > 0 && (
-                  <div className="flex items-center justify-end gap-3 pt-2">
-                    <Button variant="secondary" onClick={handleCancelChanges}>
-                      ยกเลิก
-                    </Button>
-                    <SaveButton
-                      loading={Object.values(savingLink).some(Boolean)}
-                      onClick={handleSaveAllLinks}
-                    />
-                  </div>
-                )}
+                <StickyActionBar dirty={dirtyLinks.size > 0} saving={Object.values(savingLink).some(Boolean)}
+                  onSave={handleSaveAllLinks} onCancel={handleCancelChanges} />
               </div>
             );
           })()
@@ -1404,7 +913,7 @@ export default function EditProductPage() {
         title={mergeStep === 1 ? 'เลือกสินค้าที่จะรวม' : 'ตั้งค่าการรวมสินค้า'}
         size="2xl"
         footer={
-          <div className="flex items-center justify-between px-6 py-4">
+          <div className="flex items-center justify-end gap-3 px-6 py-4">
             {mergeStep === 2 ? (
               <>
                 <Button
@@ -1453,28 +962,11 @@ export default function EditProductPage() {
                         <p className="text-center text-gray-500 dark:text-slate-400 text-sm py-6">ไม่พบสินค้า</p>
                       ) : (
                         mergeSearchResults.map(p => (
-                          <button
-                            key={p.product_id}
-                            onClick={() => selectMergeSource(p)}
-                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors text-left"
-                          >
-                            {p.image || p.main_image_url ? (
-                              <img src={p.image || p.main_image_url} alt="" className="w-10 h-10 rounded-lg object-cover bg-gray-100 dark:bg-slate-700 flex-shrink-0" />
-                            ) : (
-                              <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                                <Package2 className="w-5 h-5 text-gray-400" />
-                              </div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <div className="data-primary text-gray-900 dark:text-white truncate">{p.name}</div>
-                              <div className="data-secondary text-gray-500 dark:text-slate-400">
-                                {p.code}
-                                {(p as any).source === 'shopee' && <span className="ml-2 text-orange-500">Shopee</span>}
-                                <span className="ml-2">{(p.variations || []).length} ตัวเลือก</span>
-                              </div>
-                            </div>
-                            <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                          </button>
+                          <ListRow key={p.product_id}
+                            icon={<ProductImageThumb src={p.image || p.main_image_url} alt={p.name} size="sm" />}
+                            title={p.name} subtitle={`${p.code} · ${(p.variations || []).length} ตัวเลือก`}
+                            actions={<Button variant="secondary" size="sm" onClick={() => selectMergeSource(p)}>เลือก</Button>}
+                          />
                         ))
                       )}
                     </div>
@@ -1489,22 +981,20 @@ export default function EditProductPage() {
                   <div>
                     <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-2">เลือกสินค้าหลัก (ตัวที่จะเก็บไว้)</label>
                     <div className="space-y-2">
-                      <label className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${mergeMasterId === 'current' ? 'border-primary bg-orange-50 dark:bg-orange-900/10' : 'border-gray-200 dark:border-slate-700'}`}>
-                        <input type="radio" checked={mergeMasterId === 'current'} onChange={() => handleMasterChange('current')} className="accent-primary" />
+                      <Radio checked={mergeMasterId === 'current'} onChange={() => handleMasterChange('current')} className={`p-3 border rounded-lg ${mergeMasterId === 'current' ? 'border-primary bg-orange-50 dark:bg-orange-900/10' : 'border-gray-200 dark:border-slate-700'}`}>
                         <div className="flex-1 min-w-0">
                           <span className="data-primary text-gray-900 dark:text-white">{product.name}</span>
                           <span className="ml-2 code-text text-gray-500">{product.code}</span>
                         </div>
                         <span className="data-muted text-gray-400">สินค้าปัจจุบัน</span>
-                      </label>
-                      <label className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${mergeMasterId === 'source' ? 'border-primary bg-orange-50 dark:bg-orange-900/10' : 'border-gray-200 dark:border-slate-700'}`}>
-                        <input type="radio" checked={mergeMasterId === 'source'} onChange={() => handleMasterChange('source')} className="accent-primary" />
+                      </Radio>
+                      <Radio checked={mergeMasterId === 'source'} onChange={() => handleMasterChange('source')} className={`p-3 border rounded-lg ${mergeMasterId === 'source' ? 'border-primary bg-orange-50 dark:bg-orange-900/10' : 'border-gray-200 dark:border-slate-700'}`}>
                         <div className="flex-1 min-w-0">
                           <span className="data-primary text-gray-900 dark:text-white">{mergeSource.name}</span>
                           <span className="ml-2 code-text text-gray-500">{mergeSource.code}</span>
                         </div>
                         <span className="data-muted text-gray-400">สินค้าที่เลือก</span>
-                      </label>
+                      </Radio>
                     </div>
                     <p className="mt-1.5 text-xs text-red-500">สินค้าที่ไม่ได้เป็นตัวหลักจะถูกปิดใช้งานหลังรวม</p>
                   </div>
@@ -1530,20 +1020,20 @@ export default function EditProductPage() {
                             <tr key={f.key}>
                               <td className="px-3 py-2 text-gray-700 dark:text-slate-300 font-medium">{f.label}</td>
                               <td className="px-3 py-2">
-                                <button
+                                <Button size="sm"
                                   onClick={() => setMergeFieldChoices(prev => ({ ...prev, [f.key]: 'current' }))}
-                                  className={`text-xs px-2 py-1 rounded ${(mergeFieldChoices[f.key] || 'current') === 'current' ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400'}`}
+                                  variant={(mergeFieldChoices[f.key] || 'current') === 'current' ? 'primary' : 'secondary'}
                                 >
                                   {f.current}
-                                </button>
+                                </Button>
                               </td>
                               <td className="px-3 py-2">
-                                <button
+                                <Button size="sm"
                                   onClick={() => setMergeFieldChoices(prev => ({ ...prev, [f.key]: 'source' }))}
-                                  className={`text-xs px-2 py-1 rounded ${mergeFieldChoices[f.key] === 'source' ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400'}`}
+                                  variant={mergeFieldChoices[f.key] === 'source' ? 'primary' : 'secondary'}
                                 >
                                   {f.source}
-                                </button>
+                                </Button>
                               </td>
                             </tr>
                           ))}
@@ -1675,6 +1165,7 @@ export default function EditProductPage() {
         />
       )}
 
+      {navigation.confirmDialog}
       {confirmDialog}
     </Layout>
   );

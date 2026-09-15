@@ -17,8 +17,6 @@ import FormSelect from '@/components/ui/FormSelect';
 import FormInput from '@/components/ui/FormInput';
 import NumberInput from '@/components/ui/NumberInput';
 import Toggle from '@/components/ui/Toggle';
-import Radio from '@/components/ui/Radio';
-import Tooltip from '@/components/ui/Tooltip';
 import HelpHint from '@/components/ui/HelpHint';
 import ImageUploader, { type ProductImage } from '@/components/ui/ImageUploader';
 import {
@@ -56,25 +54,6 @@ const EMPTY_BULK: BulkState = { default_price: 0, discount: NO_REDUCE, cost_pric
 
 const DEFAULT_OFF_REASON = 'ตัวเลือกที่ปิดขายอยู่ ตั้งเป็นตัวตั้งต้นไม่ได้';
 
-/** ปุ่มเลือก "ตัวตั้งต้น" ของแถว — เลือกได้ทีละแถว · กดแถวที่เลือกอยู่ซ้ำ = ยกเลิก */
-function DefaultPicker({ row, onPick, withLabel }: {
-  row: VariantRow;
-  onPick: (tempId: string) => void;
-  withLabel?: boolean;
-}) {
-  return (
-    <Tooltip text={row.is_active ? '' : DEFAULT_OFF_REASON}>
-      <Radio
-        checked={!!row.is_default}
-        onChange={() => onPick(row._tempId)}
-        disabled={!row.is_active}
-        label={withLabel ? 'ตั้งต้น' : undefined}
-        className={withLabel ? undefined : 'justify-center'}
-      />
-    </Tooltip>
-  );
-}
-
 export default function VariantOptionsEditor({
   groups, onGroupsChange, rows, onRowsChange, variationTypes, onAddVariationType,
   images, onImagesChange, errors, canViewCost, showStock, groupsError,
@@ -100,7 +79,37 @@ export default function VariantOptionsEditor({
   // กติกาแถว (ปิดขายแล้วปลดธงตั้งต้น · ตั้งต้นได้ตัวเดียว) อยู่ที่ lib/product-variants.ts
   const updateRow = (tempId: string, patch: Partial<VariantRow>) =>
     onRowsChange(patchRow(rows, tempId, patch));
-  const toggleDefault = (tempId: string) => onRowsChange(setDefaultRow(rows, tempId));
+  const defaultRowId = rows.find(row => row.is_active && row.is_default)?._tempId ?? '';
+  const selectDefault = (tempId: string) => {
+    // The shared helper toggles; selecting the same dropdown option must not clear it.
+    if (tempId === defaultRowId) return;
+    onRowsChange(setDefaultRow(rows, tempId || defaultRowId));
+  };
+  const defaultPicker = (
+    <div role="group" aria-label="ตัวเลือกตั้งต้นหน้าร้าน">
+      <div className="helper-text flex items-center gap-1 mb-1">
+        ตัวเลือกตั้งต้นหน้าร้าน
+        <HelpHint portal align="right">
+          ตัวเลือกที่เลือกไว้ให้ลูกค้าเมื่อเปิดหน้าสินค้า<br />
+          อัตโนมัติ = ตัวที่ขายดีที่สุดใน 90 วันและยังมีของ ถ้ายังไม่เคยขายก็ใช้ตัวแรกที่มีของ<br />
+          หากตัวที่ตั้งไว้ของหมด ระบบจะเลือกให้อัตโนมัติแทน
+        </HelpHint>
+      </div>
+      <FormSelect
+        value={defaultRowId}
+        onChange={selectDefault}
+        options={rows.map(row => ({
+          id: row._tempId,
+          label: row.variation_label || '-',
+          disabled: !row.is_active,
+          subtitle: row.is_active ? undefined : DEFAULT_OFF_REASON,
+        }))}
+        clearLabel="อัตโนมัติ — ขายดีสุดก่อน"
+        searchPlaceholder="ค้นหาตัวเลือก..."
+        portal
+      />
+    </div>
+  );
 
   const bulkPatch = {
     ...(bulk.default_price > 0 ? { default_price: bulk.default_price } : {}),
@@ -120,6 +129,54 @@ export default function VariantOptionsEditor({
   const err = (i: number, field: string) => errors[`variation.${i}.${field}`];
   /** attribute / duplicate-combo error of a row */
   const attrError = (i: number) => groupNames.map(n => err(i, n)).find(Boolean);
+
+  // One fixed column layout for bulk inputs, headers and rows. Keep code fields
+  // wider than prices; optional columns disappear without shifting bulk fields.
+  const columns = [
+    { key: 'image', width: 96 },
+    { key: 'option', width: 112 },
+    { key: 'price', width: 120 },
+    { key: 'discount', width: 152 },
+    ...(canViewCost ? [{ key: 'cost', width: 104 }] : []),
+    { key: 'sku', width: 172 },
+    { key: 'barcode', width: 180 },
+    ...(showStock ? [{ key: 'stock', width: 96 }] : []),
+    { key: 'active', width: 80 },
+  ];
+  const bulkFields = [
+    {
+      key: 'price', label: 'ราคาปกติ',
+      input: <NumberInput
+        value={bulk.default_price}
+        onChange={n => setBulk(b => ({ ...b, default_price: n }))}
+        min={0}
+        aria-label="ราคาปกติทุกแถว"
+        className={numberInputClass(false, 'right')}
+      />,
+    },
+    {
+      key: 'discount', label: 'ลดเหลือ',
+      input: <DiscountPriceInput
+        value={bulk.discount.mode === 'price' ? bulk.discount.input : 0}
+        spec={bulk.discount}
+        onChange={(_, spec) => setBulk(b => ({ ...b, discount: spec }))}
+        align="right"
+        aria-label="ลดเหลือทุกแถว"
+        showHint={false}
+        compact
+      />,
+    },
+    ...(canViewCost ? [{
+      key: 'cost', label: 'ต้นทุน',
+      input: <NumberInput
+        value={bulk.cost_price}
+        onChange={n => setBulk(b => ({ ...b, cost_price: n }))}
+        min={0}
+        aria-label="ต้นทุนทุกแถว"
+        className={numberInputClass(false, 'right')}
+      />,
+    }] : []),
+  ];
 
   return (
     <div className="space-y-4">
@@ -147,15 +204,15 @@ export default function VariantOptionsEditor({
               {/* ปุ่มเพิ่มอยู่บรรทัดป้ายชิดขวา — ชุดเดียวกับหมวดหมู่/แบรนด์ในการ์ดข้อมูลสินค้า */}
               <div className="flex items-center justify-between gap-2">
                 <label className="field-label">ชื่อตัวเลือก</label>
-                <button
+                <Button variant="ghost" size="sm"
                   type="button"
                   onClick={onAddVariationType}
                   aria-label="เพิ่มชื่อตัวเลือกใหม่"
-                  className="field-label flex items-center gap-1 text-primary hover:underline"
+
                 >
                   <Plus className="w-3.5 h-3.5" />
                   เพิ่มใหม่
-                </button>
+                </Button>
               </div>
               <FormSelect
                 value={g.typeId}
@@ -198,75 +255,76 @@ export default function VariantOptionsEditor({
         </div>
       ) : (
         <>
-          {rows.length > 1 && (
-            <div className="flex flex-wrap items-end gap-3 rounded-lg bg-gray-50 dark:bg-slate-900/40 p-3">
-              <span className="w-full text-base font-medium text-gray-700 dark:text-slate-200">กรอกทุกแถวพร้อมกัน</span>
-              <div className="w-32">
-                <label className="helper-text">ราคาปกติ</label>
-                <NumberInput
-                  value={bulk.default_price}
-                  onChange={n => setBulk(b => ({ ...b, default_price: n }))}
-                  min={0}
-                  aria-label="ราคาปกติทุกแถว"
-                  className={numberInputClass(false, 'right')}
-                />
-              </div>
-              <div className="w-44">
-                <label className="helper-text">ลดเหลือ</label>
-                <DiscountPriceInput
-                  value={bulk.discount.mode === 'price' ? bulk.discount.input : 0}
-                  spec={bulk.discount}
-                  onChange={(_, spec) => setBulk(b => ({ ...b, discount: spec }))}
-                  align="right"
-                  aria-label="ลดเหลือทุกแถว"
-                  showHint={false}
-                />
-              </div>
-              {canViewCost && (
-                <div className="w-32">
-                  <label className="helper-text">ต้นทุน</label>
-                  <NumberInput
-                    value={bulk.cost_price}
-                    onChange={n => setBulk(b => ({ ...b, cost_price: n }))}
-                    min={0}
-                    aria-label="ต้นทุนทุกแถว"
-                    className={numberInputClass(false, 'right')}
-                  />
+          <div className="md:hidden inner-panel p-3 space-y-3">
+            {rows.length > 1 && (
+              <>
+                <p className="text-base font-medium text-gray-700 dark:text-slate-200">กรอกทุกแถวพร้อมกัน</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {bulkFields.map(field => (
+                    <div key={field.key}>
+                      <label className="helper-text">{field.label}</label>
+                      {field.input}
+                    </div>
+                  ))}
                 </div>
-              )}
-              <Button variant="secondary" onClick={applyBulk} disabled={!hasBulk}>
-                ใช้กับทุกแถว
-              </Button>
-            </div>
-          )}
+                <div className="flex justify-end gap-3">
+                  <Button variant="secondary" onClick={applyBulk} disabled={!hasBulk}>
+                    ใช้กับทุกแถว
+                  </Button>
+                </div>
+              </>
+            )}
+            {defaultPicker}
+          </div>
 
-          {/* Desktop */}
+          {/* Desktop — bulk editing shares the table's columns and horizontal scroll. */}
           <div className="hidden md:block overflow-x-auto rounded-lg border border-gray-200 dark:border-slate-700">
-            <table className="w-full min-w-[892px]">
+            <table className="w-full table-fixed" style={{ minWidth: columns.reduce((sum, col) => sum + col.width, 0) }}>
+              <colgroup>
+                {columns.map(col => <col key={col.key} style={{ width: col.width }} />)}
+              </colgroup>
               <thead className="data-thead">
+                <tr className="border-b border-gray-200 dark:border-slate-700">
+                  {rows.length > 1 ? (
+                    <>
+                      <td colSpan={2} className="px-3 py-3 align-bottom">
+                        <span className="min-h-[42px] flex items-center text-base font-medium text-gray-700 dark:text-slate-200">
+                          กรอกทุกแถวพร้อมกัน
+                        </span>
+                      </td>
+                      {bulkFields.map(field => (
+                        <td key={field.key} className="px-3 py-3 align-bottom">
+                          <label className="helper-text">{field.label}</label>
+                          {field.input}
+                        </td>
+                      ))}
+                    </>
+                  ) : <td colSpan={2 + bulkFields.length} />}
+                  <td colSpan={columns.length - 2 - bulkFields.length} className="px-3 py-3 align-bottom">
+                    <div className="flex items-end justify-end gap-3">
+                      {rows.length > 1 && (
+                        <Button variant="secondary" onClick={applyBulk} disabled={!hasBulk}>
+                          ใช้กับทุกแถว
+                        </Button>
+                      )}
+                      <div className="ml-auto w-72 min-w-0">{defaultPicker}</div>
+                    </div>
+                  </td>
+                </tr>
                 <tr>
-                  <th className="data-th w-[96px]">รูป</th>
-                  <th className="data-th">ตัวเลือก</th>
-                  <th className="data-th w-[130px] text-right">ราคาปกติ *</th>
-                  <th className="data-th w-[190px] text-right">ลดเหลือ</th>
-                  {canViewCost && <th className="data-th w-[120px] text-right">ต้นทุน</th>}
-                  <th className="data-th w-[160px]">
+                  <th scope="col" className="data-th !px-3">รูป</th>
+                  <th scope="col" className="data-th !px-3">ตัวเลือก</th>
+                  <th scope="col" className="data-th !px-3 text-right">ราคาปกติ *</th>
+                  <th scope="col" className="data-th !px-3 text-right">ลดเหลือ</th>
+                  {canViewCost && <th scope="col" className="data-th !px-3 text-right">ต้นทุน</th>}
+                  <th scope="col" className="data-th !px-3">
                     <span className="inline-flex items-center gap-1">SKU <ProductCodesHelp focus="sku" /></span>
                   </th>
-                  <th className="data-th w-[170px]">
+                  <th scope="col" className="data-th !px-3">
                     <span className="inline-flex items-center gap-1">บาร์โค้ด <ProductCodesHelp focus="barcode" /></span>
                   </th>
-                  {showStock && <th className="data-th w-[96px] text-right">พร้อมขาย</th>}
-                  <th className="data-th w-[84px] text-center">เปิดขาย</th>
-                  <th className="data-th w-[72px] text-center">
-                    <span className="inline-flex items-center gap-1">
-                      ตั้งต้น
-                      <HelpHint portal align="right">
-                        ตัวที่ลูกค้าเห็นถูกเลือกไว้ให้ตอนเปิดหน้าสินค้าบนหน้าร้าน<br />
-                        ไม่ตั้ง = ใช้ตัวที่ขายดีที่สุด ถ้ายังไม่เคยขายก็ใช้ตัวแรกที่มีของ
-                      </HelpHint>
-                    </span>
-                  </th>
+                  {showStock && <th scope="col" className="data-th !px-3 text-right">พร้อมขาย</th>}
+                  <th scope="col" className="data-th !px-3 text-center">เปิดขาย</th>
                 </tr>
               </thead>
               <tbody className="data-tbody">
@@ -284,7 +342,7 @@ export default function VariantOptionsEditor({
                     </td>
                     <td className="px-3 py-3" data-field={groupNames[0] ? `variation.${i}.${groupNames[0]}` : undefined}>
                       <div className={`min-h-[42px] flex items-center gap-1.5 text-base ${row.is_active ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-slate-500'}`}>
-                        <span>{row.variation_label || '-'}</span>
+                        <span className="min-w-0 break-words">{row.variation_label || '-'}</span>
                         {!row.is_active && <Badge tone="gray" shape="square" size="sm">ปิด</Badge>}
                       </div>
                       <FieldError text={attrError(i)} />
@@ -355,11 +413,6 @@ export default function VariantOptionsEditor({
                         />
                       </div>
                     </td>
-                    <td className="px-3 py-3">
-                      <div className="h-[42px] flex items-center justify-center">
-                        <DefaultPicker row={row} onPick={toggleDefault} />
-                      </div>
-                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -397,7 +450,6 @@ export default function VariantOptionsEditor({
                       onChange={v => updateRow(row._tempId, { is_active: v })}
                       aria-label={`เปิดขาย ${row.variation_label}`}
                     />
-                    <DefaultPicker row={row} onPick={toggleDefault} withLabel />
                   </div>
                 </div>
                 <div className={`grid gap-3 ${canViewCost ? 'grid-cols-3' : 'grid-cols-2'}`}>

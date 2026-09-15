@@ -16,6 +16,22 @@
 
 ---
 
+## 2026-09-15 — หน้าแก้ไขสินค้าเปิดแท็บซ้ำ และบันทึกแล้วทำตัวกรองรายการหาย
+
+**ที่เกิด**: `app/products/page.tsx`, `app/products/new/page.tsx`, `app/products/[id]/edit/page.tsx`, `components/products/ProductForm.tsx`
+**อาการ**: คลิกสินค้าเปิดแท็บใหม่ทุกครั้ง บันทึกแล้วกลับ `/products` แบบไม่มีคำค้น/ตัวกรอง/เลขหน้า; หน้าเพิ่มและแก้ไขมีปุ่มและฟอร์ม marketplace เขียนสไตล์ซ้ำ
+**Root cause**: ลิงก์เรียก `window.open` และฟอร์มใช้ปลายทาง `/products` ตายตัว โดยไม่มี URL ต้นทาง; state ของฟอร์มเริ่มจาก props ครั้งแรก จึงต้องโหลดข้อมูลและ remount หลังบันทึกเพื่อใช้ ID ตัวเลือกที่บันทึกจริง
+**วิธีแก้**: ลิงก์ชื่อสินค้าใช้ Next Link ในแท็บเดิม รองรับ modifier/right-click; เพิ่ม/คัดลอก/แก้ไขพก `returnTo` ผ่าน helper ที่อนุญาตเฉพาะหน้ารายการสินค้า บันทึกใหม่ใช้ replace ไปหน้าแก้ไข บันทึกแก้ไขอยู่หน้าเดิมพร้อม reload + remount; ปุ่มกลับ/ยกเลิกคืน URL เดิมและถามก่อนทิ้งข้อมูลที่ยังไม่บันทึก (รวมสลับแท็บร้านค้า), refresh/ปิดแท็บใช้ beforeunload; รวม marketplace form เข้า `MarketplaceListingCard` และใช้ Button/Radio/ListRow/Card/StickyActionBar แทนชุดเขียนเอง
+**ป้องกัน regression**: ห้ามพึ่ง `router.back()` สำหรับทางกลับจากแท็บที่ผู้ใช้เปิดเอง ห้ามนำ temporary variation IDs กลับมา PUT หลัง save; save-and-add-next ต้อง remount เพื่อเคลียร์สินค้าชุดด้วย; ทดสอบ `node --test scripts/tests/product-navigation.test.cjs` (API จำลอง ไม่เขียน DB) และตรวจเส้นทางกลับ/คำเตือน/แท็บใหม่ใน browser
+
+## 2026-09-15 — ตารางตัวเลือกสินค้า: ช่องลดเหลือกินพื้นที่ SKU/บาร์โค้ด และช่องกรอกทุกแถวไม่ตรงคอลัมน์
+
+**ที่เกิด**: [components/products/form/VariantOptionsEditor.tsx](components/products/form/VariantOptionsEditor.tsx)
+**อาการ**: ช่องลดเหลือกว้างกว่าที่ต้องใช้ ขณะที่ SKU/บาร์โค้ดแคบ และแถบกรอกทุกแถวพร้อมกันวางช่องคนละแนวกับตารางด้านล่าง
+**Root cause**: ตารางใช้ auto layout ซึ่งกระจายความกว้างตามเนื้อหาของ input ส่วนแถบกรอกพร้อมกันเป็น flex แยกต่างหากและกำหนดความกว้างเอง จึงไม่ใช้แนวคอลัมน์เดียวกัน
+**วิธีแก้**: ใช้ fixed table layout + colgroup กำหนดสัดส่วนให้ SKU/บาร์โค้ดกว้างกว่าราคา ย้ายช่องกรอกพร้อมกันบน desktop เข้าแถวในตารางเดียวกัน และใช้ padding ตรงกับแถวสินค้า; มือถือคงแผงกรอกพร้อมกันที่ปรับตามจอ ตามข้อปรับเพิ่มเติมของเจ้าของ ย้ายตัวเลือกตั้งต้นเป็น `FormSelect` ในแถบด้านบนแทนคอลัมน์รายแถว โดยใช้ setDefaultRow เดิม และมีค่า "อัตโนมัติ — ขายดีสุดก่อน"
+**ป้องกัน regression**: ช่องแก้ทุกแถวต้องอิงคอลัมน์เดียวกับแถวสินค้า รวมถึงตอนซ่อนต้นทุน/พร้อมขาย ไม่ตั้งความกว้างแยก; ชิปส่วนลดในช่องแคบใช้ `DiscountPriceInput compact` ย่อข้อความและเก็บปุ่มล้างไว้ พร้อม Tooltip ข้อความเต็ม; dropdown ตั้งต้นเลือกค่าเดิมต้องไม่ปลดธง (helper เป็น toggle) เลือกอัตโนมัติต้องล้างธงได้ ตัวเลือกที่ปิดขายต้องเลือกไม่ได้ และยังต้องแสดง dropdown เมื่อเหลือแถวเดียว
+
 ## 2026-09-15 — สินค้าหลายตัวเลือกที่เหลือของแบบเดียว หน้าร้านซ่อนตัวเลือกแล้วยัดแบบที่เหลือให้เงียบ ๆ
 
 **ที่เกิด**: [components/storefront/QuickAddButton.tsx](components/storefront/QuickAddButton.tsx) · [components/storefront/AddToCartButton.tsx](components/storefront/AddToCartButton.tsx)

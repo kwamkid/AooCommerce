@@ -3,6 +3,9 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useProductNavigation } from '@/lib/useProductNavigation';
+import { productEditorUrl } from '@/lib/product-navigation';
+import Alert from '@/components/ui/Alert';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
@@ -13,6 +16,8 @@ import { apiFetch } from '@/lib/api-client';
 
 function NewProductContent() {
   const router = useRouter();
+  const navigation = useProductNavigation();
+  const [formVersion, setFormVersion] = useState(0);
   const searchParams = useSearchParams();
   const { userProfile, loading: authLoading } = useAuth();
 
@@ -73,10 +78,9 @@ function NewProductContent() {
     };
 
     loadSourceProduct();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [duplicateId, authLoading, userProfile]);
 
-  const title = duplicateId ? 'คัดลอกสินค้า' : 'เพิ่มสินค้า';
+  const title = duplicateId && formVersion === 0 ? 'คัดลอกสินค้า' : 'เพิ่มสินค้า';
 
   if (duplicateId && (authLoading || loading)) {
     return (
@@ -92,10 +96,8 @@ function NewProductContent() {
     return (
       <Layout>
         <Container size="4xl" gap="sm">
-          <PageHeader title={title} backHref="/products" />
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-            {error}
-          </div>
+          <PageHeader title={title} backHref={navigation.returnTo} onBack={navigation.back} />
+          <Alert tone="danger">{error}</Alert>
         </Container>
       </Layout>
     );
@@ -104,8 +106,13 @@ function NewProductContent() {
   return (
     <Layout>
       <Container size="4xl" gap="sm">
-        <PageHeader title={title} backHref="/products" />
-        <ProductForm editingProduct={duplicateProduct} formOptions={null} />
+        <PageHeader title={title} backHref={navigation.returnTo} onBack={navigation.back} />
+        <ProductForm key={formVersion} editingProduct={formVersion === 0 ? duplicateProduct : null} formOptions={null}
+          returnTo={navigation.returnTo} onCancel={navigation.back} onDirtyChange={navigation.setDirty}
+          onSaved={async id => { router.replace(productEditorUrl(id, navigation.returnTo)); }}
+          onAddNext={() => { navigation.setDirty(false); setFormVersion(v => v + 1); }}
+        />
+        {navigation.confirmDialog}
       </Container>
     </Layout>
   );

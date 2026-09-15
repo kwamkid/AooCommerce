@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import type { ReactNode } from 'react';
+import Button from './Button';
 
 interface PageHeaderProps {
   /** Page title (h1) — text or any node */
@@ -11,6 +12,7 @@ interface PageHeaderProps {
   subtitle?: ReactNode;
   /** When set, shows a back arrow that navigates here. Pass empty string or `back="-1"` for router.back(). */
   backHref?: string;
+  onBack?: () => void;
   /** Element rendered on the right side of the header (buttons, badges, etc.) */
   actions?: ReactNode;
   /** Optional icon shown left of the title */
@@ -28,9 +30,10 @@ interface PageHeaderProps {
  * ⚠️ ห้ามเขียนหัวข้อหน้าเองด้วย <h1 className="heading-1"> อีก — ที่ผ่านมาแต่ละหน้า
  * วางไอคอน/คำอธิบาย/ขนาดต่างกันจนดูเหมือนคนละระบบ
  */
-export default function PageHeader({ title, subtitle, backHref, actions, icon, className = '' }: PageHeaderProps) {
+export default function PageHeader({ title, subtitle, backHref, onBack, actions, icon, className = '' }: PageHeaderProps) {
   const router = useRouter();
   const handleBack = () => {
+    if (onBack) { onBack(); return; }
     if (backHref === '-1' || backHref === '') {
       router.back();
     } else if (backHref) {
@@ -44,13 +47,14 @@ export default function PageHeader({ title, subtitle, backHref, actions, icon, c
     <div className={`flex flex-1 min-w-0 items-start justify-between gap-3${className ? ` ${className}` : ''}`}>
       <div className="flex items-start gap-3 min-w-0">
         {backHref !== undefined && (
-          <button
+          <Button
+            variant="ghost"
             onClick={handleBack}
             aria-label="ย้อนกลับ"
-            className="flex-shrink-0 p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+            className="flex-shrink-0"
           >
             <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-slate-400" />
-          </button>
+          </Button>
         )}
         {icon && <div className="flex-shrink-0 pt-1 [&>svg]:w-8 [&>svg]:h-8 text-primary">{icon}</div>}
         <div className="min-w-0">
