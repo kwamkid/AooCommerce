@@ -29,7 +29,7 @@ interface Props {
   optionGroups?: StorefrontOptionGroup[];
 }
 
-/** รูปหลักของหน้าเปลี่ยนตามตัวเลือก (GalleryMainImage ฟังอยู่) */
+/** รูปหลักของหน้าเปลี่ยนตามตัวเลือก (ProductGallery ฟังอยู่ แล้วเลื่อนไปใบนั้น) */
 function announceImage(v: StorefrontVariation) {
   window.dispatchEvent(new CustomEvent(SF_VARIATION_IMAGE_EVENT, { detail: { image: v.image, label: v.label } }));
 }

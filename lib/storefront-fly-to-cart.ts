@@ -21,7 +21,8 @@ export function findProductImage(button: Element | null): HTMLImageElement | nul
   if (!button) return null;
   const scope = button.closest('.sf-card') || button.closest('.sf-detail');
   if (!scope) return null;
-  return scope.querySelector<HTMLImageElement>('.sf-gallery-main img, .sf-card-media img');
+  // .sf-gallery-current = ใบที่ลูกค้าเห็นอยู่ในแกลเลอรีหน้าสินค้า (ProductGallery)
+  return scope.querySelector<HTMLImageElement>('.sf-gallery-current img, .sf-card-media img');
 }
 
 /**

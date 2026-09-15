@@ -14,7 +14,7 @@ import {
 import { storefrontUrl, storefrontHref, formatStorePrice } from '@/lib/storefront';
 import { formatSlotTime } from '@/lib/delivery';
 import AddToCartButton from '@/components/storefront/AddToCartButton';
-import GalleryMainImage from '@/components/storefront/GalleryMainImage';
+import ProductGallery from '@/components/storefront/ProductGallery';
 import UnavailableProduct from '@/components/storefront/UnavailableProduct';
 
 export const revalidate = 300;
@@ -201,16 +201,8 @@ export default async function StorefrontProductPage({ params }: PageProps) {
 
       <div className="sf-detail">
         <div>
-          {/* server HTML = รูปแรกของสินค้า · เปลี่ยนตามตัวเลือกหลังลูกค้ากดเลือก */}
-          <GalleryMainImage src={product.images[0] ?? null} alt={product.name} />
-          {product.images.length > 1 && (
-            <div className="sf-gallery-thumbs">
-              {product.images.slice(1, 6).map((src, i) => (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img key={src} src={src} alt={`${product.name} รูปที่ ${i + 2}`} loading="lazy" />
-              ))}
-            </div>
-          )}
+          {/* server HTML = `<img>` ของทุกใบครบ (SEO) · ปัด/กดรูปจิ๋วเปลี่ยนใบได้หลัง hydrate */}
+          <ProductGallery images={product.images} alt={product.name} />
         </div>
 
         <div>

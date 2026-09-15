@@ -172,7 +172,7 @@
   object-fit: cover;            /* กรอบคงที่ = ตัดส่วนเกิน · โหมด "ตามไฟล์ต้นฉบับ" override ด้านล่าง */
   position: relative; z-index: 1;
 }
-.sf-card-media, .sf-gallery-main { position: relative; }
+.sf-card-media { position: relative; }
 .sf-card-media-empty { color: var(--sf-muted); font-size: 13px; }
 
 .sf-card-body { padding: 12px 14px 16px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
@@ -215,26 +215,8 @@
 .sf-detail { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 40px; }
 @container (max-width: 860px) { .sf-detail { grid-template-columns: 1fr; gap: 24px; } }
 
-.sf-gallery-main {
-  aspect-ratio: var(--sf-img-ratio);
-  border-radius: var(--sf-radius);
-  overflow: hidden;
-  background: var(--sf-surface);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.sf-gallery-main img {
-  width: 100%; height: 100%;
-  object-fit: cover;
-  position: relative; z-index: 1;
-}
-.sf-gallery-thumbs { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
-.sf-gallery-thumbs img {
-  width: 66px; height: 66px; object-fit: cover;
-  border-radius: calc(var(--sf-radius) / 2);
-  border: 1px solid var(--sf-border);
-}
+/* แถวรูปจิ๋ว — สไตล์ปุ่มอยู่ในบล็อก "แกลเลอรีหน้าสินค้า" ท้ายไฟล์ */
+.sf-gallery-thumbs { display: flex; gap: 8px; margin-top: 10px; }
 
 .sf-detail h1 { font-size: 26px; font-weight: 700; line-height: 1.4; margin: 0 0 6px; }
 .sf-detail-meta { color: var(--sf-muted); font-size: 14px; margin-bottom: 16px; }
@@ -974,10 +956,13 @@
    ต้อง align-items:start ไม่งั้น grid จะยืดการ์ดเตี้ยให้เท่าการ์ดสูงสุด
    แล้วเกิดช่องว่างใต้เนื้อหาแทนที่จะเป็นขอบล่างที่ไม่เท่ากันตามธรรมชาติ */
 .sf-ratio-auto .sf-grid { align-items: start; }
-.sf-ratio-auto .sf-card-media,
-.sf-ratio-auto .sf-gallery-main { aspect-ratio: auto; min-height: 0; }
-.sf-ratio-auto .sf-card-media img,
-.sf-ratio-auto .sf-gallery-main img { height: auto; object-fit: contain; }
+.sf-ratio-auto .sf-card-media { aspect-ratio: auto; min-height: 0; }
+.sf-ratio-auto .sf-card-media img { height: auto; object-fit: contain; }
+/* แกลเลอรีหน้าสินค้า: ปล่อยรางสูงตามรูปที่สูงสุด แล้วทุกใบเห็นเต็มรูป
+   (สูงตามใบที่เห็นอยู่จะทำให้หน้ากระโดดทุกครั้งที่ปัด) */
+.sf-ratio-auto .sf-gallery-track { aspect-ratio: auto; }
+.sf-ratio-auto .sf-gallery-slide { height: auto; }
+.sf-ratio-auto .sf-gallery-slide img { height: auto; object-fit: contain; }
 
 /* ── Masonry (ก่ออิฐ) ──────────────────────────────────────────────
    ใช้ CSS multi-column เพราะเป็นวิธีเดียวที่ทำงานได้จริงทุกเบราว์เซอร์
@@ -1225,3 +1210,85 @@
 
 /* ระยะห่างใต้แถบขั้นตอนในหน้าร้าน — ตัวแถบเองอยู่ที่ globals.css (.stepper) */
 .sf-checkout-steps { margin-bottom: 24px; }
+
+/* ── แกลเลอรีรูปหน้าสินค้า (components/storefront/ProductGallery.tsx) ──────
+   ปัดซ้ายขวาด้วย scroll-snap ของเบราว์เซอร์ล้วน ๆ — ไม่มีไลบรารี ไม่ต้องเขียน drag เอง
+   ได้ momentum ของ iOS ฟรี และใช้แทร็กแพด/ล้อแนวนอนบนเดสก์ท็อปได้
+   ⚠️ ห้ามใส่ gap ให้ .sf-gallery-track — ตัวเลขใบที่เห็นคำนวณจาก scrollLeft / clientWidth
+   ⚠️ ใบที่กำลังเห็นได้คลาส .sf-gallery-current เพิ่ม — fly-to-cart หารูปต้นทางของ
+      animation จากคลาสนี้ อย่าย้ายไปไว้ที่กรอบนอก ไม่งั้นรูปจะบินออกจากใบที่ 1 เสมอ */
+/* สินค้าที่ไม่มีรูปเลย — กรอบเปล่าขนาดเท่ากัน ไม่ให้หน้าพัง */
+.sf-gallery-empty {
+  aspect-ratio: var(--sf-img-ratio);
+  border-radius: var(--sf-radius);
+  background: var(--sf-surface);
+  display: flex; align-items: center; justify-content: center;
+}
+.sf-gallery-frame { position: relative; }
+.sf-gallery-track {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  aspect-ratio: var(--sf-img-ratio);
+  border-radius: var(--sf-radius);
+  background: var(--sf-surface);
+  scrollbar-width: none;            /* แถบเลื่อนซ่อน — ใช้เลขบอกลำดับแทน */
+}
+.sf-gallery-track::-webkit-scrollbar { display: none; }
+.sf-gallery-slide {
+  flex: 0 0 100%;
+  height: 100%;
+  scroll-snap-align: center;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+.sf-gallery-slide img { width: 100%; height: 100%; object-fit: cover; }
+
+/* เลขบอกลำดับ (3/8) — พื้นดำโปร่งให้อ่านออกทั้งบนรูปสว่างและมืด */
+.sf-gallery-count {
+  position: absolute; right: 10px; bottom: 10px; z-index: 2;
+  padding: 3px 9px; border-radius: 999px;
+  background: rgba(17, 24, 39, .72); color: #fff;
+  font-size: 12.5px; font-weight: 500; line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+/* ปุ่มลูกศร — เดสก์ท็อปเท่านั้น (มือถือปัดเอา) */
+.sf-gallery-nav {
+  display: none;
+  position: absolute; top: 50%; transform: translateY(-50%); z-index: 2;
+  width: 38px; height: 38px; padding: 0;
+  align-items: center; justify-content: center;
+  border: 1px solid var(--sf-border); border-radius: 50%;
+  background: rgba(255, 255, 255, .92); color: var(--sf-text);
+  cursor: pointer;
+}
+.sf-gallery-prev { left: 10px; }
+.sf-gallery-next { right: 10px; }
+.sf-gallery-nav:hover:not(:disabled) { background: #fff; border-color: var(--sf-primary); color: var(--sf-primary); }
+.sf-gallery-nav:disabled { opacity: .35; cursor: default; }
+@container (min-width: 861px) { .sf-gallery-nav { display: flex; } }
+
+/* รูปจิ๋ว — โชว์ทุกใบ เลื่อนแนวนอนเมื่อเกิน (ไม่ตัดจำนวน ไม่ตกบรรทัด) */
+.sf-gallery-thumbs { overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.sf-gallery-thumbs::-webkit-scrollbar { display: none; }
+.sf-gallery-thumb {
+  flex: 0 0 auto; width: 66px; height: 66px; padding: 0;
+  line-height: 0; cursor: pointer; overflow: hidden;
+  border: 1px solid var(--sf-border);
+  border-radius: calc(var(--sf-radius) / 2);
+  background: var(--sf-surface);
+}
+.sf-gallery-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sf-gallery-thumb:hover { border-color: var(--sf-primary); }
+.sf-gallery-thumb-on { border-color: var(--sf-primary); box-shadow: inset 0 0 0 1px var(--sf-primary); }
+/* มือถือ: ยังต้องแตะง่าย (≥40px) */
+@container (max-width: 640px) { .sf-gallery-thumb { width: 56px; height: 56px; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .sf-gallery-track { scroll-behavior: auto; }
+}
