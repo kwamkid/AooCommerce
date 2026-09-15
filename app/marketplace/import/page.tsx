@@ -35,7 +35,7 @@ import { MARKETPLACE_PLATFORMS } from '@/lib/marketplace/platforms';
 import { ChevronLeft, ChevronRight, Link2, Package, Plus, Store } from 'lucide-react';
 
 const PAGE_SIZE = 20;
-const BACK_HREF = '/settings/sales-channels?tab=marketplace';
+const BACK_HREF = '/marketplace/sync';
 
 interface PreviewModel {
   external_model_id: string;
@@ -341,7 +341,7 @@ function MarketplaceImportContent() {
       <Container size="5xl">
         <PageHeader title="นำเข้าสินค้าจากร้าน" backHref={BACK_HREF} />
         <Alert tone="danger" title="ไม่ได้ระบุร้าน">
-          เปิดหน้านี้จาก ตั้งค่า &gt; ช่องทางการขาย &gt; เชื่อมต่อ Marketplace แล้วกดปุ่มนำเข้าที่การ์ดร้าน
+          เปิดหน้านี้จากหน้า &quot;ซิงค์สินค้า &amp; สต็อก&quot; แล้วเลือกงาน &quot;นำเข้าสินค้าจากร้าน&quot; กับร้านที่ต้องการ
         </Alert>
       </Container>
     );

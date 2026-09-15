@@ -246,6 +246,22 @@ const supplierReport: Domain = {
   sent:      s('ส่งแล้ว', 'moving'),
 };
 
+/**
+ * รอบซิงค์ marketplace (`marketplace_sync_runs.status`) — ดึง/ส่งสต็อก · นำเข้า/ส่งออกสินค้า
+ * ⚠️ คำเรียกชุดนี้ถูก re-export ต่อที่ `lib/marketplace/sync-run-labels.ts` (ตัวที่ฝั่ง
+ *    server ใช้เขียนข้อความ) — **เจ้าของคำเรียกคือที่นี่** แก้ที่นี่ที่เดียวเปลี่ยนทั้งสองฝั่ง
+ * 'previewed' = ยังไม่ได้ลงมือ (แค่เปิดดูตาราง) ห้ามเรียกว่า "รอดำเนินการ" เพราะไม่มีคิวอะไรรออยู่
+ */
+const syncRun: Domain = {
+  previewed:      s('พรีวิวแล้ว รอยืนยัน', 'new'),
+  running:        s('กำลังทำ', 'progress'),
+  done:           s('สำเร็จ', 'done'),
+  partial:        s('สำเร็จบางส่วน', 'partial'),
+  failed:         s('ล้มเหลว', 'late'),
+  reverted:       s('ย้อนกลับแล้ว', 'off'),
+  revert_partial: s('ย้อนกลับได้บางส่วน', 'unpaid'),
+};
+
 /** ประเภทซัพพลายเออร์ (ไม่ใช่สถานะ แต่เป็นป้ายชุดเดียวกันบนหน้าเดียวกัน) */
 const supplierType: Domain = {
   cash:        s('เงินสด', 'done'),
@@ -259,7 +275,7 @@ export const STATUS_DOMAINS = {
   statement, replenishment, report,
   creditNote: issuedDoc, returnNote: issuedDoc, creditNoteType, taxDoc,
   promotion, transfer, stockDoc, stockLevel, posOrder, supplierReport, supplierType,
-  purchaseOrder, purchaseOrderSupplier, broadcast,
+  purchaseOrder, purchaseOrderSupplier, broadcast, syncRun,
 } satisfies Record<string, Domain>;
 
 export type StatusDomain = keyof typeof STATUS_DOMAINS;

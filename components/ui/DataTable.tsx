@@ -131,6 +131,9 @@ export interface DataTableProps<T> {
   // ── Selection (optional) ──
   selectedIds?: Set<string>;
   onSelectionChange?: (ids: Set<string>) => void;
+  /** แถวไหนติ๊กได้ (ไม่ส่ง = ติ๊กได้ทุกแถว) — แถวที่ติ๊กไม่ได้ช่องจะจางและกดไม่ลง
+   *  และ "เลือกทั้งหมด" จะข้ามให้เอง (ตารางพรีวิวสต็อก: แถวที่ไม่มีอะไรให้ทำ) */
+  isRowSelectable?: (row: T) => boolean;
 
   // ── Mobile card custom render (optional — overrides auto card) ──
   mobileCardRender?: (row: T, index: number) => ReactNode;
@@ -176,6 +179,7 @@ export default function DataTable<T>({
   hidePagination = false,
   selectedIds,
   onSelectionChange,
+  isRowSelectable,
   mobileCardRender,
   paginationChildren,
   sortBy,
@@ -389,11 +393,14 @@ export default function DataTable<T>({
 
   // ── Selection helpers ──
   const hasSelection = !!selectedIds && !!onSelectionChange;
-  const allSelected = hasSelection && data.length > 0 && data.every(r => selectedIds!.has(getRowId(r)));
+  // ไม่ส่ง isRowSelectable = ทุกแถวติ๊กได้ (พฤติกรรมเดิมของทุกหน้าที่ใช้อยู่)
+  const selectableRows = isRowSelectable ? data.filter(isRowSelectable) : data;
+  const allSelected =
+    hasSelection && selectableRows.length > 0 && selectableRows.every(r => selectedIds!.has(getRowId(r)));
   const toggleAll = () => {
     if (!onSelectionChange) return;
     if (allSelected) onSelectionChange(new Set());
-    else onSelectionChange(new Set(data.map(r => getRowId(r))));
+    else onSelectionChange(new Set(selectableRows.map(r => getRowId(r))));
   };
   const toggleRow = (id: string) => {
     if (!onSelectionChange || !selectedIds) return;
@@ -538,7 +545,8 @@ export default function DataTable<T>({
                     {hasSelection && (
                       <td className="data-td w-10" onClick={e => e.stopPropagation()}>
                         <input type="checkbox" checked={selectedIds!.has(rowId)} onChange={() => toggleRow(rowId)}
-                          className="w-4 h-4 rounded border-gray-300 dark:border-slate-500 text-primary focus:ring-primary accent-primary" />
+                          disabled={isRowSelectable ? !isRowSelectable(row) : false}
+                          className="w-4 h-4 rounded border-gray-300 dark:border-slate-500 text-primary focus:ring-primary accent-primary disabled:opacity-40 disabled:cursor-not-allowed" />
                       </td>
                     )}
                     {visibleCols.map(col => {

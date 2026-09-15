@@ -44,7 +44,7 @@ import { MARKETPLACE_PLATFORMS } from '@/lib/marketplace/platforms';
 import { ChevronLeft, ChevronRight, Package, Store, Settings2 } from 'lucide-react';
 
 const PAGE_SIZE = 30;
-const BACK_HREF = '/settings/sales-channels?tab=marketplace';
+const BACK_HREF = '/marketplace/sync';
 
 interface ProductRow {
   product_id: string;
@@ -501,7 +501,7 @@ function MarketplaceExportContent() {
               }}>
                 ส่งสินค้าเพิ่ม
               </Button>
-              <Button variant="primary" onClick={() => router.push(BACK_HREF)}>กลับหน้าช่องทางการขาย</Button>
+              <Button variant="primary" onClick={() => router.push(BACK_HREF)}>กลับหน้าซิงค์</Button>
             </div>
           }
         />

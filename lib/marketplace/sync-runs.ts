@@ -17,6 +17,8 @@
 
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { parallelLimit } from '@/lib/parallel';
+// แผนที่ "ลงมือจริง" อยู่ในไฟล์ client-safe (ตารางพรีวิวบนจอต้องใช้ค่าชุดเดียวกัน)
+import { ACTIONABLE_STOCK_PLANS, isActionablePlan } from '@/lib/marketplace/sync-run-labels';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -49,14 +51,8 @@ export type StockPlan =
   | 'sync_disabled' // link ปิดซิงค์ไว้ — โชว์ให้เห็นแต่ติ๊กไม่ได้
   | 'no_link';      // ไม่มี link / ร้านไม่คืนยอดของตัวนี้
 
-/** แผนที่ "ลงมือจริง" — ที่เหลือคือแถวที่โชว์ให้ดูเฉย ๆ */
-export const ACTIONABLE_STOCK_PLANS: readonly StockPlan[] = [
-  'fill', 'overwrite', 'increase', 'decrease', 'to_zero',
-];
-
-export function isActionablePlan(plan: StockPlan): boolean {
-  return ACTIONABLE_STOCK_PLANS.includes(plan);
-}
+// re-export ต่อให้ผู้เรียกฝั่ง server ทุกตัวเรียกที่เดิมได้เหมือนเดิม (นิยามอยู่ `sync-run-labels.ts`)
+export { ACTIONABLE_STOCK_PLANS, isActionablePlan };
 
 /** ตัวเลขสรุปของรอบ — เก็บลง `counts` (jsonb) ทุกคีย์ไม่บังคับ */
 export interface SyncRunCounts {

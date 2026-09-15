@@ -17,10 +17,8 @@ import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import Alert from '@/components/ui/Alert';
 import Stepper from '@/components/ui/Stepper';
-import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import { MARKETPLACE_PLATFORMS } from '@/lib/marketplace/platforms';
 import { marketplaceOnboardingSteps, nextOnboardingStep } from '@/lib/marketplace/onboarding';
-import { pullStockRequest, pushStockAllRequest } from './stock-actions';
 import type { MarketplaceAccount } from './useMarketplaceAccounts';
 
 interface Props {
@@ -34,7 +32,6 @@ export default function MarketplaceOnboardingModal({ account, onClose, onChanged
   const router = useRouter();
   const { showToast } = useToast();
   const { gates } = useFeatures();
-  const [running, setRunning] = useState<{ title: string; message: string } | null>(null);
   const [savingToggle, setSavingToggle] = useState(false);
 
   if (!account) return null;
@@ -51,16 +48,13 @@ export default function MarketplaceOnboardingModal({ account, onClose, onChanged
     router.push(`/marketplace/import?account=${account.id}`);
   };
 
-  const runStockAction = async (kind: 'pull' | 'push') => {
-    const title = kind === 'pull' ? 'กำลังดึงยอดจากร้าน' : 'กำลังส่งยอดขึ้นร้าน';
-    setRunning({ title, message: shopName });
-    const result =
-      kind === 'pull'
-        ? await pullStockRequest(account.id)
-        : await pushStockAllRequest(account.id, msg => setRunning({ title, message: msg }));
-    setRunning(null);
-    showToast(result.message, result.ok ? 'success' : 'error');
-    if (result.ok) onChanged();
+  /**
+   * ขั้นตั้งยอดตั้งต้น **ไม่ลงมือจากในโมดัล** — พาไปหน้าซิงค์ให้เห็นตารางก่อนเสมอ
+   * (รอบนี้แตะยอดทีเป็นร้อยตัวเลือก กดจากโมดัลที่ไม่มีตารางคือกดตาบอด)
+   */
+  const goStockJob = (job: 'pull_stock' | 'push_stock') => {
+    onClose();
+    router.push(`/marketplace/sync?job=${job}&account=${account.id}`);
   };
 
   const setAutoSync = async (value: boolean) => {
@@ -94,10 +88,10 @@ export default function MarketplaceOnboardingModal({ account, onClose, onChanged
     if (current.key === 'init_stock') {
       return (
         <div className="flex flex-wrap gap-3">
-          <Button variant="primary" icon={<PackageSearch className="w-4 h-4" />} onClick={() => runStockAction('pull')}>
+          <Button variant="primary" icon={<PackageSearch className="w-4 h-4" />} onClick={() => goStockJob('pull_stock')}>
             ยึดยอดของร้าน (ดึงลงมา)
           </Button>
-          <Button variant="secondary" icon={<UploadCloud className="w-4 h-4" />} onClick={() => runStockAction('push')}>
+          <Button variant="secondary" icon={<UploadCloud className="w-4 h-4" />} onClick={() => goStockJob('push_stock')}>
             ยึดยอดในระบบ (ส่งขึ้นไป)
           </Button>
         </div>
@@ -114,66 +108,63 @@ export default function MarketplaceOnboardingModal({ account, onClose, onChanged
   const riskyStep = steps.find(s => s.warning);
 
   return (
-    <>
-      <LoadingOverlay isOpen={running !== null} title={running?.title || ''} message={running?.message} />
-      <Modal
-        open
-        onClose={onClose}
-        size="lg"
-        icon={<Store className="w-5 h-5" />}
-        title={`เริ่มใช้งาน ${shopName}`}
-        footer={
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={onClose}>{allDone ? 'ปิด' : 'ไว้ทีหลัง'}</Button>
-          </div>
-        }
-      >
-        <div className="space-y-5">
-          <p className="body-text">
-            เชื่อมต่อ {label} แล้ว — เหลืออีก {steps.filter(s => !s.done).length} ขั้นก่อนที่ร้านนี้จะทำงานเองได้
-            {allDone && ' (ตั้งครบแล้ว)'}
-          </p>
-
-          <Stepper
-            steps={steps.map(s => ({
-              key: s.key,
-              label: s.label,
-              note: current?.key === s.key ? s.description : undefined,
-              state: s.done ? 'done' : current?.key === s.key ? 'current' : 'todo',
-            }))}
-            ariaLabel="ขั้นตอนเริ่มใช้งานร้าน"
-          />
-
-          {riskyStep?.warning && (
-            <Alert tone="warning" title="ปิดซิงค์อัตโนมัติไว้ก่อนดีกว่า">
-              <p className="mb-3">{riskyStep.warning}</p>
-              <Button variant="secondary" size="sm" loading={savingToggle} onClick={() => setAutoSync(false)}>
-                ปิดไว้ก่อน
-              </Button>
-            </Alert>
-          )}
-
-          {current ? (
-            <div className="inner-panel">
-              <div className="inner-panel-head">ขั้นต่อไป — {current.label}</div>
-              <div className="inner-panel-body space-y-3">
-                <p className="body-text">{current.description}</p>
-                {current.key === 'init_stock' && (
-                  <p className="helper-text">
-                    ร้านที่ขายอยู่แล้วและยอดบนร้านถูกต้อง → ยึดยอดของร้าน ·
-                    ร้านที่เพิ่งเปิดและนับสต็อกในระบบไว้แล้ว → ยึดยอดในระบบ
-                  </p>
-                )}
-                {stepActions()}
-              </div>
-            </div>
-          ) : (
-            <Alert tone="success">
-              ตั้งครบทั้ง {steps.length} ขั้นแล้ว — จากนี้สต็อกจะซิงค์ให้เอง งานที่ต้องกดเองอยู่ที่แท็บ &quot;ซิงค์สินค้า &amp; สต็อก&quot;
-            </Alert>
-          )}
+    <Modal
+      open
+      onClose={onClose}
+      size="lg"
+      icon={<Store className="w-5 h-5" />}
+      title={`เริ่มใช้งาน ${shopName}`}
+      footer={
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" onClick={onClose}>{allDone ? 'ปิด' : 'ไว้ทีหลัง'}</Button>
         </div>
-      </Modal>
-    </>
+      }
+    >
+      <div className="space-y-5">
+        <p className="body-text">
+          เชื่อมต่อ {label} แล้ว — เหลืออีก {steps.filter(s => !s.done).length} ขั้นก่อนที่ร้านนี้จะทำงานเองได้
+          {allDone && ' (ตั้งครบแล้ว)'}
+        </p>
+
+        <Stepper
+          steps={steps.map(s => ({
+            key: s.key,
+            label: s.label,
+            note: current?.key === s.key ? s.description : undefined,
+            state: s.done ? 'done' : current?.key === s.key ? 'current' : 'todo',
+          }))}
+          ariaLabel="ขั้นตอนเริ่มใช้งานร้าน"
+        />
+
+        {riskyStep?.warning && (
+          <Alert tone="warning" title="ปิดซิงค์อัตโนมัติไว้ก่อนดีกว่า">
+            <p className="mb-3">{riskyStep.warning}</p>
+            <Button variant="secondary" size="sm" loading={savingToggle} onClick={() => setAutoSync(false)}>
+              ปิดไว้ก่อน
+            </Button>
+          </Alert>
+        )}
+
+        {current ? (
+          <div className="inner-panel">
+            <div className="inner-panel-head">ขั้นต่อไป — {current.label}</div>
+            <div className="inner-panel-body space-y-3">
+              <p className="body-text">{current.description}</p>
+              {current.key === 'init_stock' && (
+                <p className="helper-text">
+                  ร้านที่ขายอยู่แล้วและยอดบนร้านถูกต้อง → ยึดยอดของร้าน ·
+                  ร้านที่เพิ่งเปิดและนับสต็อกในระบบไว้แล้ว → ยึดยอดในระบบ
+                </p>
+              )}
+              {stepActions()}
+            </div>
+          </div>
+        ) : (
+          <Alert tone="success">
+            ตั้งครบทั้ง {steps.length} ขั้นแล้ว — จากนี้สต็อกจะซิงค์ให้เอง งานที่ต้องกดเองอยู่ที่หน้า &quot;ซิงค์สินค้า &amp; สต็อก&quot;
+          </Alert>
+        )}
+      </div>
+    </Modal>
   );
 }

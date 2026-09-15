@@ -8,18 +8,19 @@
 //    กติกาเดียวกับที่ทำให้โค้ด `reason` เป็น snake_case อังกฤษ: API คืน "โค้ด" เสมอ
 //    (เทียบ/ค้น/log ได้) ส่วนข้อความที่คนอ่านมาจากตารางนี้ที่เดียว ไม่ใช่ hardcode ในจอ
 
+import { STATUS_DOMAINS } from '@/lib/status-labels';
 import type { StockPlan, SyncRunJob, SyncRunStatus } from '@/lib/marketplace/sync-runs';
 
-/** สถานะของรอบ (`marketplace_sync_runs.status`) */
-export const SYNC_RUN_STATUS_LABELS: Record<SyncRunStatus, string> = {
-  previewed: 'พรีวิวแล้ว รอยืนยัน',
-  running: 'กำลังทำ',
-  done: 'สำเร็จ',
-  partial: 'สำเร็จบางส่วน',
-  failed: 'ล้มเหลว',
-  reverted: 'ย้อนกลับแล้ว',
-  revert_partial: 'ย้อนกลับได้บางส่วน',
-};
+/**
+ * สถานะของรอบ (`marketplace_sync_runs.status`)
+ *
+ * ⚠️ **เจ้าของคำเรียก + สีคือทะเบียนกลาง** `lib/status-labels.ts` โดเมน `syncRun`
+ *    (badge บนจอใช้ `<StatusBadge domain="syncRun">` ซึ่งอ่านจากที่นั่น) — ตารางนี้เป็น
+ *    แค่มุมมอง "โค้ด → ข้อความ" สำหรับฝั่ง server ที่ประกอบข้อความเอง ไม่ใช่แหล่งที่สอง
+ */
+export const SYNC_RUN_STATUS_LABELS = Object.fromEntries(
+  Object.entries(STATUS_DOMAINS.syncRun).map(([key, meta]) => [key, meta.label]),
+) as Record<SyncRunStatus, string>;
 
 /** ประเภทงานของรอบ */
 export const SYNC_RUN_JOB_LABELS: Record<SyncRunJob, string> = {
@@ -28,6 +29,20 @@ export const SYNC_RUN_JOB_LABELS: Record<SyncRunJob, string> = {
   import_products: 'นำเข้าสินค้า',
   export_products: 'ส่งออกสินค้า',
 };
+
+/**
+ * แผนที่ "ลงมือจริง" — ที่เหลือคือแถวที่โชว์ให้ดูเฉย ๆ (ติ๊กไม่ได้)
+ *
+ * อยู่ในไฟล์ client-safe เพราะ **ตารางพรีวิวบนจอต้องรู้ว่าติ๊กแถวไหนได้** และ
+ * `sync-runs.ts` (server-only) re-export ตัวนี้ต่อ — ค่ามีชุดเดียวทั้งสองฝั่ง
+ */
+export const ACTIONABLE_STOCK_PLANS: readonly StockPlan[] = [
+  'fill', 'overwrite', 'increase', 'decrease', 'to_zero',
+];
+
+export function isActionablePlan(plan: StockPlan): boolean {
+  return ACTIONABLE_STOCK_PLANS.includes(plan);
+}
 
 /** แผนรายตัวเลือก (`marketplace_sync_run_items.plan`) */
 export const STOCK_PLAN_LABELS: Record<StockPlan, string> = {

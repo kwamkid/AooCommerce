@@ -3,7 +3,7 @@
 import type { HTMLAttributes, ReactNode } from 'react';
 import {
   ShoppingBag, Banknote, FileText, Package, ClipboardList, ReceiptText,
-  Undo2, Tag, Percent, Megaphone, ArrowLeftRight, Boxes, ShoppingCart, Layers,
+  Undo2, Tag, Percent, Megaphone, ArrowLeftRight, Boxes, ShoppingCart, Layers, RefreshCw,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { statusMeta, type StatusDomain } from '@/lib/status-labels';
@@ -48,6 +48,7 @@ const DOMAIN_ICON: Record<StatusDomain, LucideIcon> = {
   purchaseOrder:         ShoppingCart,
   purchaseOrderSupplier: ShoppingCart,
   broadcast:             Megaphone,
+  syncRun:               RefreshCw,
   posOrder:              ShoppingBag,
   supplierReport:        ClipboardList,
   supplierType:          Tag,

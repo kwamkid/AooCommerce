@@ -30,7 +30,7 @@ import type { ActionItem } from '@/components/ui/ActionMenu';
 import { marketplaceOnboardingSteps, nextOnboardingStep, onboardingIncomplete } from '@/lib/marketplace/onboarding';
 import MarketplaceAccountCard, { SyncRangeSelect } from './MarketplaceAccountCard';
 import MarketplaceOnboardingModal from './MarketplaceOnboardingModal';
-import { pushStockAllRequest } from './stock-actions';
+import { pushStockAllRequest } from '@/lib/marketplace/stock-actions';
 import type { MarketplaceAccountsState, MarketplaceAccount, MarketplacePlatform } from './useMarketplaceAccounts';
 
 interface MarketplaceConnectionsProps {
@@ -829,9 +829,10 @@ export default function MarketplaceConnections({
         showToast('เปลี่ยนคลังไม่สำเร็จ', 'error');
       } else if (linked > 0) {
         // ส่งยอดของคลังใหม่ขึ้นร้านทันที ไม่งั้นร้านจะโชว์ยอดของคลังเดิมค้างไว้
-        // (ลูป cursor ของร้านใหญ่อยู่ใน stock-actions.ts — ใช้ตัวเดียวกับแท็บซิงค์และโมดัลต้อนรับ)
+        // (ลูป cursor ของร้านใหญ่อยู่ใน lib/marketplace/stock-actions.ts — ใช้ตัวเดียวกับหน้าซิงค์)
+        // trigger บอกที่มาของรอบ — ประวัติจะได้แยกออกว่าไม่ใช่คนกดเองที่หน้าซิงค์
         showToast(`บันทึกคลังแล้ว — กำลังส่งยอดของคลังใหม่ขึ้นร้าน (${linked} สินค้า)`);
-        const pushed = await pushStockAllRequest(accountId, msg => showToast(msg));
+        const pushed = await pushStockAllRequest(accountId, msg => showToast(msg), { trigger: 'warehouse_change' });
         showToast(
           pushed.ok ? pushed.message : `บันทึกคลังแล้ว แต่${pushed.message}`,
           pushed.ok ? 'success' : 'error'

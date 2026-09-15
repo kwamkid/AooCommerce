@@ -39,10 +39,6 @@ const MarketplaceConnections = dynamic(() => import('./MarketplaceConnections'),
   ssr: false,
   loading: () => <LoadingCard />,
 });
-const MarketplaceSyncHub = dynamic(() => import('./MarketplaceSyncHub'), {
-  ssr: false,
-  loading: () => <LoadingCard />,
-});
 
 interface SalesChannel {
   id: string;
@@ -138,7 +134,6 @@ export default function SalesChannelsPage() {
   );
   // ปุ่ม "เชื่อมต่อร้าน X" ของแท็บ marketplace อยู่บน PageHeader — loading จึงเป็น state ของหน้านี้
   const [mpConnecting, setMpConnecting] = useState(false);
-  const [syncHubOpen, setSyncHubOpen] = useState(false);
   // ตั้ง app แบบ seller ไว้หรือยัง — ไม่ตั้ง = ซ่อนปุ่ม "เชื่อมผ่าน app ของร้าน" ไปเลย
   const [shopeeSellerAppAvailable, setShopeeSellerAppAvailable] = useState(false);
   // sandbox = ปุ่มพาไป login ของ sandbox ต้องใช้บัญชี test shop ไม่ใช่บัญชีร้านจริง
@@ -631,7 +626,7 @@ export default function SalesChannelsPage() {
               <Button
                 variant="secondary"
                 icon={<RefreshCw className="w-5 h-5" />}
-                onClick={() => setSyncHubOpen(true)}
+                onClick={() => router.push('/marketplace/sync')}
               >
                 ซิงค์สินค้า &amp; สต็อก
               </Button>
@@ -776,24 +771,6 @@ export default function SalesChannelsPage() {
         />
           </>
         )}
-
-        {/* งานซิงค์ — เปิดจากปุ่มบนหัวหน้า ไม่ใช่ปุ่มบนการ์ดของทุกร้าน */}
-        <Modal
-          open={syncHubOpen}
-          onClose={() => setSyncHubOpen(false)}
-          title="ซิงค์สินค้า &amp; สต็อก"
-          icon={<RefreshCw className="w-5 h-5" />}
-          size="2xl"
-          footer={
-            <div className="modal-footer px-6 py-4 flex justify-end gap-2">
-              <Button variant="secondary" onClick={() => setSyncHubOpen(false)}>ปิด</Button>
-            </div>
-          }
-        >
-          <div className="px-6 py-5">
-            <MarketplaceSyncHub accounts={mpAccounts} onNavigate={() => setSyncHubOpen(false)} />
-          </div>
-        </Modal>
 
         {/* Modal */}
         <Modal
