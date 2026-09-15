@@ -241,6 +241,7 @@
   background: var(--sf-bg);
 }
 .sf-variation-oos { color: var(--sf-muted); text-decoration: line-through; }
+
 /* ปุ่มตัวเลือกที่มีรูปของตัวเอง — รูปจิ๋วซ้าย ข้อความขวา */
 .sf-variation-with-thumb { display: inline-flex; align-items: center; gap: 8px; padding-left: 7px; }
 .sf-variation-thumb {
@@ -1285,7 +1286,10 @@
 .sf-gallery-next { right: 10px; }
 .sf-gallery-nav:hover:not(:disabled) { background: #fff; border-color: var(--sf-primary); color: var(--sf-primary); }
 .sf-gallery-nav:disabled { opacity: .35; cursor: default; }
-@container (min-width: 861px) { .sf-gallery-nav { display: flex; } }
+/* ลูกศรเป็นอุปกรณ์ของเมาส์ ไม่ใช่ของ "จอกว้าง" — เดิมผูกกับความกว้าง 861px
+   ทำให้เดสก์ท็อปที่ย่อหน้าต่างแคบไม่มีลูกศรและปัดก็ไม่ถนัด · จอสัมผัสไม่ต้องมี
+   เพราะปัดเอาได้และลูกศรจะไปบังรูป */
+@media (hover: hover) and (pointer: fine) { .sf-gallery-nav { display: flex; } }
 
 /* รูปจิ๋ว — โชว์ทุกใบ เลื่อนแนวนอนเมื่อเกิน (ไม่ตัดจำนวน ไม่ตกบรรทัด) */
 .sf-gallery-thumbs { overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
@@ -1305,4 +1309,25 @@
 
 @media (prefers-reduced-motion: reduce) {
   .sf-gallery-track { scroll-behavior: auto; }
+}
+
+/* ── มือถือ: ย่อบล็อกซื้อของหน้าสินค้า ──────────────────────────────
+   ⚠️ ต้องอยู่ท้ายไฟล์ — ทับกฎตั้งต้นที่ประกาศไว้ด้านบน (.sf-section · .sf-buy-row ·
+   .sf-qty · .sf-cta) ซึ่ง @container ไม่ได้เพิ่ม specificity ให้ ลำดับจึงเป็นตัวตัดสิน
+   บล็อกซื้อทั้งก้อนกินพื้นที่เหนือ fold ไปเยอะ — ย่อลงให้เห็นปุ่มสั่งซื้อ
+   โดยไม่ต้องเลื่อน (ตัวเลขทั้งหมดยังแตะได้ ≥40px) */
+@container (max-width: 640px) {
+  .sf-detail h1 { font-size: 21px; line-height: 1.35; margin-bottom: 4px; }
+  .sf-detail-meta { font-size: 13px; margin-bottom: 12px; }
+  .sf-detail-price { font-size: 22px; margin-bottom: 14px; }
+  .sf-variations { gap: 6px; margin-bottom: 14px; }
+  .sf-variation { padding: 7px 11px; font-size: 13px; }
+  .sf-variation-with-thumb { gap: 6px; padding-left: 6px; }
+  .sf-variation-thumb { width: 20px; height: 20px; }
+  .sf-buy-row { gap: 8px; }
+  .sf-qty button { width: 34px; height: 40px; }
+  .sf-qty span { min-width: 30px; }
+  .sf-cta { padding: 12px 18px; font-size: 15px; }
+  .sf-section { margin-top: 22px; }
+  .sf-section h2 { font-size: 17px; }
 }
