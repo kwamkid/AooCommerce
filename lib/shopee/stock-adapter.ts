@@ -89,8 +89,10 @@ export const shopeeStockAdapter: StockAdapter = {
     // **UNLIST = คนขายกดซ่อนเอง ไม่ได้แปลว่าของหมด** (พบจริง 2026-08-29: ประกาศที่ปิดขาย
     // แต่ยังมีของเหลือ 50 / 16 / 4 ชิ้น) พอเปิดขายกลับ เลขสองฝั่งจะขัดกันตั้งแต่วินาทีแรก
     const linkedItemIds = [...new Set(links.map(l => Number(l.external_item_id)))].filter(Boolean);
+    // นับ call จริง (base_info + model_list) — ชั้นกลางลง `quota_used` ของรอบ ห้ามประมาณ
+    const counter = { calls: 0 };
     for (let i = 0; i < linkedItemIds.length; i += 50) {
-      const details = await getItemFullDetails(creds, linkedItemIds.slice(i, i + 50));
+      const details = await getItemFullDetails(creds, linkedItemIds.slice(i, i + 50), counter);
       for (const [itemId, item] of details) {
         const models = item.models.length > 0 ? item.models : [{ model_id: 0, stock: 0 }];
         for (const m of models) {
@@ -100,6 +102,6 @@ export const shopeeStockAdapter: StockAdapter = {
       }
     }
 
-    return { stock, errors };
+    return { stock, errors, apiCalls: counter.calls };
   },
 };

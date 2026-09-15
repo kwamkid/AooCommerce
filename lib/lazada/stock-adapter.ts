@@ -81,9 +81,12 @@ export const lazadaStockAdapter: StockAdapter = {
       const skuId = String(l.external_model_id || '').trim();
       if (l.variation_id && skuId && skuId !== '0') variationBySkuId.set(skuId, l.variation_id);
     }
-    if (variationBySkuId.size === 0) return { stock, errors };
+    if (variationBySkuId.size === 0) return { stock, errors, apiCalls: 0 };
 
+    // นับ call จริงที่ยิง — ชั้นกลางลง `quota_used` ของรอบ (ห้ามประมาณจาก batch size)
+    let apiCalls = 0;
     for (let offset = 0; offset <= MAX_OFFSET; offset += PAGE_LIMIT) {
+      apiCalls++;
       const { products, total, error } = await getLazadaProducts(creds, { offset, limit: PAGE_LIMIT });
       if (error) {
         errors.push(`อ่านสินค้าจาก Lazada ไม่สำเร็จ (offset ${offset}): ${error}`);
@@ -105,6 +108,6 @@ export const lazadaStockAdapter: StockAdapter = {
       if (total && offset + PAGE_LIMIT >= total) break;
     }
 
-    return { stock, errors };
+    return { stock, errors, apiCalls };
   },
 };

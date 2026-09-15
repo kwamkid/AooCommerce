@@ -1326,7 +1326,9 @@ function extractShopeeDescription(item: {
 
 export async function getItemFullDetails(
   creds: ShopeeCredentials,
-  itemIds: number[]
+  itemIds: number[],
+  /** ตัวนับ call จริง (base_info ต่อ 50 item + model_list ต่อ item ที่มีตัวเลือก) — รอบซิงค์ลง quota_used */
+  counter?: { calls: number },
 ): Promise<Map<number, ShopeeItemFullDetail>> {
   const result = new Map<number, ShopeeItemFullDetail>();
   if (itemIds.length === 0) return result;
@@ -1337,6 +1339,7 @@ export async function getItemFullDetails(
   for (let i = 0; i < itemIds.length; i += 50) {
     const batch = itemIds.slice(i, i + 50);
     try {
+      if (counter) counter.calls++;
       const { data, error } = await shopeeApiRequest(creds, 'GET', '/api/v2/product/get_item_base_info', {
         item_id_list: batch.join(','),
       });
@@ -1419,6 +1422,7 @@ export async function getItemFullDetails(
   // Step 2: get_model_list for variation items (PARALLEL)
   await parallelLimit(itemsWithModels, async (itemId) => {
     try {
+      if (counter) counter.calls++;
       const { data, error } = await shopeeApiRequest(creds, 'GET', '/api/v2/product/get_model_list', {
         item_id: itemId,
       });

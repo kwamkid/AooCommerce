@@ -145,13 +145,16 @@ export const tiktokStockAdapter: StockAdapter = {
       const skuId = String(l.external_model_id || '').trim();
       if (l.variation_id && skuId) variationBySku.set(skuId, l.variation_id);
     }
-    if (variationBySku.size === 0) return { stock, errors };
+    if (variationBySku.size === 0) return { stock, errors, apiCalls: 0 };
 
+    // นับ call จริงที่ยิง — ชั้นกลางลง `quota_used` ของรอบ (ห้ามประมาณจาก batch size)
+    let apiCalls = 0;
     // เดินทั้งร้านด้วย page_token (TikTok ไม่มี offset)
     let pageToken: string | undefined;
     let sawSkusInSearch = false;
     try {
       do {
+        apiCalls++;
         const page = await searchProducts(creds, { pageSize: 100, pageToken });
         for (const product of page.products) {
           if (!product.skus) continue;
@@ -174,6 +177,7 @@ export const tiktokStockAdapter: StockAdapter = {
       const itemIds = [...new Set(links.map(l => String(l.external_item_id)).filter(Boolean))];
       await parallelLimit(itemIds, async (itemId) => {
         try {
+          apiCalls++;
           const detail = await getProductDetail(creds, itemId);
           for (const sku of detail.skus) {
             const variationId = variationBySku.get(sku.sku_id);
@@ -185,6 +189,6 @@ export const tiktokStockAdapter: StockAdapter = {
       }, 3);
     }
 
-    return { stock, errors };
+    return { stock, errors, apiCalls };
   },
 };
