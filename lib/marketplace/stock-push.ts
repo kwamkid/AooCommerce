@@ -224,6 +224,30 @@ async function readShopStock(
   return { links, read: await adapter.fetchPlatformStock(account, links) };
 }
 
+/**
+ * อ่าน "ยอดบนร้านตอนนี้" อย่างเดียว — ไม่แตะคลังเรา ไม่คิดแผน ไม่สร้างรอบ
+ *
+ * ใช้ตอน **ย้อนรอบขา push**: ก่อนส่งเลขเดิมกลับขึ้นร้าน ต้องรู้ก่อนว่าเลขบนร้านตอนนี้
+ * ยังเป็นเลขที่เราส่งไปอยู่ไหม (ถ้ามีคนแก้ทีหลัง ห้ามทับ) — งานนั้นต้องการแค่ยอดร้าน
+ * การเรียก `previewStockSync` จะพ่วงอ่าน inventory + คิดยอดที่จะส่งมาด้วยโดยไม่ได้ใช้
+ *
+ * ⛔ ห้ามให้ route เรียก adapter ตรง — ทางเข้าร้านของทุก platform ผ่าน `readShopStock` ตัวเดียว
+ */
+export async function readShopStockLevels(
+  account: StockSyncAccount,
+): Promise<{ stock: Map<string, number>; errors: string[]; quotaUsed: number }> {
+  const adapter = getStockAdapter(account.platform);
+  if (!adapter) {
+    return {
+      stock: new Map(),
+      errors: [`ยังไม่รองรับซิงค์สต็อกกับ ${stockPlatformLabel(account.platform)}`],
+      quotaUsed: 0,
+    };
+  }
+  const { read } = await readShopStock(account, adapter);
+  return { stock: read.stock, errors: read.errors, quotaUsed: read.apiCalls ?? 0 };
+}
+
 /** ชื่อ/SKU/เลขบนร้าน ต่อ variation — ข้อมูลประกอบที่หน้าพรีวิวและรายการของรอบใช้ */
 export interface StockRowMeta {
   product_id: string;

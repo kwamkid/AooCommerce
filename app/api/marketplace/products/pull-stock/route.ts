@@ -14,6 +14,7 @@ import {
 } from '@/lib/marketplace/sync-runs';
 import type { SyncRunTrigger } from '@/lib/marketplace/sync-runs';
 import { isQuotaBlocked } from '@/lib/marketplace/quota';
+import { resolveAccountWarehouseId } from '@/lib/marketplace/warehouse';
 import type { QuotaPlatform } from '@/lib/marketplace/platforms';
 import { logIntegrationNow } from '@/lib/integration-logger';
 
@@ -112,6 +113,13 @@ export async function POST(request: NextRequest) {
       } else {
         // ไม่มีพรีวิว = สร้างรอบใหม่แล้วให้ชั้นกลางเขียนรายการจากแผนที่คิดได้ตอนทำจริง
         // (ขา pull ต้องอ่านยอดร้านอยู่แล้ว การเก็บรายการจึงไม่เสียโควตาเพิ่ม)
+        // บันทึกคลังที่ resolve แล้ว ไม่ใช่ค่าดิบของร้าน — ร้านที่ใช้คลัง default มี warehouse_id
+        // เป็น null ถ้าเก็บ null ลงรอบ การย้อนจะไม่รู้ว่าต้องคืนคลังไหน
+        const warehouseId = await resolveAccountWarehouseId({
+          id: account.id,
+          company_id: companyId,
+          warehouse_id: (account.warehouse_id as string | null) ?? null,
+        });
         const run = await createRun({
           company_id: companyId,
           account_id: account.id,
@@ -119,7 +127,7 @@ export async function POST(request: NextRequest) {
           job: 'pull_stock',
           mode: runMode,
           status: 'running',
-          warehouse_id: (account.warehouse_id as string | null) ?? null,
+          warehouse_id: warehouseId ?? null,
           trigger: (trigger as SyncRunTrigger | undefined) || 'manual',
           created_by: auth.userId ?? null,
           started_at: new Date().toISOString(),

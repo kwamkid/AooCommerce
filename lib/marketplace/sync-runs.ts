@@ -302,18 +302,58 @@ export async function listRuns(
   return (data || []).map(row => toRun(row));
 }
 
+/**
+ * รอบล่าสุดของร้าน (ต่องานถ้าระบุ)
+ *
+ * @param opts.appliedOnly ข้ามรอบที่ **ยังไม่เคยลงมือ** (`previewed`) — ตัวตัดสิน "ย้อนได้ไหม"
+ *   ต้องใช้ค่านี้ ไม่งั้นแค่เปิดหน้าพรีวิว (ซึ่งสร้างรอบ `previewed` ทุกครั้ง) ก็จะบล็อกปุ่มย้อน
+ *   ทั้งที่พรีวิวไม่ได้เปลี่ยนอะไรเลยสักตัว
+ */
 export async function latestRunForAccount(
   accountId: string,
   job?: SyncRunJob,
+  opts: { appliedOnly?: boolean } = {},
 ): Promise<SyncRun | null> {
   let q = supabaseAdmin
     .from('marketplace_sync_runs')
     .select(RUN_COLUMNS)
     .eq('account_id', accountId);
   if (job) q = q.eq('job', job);
+  if (opts.appliedOnly) q = q.neq('status', 'previewed');
 
   const { data } = await q.order('created_at', { ascending: false }).limit(1).maybeSingle();
   return data ? toRun(data) : null;
+}
+
+/** รอบที่ย้อน `runId` ไปแล้ว (ถ้ามี) — กันกดย้อนซ้ำสองรอบ */
+export async function revertRunFor(runId: string): Promise<SyncRun | null> {
+  const { data } = await supabaseAdmin
+    .from('marketplace_sync_runs')
+    .select(RUN_COLUMNS)
+    .eq('reverts_run_id', runId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data ? toRun(data) : null;
+}
+
+/**
+ * ประทับที่ **รอบต้นทาง** ว่าถูกย้อนแล้ว (ไม่ใช่ที่รอบย้อน — รอบย้อนปิดด้วย `finishRun` ตามปกติ)
+ * `revert_partial` = ย้อนได้ไม่ครบ (ของถูกขายไปแล้ว / ยอดบนร้านเปลี่ยนไปแล้ว)
+ */
+export async function markRunReverted(
+  runId: string,
+  input: { status: 'reverted' | 'revert_partial'; revertedBy?: string | null },
+): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from('marketplace_sync_runs')
+    .update({
+      status: input.status,
+      reverted_at: new Date().toISOString(),
+      reverted_by: input.revertedBy ?? null,
+    })
+    .eq('id', runId);
+  if (error) console.error('[sync-runs] ประทับว่าย้อนแล้วไม่สำเร็จ:', error.message);
 }
 
 /**
@@ -456,5 +496,31 @@ export async function markItemsApplied(
       .eq('run_id', runId)
       .eq('variation_id', u.variation_id);
     if (error) console.error('[sync-runs] บันทึกผลรายแถวไม่สำเร็จ:', error.message);
+  }, 8);
+}
+
+/** ผลการย้อนของแต่ละแถว — เขียนลง **รายการของรอบต้นทาง** (คนละที่กับ items ของรอบย้อน) */
+export interface SyncRunItemRevert {
+  variation_id: string;
+  revert_status: string;
+  revert_note?: string | null;
+}
+
+/**
+ * จดผลการย้อนทีละแถวที่รอบต้นทาง — หน้ารอบเดิมจึงบอกได้ว่า "ตัวไหนคืนได้ ตัวไหนคืนไม่ได้เพราะอะไร"
+ * (ค่าเดียวกันนี้ไม่ได้อยู่ในรอบย้อน เพราะสิ่งที่ผู้ใช้เปิดดูคือรอบที่เขากดพลาด ไม่ใช่รอบแก้)
+ */
+export async function markItemsReverted(
+  runId: string,
+  updates: SyncRunItemRevert[],
+): Promise<void> {
+  if (updates.length === 0) return;
+  await parallelLimit(updates, async (u) => {
+    const { error } = await supabaseAdmin
+      .from('marketplace_sync_run_items')
+      .update({ revert_status: u.revert_status, revert_note: u.revert_note ?? null })
+      .eq('run_id', runId)
+      .eq('variation_id', u.variation_id);
+    if (error) console.error('[sync-runs] จดผลการย้อนรายแถวไม่สำเร็จ:', error.message);
   }, 8);
 }
