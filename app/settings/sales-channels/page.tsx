@@ -178,6 +178,10 @@ export default function SalesChannelsPage() {
   // ร้าน marketplace ทุกแพลตฟอร์มดึงครั้งเดียวที่นี่ — ตัวเลขบนแท็บต้องรู้ตั้งแต่ก่อนเปิดแท็บนั้น
   // (MarketplaceConnections รับไปใช้ต่อ ไม่ดึงซ้ำ)
   const mpAccounts = useMarketplaceAccounts(marketplaceTabVisible);
+  // ปุ่มงานซิงค์ขึ้นเมื่อเปิด feature marketplace **และ** มีร้านเชื่อมไว้แล้วอย่างน้อย 1 ร้าน
+  // — ยังไม่มีร้าน กดเข้าไปก็เจอรายการเปล่า
+  const hasMarketplaceShops =
+    mpAccounts.shopee.length + mpAccounts.tiktok.length + mpAccounts.lazada.length > 0;
 
   // เริ่ม OAuth เชื่อมร้าน marketplace — สำเร็จแล้ว browser จะ redirect ออกไปเลย
   // จึงไม่ reset connecting ในเส้นทางสำเร็จ (bfcache reset ด้านบนจัดการตอนกด back)
@@ -623,7 +627,7 @@ export default function SalesChannelsPage() {
                ไอคอนแพลตฟอร์มบนปุ่ม primary ใช้ mono (สีเดียวตามตัวหนังสือ) โลโก้สีแบรนด์เต็มตัวจะตีกับพื้นส้ม */
             <>
             {/* งานซิงค์เลือกร้านเองอยู่แล้ว จึงกดได้จากทุกแท็บ ไม่ต้องไปยืนที่แท็บของแพลตฟอร์มก่อน */}
-            {marketplaceTabVisible && (
+            {marketplaceTabVisible && hasMarketplaceShops && (
               <Button
                 variant="secondary"
                 icon={<RefreshCw className="w-5 h-5" />}
