@@ -767,6 +767,7 @@ export default function MarketplaceConnections({
           <div className="w-64">
             <FormSelect
               size="sm"
+              portal /* การ์ดร้านครอบด้วย overflow-hidden — ไม่ portal แล้วรายการคลังโดนตัดที่ขอบการ์ด */
               value={account.warehouse_id || ''}
               onChange={v => handleSelectWarehouse(account.id, v)}
               options={[

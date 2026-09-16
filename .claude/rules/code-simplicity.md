@@ -79,7 +79,7 @@ desktop table + mobile cards (auto / `mobileCardRender`) + pagination (20/50/100
 ### Form Inputs
 | ต้องการ | ใช้ | ห้าม |
 |---|---|---|
-| Dropdown | `FormSelect` | native `<select>` |
+| Dropdown | `FormSelect` — **อยู่ในกล่องที่ตัดของล้น (การ์ด `overflow-hidden` · แถว DataTable · โมดัล) ต้องส่ง `portal`** ไม่งั้นรายการโดนตัดที่ขอบกล่อง (portal ของตัวนี้ยังเป็น opt-in เพราะโหมด portal ปิดเองตอนเลื่อนจอ) | native `<select>` |
 | ช่องตัวเลข (ราคา/จำนวน/น้ำหนัก/สต็อก) | `NumberInput` (state number) · `FormInput type="number"` / `PostfixInput` / `DiscountInput` / `PriceDiscountCombo` (state string) — ทั้งหมดวาด `type="text" inputMode="decimal"` + กรองผ่าน [lib/numeric-input.ts](../../lib/numeric-input.ts) · `<input>` ดิบใส่ `{...NUMERIC_TEXT_INPUT_PROPS}` + `onNumericChange(...)` | **`<input type="number">`** — ล้อเมาส์/แทร็กแพดเปลี่ยนค่าเงียบ ๆ ขณะ focus (ค่าส่ง 100→99.96 ลูกค้าจ่ายผิดแล้ว) CSS กันไม่ได้ |
 | Multi-select + ค้นหา | `MultiSelectSearch` | chip list ยาว · multi-select เอง |
 | ค้นลูกค้า/entity | `EntitySearchInput` — รายการใหญ่ส่ง **`onSearchChange`** (โหมด API · debounce 300ms) + `loading`/`minSearchLength` · parent ต่อ `useServerSearch` | dropdown ค้นหาเอง · โหลดทั้งตารางให้กรอง · seq/debounce/cache เอง |
@@ -111,11 +111,16 @@ desktop table + mobile cards (auto / `mobileCardRender`) + pagination (20/50/100
 | เลือกลูกค้า+ที่อยู่+ภาษี | `CustomerSelectionCard` — `bare` (ที่แคบ/แผงแชท) · `onEditCustomer`/`editCustomerUrl` (แก้**ตัวลูกค้า** — ช่องในการ์ดเป็นของบิลใบนี้) · `shipToOther`+`onShipToOtherChange` = แท็บหัวบล็อกที่อยู่ (อย่าวาดหัวข้อที่อยู่ซ้ำ) | picker เอง · ตัวเลือกสั่งเอง/ส่งให้คนอื่นเป็นปุ่มลอยแยกจากช่องที่อยู่ |
 | ใบกำกับ แสดง / แก้ · สรุปยอด · แท็ก | `TaxInvoiceInfo` · `TaxInvoiceEditModal` · `OrderSummaryBox` · `TagBadge` | สร้างเอง |
 | รูปสินค้าจิ๋ว | `ProductImageThumb` (xs–lg · ย่อผ่าน `thumbUrl()` · กดดูรูปเต็ม) หรือ `<img src={thumbUrl(url, 96\|160\|320)}>` | `<img src={image_url}>` รูปเต็มในกรอบเล็ก |
-| Tooltip | **`Tooltip`** (`text` `position?` `box?` · portal · delay 350ms · มือถือแตะค้าง) · ใส่ `aria-label` คู่เสมอ · ปุ่มที่ disabled ได้ใส่ `box="inline-flex"` (default `display:contents` ไม่มีกล่อง ปุ่ม disabled จึงไม่ยิง pointer event) | `title=""` (มือถือไม่ขึ้น) · tooltip เอง |
-| คำอธิบายยาว กดเปิด (วิธีทำ · ทำไมตัวเลขเป็นแบบนี้) · กล่องข้อมูลเล็กที่โหลดตอนเปิด | **`HelpHint`** (`align` · **`portal`** เมื่ออยู่ในตาราง/กล่องที่ตัดของล้น เช่น DataTable — ลอยเหนือหน้า พลิกขึ้นเอง · กดไอคอน/กดในกล่องไม่ทะลุไปกดแถว · **`trigger`** ไอคอนแทน ? + **`ariaLabel`** · **`onOpenChange`** โหลดข้อมูลตอนเปิด — ตัวอย่างกล่องแยกคลังหน้า `/products`) | บรรทัดคำอธิบายถาวรยาว ๆ ใต้ช่อง · `Tooltip` กับข้อความยาว (บรรทัดเดียวไม่ตัดคำ) · HelpHint ไม่ใส่ `portal` ในแถวตาราง (โดนตัด) |
+| Tooltip | **`Tooltip`** (`text` `position?` `box?` · portal เสมอ · delay 350ms · มือถือแตะค้าง) · ใส่ `aria-label` คู่เสมอ · ปุ่มที่ disabled ได้ใส่ `box="inline-flex"` (default `display:contents` ไม่มีกล่อง ปุ่ม disabled จึงไม่ยิง pointer event) | `title=""` (มือถือไม่ขึ้น) · tooltip เอง |
+| คำอธิบายยาว กดเปิด (วิธีทำ · ทำไมตัวเลขเป็นแบบนี้) · กล่องข้อมูลเล็กที่โหลดตอนเปิด | **`HelpHint`** (**portal เป็นค่าเริ่มต้น** — ลอยเหนือหน้า ไม่โดนกล่องแม่ตัด พลิกขึ้นเอง · `align` · **`trigger`** ไอคอนแทน ? + **`ariaLabel`** · **`onOpenChange`** โหลดข้อมูลตอนเปิด) | บรรทัดคำอธิบายถาวรยาว ๆ ใต้ช่อง · `Tooltip` กับข้อความยาว (บรรทัดเดียวไม่ตัดคำ) · ส่ง `portal={false}` โดยไม่รู้ว่ากล่องแม่ตัดของล้นไหม |
 | เตือนเปิดในแอป LINE/FB/IG/TikTok (Google บล็อกล็อกอินใน webview `disallowed_useragent`) | `InAppBrowserNotice` ([components/auth/](../../components/auth/InAppBrowserNotice.tsx)) + `detectInAppBrowser()` · `IN_APP_LABELS` · `withExternalBrowserFlag()` ([lib/in-app-browser.ts](../../lib/in-app-browser.ts) · LINE เปิดเบราว์เซอร์จริงได้ด้วย `openExternalBrowser=1`) · อ่าน UA ผ่าน `useSyncExternalStore` | UA sniff เอง · `useEffect + setState` (lint + hydration mismatch) |
 
 ### Actions
+
+> **ของลอย (tooltip · dropdown · เมนู · popover) โดนบัง = ปัญหา 2 แบบ แก้คนละทาง**
+> **โดนตัด** (กล่องแม่มี `overflow:hidden`/`overflow-x-auto` เช่นการ์ด · DataTable · โมดัล) — **z-index ช่วยไม่ได้เลย** ต้องวาดที่ body (portal) เท่านั้น ·
+> **โดนทับ** (ซ้อนผิดลำดับ) — ค่อยเป็นเรื่อง z-index · ของกลางที่ portal ให้แล้วเสมอ: `Tooltip` · `HelpHint` · `Popover` · `ActionMenu` — เหลือ `FormSelect` ที่ต้องส่ง `portal` เอง
+
 | ต้องการ | ใช้ | ห้าม |
 |---|---|---|
 | เมนูแถว · ป๊อปอัปเลือกจากปุ่ม | `ActionMenu` (portal z-9999 · สไตล์ `.action-menu-item` · `primary: true` 1 ตัว · `danger: true` · `description` ต่อรายการ · ปุ่มเปิดเอง `trigger`+`triggerClassName` · **`placement="auto"`** วัดแล้วพลิกขึ้น/ลงตามที่ว่าง · **`align="start"`** ปุ่มชิดซ้าย เช่น "+ เพิ่มบล็อก" ของบรอดแคสต์) | dropdown เอง · ส่ง `className` สีเอง |

@@ -24,6 +24,8 @@ interface Props {
   /** ชิดขวาแทนชิดซ้าย — ใช้เมื่อไอคอนอยู่ริมขวาของจอ */
   align?: 'left' | 'right';
   /** วาดคำอธิบายลอยเหนือทั้งหน้า — ใช้ในตาราง/กล่องที่ตัดของล้น · พลิกขึ้นเองเมื่อข้างล่างไม่พอ */
+  /** ค่าเริ่มต้น = true (วาดที่ body) — กล่องคำอธิบายไม่ควรโดนกล่องแม่ตัดหัวตัดหาง
+   *  ส่ง false เฉพาะที่รู้แน่ว่าไม่มีอะไรตัด และอยากให้เลื่อนตามเนื้อหา */
   portal?: boolean;
   /** ไอคอนของปุ่มเปิดแบบกำหนดเอง (แทนไอคอน ?) — เช่นไอคอนคลังข้างตัวเลขสต็อก */
   trigger?: React.ReactNode;
@@ -41,7 +43,7 @@ type Pos = { top?: number; bottom?: number; left?: number; right?: number };
 
 const BOX = 'w-max max-w-[min(280px,70vw)] rounded-lg bg-gray-900 px-3 py-2 text-[13px] font-normal leading-relaxed text-gray-50 shadow-lg';
 
-export default function HelpHint({ children, align = 'left', portal = false, trigger, ariaLabel, onOpenChange }: Props) {
+export default function HelpHint({ children, align = 'left', portal = true, trigger, ariaLabel, onOpenChange }: Props) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<Pos | null>(null);
   const wrapRef = useRef<HTMLSpanElement>(null);
