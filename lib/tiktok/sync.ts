@@ -15,10 +15,13 @@ import { logIntegration } from '@/lib/integration-logger';
 import { parallelLimit } from '@/lib/parallel';
 import { sendNewOrderPushById } from '@/lib/push/send';
 import { fetchCostMap } from '@/lib/cost-utils';
-import { reserveStock as reserveStockService, deductAndUnreserve, returnStock as returnStockService } from '@/lib/stock-service';
 import { holdsStockInWarehouse, skipStockReason } from '@/lib/marketplace/order-stock';
-import { pushStockAfterOrderSync } from '@/lib/marketplace/stock-push';
-import { getStockConfig } from '@/lib/stock-utils';
+import {
+  reserveOrderStockOnce,
+  deductOrderStockOnce,
+  releaseOrderStockOnce,
+  type OrderStockContext,
+} from '@/lib/stock/order-stock';
 
 // --- Sync Progress ---
 
@@ -124,6 +127,22 @@ const TIKTOK_STATUS_ORDER: Record<string, number> = {
   COMPLETED: 7,
   CANCELLED: 10,
 };
+
+/** ข้อมูลที่ตัวกลางสต็อกต้องรู้ — ไฟล์นี้ไม่ตัดสินใจเรื่องสต็อกเอง */
+function stockCtx(
+  account: { id: string; company_id: string },
+  orderId: string,
+  warehouseId: string | null,
+  externalId: string,
+): OrderStockContext {
+  return {
+    companyId: account.company_id,
+    orderId,
+    warehouseId,
+    reference: `TikTok ${externalId}`,
+    excludeAccountId: account.id,
+  };
+}
 
 /**
  * Map TikTok order status → internal order_status + payment_status.
@@ -513,48 +532,17 @@ async function updateExistingOrder(
       autoIssueDocument(existing.id, companyId).catch(() => {});
     }
 
-    // Stock deduction when order ships
-    if (['IN_TRANSIT', 'DELIVERED', 'COMPLETED'].includes(tiktokOrder.status) && existing.warehouse_id) {
-      const wasPreShip = ['new', 'ready_to_ship', 'processing'].includes(existing.order_status);
-      if (wasPreShip) {
-        try {
-          const stockConfig = await getStockConfig(companyId);
-          if (stockConfig.stockEnabled) {
-            const { data: orderItems } = await supabaseAdmin
-              .from('order_items')
-              .select('id, variation_id, quantity')
-              .eq('order_id', existing.id);
-            const touched: string[] = [];
-            for (const oi of (orderItems || [])) {
-              if (!oi.variation_id) continue;
-              try {
-                await deductAndUnreserve({
-                  supabase: supabaseAdmin,
-                  companyId,
-                  warehouseId: existing.warehouse_id,
-                  variationId: oi.variation_id,
-                  qty: Number(oi.quantity),
-                  referenceType: 'order',
-                  referenceId: existing.id,
-                  notes: `TikTok shipped: ${tiktokOrder.id}`,
-                });
-                touched.push(oi.variation_id);
-              } catch (stockErr) {
-                console.error(`[TikTok Sync] Stock deduct error for ${tiktokOrder.id}:`, stockErr);
-              }
-            }
-            // ขายที่ร้านนี้แล้วยอดที่ร้านอื่น (ทุก platform) ต้องลดตาม — ร้านต้นทางตัดเองแล้วจึงข้าม
-            await pushStockAfterOrderSync(touched, existing.warehouse_id, account.id);
-          }
-        } catch (stockErr) {
-          console.error(`[TikTok Sync] Stock deduction failed for ${tiktokOrder.id}:`, stockErr);
-        }
-      }
+    // ตัดสต็อกเมื่อของออกจากคลังจริง — ตัวกลางกันซ้ำจากหลักฐานใน inventory_transactions
+    // (เดิมเดาจาก `wasPreShip` ของ order_status ซึ่งพลาดถาวรเมื่อสถานะถูกเส้นอื่นเลื่อนไปก่อน
+    //  — บั๊กเดียวกับที่ Shopee เจอและแก้ไปเมื่อ 28 ส.ค. 2569)
+    if (['IN_TRANSIT', 'DELIVERED', 'COMPLETED'].includes(tiktokOrder.status)) {
+      await deductOrderStockOnce(stockCtx(account, existing.id, existing.warehouse_id, tiktokOrder.id));
     }
 
-    // Stock return for cancelled orders
-    if (tiktokOrder.status === 'CANCELLED' && existing.warehouse_id) {
-      await returnStockForCancelledOrder(companyId, existing.id, existing.warehouse_id, existing.order_status, tiktokOrder.id, account.id);
+    // ยกเลิก — ตัวกลางเลือกเองว่าคืนของเข้าคลังหรือแค่ปลดจอง
+    // (เดิมเรียก returnStock เสมอ และยกเลิกจากสถานะ new ไม่คืนอะไรเลย)
+    if (tiktokOrder.status === 'CANCELLED') {
+      await releaseOrderStockOnce(stockCtx(account, existing.id, existing.warehouse_id, tiktokOrder.id));
     }
   }
 
@@ -574,6 +562,11 @@ async function updateExistingOrder(
       }
       await supabaseAdmin.from('orders').update(repairUpdate).eq('id', existing.id);
       statusUpdated = true;
+
+      // ซ่อมสถานะเป็น "ส่งแล้ว" ต้องตัดสต็อกด้วย — เดิมเส้นนี้ลืม ของออกไปแล้วแต่ยอดไม่ลด
+      if (shouldBeShipped) {
+        await deductOrderStockOnce(stockCtx(account, existing.id, existing.warehouse_id, tiktokOrder.id));
+      }
     }
   }
 
@@ -806,40 +799,14 @@ async function createNewOrder(
   }));
   await supabaseAdmin.from('order_items').insert(orderItemsToInsert);
 
-  // จองสต็อก — **เฉพาะออเดอร์ที่ของยังอยู่ในคลังเรา** (เกณฑ์เดียวกับทุก platform)
-  // ออเดอร์เก่าที่ขนส่งรับไปแล้ว/ยกเลิกแล้ว ของไม่ได้อยู่ในร้านตั้งแต่ตอนนับสต็อกครั้งล่าสุด
-  // → จองซ้ำ = พร้อมขายหายเปล่า ๆ และไม่มีขาตัด/คืนตามมา (จองค้างถาวร)
+  // จองสต็อก — **เฉพาะออเดอร์ที่ของยังอยู่ในคลังเรา** (ตรรกะจอง/ตัด/คืนอยู่ในตัวกลาง)
   const holdsStock = holdsStockInWarehouse(order_status);
   if (!holdsStock) {
     console.log(`[TikTok Sync] ${tiktokOrder.id} ไม่จองสต็อก — ${skipStockReason(order_status)}`);
-  }
-  if (warehouseId && holdsStock) {
-    try {
-      const stockConfig = await getStockConfig(companyId);
-      if (stockConfig.stockEnabled) {
-        for (const item of resolvedItems) {
-          if (item.variation_id) {
-            await reserveStockService({
-              supabase: supabaseAdmin,
-              companyId,
-              warehouseId,
-              variationId: item.variation_id,
-              qty: item.qty,
-              referenceType: 'order',
-              referenceId: order.id,
-              notes: `TikTok order: ${tiktokOrder.id}`,
-            });
-          }
-        }
-        // จองแล้ว "ยอดขายได้" ลดทันที → ร้านอื่นต้องรู้ ไม่งั้นขายซ้ำของชิ้นเดียวกัน
-        await pushStockAfterOrderSync(
-          resolvedItems.map(i => i.variation_id),
-          warehouseId,
-          account.id,
-        );
-      }
-    } catch (stockErr) {
-      console.error(`[TikTok Sync] Stock reservation error for ${tiktokOrder.id}:`, stockErr);
+  } else {
+    const stock = await reserveOrderStockOnce(stockCtx(account, order.id, warehouseId, tiktokOrder.id));
+    if (stock.errors.length > 0) {
+      console.error(`[TikTok Sync] จองสต็อก ${tiktokOrder.id} ไม่ครบ:`, stock.errors.join(' · '));
     }
   }
 
@@ -1140,49 +1107,3 @@ async function resolveTikTokVariation(
 
 // --- Helper: Return stock for cancelled order ---
 
-async function returnStockForCancelledOrder(
-  companyId: string,
-  orderId: string,
-  warehouseId: string,
-  previousOrderStatus: string,
-  tiktokOrderId: string,
-  accountId: string
-) {
-  // Only return stock if order was past the reservation stage
-  if (!['ready_to_ship', 'processing', 'shipping'].includes(previousOrderStatus)) return;
-
-  try {
-    const stockConfig = await getStockConfig(companyId);
-    if (!stockConfig.stockEnabled) return;
-
-    const { data: orderItems } = await supabaseAdmin
-      .from('order_items')
-      .select('id, variation_id, quantity')
-      .eq('order_id', orderId);
-
-    const touched: string[] = [];
-    for (const oi of (orderItems || [])) {
-      if (!oi.variation_id) continue;
-      try {
-        await returnStockService({
-          supabase: supabaseAdmin,
-          companyId,
-          warehouseId,
-          variationId: oi.variation_id,
-          qty: Number(oi.quantity),
-          referenceType: 'order',
-          referenceId: orderId,
-          notes: `TikTok cancelled: ${tiktokOrderId}`,
-        });
-        touched.push(oi.variation_id);
-      } catch (err) {
-        console.error(`[TikTok Sync] Stock return error for ${tiktokOrderId} item ${oi.variation_id}:`, err);
-      }
-    }
-    console.log(`[TikTok Sync] Stock returned for cancelled order ${tiktokOrderId}`);
-    // ของกลับเข้าคลัง → ร้านอื่นต้องเห็นยอดเพิ่มด้วย
-    await pushStockAfterOrderSync(touched, warehouseId, accountId);
-  } catch (err) {
-    console.error(`[TikTok Sync] Stock return failed for ${tiktokOrderId}:`, err);
-  }
-}

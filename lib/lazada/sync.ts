@@ -26,10 +26,13 @@ import {
 } from '@/lib/lazada/api';
 import { parallelLimit } from '@/lib/parallel';
 import { fetchCostMap } from '@/lib/cost-utils';
-import { reserveStock as reserveStockService, deductAndUnreserve, returnStock as returnStockService } from '@/lib/stock-service';
 import { holdsStockInWarehouse, skipStockReason } from '@/lib/marketplace/order-stock';
-import { pushStockAfterOrderSync } from '@/lib/marketplace/stock-push';
-import { getStockConfig } from '@/lib/stock-utils';
+import {
+  reserveOrderStockOnce,
+  deductOrderStockOnce,
+  releaseOrderStockOnce,
+  type OrderStockContext,
+} from '@/lib/stock/order-stock';
 
 export interface SyncProgressEvent {
   phase: 'collecting' | 'processing' | 'done';
@@ -90,6 +93,22 @@ export function effectiveLazadaStatus(itemStatuses: string[]): string {
   return active.reduce((min, s) =>
     (LAZADA_STATUS_ORDER[s] ?? 0) < (LAZADA_STATUS_ORDER[min] ?? 0) ? s : min
   , active[0]);
+}
+
+/** ข้อมูลที่ตัวกลางสต็อกต้องรู้ — ไฟล์นี้ไม่ตัดสินใจเรื่องสต็อกเอง */
+function stockCtx(
+  account: { id: string; company_id: string },
+  orderId: string,
+  warehouseId: string | null,
+  orderId_external: string,
+): OrderStockContext {
+  return {
+    companyId: account.company_id,
+    orderId,
+    warehouseId,
+    reference: `Lazada ${orderId_external}`,
+    excludeAccountId: account.id,
+  };
 }
 
 /**
@@ -374,49 +393,19 @@ async function updateExistingOrder(
       autoIssueDocument(existing.id, companyId).catch(() => {});
     }
 
-    // ตัดสต็อกเมื่อส่งแล้ว
-    if (LAZADA_SHIPPED_PLUS.has(effStatus) && existing.warehouse_id) {
-      const wasPreShip = ['new', 'ready_to_ship', 'processing'].includes(existing.order_status);
-      if (wasPreShip) {
-        try {
-          const stockConfig = await getStockConfig(companyId);
-          if (stockConfig.stockEnabled) {
-            const { data: orderItems } = await supabaseAdmin
-              .from('order_items')
-              .select('id, variation_id, quantity')
-              .eq('order_id', existing.id);
-            const touched: string[] = [];
-            for (const oi of (orderItems || [])) {
-              if (!oi.variation_id) continue;
-              try {
-                await deductAndUnreserve({
-                  supabase: supabaseAdmin,
-                  companyId,
-                  warehouseId: existing.warehouse_id,
-                  variationId: oi.variation_id,
-                  qty: Number(oi.quantity),
-                  referenceType: 'order',
-                  referenceId: existing.id,
-                  notes: `Lazada shipped: ${order.order_id}`,
-                });
-                touched.push(oi.variation_id);
-              } catch (stockErr) {
-                console.error(`[Lazada Sync] Stock deduct error for ${order.order_id}:`, stockErr);
-              }
-            }
-            // ขายที่ร้านนี้แล้วยอดที่ร้านอื่น (ทุก platform) ต้องลดตาม — ร้านต้นทางตัดเองแล้วจึงข้าม
-            await pushStockAfterOrderSync(touched, existing.warehouse_id, account.id);
-          }
-        } catch (stockErr) {
-          console.error(`[Lazada Sync] Stock deduction failed for ${order.order_id}:`, stockErr);
-        }
-      }
+    // ตัดสต็อกเมื่อของออกจากคลังจริง — ตัวกลางกันซ้ำจากหลักฐานใน inventory_transactions
+    // (เดิมเดาจาก `wasPreShip` ของ order_status ซึ่งพลาดถาวรเมื่อสถานะถูกเส้นอื่นเลื่อนไปก่อน
+    //  — บั๊กเดียวกับที่ Shopee เจอและแก้ไปเมื่อ 28 ส.ค. 2569)
+    if (LAZADA_SHIPPED_PLUS.has(effStatus)) {
+      await deductOrderStockOnce(stockCtx(account, existing.id, existing.warehouse_id, String(order.order_id)));
     }
 
-    // คืนสต็อกเมื่อยกเลิก/ตีกลับ
-    if ((LAZADA_CANCEL_STATUSES.has(effStatus) || LAZADA_RETURN_STATUSES.has(effStatus)) && existing.warehouse_id) {
-      await returnStockForCancelledOrder(companyId, existing.id, existing.warehouse_id, existing.order_status, String(order.order_id), account.id);
+    // ยกเลิก/คืนสินค้า — ตัวกลางเลือกเองว่าจะคืนของเข้าคลังหรือแค่ปลดจอง
+    // (เดิมเรียก returnStock เสมอ → ยกเลิกก่อนส่งทำให้คงคลังงอกและยอดจองค้าง)
+    if (LAZADA_CANCEL_STATUSES.has(effStatus) || LAZADA_RETURN_STATUSES.has(effStatus)) {
+      await releaseOrderStockOnce(stockCtx(account, existing.id, existing.warehouse_id, String(order.order_id)));
     }
+
   }
 
   // Repair mapping drift (สถานะเดิมแต่ internal ไม่ตรง)
@@ -434,6 +423,11 @@ async function updateExistingOrder(
       }
       await supabaseAdmin.from('orders').update(repairUpdate).eq('id', existing.id);
       statusUpdated = true;
+
+      // ซ่อมสถานะเป็น "ส่งแล้ว" ต้องตัดสต็อกด้วย — เดิมเส้นนี้ลืม ของออกไปแล้วแต่ยอดไม่ลด
+      if (LAZADA_SHIPPED_PLUS.has(effStatus)) {
+        await deductOrderStockOnce(stockCtx(account, existing.id, existing.warehouse_id, String(order.order_id)));
+      }
     }
   }
 
@@ -648,38 +642,17 @@ async function createNewOrder(
   }));
   await supabaseAdmin.from('order_items').insert(orderItemsToInsert);
 
-  // จองสต็อก — **เฉพาะออเดอร์ที่ของยังอยู่ในคลังเรา** (เกณฑ์เดียวกับทุก platform)
+  // จองสต็อก — **เฉพาะออเดอร์ที่ของยังอยู่ในคลังเรา** (ตรรกะจอง/ตัด/คืนอยู่ในตัวกลาง)
   //
-  // เดิมที่นี่ "จองแล้วตัดทันที" ให้ออเดอร์ที่เข้ามาในสถานะส่งแล้ว — ซึ่งไปหักคงคลัง
-  // ซ้ำกับการนับของพนักงาน (ของออกจากร้านไปก่อนที่ระบบจะรู้จักออเดอร์ใบนี้ด้วยซ้ำ)
-  // ⇒ ออเดอร์ที่ของออกไปแล้ว/ยกเลิกแล้ว บันทึกเป็นประวัติอย่างเดียว ไม่แตะคลัง
+  // เดิมที่นี่ "จองแล้วตัดทันที" ให้ออเดอร์ที่เข้ามาในสถานะส่งแล้ว — ไปหักคงคลังซ้ำกับ
+  // การนับของพนักงาน (ของออกจากร้านไปก่อนที่ระบบจะรู้จักออเดอร์ใบนั้นด้วยซ้ำ)
   const holdsStock = holdsStockInWarehouse(order_status);
   if (!holdsStock) {
     console.log(`[Lazada Sync] ${order.order_id} ไม่จองสต็อก — ${skipStockReason(order_status)}`);
-  }
-  if (warehouseId && holdsStock && !opts.skipStock) {
-    try {
-      const stockConfig = await getStockConfig(companyId);
-      if (stockConfig.stockEnabled) {
-        for (const item of resolvedItems) {
-          if (!item.variation_id) continue;
-          await reserveStockService({
-            supabase: supabaseAdmin,
-            companyId,
-            warehouseId,
-            variationId: item.variation_id,
-            qty: item.qty,
-            referenceType: 'order',
-            referenceId: newOrder.id,
-            notes: `Lazada order: ${order.order_id}`,
-          });
-        }
-        // จองแล้ว "ยอดขายได้" ลดทันที → ร้านอื่นต้องรู้ ไม่งั้นขายซ้ำของชิ้นเดียวกัน
-        const touchedOnCreate = resolvedItems.map(i => i.variation_id).filter(Boolean) as string[];
-        await pushStockAfterOrderSync(touchedOnCreate, warehouseId, account.id);
-      }
-    } catch (stockErr) {
-      console.error(`[Lazada Sync] Stock reservation error for ${order.order_id}:`, stockErr);
+  } else if (!opts.skipStock) {
+    const stock = await reserveOrderStockOnce(stockCtx(account, newOrder.id, warehouseId, String(order.order_id)));
+    if (stock.errors.length > 0) {
+      console.error(`[Lazada Sync] จองสต็อก ${order.order_id} ไม่ครบ:`, stock.errors.join(' · '));
     }
   }
 
@@ -987,48 +960,3 @@ async function resolveLazadaVariation(
 
 // --- Stock return on cancel --------------------------------------------------------
 
-async function returnStockForCancelledOrder(
-  companyId: string,
-  orderId: string,
-  warehouseId: string,
-  previousOrderStatus: string,
-  lazadaOrderId: string,
-  accountId: string
-) {
-  if (!['ready_to_ship', 'processing', 'shipping'].includes(previousOrderStatus)) return;
-
-  try {
-    const stockConfig = await getStockConfig(companyId);
-    if (!stockConfig.stockEnabled) return;
-
-    const { data: orderItems } = await supabaseAdmin
-      .from('order_items')
-      .select('id, variation_id, quantity')
-      .eq('order_id', orderId);
-
-    const touched: string[] = [];
-    for (const oi of (orderItems || [])) {
-      if (!oi.variation_id) continue;
-      try {
-        await returnStockService({
-          supabase: supabaseAdmin,
-          companyId,
-          warehouseId,
-          variationId: oi.variation_id,
-          qty: Number(oi.quantity),
-          referenceType: 'order',
-          referenceId: orderId,
-          notes: `Lazada cancelled: ${lazadaOrderId}`,
-        });
-        touched.push(oi.variation_id);
-      } catch (err) {
-        console.error(`[Lazada Sync] Stock return error for ${lazadaOrderId} item ${oi.variation_id}:`, err);
-      }
-    }
-    console.log(`[Lazada Sync] Stock returned for cancelled order ${lazadaOrderId}`);
-    // ของกลับเข้าคลัง → ร้านอื่นต้องเห็นยอดเพิ่มด้วย
-    await pushStockAfterOrderSync(touched, warehouseId, accountId);
-  } catch (err) {
-    console.error(`[Lazada Sync] Stock return failed for ${lazadaOrderId}:`, err);
-  }
-}

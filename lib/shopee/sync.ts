@@ -8,9 +8,13 @@ import { logIntegration } from '@/lib/integration-logger';
 import { parallelLimit } from '@/lib/parallel';
 import { sendNewOrderPushById } from '@/lib/push/send';
 import { fetchCostMap } from '@/lib/cost-utils';
-import { reserveStock as reserveStockService, returnStock as returnStockService, unreserveStock as unreserveStockService, deductAndUnreserve } from '@/lib/stock-service';
 import { holdsStockInWarehouse, skipStockReason } from '@/lib/marketplace/order-stock';
-import { pushStockAfterOrderSync } from '@/lib/marketplace/stock-push';
+import {
+  reserveOrderStockOnce,
+  deductOrderStockOnce,
+  releaseOrderStockOnce,
+  type OrderStockContext,
+} from '@/lib/stock/order-stock';
 import { getStockConfig } from '@/lib/stock-utils';
 import {
   ShopeeItemInfo,
@@ -158,6 +162,22 @@ function mapShopeeStatus(shopeeStatus: string): { order_status: string; payment_
     default:
       return { order_status: 'new', payment_status: 'pending' };
   }
+}
+
+/** ข้อมูลที่ตัวกลางสต็อกต้องรู้ — ไฟล์นี้ไม่ตัดสินใจเรื่องสต็อกเอง */
+function stockCtx(
+  account: ShopeeAccountRow,
+  orderId: string,
+  warehouseId: string | null,
+  orderSn: string,
+): OrderStockContext {
+  return {
+    companyId: account.company_id,
+    orderId,
+    warehouseId,
+    reference: `Shopee ${orderSn}`,
+    excludeAccountId: account.id,   // ร้านต้นทางตัดของตัวเองไปแล้ว
+  };
 }
 
 /** Check if new Shopee status is a forward progression (prevent out-of-order webhooks from reverting status) */
@@ -694,59 +714,6 @@ function mapBuyerInvoiceToTaxFields(
   return {};
 }
 
-/**
- * ตัดสต็อก + ปล่อยจองตอนออเดอร์ Shopee ส่งแล้ว — idempotent ด้วยการเช็ค
- * transaction 'out' จริงของออเดอร์ ไม่เดาจาก order_status (สถานะอาจถูกเส้นอื่น
- * เลื่อนไปก่อน เช่น tracking push แล้วทำให้เงื่อนไขแบบสถานะข้ามการตัดถาวร —
- * เจอจริง 2026-08-28 ดู fix-bug.md) — เรียกซ้ำได้ปลอดภัย ใช้เก็บตกตอน re-sync ด้วย
- */
-async function deductShippedStockOnce(companyId: string, orderId: string, warehouseId: string, orderSn: string, accountId: string) {
-  try {
-    const stockConfig = await getStockConfig(companyId);
-    if (!stockConfig.stockEnabled) return;
-
-    const { data: orderItems } = await supabaseAdmin
-      .from('order_items')
-      .select('id, variation_id, quantity')
-      .eq('order_id', orderId);
-    if (!orderItems?.length) return;
-
-    const { data: outTx } = await supabaseAdmin
-      .from('inventory_transactions')
-      .select('variation_id')
-      .eq('reference_type', 'order')
-      .eq('reference_id', orderId)
-      .eq('type', 'out');
-    const alreadyDeducted = new Set((outTx || []).map(t => t.variation_id));
-
-    let deducted = 0;
-    const touched: string[] = [];
-    for (const oi of orderItems) {
-      if (!oi.variation_id || alreadyDeducted.has(oi.variation_id)) continue;
-      try {
-        await deductAndUnreserve({
-          supabase: supabaseAdmin,
-          companyId,
-          warehouseId,
-          variationId: oi.variation_id,
-          qty: Number(oi.quantity),
-          referenceType: 'order',
-          referenceId: orderId,
-          notes: `Shopee shipped: ${orderSn}`,
-        });
-        deducted++;
-        touched.push(oi.variation_id);
-      } catch (stockErr) {
-        console.error(`[Shopee Sync] Stock deduct error for ${orderSn} item ${oi.variation_id}:`, stockErr);
-      }
-    }
-    if (deducted > 0) console.log(`[Shopee Sync] Stock deducted for ${orderSn} (${deducted} items)`);
-    // ขายที่ร้านนี้แล้วยอดที่ร้านอื่น (ทุก platform) ต้องลดตาม — ร้านต้นทางตัดเองแล้วจึงข้าม
-    await pushStockAfterOrderSync(touched, warehouseId, accountId);
-  } catch (stockErr) {
-    console.error(`[Shopee Sync] Stock deduction failed for ${orderSn}:`, stockErr);
-  }
-}
 
 /**
  * Upsert a single Shopee order.
@@ -892,20 +859,13 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
       // This is the equivalent of commitStock — reduces on_hand and releases reservation
       // (idempotent จาก transaction จริง — เดิมเช็ค wasPreShip จาก order_status ซึ่งพลาด
       //  ถาวรเมื่อสถานะถูกเส้นอื่นเลื่อนไปก่อน)
-      if (['SHIPPED', 'TO_CONFIRM_RECEIVE', 'TO_RETURN', 'COMPLETED'].includes(shopeeOrder.order_status) && existing.warehouse_id) {
-        await deductShippedStockOnce(companyId, existing.id, existing.warehouse_id, shopeeOrder.order_sn, account.id);
+      if (['SHIPPED', 'TO_CONFIRM_RECEIVE', 'TO_RETURN', 'COMPLETED'].includes(shopeeOrder.order_status)) {
+        await deductOrderStockOnce(stockCtx(account, existing.id, existing.warehouse_id, shopeeOrder.order_sn));
       }
 
       // Stock return for CANCELLED/IN_CANCEL orders
-      if (['CANCELLED', 'IN_CANCEL'].includes(shopeeOrder.order_status) && existing.warehouse_id) {
-        await returnStockForCancelledOrder(
-          companyId,
-          existing.id,
-          existing.warehouse_id,
-          existing.order_status,
-          shopeeOrder.order_sn,
-          account.id,
-        );
+      if (['CANCELLED', 'IN_CANCEL'].includes(shopeeOrder.order_status)) {
+        await releaseOrderStockOnce(stockCtx(account, existing.id, existing.warehouse_id, shopeeOrder.order_sn));
       }
 
       // ยอดเงินที่ร้านได้จริงของออเดอร์ที่จบแล้ว
@@ -946,6 +906,12 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
           .eq('id', existing.id);
         console.log(`[Shopee Sync] Repaired order ${shopeeOrder.order_sn}: order_status=${existing.order_status}→${expectedMapping.order_status}, fulfillment fix=${needsFulfillmentFix}`);
         statusUpdated = true;
+
+        // ซ่อมสถานะเป็น "ส่งแล้ว" ต้องตัดสต็อกด้วย — เดิมเส้นนี้ลืม ของออกไปแล้วแต่ยอดไม่ลด
+        // (ตัวกลางกันซ้ำให้อยู่แล้ว เรียกซ้ำกับใบที่ตัดไปแล้วไม่เกิดอะไร)
+        if (shouldBeShipped) {
+          await deductOrderStockOnce(stockCtx(account, existing.id, existing.warehouse_id, shopeeOrder.order_sn));
+        }
 
         // Also check can_split_order on repair
         await syncCanSplitOrder(existing.id, creds, shopeeOrder).catch(() => {});
@@ -1094,17 +1060,17 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
           continue;
         }
 
-        // Reserve stock
-        if (matched.variation_id && warehouseId) {
-          await reserveStock(companyId, warehouseId, matched.variation_id, qty, existing.id, shopeeOrder.order_sn);
-          reservedVariationIds.push(matched.variation_id);
-        }
-
+        if (matched.variation_id) reservedVariationIds.push(matched.variation_id);
         itemsCreated++;
       }
 
-      // จองแล้ว "ยอดขายได้" ลดทันที → ร้านอื่นต้องรู้ ไม่งั้นขายซ้ำของชิ้นเดียวกัน
-      await pushStockAfterOrderSync(reservedVariationIds, warehouseId, account.id);
+      // จองผ่านตัวกลางหลังใส่รายการครบ — และ **ต้องดูสถานะด้วย** เดิมเส้นนี้จองทุกใบ
+      // ไม่ว่าออเดอร์จะส่ง/ยกเลิกไปแล้วหรือยัง จึงเกิดยอดจองค้างถาวร
+      if (holdsStockInWarehouse(existing.order_status)) {
+        await reserveOrderStockOnce(stockCtx(account, existing.id, warehouseId, shopeeOrder.order_sn));
+      } else {
+        console.log(`[Shopee Sync] ${shopeeOrder.order_sn} ซ่อมรายการแล้วไม่จองสต็อก — ${skipStockReason(existing.order_status)}`);
+      }
 
       // Batch update unit_cost for inserted items
       try {
@@ -1566,22 +1532,18 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
     console.error(`[Shopee Sync] Failed to map promotions for order ${shopeeOrder.order_sn}:`, promoMapErr);
   }
 
-  // จองสต็อก — **เฉพาะออเดอร์ที่ของยังอยู่ในคลังเรา**
+  // จองสต็อก — **เฉพาะออเดอร์ที่ของยังอยู่ในคลังเรา** (ตรรกะจอง/ตัด/คืนอยู่ในตัวกลาง)
   //
   // ออเดอร์เก่าที่ขนส่งรับไปแล้ว/ยกเลิกแล้ว ของไม่ได้อยู่ในร้านตั้งแต่ตอนพนักงานนับสต็อก
-  // ครั้งล่าสุด → จองซ้ำ = พร้อมขายหายไปเปล่า ๆ และไม่มีขาตัด/คืนตามมาให้ด้วย
-  // (ตรรกะตัด/คืนอยู่ในสาย "ออเดอร์ที่มีอยู่แล้วเปลี่ยนสถานะ" เท่านั้น) ⇒ จองค้างถาวร
+  // ครั้งล่าสุด → จองซ้ำ = พร้อมขายหายไปเปล่า ๆ
   const holdsStock = holdsStockInWarehouse(order_status);
-  const stockItems = holdsStock ? resolvedItems.filter(item => item.variation_id && warehouseId) : [];
   if (!holdsStock) {
     console.log(`[Shopee Sync] ${shopeeOrder.order_sn} ไม่จองสต็อก — ${skipStockReason(order_status)}`);
-  }
-  if (stockItems.length > 0) {
-    await Promise.all(stockItems.map(item =>
-      reserveStock(companyId, warehouseId!, item.variation_id!, item.qty, order.id, order.order_number)
-    ));
-    // จองแล้ว "ยอดขายได้" ลดทันที → ร้านอื่นต้องรู้ ไม่งั้นขายซ้ำของชิ้นเดียวกัน
-    await pushStockAfterOrderSync(stockItems.map(i => i.variation_id!), warehouseId, account.id);
+  } else {
+    const stock = await reserveOrderStockOnce(stockCtx(account, order.id, warehouseId, shopeeOrder.order_sn));
+    if (stock.errors.length > 0) {
+      console.error(`[Shopee Sync] จองสต็อก ${shopeeOrder.order_sn} ไม่ครบ:`, stock.errors.join(' · '));
+    }
   }
 
   // Create order shipments for each item (same pattern as manual order creation)
@@ -1786,6 +1748,174 @@ export async function fetchAndSaveEscrowDetail(
 }
 
 // --- Repair Products for Existing Orders ---
+
+
+// --- Customer Logic ---
+
+/**
+ * Update customer name if current name is masked (****) and we have a better name now.
+ */
+async function updateCustomerIfMasked(customerId: string, currentName: string | null, newName: string): Promise<void> {
+  if (!currentName || !isMasked(currentName)) return; // name is fine, skip
+  if (isMasked(newName)) return; // new name is also masked, skip
+
+  await supabaseAdmin
+    .from('customers')
+    .update({ name: newName, updated_at: new Date().toISOString() })
+    .eq('id', customerId);
+  console.log(`[Shopee Sync] Updated masked customer name "${currentName}" → "${newName}" for customer ${customerId}`);
+}
+
+/** Check if Shopee has masked this value (e.g. "***", "** **", "**** ****") */
+function isMasked(value: string | undefined | null): boolean {
+  if (!value) return true;
+  // Remove all spaces and check if only asterisks remain
+  const stripped = value.replace(/\s/g, '');
+  if (!stripped) return true;
+  return /^\*+$/.test(stripped);
+}
+
+/** Return the value only if it's not masked, otherwise null */
+function unmasked(value: string | undefined | null): string | null {
+  if (!value || isMasked(value)) return null;
+  return value;
+}
+
+/** Get existing default shipping address ID for a customer (for item repair) */
+async function getExistingShippingAddressId(companyId: string, customerId: string | null): Promise<string | undefined> {
+  if (!customerId) return undefined;
+  const { data } = await supabaseAdmin
+    .from('shipping_addresses')
+    .select('id')
+    .eq('customer_id', customerId)
+    .eq('company_id', companyId)
+    .eq('is_default', true)
+    .limit(1)
+    .maybeSingle();
+  return data?.id;
+}
+
+/**
+ * Ensure a shipping address exists for a customer from Shopee order data.
+ * Returns the shipping_address ID if created/found, or undefined if no address data.
+ */
+async function ensureShippingAddress(
+  companyId: string,
+  customerId: string,
+  addr: ShopeeRecipientAddress | undefined
+): Promise<string | undefined> {
+  if (!addr) return undefined;
+
+  const fullAddress = unmasked(addr.full_address);
+  if (!fullAddress) return undefined;
+
+  // Check if customer already has a default shipping address
+  const { data: existing } = await supabaseAdmin
+    .from('shipping_addresses')
+    .select('id')
+    .eq('company_id', companyId)
+    .eq('customer_id', customerId)
+    .eq('is_default', true)
+    .limit(1)
+    .single();
+
+  if (existing) return existing.id;
+
+  // Create new shipping address
+  const { data: newAddr } = await supabaseAdmin
+    .from('shipping_addresses')
+    .insert({
+      company_id: companyId,
+      customer_id: customerId,
+      address_name: 'ที่อยู่ Shopee',
+      contact_person: unmasked(addr.name) || null,
+      phone: unmasked(addr.phone) || null,
+      address_line1: fullAddress,
+      district: unmasked(addr.district) || null,
+      amphoe: unmasked(addr.city) || null,
+      province: unmasked(addr.state) || null,
+      postal_code: unmasked(addr.zipcode) || null,
+      is_default: true,
+      is_active: true,
+    })
+    .select('id')
+    .single();
+
+  return newAddr?.id;
+}
+
+/**
+ * Find or create a customer for a Shopee buyer.
+ */
+async function findOrCreateShopeeCustomer(
+  companyId: string,
+  shopeeOrder: ShopeeOrder
+): Promise<{ customerId: string; isNewCustomer: boolean; shippingAddressId?: string }> {
+  const addr = shopeeOrder.recipient_address;
+  const phone = unmasked(addr?.phone);
+  const buyerName = unmasked(addr?.name) || shopeeOrder.buyer_username || 'Shopee Buyer';
+
+  console.log(`[Shopee Sync] Customer data: name=${addr?.name}, phone=${addr?.phone}, full_address=${addr?.full_address?.substring(0, 80)}, district=${addr?.district}, city=${addr?.city}, state=${addr?.state}, zipcode=${addr?.zipcode}`);
+
+  // 1. Try to find by phone
+  if (phone) {
+    const { data: existingByPhone } = await supabaseAdmin
+      .from('customers')
+      .select('id, name')
+      .eq('company_id', companyId)
+      .eq('phone', phone)
+      .limit(1)
+      .single();
+    if (existingByPhone) {
+      await updateCustomerIfMasked(existingByPhone.id, existingByPhone.name, buyerName);
+      const shippingAddressId = await ensureShippingAddress(companyId, existingByPhone.id, addr);
+      return { customerId: existingByPhone.id, isNewCustomer: false, shippingAddressId };
+    }
+  }
+
+  // 2. Try to find by buyer_username in notes (same Shopee buyer, different orders)
+  if (shopeeOrder.buyer_username) {
+    const { data: existingByUsername } = await supabaseAdmin
+      .from('customers')
+      .select('id, name')
+      .eq('company_id', companyId)
+      .ilike('notes', `%${shopeeOrder.buyer_username}%`)
+      .limit(1)
+      .single();
+    if (existingByUsername) {
+      await updateCustomerIfMasked(existingByUsername.id, existingByUsername.name, buyerName);
+      const shippingAddressId = await ensureShippingAddress(companyId, existingByUsername.id, addr);
+      return { customerId: existingByUsername.id, isNewCustomer: false, shippingAddressId };
+    }
+  }
+
+  // 3. Create customer with auto-generated unique code
+  const customerCode = newCustomerCode('SP');
+
+  const { data: newCustomer, error } = await supabaseAdmin
+    .from('customers')
+    .insert({
+      company_id: companyId,
+      customer_code: customerCode,
+      name: buyerName,
+      contact_person: unmasked(addr?.name),
+      phone: phone,
+      customer_type: 'retail',
+      is_active: true,
+      notes: `สร้างอัตโนมัติจาก Shopee (${shopeeOrder.buyer_username || ''})`,
+    })
+    .select('id')
+    .single();
+
+  if (error || !newCustomer) {
+    throw new Error(`Failed to create customer: ${error?.message}`);
+  }
+
+  // Auto-create shipping address
+  const shippingAddressId = await ensureShippingAddress(companyId, newCustomer.id, addr);
+
+  return { customerId: newCustomer.id, isNewCustomer: true, shippingAddressId };
+}
 
 /**
  * When an existing order's products were soft-deleted, re-activate them.
@@ -2484,245 +2614,3 @@ async function findOrCreateVariationBySku(
     isNewVariation: true,
   };
 }
-
-// --- Stock Reservation (delegates to centralized stock-service) ---
-
-async function reserveStock(
-  companyId: string,
-  warehouseId: string,
-  variationId: string,
-  quantity: number,
-  orderId: string,
-  orderNumber: string
-): Promise<void> {
-  try {
-    await reserveStockService({
-      supabase: supabaseAdmin,
-      companyId,
-      warehouseId,
-      variationId,
-      qty: quantity,
-      referenceType: 'order',
-      referenceId: orderId,
-      notes: `Reserve for Shopee order ${orderNumber}`,
-    });
-  } catch (err) {
-    console.error(`[Shopee Sync] Stock reserve error for variation ${variationId}:`, err);
-  }
-}
-
-async function returnStockForCancelledOrder(
-  companyId: string,
-  orderId: string,
-  warehouseId: string,
-  previousOrderStatus: string,
-  orderSn: string,
-  accountId: string,
-) {
-  try {
-    const { data: orderItems } = await supabaseAdmin
-      .from('order_items')
-      .select('variation_id, quantity')
-      .eq('order_id', orderId)
-      .eq('company_id', companyId);
-
-    if (!orderItems || orderItems.length === 0) return;
-
-    const wasShipped = ['shipping', 'completed'].includes(previousOrderStatus);
-    const stockFn = wasShipped ? returnStockService : unreserveStockService;
-    const touched: string[] = [];
-
-    for (const oi of orderItems) {
-      if (!oi.variation_id) continue;
-      try {
-        await stockFn({
-          supabase: supabaseAdmin,
-          companyId,
-          warehouseId,
-          variationId: oi.variation_id,
-          qty: oi.quantity,
-          referenceType: 'order',
-          referenceId: orderId,
-          notes: wasShipped
-            ? `Return stock for cancelled Shopee order ${orderSn}`
-            : `Unreserve for cancelled Shopee order ${orderSn}`,
-        });
-        touched.push(oi.variation_id);
-      } catch (itemErr) {
-        console.error(`[Shopee Sync] Stock return error for variation ${oi.variation_id}:`, itemErr);
-      }
-    }
-    // ของกลับเข้าคลัง → ร้านอื่นต้องเห็นยอดเพิ่มด้วย
-    await pushStockAfterOrderSync(touched, warehouseId, accountId);
-  } catch (err) {
-    console.error(`[Shopee Sync] Stock return error for order ${orderSn}:`, err);
-  }
-}
-
-// --- Customer Logic ---
-
-/**
- * Update customer name if current name is masked (****) and we have a better name now.
- */
-async function updateCustomerIfMasked(customerId: string, currentName: string | null, newName: string): Promise<void> {
-  if (!currentName || !isMasked(currentName)) return; // name is fine, skip
-  if (isMasked(newName)) return; // new name is also masked, skip
-
-  await supabaseAdmin
-    .from('customers')
-    .update({ name: newName, updated_at: new Date().toISOString() })
-    .eq('id', customerId);
-  console.log(`[Shopee Sync] Updated masked customer name "${currentName}" → "${newName}" for customer ${customerId}`);
-}
-
-/** Check if Shopee has masked this value (e.g. "***", "** **", "**** ****") */
-function isMasked(value: string | undefined | null): boolean {
-  if (!value) return true;
-  // Remove all spaces and check if only asterisks remain
-  const stripped = value.replace(/\s/g, '');
-  if (!stripped) return true;
-  return /^\*+$/.test(stripped);
-}
-
-/** Return the value only if it's not masked, otherwise null */
-function unmasked(value: string | undefined | null): string | null {
-  if (!value || isMasked(value)) return null;
-  return value;
-}
-
-/** Get existing default shipping address ID for a customer (for item repair) */
-async function getExistingShippingAddressId(companyId: string, customerId: string | null): Promise<string | undefined> {
-  if (!customerId) return undefined;
-  const { data } = await supabaseAdmin
-    .from('shipping_addresses')
-    .select('id')
-    .eq('customer_id', customerId)
-    .eq('company_id', companyId)
-    .eq('is_default', true)
-    .limit(1)
-    .maybeSingle();
-  return data?.id;
-}
-
-/**
- * Ensure a shipping address exists for a customer from Shopee order data.
- * Returns the shipping_address ID if created/found, or undefined if no address data.
- */
-async function ensureShippingAddress(
-  companyId: string,
-  customerId: string,
-  addr: ShopeeRecipientAddress | undefined
-): Promise<string | undefined> {
-  if (!addr) return undefined;
-
-  const fullAddress = unmasked(addr.full_address);
-  if (!fullAddress) return undefined;
-
-  // Check if customer already has a default shipping address
-  const { data: existing } = await supabaseAdmin
-    .from('shipping_addresses')
-    .select('id')
-    .eq('company_id', companyId)
-    .eq('customer_id', customerId)
-    .eq('is_default', true)
-    .limit(1)
-    .single();
-
-  if (existing) return existing.id;
-
-  // Create new shipping address
-  const { data: newAddr } = await supabaseAdmin
-    .from('shipping_addresses')
-    .insert({
-      company_id: companyId,
-      customer_id: customerId,
-      address_name: 'ที่อยู่ Shopee',
-      contact_person: unmasked(addr.name) || null,
-      phone: unmasked(addr.phone) || null,
-      address_line1: fullAddress,
-      district: unmasked(addr.district) || null,
-      amphoe: unmasked(addr.city) || null,
-      province: unmasked(addr.state) || null,
-      postal_code: unmasked(addr.zipcode) || null,
-      is_default: true,
-      is_active: true,
-    })
-    .select('id')
-    .single();
-
-  return newAddr?.id;
-}
-
-/**
- * Find or create a customer for a Shopee buyer.
- */
-async function findOrCreateShopeeCustomer(
-  companyId: string,
-  shopeeOrder: ShopeeOrder
-): Promise<{ customerId: string; isNewCustomer: boolean; shippingAddressId?: string }> {
-  const addr = shopeeOrder.recipient_address;
-  const phone = unmasked(addr?.phone);
-  const buyerName = unmasked(addr?.name) || shopeeOrder.buyer_username || 'Shopee Buyer';
-
-  console.log(`[Shopee Sync] Customer data: name=${addr?.name}, phone=${addr?.phone}, full_address=${addr?.full_address?.substring(0, 80)}, district=${addr?.district}, city=${addr?.city}, state=${addr?.state}, zipcode=${addr?.zipcode}`);
-
-  // 1. Try to find by phone
-  if (phone) {
-    const { data: existingByPhone } = await supabaseAdmin
-      .from('customers')
-      .select('id, name')
-      .eq('company_id', companyId)
-      .eq('phone', phone)
-      .limit(1)
-      .single();
-    if (existingByPhone) {
-      await updateCustomerIfMasked(existingByPhone.id, existingByPhone.name, buyerName);
-      const shippingAddressId = await ensureShippingAddress(companyId, existingByPhone.id, addr);
-      return { customerId: existingByPhone.id, isNewCustomer: false, shippingAddressId };
-    }
-  }
-
-  // 2. Try to find by buyer_username in notes (same Shopee buyer, different orders)
-  if (shopeeOrder.buyer_username) {
-    const { data: existingByUsername } = await supabaseAdmin
-      .from('customers')
-      .select('id, name')
-      .eq('company_id', companyId)
-      .ilike('notes', `%${shopeeOrder.buyer_username}%`)
-      .limit(1)
-      .single();
-    if (existingByUsername) {
-      await updateCustomerIfMasked(existingByUsername.id, existingByUsername.name, buyerName);
-      const shippingAddressId = await ensureShippingAddress(companyId, existingByUsername.id, addr);
-      return { customerId: existingByUsername.id, isNewCustomer: false, shippingAddressId };
-    }
-  }
-
-  // 3. Create customer with auto-generated unique code
-  const customerCode = newCustomerCode('SP');
-
-  const { data: newCustomer, error } = await supabaseAdmin
-    .from('customers')
-    .insert({
-      company_id: companyId,
-      customer_code: customerCode,
-      name: buyerName,
-      contact_person: unmasked(addr?.name),
-      phone: phone,
-      customer_type: 'retail',
-      is_active: true,
-      notes: `สร้างอัตโนมัติจาก Shopee (${shopeeOrder.buyer_username || ''})`,
-    })
-    .select('id')
-    .single();
-
-  if (error || !newCustomer) {
-    throw new Error(`Failed to create customer: ${error?.message}`);
-  }
-
-  // Auto-create shipping address
-  const shippingAddressId = await ensureShippingAddress(companyId, newCustomer.id, addr);
-
-  return { customerId: newCustomer.id, isNewCustomer: true, shippingAddressId };
-}
-
