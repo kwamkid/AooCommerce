@@ -10,6 +10,7 @@ import { useFeatures } from '@/lib/features-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
 import Tooltip from '@/components/ui/Tooltip';
+import HelpHint from '@/components/ui/HelpHint';
 import { ChevronDown, Clock, ImagePlus, Link2, Loader2, RefreshCw, RotateCw, Settings2, ShoppingBag, Trash2, Warehouse } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import FormSelect from '@/components/ui/FormSelect';
@@ -26,9 +27,9 @@ import PlatformIcon from '@/components/ui/PlatformIcon';
 import { LoadingCard } from '@/components/ui/StateCard';
 import { formatThaiDateTime } from '@/lib/utils/format';
 import { MARKETPLACE_PLATFORMS } from '@/lib/marketplace/platforms';
-import type { ActionItem } from '@/components/ui/ActionMenu';
+import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
 import { marketplaceOnboardingSteps, nextOnboardingStep, onboardingIncomplete } from '@/lib/marketplace/onboarding';
-import MarketplaceAccountCard, { SyncRangeSelect } from './MarketplaceAccountCard';
+import MarketplaceAccountCard from './MarketplaceAccountCard';
 import MarketplaceOnboardingModal from './MarketplaceOnboardingModal';
 import { pushStockAllRequest } from '@/lib/marketplace/stock-actions';
 import type { MarketplaceAccountsState, MarketplaceAccount, MarketplacePlatform } from './useMarketplaceAccounts';
@@ -61,7 +62,6 @@ export default function MarketplaceConnections({
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [syncRange, setSyncRange] = useState<Record<string, number>>({}); // accountId → days
   // ตั้งโลโก้เองด้วย URL — สำหรับร้านที่ API ของ marketplace ไม่คืนโลโก้มาให้เลย
   const [logoModal, setLogoModal] = useState<
     {
@@ -211,14 +211,13 @@ export default function MarketplaceConnections({
     syncAbortRef.current?.abort();
   };
 
-  const handleSync = async (accountId: string) => {
+  const handleSync = async (accountId: string, days: number) => {
     setSyncingId(accountId);
     setSyncProgress(0);
     setSyncPhaseLabel('กำลังเชื่อมต่อ...');
     const controller = new AbortController();
     syncAbortRef.current = controller;
 
-    const days = syncRange[accountId] || 1;
     const now = Math.floor(Date.now() / 1000);
     const timeFrom = now - days * 24 * 60 * 60;
     try {
@@ -339,7 +338,16 @@ export default function MarketplaceConnections({
   };
 
   /** รายการในเมนู ⋮ ของการ์ด — งานที่นาน ๆ ทำที ไม่ควรเป็นปุ่มลอยให้กดพลาด */
-  const cardMenuItems = (platform: MarketplacePlatform): ActionItem[] => [
+  const cardMenuItems = (platform: MarketplacePlatform, accountId?: string): ActionItem[] => [
+    // ไล่ถามสถานะล่าสุดของออเดอร์ที่ยังไม่จบ — ปกติ cron ทุก 15 นาทีตามให้อยู่แล้ว
+    // ใช้ตอนสงสัยว่าสถานะบนร้านกับในระบบไม่ตรงเท่านั้น (Shopee เท่านั้นที่มี endpoint นี้)
+    ...(platform === 'shopee' && accountId ? [{
+      key: 'sync-incomplete',
+      label: 'ตรวจสถานะออเดอร์ที่ยังไม่จบ',
+      description: 'ถามสถานะล่าสุดของออเดอร์ที่ยังไม่ถึงปลายทาง ทีละใบ',
+      icon: <RotateCw className="w-4 h-4" />,
+      onClick: () => handleSyncIncomplete(accountId),
+    }] : []),
     {
       key: 'reconnect',
       label: 'เชื่อมต่อใหม่',
@@ -348,6 +356,29 @@ export default function MarketplaceConnections({
       onClick: () => handleReconnect(platform),
     },
   ];
+
+  /**
+   * ปุ่มเดียวของงาน "ดึงออเดอร์ย้อนหลัง" — เลือกช่วงแล้วยิงเลยในคลิกเดียว
+   *
+   * ของเดิมเป็นดรอปดาวน์ช่วงวัน + ปุ่ม "Sync Now" แยกกัน อ่านไม่ออกว่าคู่กันหรือคนละเรื่อง
+   * (ออเดอร์ปกติเข้าเองทาง webhook + cron ทุก 15 นาทีอยู่แล้ว ปุ่มนี้ไว้ตามของเก่าตอนสงสัยว่าตกหล่น)
+   */
+  const syncOrdersMenu = (account: MarketplaceAccount, run: (days: number) => void) => (
+    <ActionMenu
+      placement="auto"
+      trigger={syncingId === account.id
+        ? <><Loader2 className="w-4 h-4 animate-spin" />กำลังดึง…</>
+        : <><RefreshCw className="w-4 h-4" />ดึงออเดอร์ย้อนหลัง</>}
+      triggerClassName="btn btn-md btn-secondary"
+      items={[1, 3, 7, 15, 30].map(days => ({
+        key: `d${days}`,
+        label: `ย้อนหลัง ${days} วัน`,
+        icon: <Clock className="w-4 h-4" />,
+        disabled: syncingId === account.id || account.connection_status === 'expired',
+        onClick: () => run(days),
+      }))}
+    />
+  );
 
   /** ป้ายชื่อแพลตฟอร์มของร้าน — แถว legacy ที่ platform ยังว่าง = Shopee */
   const platformLabel = (account: MarketplaceAccount) =>
@@ -612,13 +643,12 @@ export default function MarketplaceConnections({
     }
   };
 
-  const handleSimpleSync = async (platform: 'tiktok' | 'lazada', accountId: string) => {
+  const handleSimpleSync = async (platform: 'tiktok' | 'lazada', accountId: string, days: number) => {
     setSyncingId(accountId);
     setSyncProgress(10);
     setSyncPhaseLabel(SIMPLE_SYNC[platform].label);
     const controller = new AbortController();
     syncAbortRef.current = controller;
-    const days = syncRange[accountId] || 1;
     try {
       const res = await apiFetch(SIMPLE_SYNC[platform].url, {
         method: 'POST',
@@ -727,27 +757,30 @@ export default function MarketplaceConnections({
   const warehousePicker = (account: MarketplaceAccount) => {
     if (!stockEnabled || warehouses.length <= 1) return null;
     return (
-      <div className="flex flex-wrap items-center gap-2 pt-1">
-        <span className="text-xs text-gray-700 dark:text-slate-300 flex items-center gap-1">
+      <div className="pt-1">
+        {/* ป้ายอยู่บนช่อง (โครงฟอร์มมาตรฐาน) — เดิมวางซ้ายช่องแล้วจอแคบตกบรรทัดกันมั่ว */}
+        <div className="flex items-center gap-1 mb-1 text-xs text-gray-700 dark:text-slate-300">
           <Warehouse className="w-3.5 h-3.5" />
           คลังที่ตัด/ซิงค์สต็อก
-        </span>
-        <div className="w-64">
-          <FormSelect
-            size="sm"
-            value={account.warehouse_id || ''}
-            onChange={v => handleSelectWarehouse(account.id, v)}
-            options={[
-              { id: '', label: defaultWarehouseName ? `ใช้คลังหลัก (${defaultWarehouseName})` : 'ใช้คลังหลัก' },
-              ...warehouses.map(w => ({ id: w.id, label: w.name })),
-            ]}
-          />
         </div>
-        {!account.warehouse_id && (
-          <span className="text-xs text-amber-600 dark:text-amber-400">
-            ยังไม่ได้เลือก — ออเดอร์ร้านนี้ตัดสต็อกจากคลังหลัก
-          </span>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="w-64">
+            <FormSelect
+              size="sm"
+              value={account.warehouse_id || ''}
+              onChange={v => handleSelectWarehouse(account.id, v)}
+              options={[
+                { id: '', label: defaultWarehouseName ? `ใช้คลังหลัก (${defaultWarehouseName})` : 'ใช้คลังหลัก' },
+                ...warehouses.map(w => ({ id: w.id, label: w.name })),
+              ]}
+            />
+          </div>
+          {!account.warehouse_id && (
+            <span className="text-xs text-amber-600 dark:text-amber-400">
+              ยังไม่ได้เลือก — ออเดอร์ร้านนี้ตัดสต็อกจากคลังหลัก
+            </span>
+          )}
+        </div>
       </div>
     );
   };
@@ -773,7 +806,11 @@ export default function MarketplaceConnections({
               onChange={v => handleToggleSync(account.id, 'auto_sync_stock', v)}
               aria-label="Sync Stock อัตโนมัติ"
             />
-            <span className="text-xs text-gray-700 dark:text-slate-300 whitespace-nowrap">Sync Stock อัตโนมัติ</span>
+            <span className="text-xs text-gray-700 dark:text-slate-300 whitespace-nowrap">Sync Stock</span>
+            <HelpHint ariaLabel="Sync Stock คืออะไร">
+              ทุกครั้งที่สต็อกในระบบขยับ (ขายของ · รับเข้า · ปรับยอด) ระบบส่งยอดของคลังที่ร้านนี้ใช้ ขึ้นไปทับยอดบนร้านให้เอง
+              — ไม่ได้ดึงยอดจากร้านลงมา
+            </HelpHint>
           </div>
         )}
         {productInfo && (
@@ -783,7 +820,11 @@ export default function MarketplaceConnections({
               onChange={v => handleToggleSync(account.id, 'auto_sync_product_info', v)}
               aria-label="Sync ชื่อ/ราคา อัตโนมัติ"
             />
-            <span className="text-xs text-gray-700 dark:text-slate-300 whitespace-nowrap">Sync ชื่อ/ราคา อัตโนมัติ</span>
+            <span className="text-xs text-gray-700 dark:text-slate-300 whitespace-nowrap">Sync ชื่อ/ราคา</span>
+            <HelpHint ariaLabel="Sync ชื่อ/ราคา คืออะไร">
+              แก้ <b>ชื่อหรือราคาสินค้าในระบบ</b> (หน้าสินค้าปกติ ไม่ใช่เฉพาะแท็บ marketplace) แล้วระบบส่งไปทับประกาศบนร้านนี้ให้เอง
+              — ถ้าอยากให้ชื่อบนร้านต่างจากในระบบ ให้ตั้งชื่อเฉพาะร้านไว้ที่แท็บ marketplace ของสินค้านั้น
+            </HelpHint>
           </div>
         )}
       </div>
@@ -847,6 +888,18 @@ export default function MarketplaceConnections({
     }
   };
 
+  /** สลับสวิตช์แล้วต้องรู้ทันทีว่าอะไรเปลี่ยน — เดิมเงียบสนิท ไม่รู้ว่าติดหรือยัง */
+  const SYNC_TOGGLE_TOAST: Record<'auto_sync_stock' | 'auto_sync_product_info', [on: string, off: string]> = {
+    auto_sync_stock: [
+      'เปิดแล้ว — ทุกครั้งที่สต็อกในระบบขยับ ระบบจะส่งยอดขึ้นร้านนี้ให้เอง',
+      'ปิดแล้ว — ยอดบนร้านนี้จะไม่ถูกแตะจนกว่าจะสั่งส่งเอง',
+    ],
+    auto_sync_product_info: [
+      'เปิดแล้ว — แก้ชื่อ/ราคาสินค้าในระบบแล้วระบบจะส่งไปทับประกาศบนร้านนี้',
+      'ปิดแล้ว — ชื่อ/ราคาบนร้านนี้จะไม่ถูกแตะ',
+    ],
+  };
+
   const handleToggleSync = async (accountId: string, field: 'auto_sync_stock' | 'auto_sync_product_info', value: boolean) => {
     // Optimistic update
     patchAccount(accountId, { [field]: value });
@@ -859,6 +912,8 @@ export default function MarketplaceConnections({
       if (!res.ok) {
         patchAccount(accountId, { [field]: !value });
         showToast('ไม่สามารถอัพเดทได้', 'error');
+      } else {
+        showToast(SYNC_TOGGLE_TOAST[field][value ? 0 : 1], 'success');
       }
     } catch {
       patchAccount(accountId, { [field]: !value });
@@ -880,7 +935,6 @@ export default function MarketplaceConnections({
       ) : (
         <div className="space-y-4">
           {shopeeAccounts.map(account => {
-            const isSyncing = syncingId === account.id;
             const isRefreshingLogo = resyncingId === account.id;
             return (
               <MarketplaceAccountCard
@@ -898,7 +952,7 @@ export default function MarketplaceConnections({
                 onToggleExpand={() => setExpandedId(expandedId === account.id ? null : account.id)}
                 onDisconnect={() => handleDisconnect(account.id)}
                 disconnecting={disconnectingId === account.id}
-                menuItems={cardMenuItems('shopee')}
+                menuItems={cardMenuItems('shopee', account.id)}
                 headerActions={autoSyncToggles(account, { productInfo: true, className: 'hidden sm:flex mr-1' })}
                 avatar={
                   <Tooltip
@@ -935,28 +989,7 @@ export default function MarketplaceConnections({
 
                 {/* Sync Controls */}
                 <div className="flex flex-wrap items-center gap-2 pt-1">
-                  <SyncRangeSelect
-                    value={syncRange[account.id] || 1}
-                    onChange={days => setSyncRange(prev => ({ ...prev, [account.id]: days }))}
-                  />
-                  <Button
-                    variant="secondary"
-                    icon={<RefreshCw className="w-4 h-4" />}
-                    loading={isSyncing}
-                    disabled={account.connection_status === 'expired'}
-                    onClick={() => handleSync(account.id)}
-                  >
-                    {isSyncing ? 'กำลัง Sync...' : 'Sync Now'}
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    icon={<RefreshCw className="w-4 h-4" />}
-                    loading={isSyncing}
-                    disabled={account.connection_status === 'expired'}
-                    onClick={() => handleSyncIncomplete(account.id)}
-                  >
-                    Sync สถานะค้าง
-                  </Button>
+                  {syncOrdersMenu(account, days => handleSync(account.id, days))}
                 </div>
               </MarketplaceAccountCard>
             );
@@ -970,7 +1003,6 @@ export default function MarketplaceConnections({
       ) : (
         <div className="space-y-4">
           {tiktokAccounts.map(account => {
-            const isSyncing = syncingId === account.id;
             const region = (account.metadata?.region as string) || '';
             return (
               <MarketplaceAccountCard
@@ -1021,19 +1053,7 @@ export default function MarketplaceConnections({
                 {autoSyncToggles(account, { className: 'sm:hidden pt-1' })}
 
                 <div className="flex flex-wrap items-center gap-2 pt-1">
-                  <SyncRangeSelect
-                    value={syncRange[account.id] || 1}
-                    onChange={days => setSyncRange(prev => ({ ...prev, [account.id]: days }))}
-                  />
-                  <Button
-                    variant="secondary"
-                    icon={<RefreshCw className="w-4 h-4" />}
-                    loading={isSyncing}
-                    disabled={account.connection_status === 'expired'}
-                    onClick={() => handleSimpleSync('tiktok', account.id)}
-                  >
-                    {isSyncing ? 'กำลัง Sync...' : 'Sync Now'}
-                  </Button>
+                  {syncOrdersMenu(account, days => handleSimpleSync('tiktok', account.id, days))}
                 </div>
               </MarketplaceAccountCard>
             );
@@ -1052,7 +1072,6 @@ export default function MarketplaceConnections({
             {' '}— ออเดอร์เข้าอัตโนมัติผ่าน webhook + sync ทุก 15 นาที
           </Alert>
           {lazadaAccounts.map(account => {
-            const isSyncing = syncingId === account.id;
             const isRefreshingLogo = resyncingId === account.id;
             return (
               <MarketplaceAccountCard
@@ -1088,20 +1107,8 @@ export default function MarketplaceConnections({
 
                 {autoSyncToggles(account, { className: 'sm:hidden pt-1' })}
 
-                <div className="flex flex-wrap items-center gap-2">
-                  <SyncRangeSelect
-                    value={syncRange[account.id] || 1}
-                    onChange={days => setSyncRange(prev => ({ ...prev, [account.id]: days }))}
-                  />
-                  <Button
-                    variant="secondary"
-                    icon={<RefreshCw className="w-4 h-4" />}
-                    loading={isSyncing}
-                    disabled={account.connection_status === 'expired'}
-                    onClick={() => handleSimpleSync('lazada', account.id)}
-                  >
-                    {isSyncing ? 'กำลัง Sync...' : 'Sync Now'}
-                  </Button>
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  {syncOrdersMenu(account, days => handleSimpleSync('lazada', account.id, days))}
                 </div>
               </MarketplaceAccountCard>
             );
