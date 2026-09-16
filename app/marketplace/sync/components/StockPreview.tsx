@@ -528,7 +528,7 @@ export default function StockPreview({ account, direction, onApplied, onBack, on
           />
 
           <DataTable<StockPreviewRow>
-            storageKey="mp-stock-preview"
+            storageKey="mp-stock-preview-v2" /* v2: โครงคอลัมน์เปลี่ยน (สินค้าไม่ใช่ grow แล้ว) — ล้างความกว้างที่จำไว้ชุดเก่า */
             columns={columns}
             data={pageRows}
             getRowId={(row) => row.variation_id}

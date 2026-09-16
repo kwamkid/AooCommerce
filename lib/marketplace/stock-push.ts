@@ -47,6 +47,7 @@ import type {
 } from '@/lib/marketplace/sync-runs';
 import { logIntegrationNow } from '@/lib/integration-logger';
 import { parallelLimit } from '@/lib/parallel';
+import { productDisplayName } from '@/lib/product-display';
 
 export type {
   PullStockChange,
@@ -286,12 +287,13 @@ export async function loadStockRowMeta(links: StockLinkRow[]): Promise<Map<strin
   for (let i = 0; i < ids.length; i += 150) {
     const { data } = await supabaseAdmin
       .from('product_variations')
-      .select('id, sku, variation_label, product_id, products(name)')
+      .select('id, sku, variation_label, attributes, product_id, products(name)')
       .in('id', ids.slice(i, i + 150));
     const rows = (data || []) as unknown as {
       id: string;
       sku: string | null;
       variation_label: string | null;
+      attributes: Record<string, string> | null;
       product_id: string;
       products: { name: string | null } | { name: string | null }[] | null;
     }[];
@@ -299,9 +301,12 @@ export async function loadStockRowMeta(links: StockLinkRow[]): Promise<Map<strin
       const target = meta.get(row.id);
       if (!target) continue;
       const product = Array.isArray(row.products) ? row.products[0] : row.products;
-      const productName = product?.name || '';
       target.sku = row.sku ?? null;
-      target.name = [productName, row.variation_label].filter(Boolean).join(' · ') || null;
+      // ชื่อผ่าน helper กลาง — ตัวเลือกที่ป้ายเป็น SKU/บาร์โค้ด/ตัวเลขล้วนจะไม่ถูกต่อท้ายชื่อ
+      // (เดิมต่อดื้อ ๆ ได้ "Astro กระเป๋า… · 4891188016268" แล้วบรรทัดล่างโชว์ SKU ซ้ำอีกที)
+      target.name = product?.name
+        ? productDisplayName({ product_name: product.name, variation_label: row.variation_label, sku: row.sku, attributes: row.attributes })
+        : null;
       if (row.product_id) target.product_id = row.product_id;
     }
   }
