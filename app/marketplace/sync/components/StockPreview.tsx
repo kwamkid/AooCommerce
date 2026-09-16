@@ -300,7 +300,9 @@ export default function StockPreview({ account, direction, onApplied, onBack, on
       reorderable: true,
       label: 'สินค้า',
       alwaysVisible: true,
-      grow: true,
+      // ไม่ใส่ grow — คอลัมน์ที่กินที่เหลือของ DataTable จะ resize ไม่ได้ (เจ้าของขอลากช่องนี้ได้)
+      // ที่เหลือจึงไปตกที่คอลัมน์สุดท้าย (สถานะ) แทน
+      defaultWidth: 300,
       sortable: true,
       render: (row) => (
         <div className="min-w-0">
