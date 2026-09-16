@@ -773,28 +773,30 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
 
               {taxInvoice && (
                 <div className="sf-opt-body">
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+                  {/* ประเภทผู้เสียภาษีกับปุ่มคัดที่อยู่อยู่บรรทัดเดียวกัน — ทั้งคู่เป็น
+                      "ตัวตั้งค่าของบล็อกนี้" ไม่ใช่ช่องกรอก แยกคนละบรรทัดแล้วกินที่เปล่า ๆ
+                      บุคคลธรรมดาไม่มีสาขาให้กรอก ช่องสาขาจึงหายไปตามประเภทที่เลือก
+                      (ชุดคำเดียวกับ TaxInfoForm ของหลังบ้าน) */}
+                  <div className="sf-opt-head">
+                    <div className="sf-seg" role="group" aria-label="ประเภทผู้เสียภาษี">
+                      {([
+                        { id: 'personal', label: 'บุคคลธรรมดา' },
+                        { id: 'corporate', label: 'นิติบุคคล' },
+                      ] as const).map(t => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          className={`sf-seg-btn${taxType === t.id ? ' sf-seg-on' : ''}`}
+                          aria-pressed={taxType === t.id}
+                          onClick={() => { setTaxType(t.id); if (t.id === 'personal') setTaxBranch(''); }}
+                        >
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
                     <button type="button" className="sf-btn-ghost sf-btn-sm" onClick={fillTaxFromBuyer}>
                       <Copy strokeWidth={1.75} aria-hidden="true" />ใช้ที่อยู่ผู้สั่ง
                     </button>
-                  </div>
-                  {/* บุคคลธรรมดา / นิติบุคคล — ช่อง "สาขา" มีเฉพาะนิติบุคคล บุคคลธรรมดา
-                      ไม่มีสาขาให้กรอก โชว์ไว้มีแต่ทำให้ลังเล (ชุดคำเดียวกับ TaxInfoForm ของหลังบ้าน) */}
-                  <div className="sf-seg" role="group" aria-label="ประเภทผู้เสียภาษี">
-                    {([
-                      { id: 'personal', label: 'บุคคลธรรมดา' },
-                      { id: 'corporate', label: 'นิติบุคคล' },
-                    ] as const).map(t => (
-                      <button
-                        key={t.id}
-                        type="button"
-                        className={`sf-seg-btn${taxType === t.id ? ' sf-seg-on' : ''}`}
-                        aria-pressed={taxType === t.id}
-                        onClick={() => { setTaxType(t.id); if (t.id === 'personal') setTaxBranch(''); }}
-                      >
-                        {t.label}
-                      </button>
-                    ))}
                   </div>
                   {/* เรียงตามที่คนกรอกจริง: ใคร → อยู่ไหน → เลขอ้างอิง (เจ้าของสั่ง 2026-09-16) */}
                   <label className="sf-label">{taxType === 'personal' ? 'ชื่อ-นามสกุล *' : 'ชื่อบริษัท / ห้างหุ้นส่วน *'}

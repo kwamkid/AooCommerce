@@ -546,8 +546,13 @@
   background: var(--sf-bg); color: var(--sf-text); font-weight: 600;
   box-shadow: 0 1px 3px rgba(15, 23, 42, .14);
 }
-/* ตัวที่ไม่ได้อยู่บนบรรทัดหัวข้อ (ประเภทผู้เสียภาษี) ต้องเว้นระยะใต้ตัวเองเอง */
-.sf-opt-body > .sf-seg, .sf-fieldset > .sf-seg { margin-bottom: 14px; }
+/* แถวหัวของบล็อกตัวเลือก — ปุ่มสลับซ้าย ปุ่มลัดขวา · จอแคบตกบรรทัดได้
+   (ทั้งคู่เป็นตัวตั้งค่าของบล็อก ไม่ใช่ช่องกรอก จึงอยู่บรรทัดเดียวกัน) */
+.sf-opt-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; flex-wrap: wrap; margin-bottom: 14px;
+}
+.sf-fieldset > .sf-seg { margin-bottom: 14px; }
 
 /* ── สวิตช์ติ๊ก (ไม่แนบราคา / ขอใบกำกับภาษี) ─────────────────────── */
 .sf-switch { display: flex; gap: 11px; align-items: flex-start; cursor: pointer; }
