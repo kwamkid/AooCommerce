@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse, after } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { shopQuotaBlockedReason } from '@/lib/package-gates-server';
 import {
   exchangeCodeForToken, getShopListByMerchant, ensureValidToken, getShopInfo,
   resolveAppKeys, shopeeAppOf, type ShopeeApp,
@@ -129,8 +130,21 @@ export async function GET(request: NextRequest) {
     // ร้านที่ "เพิ่งเข้าระบบผ่าน app ของบริษัทเอง" ในรอบนี้ — ต้องตามไปตั้ง push ให้ (ดูท้ายฟังก์ชัน)
     const newSellerShopIds: number[] = [];
 
+    /**
+     * เพดานร้านต่อแพลตฟอร์มของแพ็กเกจ — ร้านเดิมที่ re-authorize ไม่นับเป็นร้านใหม่
+     * ต้องดักตรงนี้ ไม่ใช่แค่ซ่อนปุ่ม เพราะ callback ของ OAuth ยิงเข้ามาตรงได้
+     */
+    const quotaBlocked = await shopQuotaBlockedReason(
+      companyId, 'shopee', [...existing.keys()].map(String),
+    );
+
     for (const sid of shopIds) {
       const prior = existing.get(sid);
+
+      if (!prior && quotaBlocked) {
+        console.warn('[Shopee Callback] ข้ามร้านใหม่', sid, '—', quotaBlocked);
+        continue;
+      }
 
       // ── ขาแชท: ร้านมีอยู่แล้ว ────────────────────────────────────────────
       if (isChatLeg && prior) {

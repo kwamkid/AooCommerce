@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { shopQuotaBlockedReason } from '@/lib/package-gates-server';
 import {
   exchangeCodeForToken, getSellerInfo, getLazadaAppCredentials, isReachableImage,
   isChatAppConfigured, type LazadaApp, type LazadaCredentials,
@@ -157,6 +158,20 @@ export async function GET(request: NextRequest) {
     let shopLogo: string | null =
       seller?.logo_url && (await isReachableImage(seller.logo_url)) ? seller.logo_url : null;
     if (!shopLogo) shopLogo = (prevMeta.shop_logo as string) || null;
+
+    /**
+     * เพดานร้านต่อแพลตฟอร์มของแพ็กเกจ — ร้านเดิมที่ re-authorize ไม่นับเป็นร้านใหม่
+     * ต้องดักที่นี่ ไม่ใช่แค่ซ่อนปุ่ม เพราะ callback ของ OAuth ยิงเข้ามาตรงได้
+     */
+    if (!prev) {
+      const quotaBlocked = await shopQuotaBlockedReason(companyId, 'lazada');
+      if (quotaBlocked) {
+        console.warn('[Lazada Callback] ข้ามร้านใหม่', sellerId, '—', quotaBlocked);
+        return NextResponse.redirect(
+          `${baseUrl}/settings/sales-channels?tab=marketplace&error=${encodeURIComponent(quotaBlocked)}`,
+        );
+      }
+    }
 
     const { error } = await supabaseAdmin
       .from('marketplace_accounts')

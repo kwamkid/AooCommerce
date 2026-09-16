@@ -13,8 +13,8 @@ import Modal from '@/components/ui/Modal';
 import GeneralSettingsTabs from '@/components/settings/GeneralSettingsTabs';
 import { NoPermissionCard } from '@/components/ui/StateCard';
 import FormInput from '@/components/ui/FormInput';
+import Alert from '@/components/ui/Alert';
 import UnitNumberField from '@/components/ui/UnitNumberField';
-import Toggle from '@/components/ui/Toggle';
 import { useFormValidation } from '@/lib/useFormValidation';
 import { useAuth } from '@/lib/auth-context';
 import { useCompany } from '@/lib/company-context';
@@ -308,19 +308,9 @@ export default function SettingsPage() {
         <PageHeader title="ตั้งค่า" subtitle="ตั้งค่าประเภทตัวเลือกสินค้า และอายุของบิล" />
         <GeneralSettingsTabs active="general" />
 
-        {/* Success Message */}
-        {success && (
-          <div className="bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-400 px-4 py-3 rounded-lg">
-            {success}
-          </div>
-        )}
-
-        {/* Error Message */}
-        {error && (
-          <div className="bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-400 px-4 py-3 rounded-lg">
-            {error}
-          </div>
-        )}
+        {/* แจ้งผล — ใช้ <Alert> ของกลาง ไม่พิมพ์คลาสสีเอง */}
+        {success && <Alert tone="success">{success}</Alert>}
+        {error && <Alert tone="danger">{error}</Alert>}
 
         {/* Variation Types Settings */}
         <Card padding="md">

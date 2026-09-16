@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { shopQuotaBlockedReason } from '@/lib/package-gates-server';
 import {
   exchangeCodeForToken, getAuthorizedShops, isChatAppConfigured, type TikTokApp,
   tiktokExpiryToDate,
@@ -96,8 +97,25 @@ export async function GET(request: NextRequest) {
     // ร้านที่เชื่อมสำเร็จ "ในรอบนี้" — ใช้เจาะจงว่าจะชวนตั้งโลโก้ให้ร้านไหนต่อ
     const connectedShopIds: number[] = [];
 
+    const { data: priorShops } = await supabaseAdmin
+      .from('marketplace_accounts')
+      .select('shop_id')
+      .eq('company_id', companyId)
+      .eq('platform', 'tiktok');
+    const priorShopIds = new Set((priorShops || []).map(r => String(r.shop_id)));
+
+    // เพดานร้านต่อแพลตฟอร์มของแพ็กเกจ — ร้านเดิมที่ re-authorize ไม่นับเป็นร้านใหม่
+    const quotaBlocked = await shopQuotaBlockedReason(
+      companyId, 'tiktok', [...priorShopIds],
+    );
+
     for (const shop of shops) {
       const shopIdNum = parseInt(shop.id) || 0;
+
+      if (app !== 'chat' && !priorShopIds.has(String(shopIdNum)) && quotaBlocked) {
+        console.warn('[TikTok Callback] ข้ามร้านใหม่', shop.id, '—', quotaBlocked);
+        continue;
+      }
 
       if (app === 'chat') {
         // ขาแชทเติม token ลงแถวที่ขาออเดอร์สร้างไว้แล้ว — ไม่ upsert
