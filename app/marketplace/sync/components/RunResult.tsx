@@ -386,50 +386,51 @@ export default function RunResult({ runId, onBack, onOpenRun, onRecheck }: Props
         </Card>
       )}
 
-      {/* กล่องปุ่มย้อนอยู่ล่างสุด — ให้อ่านผลที่เกิดขึ้นจริงให้จบก่อนค่อยตัดสินใจย้อน */}
+      {/* กล่องปุ่มย้อนอยู่ล่างสุด — ให้อ่านผลที่เกิดขึ้นจริงให้จบก่อนค่อยตัดสินใจย้อน
+          ปุ่มอยู่บรรทัดเดียวกับคำอธิบาย (จอแคบไล่ลงมาเอง) และเป็นปุ่มรอง ไม่ใช่ปุ่มแดงเด่น
+          — การย้อนเป็นทางออกสำรอง ไม่ใช่สิ่งที่อยากให้ตากดโดนก่อนอ่าน */}
       {isStockJob && run.status !== 'previewed' && (
         <Card>
-          <h2 className="heading-3 mb-2">ย้อนรอบนี้</h2>
-          {revertability.can_revert ? (
-            <>
-              <p className="body-text">
-                คืนยอดกลับเป็นค่าก่อนรอบนี้ — ระบบจะสร้าง &quot;รอบย้อน&quot; ใหม่ ไม่ได้ลบประวัติรอบเดิม
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <h2 className="heading-3">ย้อนรอบนี้</h2>
+              <p className="body-text mt-0.5">
+                {revertability.can_revert
+                  ? 'คืนยอดกลับเป็นค่าก่อนรอบนี้ — ระบบจะสร้าง "รอบย้อน" ใหม่ ไม่ได้ลบประวัติรอบเดิม'
+                  : (revertability.reason ? REVERT_REASON_LABELS[revertability.reason] : 'ย้อนรอบนี้ไม่ได้')}
               </p>
-              {revertability.warnings.map(w => (
-                <div className="mt-3" key={w}>
-                  <Alert tone="warning">
-                    <p>{REVERT_WARNING_LABELS[w]}</p>
-                    {w === 'auto_sync_on' && (
-                      <div className="flex justify-end mt-3">
-                        <Button variant="secondary" size="sm" loading={savingAutoSync} onClick={turnOffAutoSync}>
-                          ปิดซิงค์อัตโนมัติของร้านนี้ก่อน
-                        </Button>
-                      </div>
-                    )}
-                  </Alert>
-                </div>
-              ))}
-              <div className="flex justify-end gap-3 mt-4">
-                <Button variant="danger" icon={<Undo2 className="w-4 h-4" />} onClick={doRevert}>
-                  ย้อนรอบนี้
+            </div>
+            <div className="flex flex-wrap gap-3 sm:flex-shrink-0">
+              {!revertability.can_revert && revertability.newer_run_id && (
+                <Button variant="secondary" onClick={() => onOpenRun(revertability.newer_run_id!)}>
+                  เปิดรอบที่ใหม่กว่า
                 </Button>
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="body-text">
-                {revertability.reason ? REVERT_REASON_LABELS[revertability.reason] : 'ย้อนรอบนี้ไม่ได้'}
-              </p>
-              <div className="flex flex-wrap justify-end gap-3 mt-4">
-                {revertability.newer_run_id && (
-                  <Button variant="secondary" onClick={() => onOpenRun(revertability.newer_run_id!)}>
-                    เปิดรอบที่ใหม่กว่า
-                  </Button>
+              )}
+              <Button
+                variant="secondary"
+                icon={<Undo2 className="w-4 h-4" />}
+                disabled={!revertability.can_revert}
+                onClick={revertability.can_revert ? doRevert : undefined}
+              >
+                ย้อนรอบนี้
+              </Button>
+            </div>
+          </div>
+
+          {revertability.can_revert && revertability.warnings.map(w => (
+            <div className="mt-3" key={w}>
+              <Alert tone="warning">
+                <p>{REVERT_WARNING_LABELS[w]}</p>
+                {w === 'auto_sync_on' && (
+                  <div className="flex justify-end mt-3">
+                    <Button variant="secondary" size="sm" loading={savingAutoSync} onClick={turnOffAutoSync}>
+                      ปิดซิงค์อัตโนมัติของร้านนี้ก่อน
+                    </Button>
+                  </div>
                 )}
-                <Button variant="danger" disabled icon={<Undo2 className="w-4 h-4" />}>ย้อนรอบนี้</Button>
-              </div>
-            </>
-          )}
+              </Alert>
+            </div>
+          ))}
         </Card>
       )}
 
