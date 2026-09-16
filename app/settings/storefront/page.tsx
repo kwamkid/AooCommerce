@@ -39,6 +39,7 @@ import OptionCards from '@/components/ui/OptionCards';
 import { Check, ChevronDown, Loader2, X } from 'lucide-react';
 import { ExternalLink, Globe, KeyRound, Palette, Plus, Store } from 'lucide-react';
 import Tabs from '@/components/ui/Tabs';
+import { useFeatures } from '@/lib/features-context';
 
 // ── ภาพจำลองในตัวเลือก — วาดรูปทรงจริงเพื่อให้ตัดสินใจได้โดยไม่ต้องกดลอง ──
 
@@ -259,6 +260,18 @@ export default function StorefrontSettingsPage() {
   const { currentCompany } = useCompany();
 
   const [cfg, setCfg] = useState<StorefrontConfig>(DEFAULT_STOREFRONT);
+  // คลังของบริษัท — ใช้ทำตัวเลือก "คลังที่ใช้ขายหน้าร้าน" (เฉพาะร้านที่เปิดระบบคลัง)
+  const { gates } = useFeatures();
+  const stockEnabled = gates.stockEnabled;
+  const [warehouses, setWarehouses] = useState<{ id: string; name: string; is_default?: boolean }[]>([]);
+  const defaultWarehouseName = warehouses.find(w => w.is_default)?.name || '';
+  useEffect(() => {
+    if (!stockEnabled) return;
+    apiFetch('/api/warehouses')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => setWarehouses(Array.isArray(d) ? d : (d?.warehouses || [])))
+      .catch(() => { /* ไม่มีคลัง = ไม่ต้องโชว์ตัวเลือก */ });
+  }, [stockEnabled]);
   /** slug ที่ใช้จริงในลิงก์ตอนนี้ (ตัวที่ตั้งเอง ถ้าไม่มีก็ของบริษัท) */
   const [slug, setSlug] = useState('');
   /** ค่าที่ผู้ใช้พิมพ์ในช่อง — ว่าง = ยังไม่ตั้งเอง ใช้ของบริษัท */
@@ -597,6 +610,28 @@ export default function StorefrontSettingsPage() {
                   : `${origin}/store/${storefrontSlug.trim() || 'ชื่อลิงก์ของคุณ'}`}
               </p>
             </Card>
+
+            {/* คลังที่ใช้ขาย — ขึ้นเฉพาะร้านที่เปิดระบบคลัง
+                ร้านที่ปิดระบบคลังถือว่ามีของทุกตัวเสมอ จึงไม่มีอะไรให้เลือก */}
+            {stockEnabled && warehouses.length > 0 && (
+              <Card padding="md">
+                <p className="heading-4 mb-1">คลังที่ใช้ขายหน้าร้าน</p>
+                <p className="section-desc mb-4">
+                  ลูกค้าจะเห็นยอดพร้อมขายของคลังนี้ และคำสั่งซื้อจะจอง/ตัดจากคลังนี้
+                  — ของที่ฝากไว้กับตัวแทนหรือห้างจะไม่ถูกนับมาขายออนไลน์
+                </p>
+                <div className="max-w-sm">
+                  <FormSelect
+                    value={cfg.sell_warehouse_id || ''}
+                    onChange={(v) => patch({ sell_warehouse_id: v })}
+                    options={[
+                      { id: '', label: defaultWarehouseName ? `ใช้คลังหลัก (${defaultWarehouseName})` : 'ใช้คลังหลัก' },
+                      ...warehouses.map(w => ({ id: w.id, label: w.name })),
+                    ]}
+                  />
+                </div>
+              </Card>
+            )}
 
             <Card padding="md">
               <p className="heading-4 mb-1">การแสดงสินค้า</p>

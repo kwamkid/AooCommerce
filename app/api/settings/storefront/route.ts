@@ -39,6 +39,19 @@ export async function GET(request: NextRequest) {
   });
 }
 
+/** กันตั้งคลังของบริษัทอื่น/คลังที่ปิดไปแล้ว (ค่านี้ตัดสินว่าลูกค้าเห็นของกี่ชิ้น) */
+async function isOwnActiveWarehouse(companyId: string, warehouseId: string): Promise<boolean> {
+  if (!warehouseId) return false;
+  const { data } = await supabaseAdmin
+    .from('warehouses')
+    .select('id')
+    .eq('id', warehouseId)
+    .eq('company_id', companyId)
+    .eq('is_active', true)
+    .maybeSingle();
+  return !!data;
+}
+
 const RADIUS = new Set(['sharp', 'soft', 'round']);
 const LAYOUT = new Set(['grid', 'editorial', 'masonry']);
 const HEADER = new Set(['light', 'brand', 'dark']);
@@ -156,6 +169,10 @@ export async function PUT(request: NextRequest) {
     logo_url: /^https?:\/\//.test((body.logo_url ?? '').trim()) ? body.logo_url!.trim() : (body.logo_url !== undefined ? '' : current.logo_url),
     public_base_url: body.public_base_url !== undefined ? baseUrl : current.public_base_url,
     public_base_path: (body.public_base_path ?? current.public_base_path).trim(),
+    // คลังที่หน้าร้านใช้ขาย — ต้องเป็นคลังของบริษัทนี้และเปิดใช้งานอยู่ ไม่งั้นถือว่าไม่ได้ตั้ง
+    sell_warehouse_id: typeof body.sell_warehouse_id === 'string'
+      ? (await isOwnActiveWarehouse(auth.companyId!, body.sell_warehouse_id) ? body.sell_warehouse_id : '')
+      : current.sell_warehouse_id,
     allow_ai_crawlers: body.allow_ai_crawlers ?? current.allow_ai_crawlers,
     line_login: body.line_login ?? current.line_login,
     primary_color: color || current.primary_color,

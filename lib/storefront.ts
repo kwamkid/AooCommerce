@@ -28,6 +28,16 @@ export interface StorefrontConfig {
   public_base_url: string;
   /** path prefix บนโดเมนนั้น เช่น '/shop' (ว่าง = อยู่ที่ราก) */
   public_base_path: string;
+  /**
+   * คลังที่หน้าร้านใช้ขาย — ว่าง = คลังหลักของบริษัท
+   *
+   * ⚠️ ต้องเป็น **คลังเดียวกัน** ทั้งตอนโชว์ยอดพร้อมขายและตอนจองตอน checkout
+   * เดิมหน้าร้านโชว์ยอด "รวมทุกคลัง" (รวมคลังฝากขาย/ห้างที่ของอยู่ที่ร้านคนอื่นแล้ว)
+   * ของ ABC ต่างกัน 592 ตัวเลือก / 4,933 ชิ้น — ลูกค้าจะสั่งของที่คลังขายจริงไม่มี
+   *
+   * ร้านที่ปิดระบบคลัง (`stockEnabled=false`) ไม่ต้องตั้ง — ถือว่ามีของทุกตัวเสมอ
+   */
+  sell_warehouse_id: string;
   /** อนุญาตให้ AI crawler (GPTBot/ClaudeBot/PerplexityBot/…) เก็บข้อมูล */
   allow_ai_crawlers: boolean;
   /**
@@ -159,6 +169,7 @@ export const DEFAULT_STOREFRONT: StorefrontConfig = {
   contact_phone: '',
   contact_email: '',
   contact_address: '',
+  sell_warehouse_id: '',
   show_out_of_stock: true,
   show_without_image: true,
   sort_by: 'name',
@@ -210,6 +221,7 @@ export function parseStorefront(settings: Record<string, unknown> | null | undef
     contact_email: String(stored.contact_email ?? DEFAULT_STOREFRONT.contact_email),
     contact_address: String(stored.contact_address ?? DEFAULT_STOREFRONT.contact_address),
     public_base_path: normalizeBasePath(stored.public_base_path ?? DEFAULT_STOREFRONT.public_base_path),
+    sell_warehouse_id: String(stored.sell_warehouse_id ?? DEFAULT_STOREFRONT.sell_warehouse_id),
     allow_ai_crawlers: stored.allow_ai_crawlers ?? DEFAULT_STOREFRONT.allow_ai_crawlers,
     line_login: stored.line_login ?? DEFAULT_STOREFRONT.line_login,
     primary_color: stored.primary_color ?? DEFAULT_STOREFRONT.primary_color,

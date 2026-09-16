@@ -10,6 +10,7 @@ import { cache } from 'react';
 import { parseLineLogin } from '@/lib/line-login';
 import { parseGiftCard, type GiftCardSettings } from '@/lib/gift-card';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { resolveStorefrontWarehouse } from '@/lib/stock/order-warehouse';
 import {
   getCompositePartsMap, getComboFallbackImages, type CompositePart,
 } from '@/lib/composite';
@@ -209,9 +210,13 @@ const VARIATION_SELECT = 'id, product_id, variation_label, sku, default_price, d
 async function fetchAvailability(companyId: string, variationIds: string[]): Promise<Map<string, number>> {
   const out = new Map<string, number>();
   if (variationIds.length === 0) return out;
+  // **คลังเดียวกับที่ checkout จอง** — ไม่ส่ง warehouse = บวกทุกคลังรวมของที่ฝากไว้กับตัวแทน/ห้าง
+  // แล้วลูกค้าจะเห็นของที่ขายจริงไม่ได้ (ดู resolveStorefrontWarehouse)
+  const warehouseId = await resolveStorefrontWarehouse(companyId);
   const { data, error } = await supabaseAdmin.rpc('get_variation_stock', {
     p_company_id: companyId,
     p_variation_ids: variationIds,
+    p_warehouse_id: warehouseId,
   });
   if (error || !data) return out;
   for (const [id, v] of Object.entries(data as Record<string, { available?: number | string }>)) {

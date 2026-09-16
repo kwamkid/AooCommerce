@@ -47,3 +47,31 @@ export async function resolveOrderWarehouse(
     .maybeSingle();
   return fallback?.id || null;
 }
+
+/**
+ * คลังที่ "หน้าร้านออนไลน์" ใช้ขาย — ตั้งได้ที่ ตั้งค่า > หน้าร้านออนไลน์ (ว่าง = คลังหลัก)
+ *
+ * ⚠️ **ต้องเป็นตัวเดียวกันทั้งตอนโชว์ยอดพร้อมขายและตอนจองตอน checkout**
+ * เดิมหน้าร้านโชว์ยอดรวมทุกคลัง (รวมคลังฝากขาย/ห้างที่ของอยู่ที่ร้านคนอื่นแล้ว) แต่จอง
+ * จากคลังหลัก — ของ ABC ต่างกัน 592 ตัวเลือก / 4,933 ชิ้น ⇒ ลูกค้าสั่งของที่ขายจริงไม่มี
+ */
+export async function resolveStorefrontWarehouse(companyId: string): Promise<string | null> {
+  const { data } = await supabaseAdmin
+    .from('companies')
+    .select('settings')
+    .eq('id', companyId)
+    .maybeSingle();
+  const configured = (data?.settings as { storefront?: { sell_warehouse_id?: string } } | null)
+    ?.storefront?.sell_warehouse_id;
+  if (configured) {
+    const { data: ok } = await supabaseAdmin
+      .from('warehouses')
+      .select('id')
+      .eq('id', configured)
+      .eq('company_id', companyId)
+      .eq('is_active', true)
+      .maybeSingle();
+    if (ok?.id) return ok.id;
+  }
+  return resolveOrderWarehouse(companyId, null, null);
+}

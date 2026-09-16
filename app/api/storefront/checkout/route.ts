@@ -15,7 +15,7 @@ import { getStorefrontCompany } from '@/lib/storefront-server';
 import { after } from 'next/server';
 import { reserveOrderStockOnce } from '@/lib/stock/order-stock';
 import { getStockConfig, checkStockAvailability } from '@/lib/stock-utils';
-import { resolveOrderWarehouse } from '@/lib/stock/order-warehouse';
+import { resolveStorefrontWarehouse } from '@/lib/stock/order-warehouse';
 import { effectivePrice } from '@/lib/storefront';
 import { computeOrderTotals, splitVatInclusive } from '@/lib/order-totals';
 import { checkCoupon, normalizeCouponCode, type Coupon } from '@/lib/coupons';
@@ -341,7 +341,7 @@ export async function POST(request: NextRequest) {
 
   // ร้านที่ปิด "ยอมให้ขายเกิน" ต้องปฏิเสธตั้งแต่ก่อนสร้างบิล — ปล่อยให้สั่งสำเร็จแล้วค่อยไป
   // ล้มตอนจอง = ลูกค้าได้เลขที่คำสั่งซื้อของที่ไม่มีจริง (สวิตช์อยู่ที่ ตั้งค่า > คลังสินค้า)
-  const storefrontWarehouseId = await resolveOrderWarehouse(company.id, null, null);
+  const storefrontWarehouseId = await resolveStorefrontWarehouse(company.id);
   const storefrontStockConfig = await getStockConfig(company.id);
   if (storefrontStockConfig.stockEnabled && !storefrontStockConfig.allowOversell && storefrontWarehouseId) {
     const short = await checkStockAvailability(
