@@ -189,6 +189,11 @@ export async function sendOptinInvite(input: SendOptinInput): Promise<SendOptinR
     return { status: 'skipped', code: 'claimed', reason: 'ชวนไปแล้วในรอบนี้' };
   }
 
+  // ⚠️ `notification_messages_frequency` **ห้ามอยู่ระดับ payload** — ยิงจริงแล้ว Meta ตอบ
+  // `(#100) Invalid keys "notification_messages_frequency" were found in param "name_placeholder"`
+  // (ยืนยัน 14 ก.ย. 2026 ตอนที่ลูกค้าเพิ่งทักมา 4.3 ชม. = อยู่ในกรอบ ไม่ใช่ปัญหาเรื่องเวลา)
+  // ความถี่เป็นสิ่งที่ลูกค้าเลือกเองตอนกดรับ แล้วส่งกลับมาทาง webhook — ถ้าจะเสนอตัวเลือก
+  // ต้องทำเป็น `elements[]` (carousel) ซึ่งยังไม่ทำ · ค่าที่ร้านตั้งไว้เก็บลงสมุดบันทึกเฉย ๆ
   const res = await graphPost<{ message_id?: string }>(`/${pageId}/messages`, pageToken, {
     recipient: { id: contact.fb_psid },
     message: {
@@ -197,8 +202,9 @@ export async function sendOptinInvite(input: SendOptinInput): Promise<SendOptinR
         payload: {
           template_type: 'notification_messages',
           title,
+          // เอกสารระบุเป็นฟิลด์บังคับ — ร้านทั้งหมดในระบบอยู่ไทย
+          notification_messages_timezone: 'Asia/Bangkok',
           ...(scenario.image_url ? { image_url: scenario.image_url, image_aspect_ratio: 'SQUARE' } : {}),
-          notification_messages_frequency: scenario.frequency,
           notification_messages_cta_text: 'GET_UPDATES',
         },
       },
