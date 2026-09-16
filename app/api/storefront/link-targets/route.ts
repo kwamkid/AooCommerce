@@ -8,6 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { getStorefrontCategories } from '@/lib/storefront-server';
 
 const PRODUCT_LIMIT = 40;
 
@@ -21,16 +22,15 @@ export async function GET(request: NextRequest) {
   const q = (request.nextUrl.searchParams.get('q') || '').trim();
 
   if (type === 'category') {
+    // ⚠️ ใช้ตัวเดียวกับแถบหมวดของหน้าร้าน — คืนเฉพาะหมวดที่ **มีสินค้าขึ้นหน้าร้านจริง**
+    // (เคยดึงจาก `product_categories` ตรง ๆ แล้วได้หมวดที่ไม่มีสินค้าเลยติดมาด้วย
+    //  ⇒ ยื่นลิงก์ที่เปิดแล้วเจอหน้าเปล่าให้ร้านส่งหาลูกค้า) · ยุบหมวดชื่อซ้ำให้แล้ว
     // หมวดมีหลักสิบ — ส่งครบแล้วให้หน้าจอกรองเอง ไม่ต้องยิงตามทุกตัวอักษร
-    const { data, error } = await supabaseAdmin
-      .from('product_categories')
-      .select('id, name, slug')
-      .eq('company_id', auth.companyId)
-      .eq('is_active', true)
-      .not('slug', 'is', null)
-      .order('sort_order', { ascending: true });
-    if (error) return NextResponse.json({ error: 'Failed to load categories' }, { status: 500 });
-    return NextResponse.json({ items: data || [], complete: true });
+    const categories = await getStorefrontCategories(auth.companyId);
+    return NextResponse.json({
+      items: categories.map(c => ({ id: c.slug, name: c.name, slug: c.slug })),
+      complete: true,
+    });
   }
 
   let query = supabaseAdmin

@@ -470,7 +470,7 @@ function buildSwatches(
 }
 
 function assembleProduct(
-  row: { id: string; slug: string | null; name: string; description: string | null; image: string | null; updated_at: string; category?: { name: string } | null; brand?: { name: string } | null },
+  row: { id: string; slug: string | null; name: string; description: string | null; image: string | null; updated_at: string; category?: { name: string; slug: string | null } | null; brand?: { name: string } | null },
   variations: RawVariation[],
   images: { variation_id: string | null; image_url: string }[],
   stockEnabled: boolean,
@@ -502,6 +502,7 @@ function assembleProduct(
     name: row.name,
     description: row.description,
     category: row.category?.name ?? null,
+    category_slug: row.category?.slug ?? null,
     brand: row.brand?.name ?? null,
     images: Array.from(new Set(gallery)),
     variations: publicVariations,
@@ -521,7 +522,7 @@ function assembleProduct(
 
 const PRODUCT_SELECT = `
   id, slug, name, description, image, updated_at, is_composite, composite_slots,
-  category:product_categories ( name ),
+  category:product_categories ( name, slug ),
   brand:product_brands ( name )
 `;
 
@@ -773,7 +774,10 @@ export const getStorefrontProduct = cache(async (
 export interface DiscontinuedProduct {
   name: string;
   image: string | null;
+  /** ชื่อหมวดไว้ **แสดง** */
   category: string | null;
+  /** slug ของหมวดไว้ **ทำลิงก์** — คนละค่ากับที่แสดง อย่าสลับกัน */
+  categorySlug: string | null;
 }
 
 /**
@@ -789,14 +793,19 @@ export const getDiscontinuedProduct = cache(async (
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slugOrId);
   const { data } = await supabaseAdmin
     .from('products')
-    .select('name, image, category:product_categories ( name )')
+    .select('name, image, category:product_categories ( name, slug )')
     .eq('company_id', companyId)
     .eq(isUuid ? 'id' : 'slug', slugOrId)
     .maybeSingle();
   if (!data) return null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const row = data as any;
-  return { name: row.name, image: row.image || null, category: row.category?.name ?? null };
+  return {
+    name: row.name,
+    image: row.image || null,
+    category: row.category?.name ?? null,
+    categorySlug: row.category?.slug ?? null,
+  };
 });
 
 /**
@@ -808,32 +817,79 @@ export const getDiscontinuedProduct = cache(async (
  *
  * หา slug ไม่เจอ = คืนค่าเดิมให้ RPC ไปกรองตามชื่อเหมือนเดิม (ค่ามั่ว = ไม่เจอสินค้า เท่าเดิม)
  */
+export interface ResolvedCategory {
+  /** ค่าที่ส่งให้ RPC กรอง — หาไม่เจอก็ส่งค่าดิบต่อ (ผลลัพธ์ = ไม่เจอสินค้า เท่าเดิม) */
+  filter: string;
+  /**
+   * ชื่อจริงไว้ **แสดง** — `null` เมื่อค่าใน URL ไม่ตรงหมวดไหนเลย
+   * ⛔ ห้ามเอาค่าดิบจาก URL ไปวาดเป็น `<h1>`/`<title>`/JSON-LD — ใครก็ยัด `?cat=<ข้อความอะไรก็ได้>`
+   * แล้วได้หน้าที่มีข้อความของตัวเองอยู่บนโดเมนของร้าน
+   */
+  name: string | null;
+}
+
 export const resolveCategoryParam = cache(async (
   companyId: string,
   cat: string | undefined | null,
-): Promise<string | null> => {
+): Promise<ResolvedCategory | null> => {
   const value = (cat || '').trim();
   if (!value) return null;
-  const { data } = await supabaseAdmin
+
+  const bySlug = await supabaseAdmin
     .from('product_categories')
     .select('name')
     .eq('company_id', companyId)
     .eq('slug', value)
     .maybeSingle();
-  return data?.name || value;
+  if (bySlug.data?.name) return { filter: bySlug.data.name, name: bySlug.data.name };
+
+  // ⚠️ แยกเป็นคนละ query ไม่ใช่ `.or()` — ชื่อหมวดมีคอมมา/วงเล็บได้ ซึ่งเป็นไวยากรณ์ของตัวกรอง
+  // PostgREST เอง ยัดค่าดิบลงไปแล้วตัวกรองเพี้ยน (cache() ทำให้ยิงรอบเดียวต่อ request อยู่แล้ว)
+  const byName = await supabaseAdmin
+    .from('product_categories')
+    .select('name')
+    .eq('company_id', companyId)
+    .eq('name', value)
+    .limit(1)
+    .maybeSingle();
+  return { filter: value, name: byName.data?.name ?? null };
 });
 
-/** Distinct category names that actually have visible products (for nav). */
-export const getStorefrontCategories = cache(async (companyId: string): Promise<string[]> => {
+export interface StorefrontCategory {
+  /** ไว้ **แสดง** บนแถบหมวด/breadcrumb */
+  name: string;
+  /** ไว้ **ทำลิงก์** (`?cat=`) — ไม่ตายเมื่อร้านเปลี่ยนชื่อหมวด */
+  slug: string;
+}
+
+/**
+ * หมวดที่ **มีสินค้าขึ้นหน้าร้านจริง** — ใช้ทั้งแถบหมวด · llms.txt · โมดัลแทรกลิงก์
+ * (หมวดที่ไม่มีสินค้าเลย ลิงก์ไปแล้วเจอหน้าเปล่า ⇒ ห้ามยื่นให้ร้านส่งหาลูกค้า)
+ *
+ * ⚠️ **ยุบตามชื่อ ไม่ใช่ตามแถว** — ร้านมีหมวดชื่อซ้ำกันได้จริง (เจอ `YOYO® Spare Part` 2 แถว)
+ * ถ้าไล่ตามแถวจะขึ้นสองช่องป้ายเหมือนกันเป๊ะ · เลือก slug ตัวแทนอันเดียวพอ เพราะ
+ * `resolveCategoryParam` แปลง slug → **ชื่อ** แล้ว RPC กรองด้วยชื่อ ⇒ ยังเห็นสินค้าของทุกแถวครบ
+ */
+export const getStorefrontCategories = cache(async (companyId: string): Promise<StorefrontCategory[]> => {
   const { data } = await supabaseAdmin
     .from('products')
-    .select('category:product_categories ( name )')
+    .select('category:product_categories ( name, slug )')
     .eq('company_id', companyId)
     .eq('is_active', true)
     .eq('storefront_visible', true);
+  const byName = new Map<string, string>();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const names = (data as any[] | null || []).map(r => r.category?.name).filter(Boolean) as string[];
-  return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b, 'th'));
+  for (const row of (data as any[] | null) || []) {
+    const name: string | undefined = row.category?.name;
+    if (!name) continue;
+    // slug หลุดเป็น null ไม่ควรเกิด (trigger เติมให้ทุกแถว) — ตกไปใช้ชื่อ ดีกว่าปล่อย `?cat=` เปล่า
+    const slug: string = row.category?.slug || name;
+    const current = byName.get(name);
+    // ชื่อซ้ำ = เลือกตัวที่เรียงก่อน เพื่อให้ลิงก์เดิมนิ่งทุกครั้งที่ประกอบหน้าใหม่
+    if (!current || slug < current) byName.set(name, slug);
+  }
+  return Array.from(byName, ([name, slug]) => ({ name, slug }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'th'));
 });
 
 /** Zones + slots for the delivery-info page (AEO source of truth). */

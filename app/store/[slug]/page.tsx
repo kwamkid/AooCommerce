@@ -45,8 +45,9 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
 
   const cfg = company.config;
   const shopName = cfg.display_name || company.name;
-  // ชื่อหมวดใน <title> ต้องเป็น**ชื่อจริง** ไม่ใช่ค่าดิบใน URL — ลิงก์แบบ slug จะโชว์ "easier-beginnings"
-  const catName = await resolveCategoryParam(company.id, cat);
+  // ชื่อหมวดใน <title> ต้องเป็น**ชื่อจริง** ไม่ใช่ค่าดิบใน URL — ลิงก์แบบ slug จะโชว์
+  // "easier-beginnings" และค่ามั่วจะกลายเป็นหัวข้อหน้าบนโดเมนของร้าน
+  const catName = (await resolveCategoryParam(company.id, cat))?.name || null;
   const baseTitle = q ? `ค้นหา "${q}" | ${shopName}` : catName ? `${catName} | ${shopName}` : shopName;
   // หน้า 2 ขึ้นไปต้องมีชื่อของตัวเอง ไม่งั้น Google เห็นเป็นหน้าซ้ำกันทั้งชุด
   const title = page > 1 ? `${baseTitle} — หน้า ${page}` : baseTitle;
@@ -92,7 +93,8 @@ async function CatalogResults({
   page: number;
 }) {
   // `?cat=` มาได้ทั้ง slug (ลิงก์ที่ระบบสร้าง) และชื่อหมวด (ลิงก์เก่า) — แปลงเป็นชื่อก่อนกรอง
-  const categoryName = await resolveCategoryParam(company.id, cat);
+  const resolved = await resolveCategoryParam(company.id, cat);
+  const categoryName = resolved?.filter ?? null;
   const { products, total, pageSize } = await getStorefrontCatalog(
     company.id,
     { ...catalogOptionsFor(company), category: categoryName ?? undefined, search: q, page, pageSize: STOREFRONT_PAGE_SIZE },
@@ -108,7 +110,7 @@ async function CatalogResults({
   const itemListLd = {
     '@context': 'https://schema.org',
     '@type': 'ItemList',
-    name: categoryName ? `${categoryName} — ${shopName}` : shopName,
+    name: resolved?.name ? `${resolved.name} — ${shopName}` : shopName,
     numberOfItems: products.length,
     itemListElement: products.slice(0, 50).map((p: StorefrontProduct, i: number) => ({
       '@type': 'ListItem',
@@ -172,7 +174,7 @@ export default async function StorefrontCatalogPage({ params, searchParams }: Pa
   const page = parsePage(pageParam);
   // แปลง slug → ชื่อหมวดก่อนวาดหัวข้อ · ยังอยู่นอก Suspense ได้เพราะเป็นการอ่านแถวเดียวผ่าน index
   // (ที่จงใจไม่รอคือ**รายการสินค้า** ไม่ใช่ทุก query — และ cache() ใช้ผลร่วมกับ CatalogResults)
-  const catName = await resolveCategoryParam(company.id, cat);
+  const catName = (await resolveCategoryParam(company.id, cat))?.name || null;
 
   return (
     <div className="sf-container">

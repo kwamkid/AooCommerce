@@ -54,7 +54,8 @@ export async function GET(
   if (categories.length > 0) {
     L.push('## หมวดสินค้า', '');
     for (const c of categories) {
-      L.push(`- [${c}](${storefrontUrl(cfg, slug)}?cat=${encodeURIComponent(c)})`);
+      // ลิงก์ใช้ slug ให้เหลือสะกดเดียวทั้งระบบ · ป้ายใช้ชื่อจริง
+      L.push(`- [${c.name}](${storefrontUrl(cfg, slug)}?cat=${encodeURIComponent(c.slug)})`);
     }
     L.push('');
   }

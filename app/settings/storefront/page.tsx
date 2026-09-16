@@ -405,6 +405,7 @@ export default function StorefrontSettingsPage() {
     name: p.name,
     description: null,
     category: p.cat,
+    category_slug: null,
     brand: null,
     images: [previewPhoto(p.w, p.h, cfg.primary_color)],
     variations: [{

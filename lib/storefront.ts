@@ -428,7 +428,10 @@ export interface StorefrontProduct {
   slug: string;
   name: string;
   description: string | null;
+  /** ชื่อหมวดไว้ **แสดง** */
   category: string | null;
+  /** slug ของหมวดไว้ **ทำลิงก์** (`?cat=`) — คนละค่ากับที่แสดง อย่าสลับกัน */
+  category_slug: string | null;
   brand: string | null;
   images: string[];
   variations: StorefrontVariation[];

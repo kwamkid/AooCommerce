@@ -99,6 +99,7 @@ export default async function StorefrontProductPage({ params }: PageProps) {
         productName={gone?.name ?? null}
         productImage={gone?.image ?? null}
         category={gone?.category ?? null}
+        categorySlug={gone?.categorySlug ?? null}
         suggestions={suggestions.slice(0, 8)}
       />
     );
@@ -158,7 +159,7 @@ export default async function StorefrontProductPage({ params }: PageProps) {
             '@type': 'ListItem',
             position: 2,
             name: product.category,
-            item: `${storefrontUrl(cfg, slug)}?cat=${encodeURIComponent(product.category)}`,
+            item: `${storefrontUrl(cfg, slug)}?cat=${encodeURIComponent(product.category_slug || product.category)}`,
           }]
         : []),
       { '@type': 'ListItem', position: product.category ? 3 : 2, name: product.name, item: productUrl },
@@ -193,7 +194,7 @@ export default async function StorefrontProductPage({ params }: PageProps) {
           <>
             {' / '}
             <Link
-              href={`${storefrontHref(slug)}?cat=${encodeURIComponent(product.category)}`}
+              href={`${storefrontHref(slug)}?cat=${encodeURIComponent(product.category_slug || product.category)}`}
               className="sf-footer-link"
             >
               {product.category}

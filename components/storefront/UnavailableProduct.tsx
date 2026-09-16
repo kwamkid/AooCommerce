@@ -13,12 +13,15 @@ interface Props {
   /** ชื่อสินค้าเดิม — null เมื่อ URL นี้ไม่เคยมีสินค้าอยู่จริง */
   productName: string | null;
   productImage?: string | null;
+  /** ชื่อหมวดไว้ **แสดง** */
   category?: string | null;
+  /** slug ของหมวดไว้ **ทำลิงก์** — ไม่ส่ง = ตกไปใช้ชื่อ (ลิงก์เก่ายังใช้ได้) */
+  categorySlug?: string | null;
   suggestions: StorefrontProduct[];
 }
 
 export default function UnavailableProduct({
-  shop, productName, productImage, category, suggestions,
+  shop, productName, productImage, category, categorySlug, suggestions,
 }: Props) {
   const discontinued = !!productName;
 
@@ -44,7 +47,7 @@ export default function UnavailableProduct({
             <Link href={storefrontHref(shop)} className="sf-cta">ดูสินค้าทั้งหมด</Link>
             {category && (
               <Link
-                href={`${storefrontHref(shop)}?cat=${encodeURIComponent(category)}`}
+                href={`${storefrontHref(shop)}?cat=${encodeURIComponent(categorySlug || category)}`}
                 className="sf-btn-ghost"
               >
                 ดูหมวด {category}

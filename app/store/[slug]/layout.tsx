@@ -44,9 +44,11 @@ export default async function StoreLayout({
 
   const navLinks: NavLink[] = [
     { href: storefrontHref(slug), label: 'สินค้าทั้งหมด' },
+    // ⚠️ ลิงก์ใช้ **slug** (ไม่ตายเมื่อร้านเปลี่ยนชื่อหมวด) · ป้ายใช้ **ชื่อ**
+    // สลับกันเมื่อไหร่ แถบหมวดบนหัวร้านจะขึ้นว่า "easier-beginnings"
     ...categories.slice(0, 6).map(cat => ({
-      href: `${storefrontHref(slug)}?cat=${encodeURIComponent(cat)}`,
-      label: cat,
+      href: `${storefrontHref(slug)}?cat=${encodeURIComponent(cat.slug)}`,
+      label: cat.name,
     })),
     ...(hasDelivery
       ? [{ href: storefrontHref(slug, '/delivery'), label: 'การจัดส่ง', icon: 'truck' as const }]
