@@ -7,7 +7,7 @@
 // ก๊อปไปวาดเองแล้วสองหน้าจะแสดงคนละอย่างทั้งที่เป็นข้อความใบเดียวกัน
 //
 // ไฟล์นี้แค่แตกเนื้อหาเป็น "ข้อความทีละก้อน" ตามที่ LINE ส่งจริง (1 message object = 1 ก้อน)
-// กรอบมือถือ · รูปโปรไฟล์ · การที่การ์ด/รูปเต็มจอตกบรรทัดลงมา อยู่ที่ LinePhonePreview ที่เดียว
+// กรอบมือถือ · รูปโปรไฟล์ · การที่การ์ด/รูปเต็มจอตกบรรทัดลงมา อยู่ที่ PhonePreview ที่เดียว
 //
 // ⚠️ ของที่เราส่งไปเป็น **ข้อความขาเข้า**ของลูกค้า — ชิดซ้าย กล่องข้อความสีขาว
 // (เคยวาดชิดขวาเป็นสีแบรนด์ = ฝั่งที่ลูกค้าพิมพ์เอง ผู้ใช้อ่านแล้วไม่เชื่อว่าเป็นของจริง)
@@ -18,7 +18,7 @@
 'use client';
 
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
-import LinePhonePreview, { type PhoneChatMessage } from '@/components/broadcast/LinePhonePreview';
+import PhonePreview, { type PhoneChatMessage } from '@/components/broadcast/PhonePreview';
 import { thumbUrl } from '@/lib/image-thumb';
 import {
   discountPercent,
@@ -335,7 +335,7 @@ export default function BroadcastPreview({
   }
 
   return (
-    <LinePhonePreview
+    <PhonePreview
       accountName={senderName || null}
       accountPictureUrl={accountPictureUrl}
       messages={messages}

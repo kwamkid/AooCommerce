@@ -30,7 +30,7 @@ import ChannelBadge from '@/components/ui/ChannelBadge';
 import HelpHint from '@/components/ui/HelpHint';
 import ImageDropzone from '@/components/ui/ImageDropzone';
 import StickyActionBar from '@/components/ui/StickyActionBar';
-import LinePhonePreview from '@/components/broadcast/LinePhonePreview';
+import PhonePreview from '@/components/broadcast/PhonePreview';
 import { LoadingCard, NoPermissionCard, EmptyCard } from '@/components/ui/StateCard';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import { useToast } from '@/lib/toast-context';
@@ -628,11 +628,12 @@ export default function BroadcastPageSettings() {
             {/* พรีวิวตัวเดียวใช้ร่วมทั้ง 3 จังหวะ — เปลี่ยนตามอันที่กางอยู่ */}
             <div className="lg:sticky lg:top-4">
               <p className="field-label mb-2">ตัวอย่างที่ลูกค้าเห็น</p>
-              <LinePhonePreview
+              <PhonePreview
                 accountName={page.account_name}
                 accountPictureUrl={page.picture_url}
                 messages={previewMessages}
                 size="md"
+                platform="facebook"
               />
               <p className="helper-text mt-2 max-w-[19rem]">
                 จังหวะ &quot;{OPTIN_TRIGGERS[expanded].label}&quot; · ข้อความสีจางกับปุ่มบนการ์ดเป็นของ Facebook แก้ไม่ได้
