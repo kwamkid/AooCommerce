@@ -297,6 +297,9 @@ function CardsEditor({ block, onChange, picker }: {
                     label="เลือกรูป"
                     hint={block.ratio === '3:4' ? 'รูปแนวตั้ง 3:4' : 'รูปจัตุรัส 1:1'}
                     aspect={block.ratio}
+                    // การ์ดบนแชทถูกครอบตามสัดส่วนที่เลือกอยู่แล้ว — ให้ร้านเลือกเองว่าจะเอาส่วนไหน
+                    // ไม่งั้นไฟล์ที่ส่งขึ้นเป็นสัดส่วนเดิมแล้วปลายทางครอบให้แบบที่เราคุมไม่ได้
+                    cropAspect={block.ratio === '3:4' ? 3 / 4 : 1}
                     changeOnClick
                     maxWidthOrHeight={IMAGE_MAX_PX}
                     maxSizeMB={IMAGE_MAX_MB}

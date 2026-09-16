@@ -203,7 +203,14 @@ const ImageDropzone = forwardRef<ImageDropzoneHandle, Props>(function ImageDropz
   // อยู่ใน return ทั้งสองทาง (ตอนมีรูปแล้ว/ยังว่าง) — เปลี่ยนรูปทีหลังก็ต้องได้ครอบเหมือนกัน
   const cropModal = cropSrc && cropAspect ? (
     <Modal open onClose={closeCrop} title="ปรับรูปให้พอดีกรอบ" size="md">
-      <ImageCropper src={cropSrc} aspect={cropAspect} onConfirm={finishCrop} onCancel={closeCrop} />
+      {/* ครอบออกมาเท่าขนาดที่ปลายทางต้องการเลย — ไม่งั้นได้ 1080 แล้วถูกย่อซ้ำอีกรอบ */}
+      <ImageCropper
+        src={cropSrc}
+        aspect={cropAspect}
+        outputSize={maxWidthOrHeight}
+        onConfirm={finishCrop}
+        onCancel={closeCrop}
+      />
     </Modal>
   ) : null;
 
