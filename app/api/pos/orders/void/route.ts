@@ -1,5 +1,5 @@
 // Path: app/api/pos/orders/void/route.ts
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
 import { returnStock } from '@/lib/stock-service';
@@ -49,6 +49,7 @@ export async function POST(request: NextRequest) {
 
     // Return stock
     const stockConfig = await getStockConfig(auth.companyId);
+    const touched: string[] = [];
     if (stockConfig.stockEnabled && order.warehouse_id) {
       for (const item of (orderItems || [])) {
         if (!item.variation_id) continue;
@@ -64,9 +65,15 @@ export async function POST(request: NextRequest) {
             notes: `POS Void ${order.receipt_number || ''} — ${reason || ''}`,
             createdBy: auth.userId,
           });
+          touched.push(item.variation_id);
         } catch (stockErr) {
           console.error('[POS Void] Stock return error:', stockErr);
         }
+      }
+      // ของกลับเข้าคลังแล้ว → ร้าน marketplace ที่ผูกไว้ต้องเห็นยอดใหม่
+      if (touched.length > 0) {
+        const wh = order.warehouse_id as string;
+        after(() => import('@/lib/marketplace/stock-push').then(m => m.syncStockNow(touched, [wh])));
       }
     }
 

@@ -3,6 +3,7 @@
  * Used by both the API POST handler and Shopee webhook auto-CN.
  */
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { after } from 'next/server';
 import { returnStock, unreserveStock } from '@/lib/stock-service';
 import { getStockConfig } from '@/lib/stock-utils';
 
@@ -167,6 +168,7 @@ export async function createCreditNote(params: CreateCnParams): Promise<CreateCn
     const wasReserved = ['new', 'ready_to_ship', 'processing'].includes(order.order_status);
 
     if (wasShipped || wasReserved) {
+      const touched: string[] = [];
       for (const item of cnItems) {
         if (!item.variation_id) continue;
         try {
@@ -182,9 +184,15 @@ export async function createCreditNote(params: CreateCnParams): Promise<CreateCn
             notes: `CN ${cnNumber} — ${reason || type}`,
             createdBy: createdBy || null,
           });
+          touched.push(item.variation_id);
         } catch (stockErr) {
           console.error('[CN] Stock error:', stockErr);
         }
+      }
+      // ของกลับเข้าคลัง/ปลดจองแล้ว → ทุกร้านที่ผูกไว้ต้องเห็นยอดใหม่ ไม่งั้นขายไม่ได้ทั้งที่มีของ
+      if (touched.length > 0) {
+        const wh = order.warehouse_id as string;
+        after(() => import('@/lib/marketplace/stock-push').then(m => m.syncStockNow(touched, [wh])));
       }
     }
   }

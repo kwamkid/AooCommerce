@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { addStock } from '@/lib/stock-service';
 
@@ -119,9 +119,11 @@ export async function POST(request: NextRequest) {
     await supabaseAdmin.from('return_note_items').insert(itemRows);
 
     // Return stock to warehouse (if warehouse specified)
+    const touched: string[] = [];
     if (warehouse_id) {
       for (const item of items as { variation_id?: string; quantity: number }[]) {
         if (!item.variation_id || item.quantity <= 0) continue;
+        touched.push(item.variation_id);
         await addStock({
           supabase: supabaseAdmin,
           companyId: auth.companyId!,
@@ -133,6 +135,10 @@ export async function POST(request: NextRequest) {
           notes: `รับคืนสินค้า: ${rnNumber}`,
           createdBy: auth.userId,
         });
+      }
+      // ของกลับเข้าคลังแล้ว → ร้าน marketplace ที่ผูกไว้ต้องเห็นยอดใหม่
+      if (touched.length > 0) {
+        after(() => import('@/lib/marketplace/stock-push').then(m => m.syncStockNow(touched, [warehouse_id as string])));
       }
     }
 
