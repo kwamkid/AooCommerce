@@ -8,9 +8,15 @@
 'use client';
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import imageCompression from 'browser-image-compression';
 import { ImagePlus, X, Loader2 } from 'lucide-react';
 import type { ReactNode } from 'react';
+import Modal from './Modal';
+
+// โหลดเฉพาะตอนที่หน้าไหนขอครอบรูปจริง ๆ — อีกสิบกว่าหน้าที่ใช้ dropzone จะได้ไม่ต้องแบก
+// react-easy-crop + smartcrop ไปด้วย
+const ImageCropper = dynamic(() => import('./ImageCropper'), { ssr: false });
 
 interface Props {
   value: File | null;
@@ -50,6 +56,14 @@ interface Props {
    * (การ์ดบรอดแคสต์เลือกได้ทั้งแถว — เจ้าของขอ 11 ก.ย. 2026) · ส่งตัวนี้แล้วไม่ต้องส่ง `square`
    */
   aspect?: '1:1' | '3:4';
+  /**
+   * เปิดหน้าต่างครอบรูปหลังเลือกไฟล์ (ค่า = สัดส่วนกรอบ กว้าง/สูง · 1 = จัตุรัส)
+   *
+   * ต้องใช้เมื่อ**ปลายทางบังคับสัดส่วน** — ไม่ใส่แล้วไฟล์ที่อัปจะเป็นสัดส่วนเดิม
+   * ทั้งที่พรีวิวโชว์เป็นจัตุรัส (`object-cover` เป็นแค่ CSS) ⇒ ผู้ใช้เห็นอย่าง
+   * ลูกค้าได้อีกอย่าง · cropper โหลดแบบ dynamic เฉพาะตอนใช้จริง
+   */
+  cropAspect?: number;
   /**
    * กดที่รูปพรีวิวแล้วเปิดเลือกรูปใหม่ได้เลย + ทาบไอคอน "เปลี่ยนรูป" ตอน hover (ทรงเดียวกับแว่นขยาย
    * บนรูปสินค้า) — ไม่ต้องกดกากบาทแล้วเลือกใหม่สองจังหวะ (เจ้าของขอ 10 ก.ย. 2026)
@@ -95,9 +109,11 @@ export interface ImageDropzoneHandle {
 
 const ImageDropzone = forwardRef<ImageDropzoneHandle, Props>(function ImageDropzone({
   value, onChange, disabled, label, hint, icon, alt, initialPreviewUrl, classNames,
-  capture, onBusyChange, maxWidthOrHeight = 1920, maxSizeMB = 0.5, changeOnClick, square, aspect,
+  capture, onBusyChange, maxWidthOrHeight = 1920, maxSizeMB = 0.5, changeOnClick, square, aspect, cropAspect,
 }, ref) {
   const inputRef = useRef<HTMLInputElement>(null);
+  /** รูปที่รอให้ผู้ใช้ครอบ — ค้างไว้จนกด "ใช้รูปนี้" หรือยกเลิก */
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
@@ -125,10 +141,8 @@ const ImageDropzone = forwardRef<ImageDropzoneHandle, Props>(function ImageDropz
 
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
 
-  const accept = useCallback(async (file: File | null | undefined) => {
-    if (!file || disabled) return;
-    if (!file.type.startsWith('image/')) { setWarn('แนบได้เฉพาะไฟล์รูป'); return; }
-    setWarn('');
+  /** ย่อแล้วส่งออก — ปลายทางเดียวกันทั้งทางปกติและทางที่ผ่าน cropper มา */
+  const finalize = useCallback(async (file: File) => {
     setBusy(true);
     try {
       let out = file;
@@ -143,7 +157,19 @@ const ImageDropzone = forwardRef<ImageDropzoneHandle, Props>(function ImageDropz
     } finally {
       setBusy(false);
     }
-  }, [disabled, onChange, maxSizeMB, maxWidthOrHeight]);
+  }, [onChange, maxSizeMB, maxWidthOrHeight]);
+
+  const accept = useCallback(async (file: File | null | undefined) => {
+    if (!file || disabled) return;
+    if (!file.type.startsWith('image/')) { setWarn('แนบได้เฉพาะไฟล์รูป'); return; }
+    setWarn('');
+    // ปลายทางบังคับสัดส่วน → ให้ผู้ใช้เลือกกรอบเองก่อน แล้วค่อยย่อ/ส่งออก
+    if (cropAspect) {
+      setCropSrc(prev => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(file); });
+      return;
+    }
+    await finalize(file);
+  }, [disabled, cropAspect, finalize]);
 
   useImperativeHandle(ref, () => ({ accept, open: () => inputRef.current?.click() }), [accept]);
 
@@ -166,6 +192,20 @@ const ImageDropzone = forwardRef<ImageDropzoneHandle, Props>(function ImageDropz
       onChange={e => { accept(e.target.files?.[0]); e.target.value = ''; }}
     />
   );
+
+  const closeCrop = () => setCropSrc(prev => { if (prev) URL.revokeObjectURL(prev); return null; });
+  const finishCrop = async (blob: Blob) => {
+    const file = new File([blob], `crop-${Date.now()}.jpg`, { type: 'image/jpeg' });
+    closeCrop();
+    await finalize(file);
+  };
+
+  // อยู่ใน return ทั้งสองทาง (ตอนมีรูปแล้ว/ยังว่าง) — เปลี่ยนรูปทีหลังก็ต้องได้ครอบเหมือนกัน
+  const cropModal = cropSrc && cropAspect ? (
+    <Modal open onClose={closeCrop} title="ปรับรูปให้พอดีกรอบ" size="md">
+      <ImageCropper src={cropSrc} aspect={cropAspect} onConfirm={finishCrop} onCancel={closeCrop} />
+    </Modal>
+  ) : null;
 
   const shown = preview || (dismissedInitial ? null : initialPreviewUrl);
   if (shown) {
@@ -200,6 +240,7 @@ const ImageDropzone = forwardRef<ImageDropzoneHandle, Props>(function ImageDropz
           <X className={cn.clearIcon} strokeWidth={2} aria-hidden="true" />
         </button>
         {fileInput}
+        {cropModal}
       </div>
     );
   }
@@ -229,6 +270,7 @@ const ImageDropzone = forwardRef<ImageDropzoneHandle, Props>(function ImageDropz
       </button>
       {fileInput}
       {warn && <p className={cn.error}>{warn}</p>}
+      {cropModal}
     </>
   );
 });

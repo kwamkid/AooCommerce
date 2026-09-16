@@ -389,6 +389,9 @@ export default function BroadcastPageSettings() {
                       onChange={f => { dirtyRef.current = true; setImageFiles(s => ({ ...s, [trigger]: f })); }}
                       initialPreviewUrl={sc.image_url || null}
                       aspect="1:1"
+                      // การ์ดของ Messenger บังคับจัตุรัส — ให้ผู้ใช้เลือกเองว่าจะเอาส่วนไหน
+                      // ไม่งั้น Meta ครอบให้แบบที่เราคุมไม่ได้
+                      cropAspect={1}
                       changeOnClick
                       maxWidthOrHeight={600}
                       onBusyChange={setImageBusy}
