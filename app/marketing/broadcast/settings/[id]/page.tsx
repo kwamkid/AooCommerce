@@ -103,10 +103,14 @@ function couponSummary(c: CouponOption): string {
   return `${off}${min}${until}`;
 }
 
-/** ฟองข้อความธรรมดาในกรอบมือถือ */
+/**
+ * ฟองข้อความธรรมดาใน Messenger — พื้นเทาบนห้องสีขาว (ขาวบนขาวจะมองไม่เห็น)
+ * ⚠️ ห้ามมี `dark:` — สิ่งที่ลูกค้าเห็นไม่ขึ้นกับธีมของแอดมิน (กติกาเดียวกับ `.phone-mock*`)
+ * กว้างสุด 85% เท่าการ์ด — Messenger ไม่ให้ฟองของอีกฝ่ายชนขอบขวา
+ */
 function TextBubble({ children }: { children: React.ReactNode }) {
   return (
-    <div className="max-w-[210px] rounded-2xl rounded-tl-sm bg-white dark:bg-slate-700 px-3 py-2 text-[13px] leading-snug whitespace-pre-wrap shadow-sm">
+    <div className="max-w-[85%] w-fit rounded-2xl rounded-bl-sm bg-[#F0F0F0] text-gray-900 px-3 py-2 text-[13px] leading-snug whitespace-pre-wrap">
       {children}
     </div>
   );
@@ -131,7 +135,9 @@ function OptinCardBubble({ title, imageUrl }: { title: string; imageUrl: string 
   return (
     // วางตามหน้าจอจริงที่เจ้าของแคปมา (16 ก.ย. 2026): การ์ดอยู่**ข้างขวาของรูปโปรไฟล์**
     // (ตัวแม่จัดให้) · พื้นการ์ดเทา ปุ่มขาว (ไม่ใช่กลับกัน)
-    <div className="w-full">
+    // ⚠️ ห้ามเป็น `w-full` — Messenger ไม่ให้ฟอง/การ์ดของอีกฝ่ายชนขอบขวา ต้องเหลือที่ว่างไว้
+    // (เจ้าของท้วงรอบสอง 16 ก.ย. 2026 หลังย้ายมาอยู่ข้างโลโก้แล้วขอบขวาหายไป)
+    <div className="w-[85%]">
       <div className="rounded-2xl overflow-hidden bg-[#F0F0F0]">
         {imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
