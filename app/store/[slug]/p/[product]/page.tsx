@@ -13,7 +13,7 @@ import {
 } from '@/lib/storefront-server';
 import {
   storefrontUrl, storefrontHref, storefrontAbsoluteUrl, jsonLdScript,
-  formatStorePrice, storefrontCssVars, storefrontRootClasses,
+  formatStorePrice, storePriceDigits, storefrontCssVars, storefrontRootClasses,
 } from '@/lib/storefront';
 import { formatSlotTime } from '@/lib/delivery';
 import AddToCartButton from '@/components/storefront/AddToCartButton';
@@ -77,8 +77,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   // 300 ตัวถูก Google ตัดที่ ~160 อยู่ดี และ 160 ตัวแรกของคำอธิบายที่ร้านพิมพ์มักเป็นสเปก
   // ⇒ นำด้วยข้อเท็จจริงที่ทำให้คนกด (ราคา + ร้าน) แล้วค่อยต่อด้วยคำอธิบายเท่าที่เหลือ
   const priceText = product.price_max > product.price_min
-    ? `${formatStorePrice(product.price_min)}–${formatStorePrice(product.price_max)} บาท`
-    : `${formatStorePrice(product.price_min)} บาท`;
+    ? `${storePriceDigits(product.price_min)}–${storePriceDigits(product.price_max)} บาท`
+    : `${storePriceDigits(product.price_min)} บาท`;
   const lead = `${product.name} ราคา ${priceText} จาก ${shopName}`;
   const rest = (product.description || 'สั่งซื้อออนไลน์ จัดส่งถึงบ้าน').replace(/\s+/g, ' ').trim();
   const description = clampForTitle(`${lead} — ${rest}`, DESCRIPTION_MAX);
@@ -252,8 +252,8 @@ export default async function StorefrontProductPage({ params }: PageProps) {
   // ข้อเท็จจริงต้องเป็น**ประโยคเต็มใน server HTML** เพราะ AI crawler ส่วนใหญ่ไม่รัน JS
   // และ AEO อ้างอิงทีละ passage — ไม่มีประโยค = ไม่มีอะไรให้ยกไปตอบ
   const priceSentence = hasRange
-    ? `ราคา ${formatStorePrice(product.price_min)}–${formatStorePrice(product.price_max)} บาท`
-    : `ราคา ${formatStorePrice(product.price_min)} บาท`;
+    ? `ราคา ${storePriceDigits(product.price_min)}–${storePriceDigits(product.price_max)} บาท`
+    : `ราคา ${storePriceDigits(product.price_min)} บาท`;
   const factSentence =
     `${product.name}`
     + (product.brand ? ` เป็นสินค้าแบรนด์ ${product.brand}` : '')

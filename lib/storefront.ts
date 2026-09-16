@@ -496,5 +496,13 @@ export function effectivePrice(defaultPrice: number, discountPrice: number | nul
 }
 
 export function formatStorePrice(n: number): string {
-  return `฿${n.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+  return `฿${storePriceDigits(n)}`;
+}
+
+/**
+ * ตัวเลขราคาเปล่า ๆ ไม่มีสัญลักษณ์ — ใช้ตอนเขียนเป็น**ประโยค** ("ราคา 891 บาท")
+ * ⚠️ อย่าใช้ `formatStorePrice` ในประโยคที่ลงท้ายด้วย "บาท" จะได้ "฿891 บาท" ซ้ำซ้อน
+ */
+export function storePriceDigits(n: number): string {
+  return n.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
