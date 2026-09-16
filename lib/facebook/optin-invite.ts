@@ -187,7 +187,6 @@ export async function sendOptinInvite(input: SendOptinInput): Promise<SendOptinR
     trigger,
     dedupe_key: dedupeKey,
     title,
-    frequency: scenario.frequency,
     order_id: input.orderId ?? null,
     requested_by: input.requestedBy ?? null,
   });
@@ -269,7 +268,7 @@ export async function sendOptinInvite(input: SendOptinInput): Promise<SendOptinR
     direction: 'outgoing',
     message_type: 'text',
     content: `[ชวนรับข่าวสาร] ${title}`,
-    raw_message: { optin_invite: true, trigger, title, frequency: scenario.frequency },
+    raw_message: { optin_invite: true, trigger, title },
     sent_by: input.requestedBy ?? null,
     sent_at: at,
     created_at: at,

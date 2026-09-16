@@ -1,12 +1,15 @@
 // Path: app/marketing/broadcast/settings/[id]/page.tsx
 //
-// ตั้งค่าบรอดแคสต์ของ **เพจเดียว** — บัญชีโฆษณา · งบ · การ์ดชวนรับข่าวสาร 3 สถานการณ์
-// (หน้ารายการอยู่ที่ ../page.tsx — ร้านที่มีหลายเพจจะได้ไม่ต้องอ่านทุกเพจพร้อมกัน)
+// ตั้งค่าบรอดแคสต์ของ **เพจเดียว** — บัญชีโฆษณา · งบ · การ์ดชวนรับข่าวสาร 3 จังหวะ
+// (หน้ารายการอยู่ที่ ../page.tsx)
+//
+// ⛔ **ห้ามใส่ช่อง "ความถี่" กลับเข้ามา** — ยิงจริงแล้ว Meta ปฏิเสธ ความถี่เป็นสิ่งที่ลูกค้า
+// เลือกเองตอนกดรับ แล้วส่งกลับมาทาง webhook (ดู lib/broadcast/optin.ts)
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Users, Info } from 'lucide-react';
+import { Users, Info, ChevronDown, Image as ImageIcon } from 'lucide-react';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
@@ -37,11 +40,11 @@ import {
 
 /** งบที่ Meta ยอมรับต่ำสุดเท่าที่ยิงจริงแล้วผ่าน — 1 บาทถูกปฏิเสธ */
 const MIN_BUDGET_BAHT = 35;
-const DEFAULT_BUDGET_BAHT = 100;
-/** ราคาต่อข้อความยังไม่นิ่ง (วัดได้ 0.05 บาทจากใบเดียว) — ใช้ประมาณคร่าว ๆ เพื่อแนะนำงบ */
+/** ราคาต่อข้อความยังไม่นิ่ง (วัดได้ 0.05 บาทจากใบเดียว) — เผื่อไว้เพื่อคำนวณงบ */
 const ASSUMED_COST_PER_MESSAGE = 0.5;
+/** เผื่อให้งบไม่ตันกลางทาง */
+const BUDGET_HEADROOM = 1.5;
 
-/** ช่วง "เงียบแล้ว" ที่ให้เลือก — ทุกตัวมี**ขอบบน**เสมอ (กันวันเปิดสวิตช์แล้วยิงทั้งร้าน) */
 const QUIET_WINDOWS = [
   { id: '15-45', label: '15–45 นาที', subtitle: 'ไวที่สุด — ลูกค้ายังจำบทสนทนาได้' },
   { id: '30-60', label: '30–60 นาที', subtitle: 'แนะนำ' },
@@ -71,6 +74,50 @@ interface SubscriberInfo {
   next_eligible_at: string | null;
 }
 
+/** งบที่ควรตั้งจากจำนวนคนที่ส่งถึงได้ — ยังไม่มีผู้สมัคร = ขั้นต่ำที่ Meta รับ */
+function budgetFor(eligible: number): number {
+  return Math.max(MIN_BUDGET_BAHT, Math.ceil(eligible * ASSUMED_COST_PER_MESSAGE * BUDGET_HEADROOM));
+}
+
+/**
+ * ตัวอย่างการ์ดที่ลูกค้าจะเห็นใน Messenger
+ * ⚠️ บรรทัดบนกับข้อความรองเป็นของ **Meta เขียนเอง** เราแก้ไม่ได้ — วาดไว้ให้ร้านเห็นว่า
+ * ข้อความที่ตัวเองตั้งจะไปอยู่ตรงไหน จะได้ไม่เขียนซ้ำกับสิ่งที่ Meta พูดให้อยู่แล้ว
+ */
+function CardPreview({ pageName, title, imageUrl }: { pageName: string; title: string; imageUrl: string | null }) {
+  return (
+    <div>
+      <p className="field-label mb-1">ตัวอย่างที่ลูกค้าเห็น</p>
+      <div className="max-w-[260px] rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden bg-gray-50 dark:bg-slate-900/40">
+        <p className="helper-text px-3 py-2 text-center">
+          {pageName} would like to send you messages, which may be promotional.
+        </p>
+        <div className="bg-white dark:bg-slate-800">
+          {imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={imageUrl} alt="" className="w-full aspect-square object-cover" />
+          ) : (
+            <div className="w-full aspect-square flex flex-col items-center justify-center gap-1 text-gray-400 bg-gray-100 dark:bg-slate-700">
+              <ImageIcon className="w-6 h-6" strokeWidth={1.5} />
+              <span className="helper-text">โลโก้เพจ</span>
+            </div>
+          )}
+          <div className="p-3">
+            <p className="body-text font-medium leading-snug">{title || 'หัวข้อบนการ์ด'}</p>
+            <p className="helper-text mt-1">
+              Don&apos;t want to miss out on the latest sales? You can stop these messages at any time.
+            </p>
+          </div>
+          <div className="border-t border-gray-200 dark:border-slate-700 py-2 text-center">
+            <span className="body-text font-medium text-gray-600 dark:text-slate-300">Get updates</span>
+          </div>
+        </div>
+      </div>
+      <p className="helper-text mt-1">ข้อความสีจางกับปุ่มเป็นของ Facebook — แก้ไม่ได้</p>
+    </div>
+  );
+}
+
 export default function BroadcastPageSettings() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -81,15 +128,20 @@ export default function BroadcastPageSettings() {
   const [adAccounts, setAdAccounts] = useState<AdAccountOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [subs, setSubs] = useState<SubscriberInfo | 'loading' | 'error' | null>(null);
+  const [subs, setSubs] = useState<SubscriberInfo | null>(null);
+  const [subsError, setSubsError] = useState(false);
 
   const [adAccountId, setAdAccountId] = useState('');
-  const [budgetBaht, setBudgetBaht] = useState(DEFAULT_BUDGET_BAHT);
+  const [budgetBaht, setBudgetBaht] = useState(MIN_BUDGET_BAHT);
+  /** ร้านพิมพ์งบเองแล้วหรือยัง — ถ้ายัง ระบบคำนวณให้เรื่อย ๆ ตามจำนวนผู้สมัคร */
+  const [budgetTouched, setBudgetTouched] = useState(false);
   const [optin, setOptin] = useState<OptinConfig>(() => readOptinConfig(null));
-  /** รูปที่เพิ่งเลือกแต่ยังไม่ได้อัป — ขึ้น storage ตอนกดบันทึกเท่านั้น */
   const [imageFiles, setImageFiles] = useState<Partial<Record<OptinTrigger, File | null>>>({});
+  /** URL พรีวิวของไฟล์ที่เพิ่งเลือก — สร้างครั้งเดียวตอนเลือก ไม่ใช่ทุก render (ไม่งั้นรั่ว) */
+  const [imagePreviews, setImagePreviews] = useState<Partial<Record<OptinTrigger, string>>>({});
   const [imageBusy, setImageBusy] = useState(false);
-  const dirtyRef = useRef(false);
+  /** จังหวะที่กางอยู่ — ทีละอันพอ ไม่งั้นหน้ายาวจนหาไม่เจอ */
+  const [expanded, setExpanded] = useState<OptinTrigger | null>('manual');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -107,14 +159,29 @@ export default function BroadcastPageSettings() {
         const c = found.credentials || {};
         const satang = Number(c[BROADCAST_SETUP_KEYS.dailyBudget] ?? 0);
         setAdAccountId(String(c[BROADCAST_SETUP_KEYS.adAccountId] ?? ''));
-        setBudgetBaht(satang > 0 ? satang / 100 : DEFAULT_BUDGET_BAHT);
+        if (satang > 0) { setBudgetBaht(satang / 100); setBudgetTouched(true); }
         setOptin(readOptinConfig(c, found.account_name));
       }
 
       const adData = adRes.ok ? await adRes.json() : null;
-      setAdAccounts((adData?.accounts || adData || [])
-        .filter((a: AdAccountOption) => a.external_id)
-        .map((a: AdAccountOption) => ({ id: a.id, external_id: a.external_id, name: a.name, status: a.status })));
+      const ads = ((adData?.accounts || adData || []) as AdAccountOption[]).filter(a => a.external_id);
+      setAdAccounts(ads);
+      // มีบัญชีโฆษณาที่ใช้ได้ใบเดียว = ไม่มีอะไรให้เลือก เลือกให้เลย
+      const usable = ads.filter(a => a.status === 'active');
+      if (usable.length === 1) setAdAccountId(prev => prev || usable[0].external_id);
+
+      // ถามจำนวนผู้สมัครเองตั้งแต่เปิดหน้า — ร้านจะได้ไม่ต้องกดปุ่มก่อนถึงจะรู้ว่าควรตั้งงบเท่าไหร่
+      const subRes = await apiFetch(`/api/broadcasts/messenger-subscribers?account_id=${id}`);
+      if (subRes.ok) {
+        const data = await subRes.json().catch(() => null);
+        if (data) {
+          setSubs(data as SubscriberInfo);
+          // ร้านยังไม่เคยตั้งงบเอง → คำนวณให้จากจำนวนคนที่ส่งถึงได้จริง
+          setBudgetBaht(prev => (prev > MIN_BUDGET_BAHT ? prev : budgetFor(Number(data.eligible_now) || 0)));
+        }
+      } else {
+        setSubsError(true);
+      }
     } catch {
       showToast('โหลดข้อมูลไม่สำเร็จ', 'error');
     } finally {
@@ -124,30 +191,21 @@ export default function BroadcastPageSettings() {
 
   useFetchOnce(load, allowed && !permLoading);
 
-  const loadSubscribers = async () => {
-    setSubs('loading');
-    try {
-      const res = await apiFetch(`/api/broadcasts/messenger-subscribers?account_id=${id}`);
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setSubs('error');
-        showToast(typeof data.error === 'string' ? data.error : 'ถามรายชื่อผู้สมัครไม่สำเร็จ', 'error');
-        return;
-      }
-      setSubs(data as SubscriberInfo);
-    } catch {
-      setSubs('error');
-    }
-  };
-
-  const updateScenario = (trigger: OptinTrigger, patch: Partial<OptinScenario>) => {
-    dirtyRef.current = true;
+  const updateScenario = (trigger: OptinTrigger, patch: Partial<OptinScenario>) =>
     setOptin(s => ({ ...s, [trigger]: { ...s[trigger], ...patch } }));
+
+  const setScenarioImage = (trigger: OptinTrigger, file: File | null) => {
+    setImageFiles(s => ({ ...s, [trigger]: file }));
+    setImagePreviews(s => {
+      const old = s[trigger];
+      if (old) URL.revokeObjectURL(old);
+      const next = { ...s };
+      if (file) next[trigger] = URL.createObjectURL(file);
+      else delete next[trigger];
+      return next;
+    });
   };
-  const updateOptin = (patch: Partial<OptinConfig>) => {
-    dirtyRef.current = true;
-    setOptin(s => ({ ...s, ...patch }));
-  };
+  const updateOptin = (patch: Partial<OptinConfig>) => setOptin(s => ({ ...s, ...patch }));
 
   /** รูปขึ้น storage ตอนกดบันทึกเท่านั้น — เลือกแล้วเปลี่ยนใจไม่ทิ้งไฟล์ขยะไว้ */
   const uploadImage = async (file: File): Promise<string> => {
@@ -169,7 +227,6 @@ export default function BroadcastPageSettings() {
     }
     setSaving(true);
     try {
-      // อัปรูปที่เพิ่งเลือกก่อน แล้วค่อยเอา URL ไปตรวจ/บันทึก
       const next: OptinConfig = { ...optin };
       for (const trigger of Object.keys(OPTIN_TRIGGERS) as OptinTrigger[]) {
         const file = imageFiles[trigger];
@@ -200,7 +257,6 @@ export default function BroadcastPageSettings() {
       invalidateApiCache('/api/chat-accounts');
       setOptin(next);
       setImageFiles({});
-      dirtyRef.current = false;
       showToast(`ตั้งค่า ${page.account_name} แล้ว`, 'success');
       router.push('/marketing/broadcast/settings');
     } catch (err) {
@@ -225,10 +281,7 @@ export default function BroadcastPageSettings() {
     );
   }
 
-  const subInfo = typeof subs === 'object' && subs ? subs : null;
-  const suggested = subInfo
-    ? Math.max(MIN_BUDGET_BAHT, Math.ceil(subInfo.eligible_now * ASSUMED_COST_PER_MESSAGE * 1.5))
-    : null;
+  const suggested = subs ? budgetFor(subs.eligible_now) : null;
 
   return (
     <Layout>
@@ -244,7 +297,13 @@ export default function BroadcastPageSettings() {
             <ChannelBadge channel={{ platform: 'facebook', picture_url: page.picture_url }} size="md" />
             <div className="min-w-0">
               <p className="heading-4 truncate">{page.account_name}</p>
-              <p className="subtitle-text">เพจ Facebook</p>
+              <p className="subtitle-text">
+                {subsError
+                  ? 'ถามจำนวนผู้สมัครไม่ได้ตอนนี้'
+                  : subs
+                    ? `ผู้สมัครรับข่าวสาร ${subs.total} คน · ส่งได้ตอนนี้ ${subs.eligible_now} คน`
+                    : 'กำลังถามจำนวนผู้สมัคร…'}
+              </p>
             </div>
             <div className="ml-auto">
               {page.broadcast_ready
@@ -253,12 +312,19 @@ export default function BroadcastPageSettings() {
             </div>
           </div>
 
+          {subs && subs.eligible_now === 0 && subs.next_eligible_at && (
+            <p className="subtitle-text mb-3">
+              <Users className="w-4 h-4 inline-block mr-1 -mt-0.5 text-gray-400" />
+              ส่งได้อีกครั้ง {formatThaiDateTime(subs.next_eligible_at)} (Facebook จำกัด 1 ข้อความ ต่อคน ต่อ 12 ชั่วโมง)
+            </p>
+          )}
+
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
               <label className="field-label block mb-1">บัญชีโฆษณาที่ใช้ส่ง</label>
               <FormSelect
                 value={adAccountId}
-                onChange={v => { dirtyRef.current = true; setAdAccountId(v); }}
+                onChange={setAdAccountId}
                 options={adAccounts.map(a => ({
                   id: a.external_id,
                   label: a.name || a.external_id,
@@ -274,56 +340,32 @@ export default function BroadcastPageSettings() {
               <label className="field-label flex items-center gap-1 mb-1">
                 งบต่อวัน (บาท)
                 <HelpHint>
-                  เป็น<strong>เพดาน</strong> ไม่ใช่ยอดที่ถูกหัก — Meta คิดเงินตามข้อความที่ส่งถึงจริงเท่านั้น
-                  ตั้งสูงกว่าที่ใช้จริงไม่เสียเงินเพิ่ม แต่ต่ำกว่า {MIN_BUDGET_BAHT} บาท Meta จะปฏิเสธ
+                  ระบบ<strong>สร้างแคมเปญโฆษณาให้เอง</strong>ตอนส่งบรอดแคสต์ครั้งแรก — งบนี้คือเพดานของแคมเปญนั้น
+                  ไม่ใช่ยอดที่ถูกหัก · Meta คิดเงินตามข้อความที่ส่งถึงจริงเท่านั้น ตั้งสูงกว่าที่ใช้จริงไม่เสียเงินเพิ่ม
+                  แต่ต่ำกว่า {MIN_BUDGET_BAHT} บาท Meta จะปฏิเสธ
                 </HelpHint>
               </label>
               <NumberInput
                 value={budgetBaht}
-                onChange={n => { dirtyRef.current = true; setBudgetBaht(n); }}
+                onChange={n => { setBudgetTouched(true); setBudgetBaht(n); }}
                 min={String(MIN_BUDGET_BAHT)}
               />
-              {suggested != null && (
-                <button
-                  type="button"
-                  className="mt-1 subtitle-text text-primary hover:underline"
-                  onClick={() => { dirtyRef.current = true; setBudgetBaht(suggested); }}
-                >
-                  ใช้ {formatPrice(suggested)} บาท (พอสำหรับ {subInfo?.eligible_now} คนที่ส่งได้ตอนนี้)
-                </button>
-              )}
+              <p className="helper-text mt-1">
+                {!budgetTouched && subs
+                  ? subs.eligible_now > 0
+                    ? `คำนวณให้จากผู้สมัคร ${subs.eligible_now} คนที่ส่งถึงได้ตอนนี้`
+                    : `ยังไม่มีผู้สมัคร — ตั้งขั้นต่ำที่ Meta รับไว้ก่อน (${MIN_BUDGET_BAHT} บาท)`
+                  : suggested != null && suggested !== budgetBaht
+                    ? <button type="button" className="text-primary hover:underline" onClick={() => { setBudgetTouched(false); setBudgetBaht(suggested); }}>
+                        ให้ระบบคำนวณให้ ({formatPrice(suggested)} บาท)
+                      </button>
+                    : 'ระบบจะสร้างแคมเปญโฆษณาให้เองตอนส่งครั้งแรก'}
+              </p>
             </div>
-          </div>
-
-          {/* ผู้สมัคร — ถามสดจาก Meta เพราะรายชื่ออยู่ที่เขา ไม่ใช่ของเรา */}
-          <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700">
-            {subInfo ? (
-              <div className="flex items-center gap-2 flex-wrap">
-                <Users className="w-4 h-4 text-gray-400" />
-                <span className="body-text">
-                  ผู้สมัครรับข่าวสาร <strong>{subInfo.total}</strong> คน ·
-                  ส่งได้ตอนนี้ <strong>{subInfo.eligible_now}</strong> คน
-                </span>
-                {subInfo.eligible_now === 0 && subInfo.next_eligible_at && (
-                  <span className="subtitle-text">(ส่งได้อีกครั้ง {formatThaiDateTime(subInfo.next_eligible_at)})</span>
-                )}
-                <Button variant="ghost" size="sm" onClick={loadSubscribers}>ดูใหม่</Button>
-              </div>
-            ) : (
-              <Button
-                variant="secondary"
-                size="sm"
-                icon={<Users className="w-4 h-4" />}
-                loading={subs === 'loading'}
-                onClick={loadSubscribers}
-              >
-                ดูจำนวนผู้สมัคร
-              </Button>
-            )}
           </div>
         </Card>
 
-        {/* การ์ดชวนรับข่าวสาร — ตั้งข้อความแยกตามจังหวะที่ส่ง */}
+        {/* การ์ดชวนรับข่าวสาร — พับเก็บทีละจังหวะ */}
         <Card padding="md">
           <p className="heading-3 flex items-center gap-1 mb-1">
             การ์ดชวนรับข่าวสาร
@@ -339,74 +381,83 @@ export default function BroadcastPageSettings() {
             หลังปิดการขายให้ใช้แนว &quot;ติดตามของใหม่&quot; ส่วนคนที่ยังไม่ซื้อค่อยใช้ส่วนลดดึงกลับ
           </Alert>
 
-          {(['manual', 'after_sale', 'quiet'] as OptinTrigger[]).map(trigger => {
-            const sc = optin[trigger];
-            const info = OPTIN_TRIGGERS[trigger];
-            return (
-              <div key={trigger} className="inner-panel mt-3">
-                <div className="inner-panel-head flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="body-text font-medium">{info.label}</p>
-                    <p className="subtitle-text">{info.description}</p>
+          <div className="mt-3 space-y-2">
+            {(['manual', 'after_sale', 'quiet'] as OptinTrigger[]).map(trigger => {
+              const sc = optin[trigger];
+              const info = OPTIN_TRIGGERS[trigger];
+              const open = expanded === trigger;
+              const previewUrl = imagePreviews[trigger] || sc.image_url || null;
+              return (
+                <div key={trigger} className="inner-panel">
+                  <div className="inner-panel-head flex items-center justify-between gap-3">
+                    <button
+                      type="button"
+                      className="flex items-center gap-2 min-w-0 text-left flex-1"
+                      onClick={() => setExpanded(open ? null : trigger)}
+                      aria-expanded={open}
+                    >
+                      <ChevronDown className={`w-4 h-4 flex-shrink-0 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+                      <span className="min-w-0">
+                        <span className="body-text font-medium block">{info.label}</span>
+                        <span className="subtitle-text block">{open ? info.description : sc.title || info.description}</span>
+                      </span>
+                    </button>
+                    {trigger === 'manual' ? (
+                      <Badge tone="gray" size="sm">เปิดอยู่เสมอ</Badge>
+                    ) : (
+                      <Toggle
+                        checked={sc.enabled}
+                        onChange={v => { updateScenario(trigger, { enabled: v }); if (v) setExpanded(trigger); }}
+                        aria-label={`เปิดการชวน${info.label}`}
+                      />
+                    )}
                   </div>
-                  {trigger === 'manual' ? (
-                    <Badge tone="gray" size="sm">เปิดอยู่เสมอ</Badge>
-                  ) : (
-                    <Toggle
-                      checked={sc.enabled}
-                      onChange={v => updateScenario(trigger, { enabled: v })}
-                      aria-label={`เปิดการชวน${info.label}`}
-                    />
+
+                  {open && (
+                    <div className="inner-panel-body grid md:grid-cols-[170px_1fr_auto] gap-4 items-start">
+                      {/* รูปมาก่อน — Facebook ไม่รับการ์ดที่ไม่มีรูป */}
+                      <div>
+                        <label className="field-label flex items-center gap-1 mb-1">
+                          รูปบนการ์ด
+                          <HelpHint>Facebook ไม่รับการ์ดที่ไม่มีรูป — ไม่อัปเอง ระบบจะใช้โลโก้เพจแทน</HelpHint>
+                        </label>
+                        <ImageDropzone
+                          value={imageFiles[trigger] ?? null}
+                          onChange={f => setScenarioImage(trigger, f)}
+                          initialPreviewUrl={sc.image_url || null}
+                          aspect="1:1"
+                          // การ์ดของ Messenger บังคับจัตุรัส — ให้ผู้ใช้เลือกเองว่าจะเอาส่วนไหน
+                          cropAspect={1}
+                          changeOnClick
+                          maxWidthOrHeight={600}
+                          onBusyChange={setImageBusy}
+                          label="อัปรูป"
+                          hint="ไม่ใส่ = ใช้โลโก้เพจ"
+                          alt={`รูปการ์ด${info.label}`}
+                        />
+                      </div>
+
+                      <div>
+                        <FormInput
+                          label="หัวข้อบนการ์ด"
+                          value={sc.title}
+                          maxLength={OPTIN_TITLE_MAX}
+                          onChange={e => updateScenario(trigger, { title: e.target.value })}
+                          placeholder={info.defaultTitle(page.account_name)}
+                          hint={`สูงสุด ${OPTIN_TITLE_MAX} ตัวอักษร · การ์ดของ Facebook มีแค่หัวข้อเดียว ใส่รายละเอียดเพิ่มไม่ได้`}
+                        />
+                      </div>
+
+                      <CardPreview pageName={page.account_name} title={sc.title} imageUrl={previewUrl} />
+                    </div>
                   )}
                 </div>
-                <div className="inner-panel-body grid sm:grid-cols-[1fr_140px] gap-3 items-start">
-                  <div className="grid gap-3">
-                    <FormInput
-                      label="หัวข้อบนการ์ด"
-                      value={sc.title}
-                      maxLength={OPTIN_TITLE_MAX}
-                      onChange={e => updateScenario(trigger, { title: e.target.value })}
-                      placeholder={info.defaultTitle(page.account_name)}
-                      hint={`สูงสุด ${OPTIN_TITLE_MAX} ตัวอักษร — ใส่คูปองในการ์ดไม่ได้ ถ้าจะแจกให้เขียนชวนตรงนี้แล้วส่งคูปองตามไปในบรอดแคสต์`}
-                    />
-                    <div>
-                      <label className="field-label block mb-1">ความถี่ที่ขอจากลูกค้า</label>
-                      <FormSelect
-                        value={sc.frequency}
-                        onChange={v => updateScenario(trigger, { frequency: v as OptinScenario['frequency'] })}
-                        options={[
-                          { id: 'DAILY', label: 'ทุกวัน', subtitle: 'ถี่ที่สุด — ลูกค้าอาจรู้สึกถูกรบกวน' },
-                          { id: 'WEEKLY', label: 'ทุกสัปดาห์', subtitle: 'แนะนำ' },
-                          { id: 'MONTHLY', label: 'ทุกเดือน', subtitle: 'ห่างจนลูกค้าอาจลืมว่าสมัครไว้' },
-                        ]}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="field-label block mb-1">รูปบนการ์ด</label>
-                    <ImageDropzone
-                      value={imageFiles[trigger] ?? null}
-                      onChange={f => { dirtyRef.current = true; setImageFiles(s => ({ ...s, [trigger]: f })); }}
-                      initialPreviewUrl={sc.image_url || null}
-                      aspect="1:1"
-                      // การ์ดของ Messenger บังคับจัตุรัส — ให้ผู้ใช้เลือกเองว่าจะเอาส่วนไหน
-                      // ไม่งั้น Meta ครอบให้แบบที่เราคุมไม่ได้
-                      cropAspect={1}
-                      changeOnClick
-                      maxWidthOrHeight={600}
-                      onBusyChange={setImageBusy}
-                      label="อัปรูป"
-                      hint="ไม่ใส่ = ใช้โลโก้เพจ"
-                      alt={`รูปการ์ด${info.label}`}
-                    />
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
 
-          {/* กติการ่วมของทั้ง 3 สถานการณ์ */}
-          <div className="grid sm:grid-cols-3 gap-3 mt-4">
+          {/* กติการ่วมของทั้ง 3 จังหวะ */}
+          <div className="grid sm:grid-cols-3 gap-3 mt-4 pt-4 border-t border-gray-100 dark:border-slate-700">
             <div>
               <label className="field-label flex items-center gap-1 mb-1">
                 ถามซ้ำได้ทุก

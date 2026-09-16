@@ -12,7 +12,10 @@
 //   • ขอซ้ำได้ 1 ครั้ง/สัปดาห์/หัวข้อ/คน ⇒ reask_days ต่ำกว่า 7 ไม่มีประโยชน์ Meta ปฏิเสธเอง
 
 export type OptinTrigger = 'manual' | 'after_sale' | 'quiet';
-export type OptinFrequency = 'DAILY' | 'WEEKLY' | 'MONTHLY';
+
+// ⛔ **ความถี่ไม่ใช่ของที่ร้านตั้ง** — ยิงจริงแล้ว Meta ปฏิเสธ
+// `(#100) Invalid keys "notification_messages_frequency"` · ลูกค้าเป็นคนเลือกตอนกดรับ
+// แล้วค่าที่เขาเลือกส่งกลับมาทาง webhook ⇒ อย่าเอาช่องนี้กลับเข้าหน้าตั้งค่าอีก
 
 /** หัวข้อบนการ์ดที่ Meta รับ */
 export const OPTIN_TITLE_MAX = 65;
@@ -27,7 +30,6 @@ export interface OptinScenario {
   enabled: boolean;
   title: string;
   image_url: string;
-  frequency: OptinFrequency;
 }
 
 export interface OptinConfig {
@@ -89,7 +91,6 @@ function scenarioDefaults(trigger: OptinTrigger, shopName: string): OptinScenari
     enabled: info.defaultEnabled,
     title: info.defaultTitle(shopName),
     image_url: '',
-    frequency: 'WEEKLY',
   };
 }
 
@@ -97,12 +98,10 @@ function readScenario(raw: unknown, trigger: OptinTrigger, shopName: string): Op
   const base = scenarioDefaults(trigger, shopName);
   if (!raw || typeof raw !== 'object') return base;
   const o = raw as Record<string, unknown>;
-  const freq = String(o.frequency ?? '').toUpperCase();
   return {
     enabled: typeof o.enabled === 'boolean' ? o.enabled : base.enabled,
     title: typeof o.title === 'string' && o.title.trim() ? trimTitle(o.title) : base.title,
     image_url: typeof o.image_url === 'string' ? o.image_url.trim() : '',
-    frequency: freq === 'DAILY' || freq === 'WEEKLY' || freq === 'MONTHLY' ? freq : base.frequency,
   };
 }
 
@@ -136,10 +135,8 @@ export function readOptinConfig(
   if (!bag.manual) {
     const legacyTitle = c['broadcast_optin_title'];
     const legacyImage = c['broadcast_optin_image'];
-    const legacyFreq = String(c['broadcast_optin_frequency'] ?? '').toUpperCase();
     if (typeof legacyTitle === 'string' && legacyTitle.trim()) manual.title = trimTitle(legacyTitle);
     if (typeof legacyImage === 'string') manual.image_url = legacyImage.trim();
-    if (legacyFreq === 'DAILY' || legacyFreq === 'WEEKLY' || legacyFreq === 'MONTHLY') manual.frequency = legacyFreq;
   }
 
   return {
