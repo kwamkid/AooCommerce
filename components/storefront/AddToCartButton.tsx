@@ -62,14 +62,17 @@ export default function AddToCartButton({
       <div>
         <div className="sf-buy-row sf-buy-row-inline">{soldOut}</div>
         <StoreBuyBar themeClasses={themeClasses} themeVars={themeVars}>
-          <CartBadge shop={shop} />
           {soldOut}
+          {/* ของหมดก็ยังต้องมีทางเข้าตะกร้า — ลูกค้าอาจมีของอื่นค้างอยู่ */}
+          <CartBadge shop={shop} />
         </StoreBuyBar>
       </div>
     );
   }
 
   const selected = sellable.find(v => v.id === selectedId) || sellable[0];
+  /** ตัวเลือกมีราคาไม่เท่ากันไหม — ใช้ตัดสินว่าต้องโชว์ราคาบนปุ่มแต่ละอันหรือไม่ */
+  const mixedPrices = variations.some(v => v.price !== variations[0].price);
   const groups = optionGroups && optionGroups.length > 0 ? optionGroups : null;
 
   const choose = (v: StorefrontVariation) => {
@@ -197,7 +200,11 @@ export default function AddToCartButton({
                 <img className="sf-variation-thumb" src={thumbUrl(v.image, 96)} alt="" loading="lazy" />
               )}
               <span>
-                {v.label || 'ตัวเลือก'} · {formatStorePrice(v.price)}
+                {/* ราคาต่อตัวเลือกโชว์เฉพาะตอนแต่ละแบบราคาไม่เท่ากัน — ราคาเท่ากันหมด
+                    คือเลขเดียวกับที่อยู่เหนือปุ่มอยู่แล้ว ซ้ำเปล่า ๆ และทำให้ปุ่มยาว
+                    จนตกบรรทัดบนมือถือ (เจ้าของแจ้ง 2026-09-16) */}
+                {v.label || 'ตัวเลือก'}
+                {mixedPrices && ` · ${formatStorePrice(v.price)}`}
                 {!v.in_stock && ' (หมด)'}
               </span>
             </button>
@@ -210,8 +217,10 @@ export default function AddToCartButton({
 
       {/* มือถือ: แถบเดียวกันติดขอบล่างจอ พร้อมทางเข้าตะกร้า เพราะไอคอนบนหัวร้านหลบตอนเลื่อน */}
       <StoreBuyBar themeClasses={themeClasses} themeVars={themeVars}>
-        <CartBadge shop={shop} />
         {buyControls(true)}
+        {/* ตะกร้าอยู่ขวาสุด ให้ตรงกับตำแหน่งบนหัวร้าน (บนขวา) — ลูกค้าจำที่อยู่ของ
+            ตะกร้าเป็น "ฝั่งขวา" อยู่แล้ว และเป็นฝั่งที่นิ้วโป้งเอื้อมถึงง่ายที่สุด */}
+        <CartBadge shop={shop} />
       </StoreBuyBar>
 
       {added && (
