@@ -29,7 +29,20 @@ export interface ModalProps {
   hideCloseButton?: boolean;
   /** Disable closing when backdrop is clicked */
   disableBackdropClose?: boolean;
+  /** Body padding (px-6 py-5) — set false for content that must reach the panel edges
+   *  (full-width divided lists, tables, previews). */
+  bodyPadding?: boolean;
   children: ReactNode;
+}
+
+/** Field spacing for forms inside a modal — padding comes from `.modal-body`. */
+export function ModalFormBody({ children, stacked = false }: { children: ReactNode; stacked?: boolean }) {
+  return <div className={stacked ? 'modal-form-body modal-form-body-stacked' : 'modal-form-body'}>{children}</div>;
+}
+
+/** Right-aligned button row for `footer` — padding comes from `.modal-footer`. */
+export function ModalFormFooter({ children }: { children: ReactNode }) {
+  return <div className="modal-form-footer">{children}</div>;
 }
 
 /**
@@ -45,6 +58,7 @@ export default function Modal({
   footer,
   hideCloseButton = false,
   disableBackdropClose = false,
+  bodyPadding = true,
   children,
 }: ModalProps) {
   // Lock body scroll while open
@@ -95,7 +109,7 @@ export default function Modal({
         {hasHeader && (
           <div className="modal-header">
             <div className="flex items-center min-w-0">
-              {icon && <span className="mr-2 flex-shrink-0">{icon}</span>}
+              {icon && <span className="modal-header-icon">{icon}</span>}
               {title && <h3 className="modal-title">{title}</h3>}
             </div>
             {!hideCloseButton && (
@@ -106,7 +120,7 @@ export default function Modal({
           </div>
         )}
 
-        <div className="modal-body">{children}</div>
+        <div className={bodyPadding ? 'modal-body' : 'modal-body modal-body-flush'}>{children}</div>
 
         {footer && <div className="modal-footer">{footer}</div>}
       </div>

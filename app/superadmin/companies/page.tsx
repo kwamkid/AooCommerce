@@ -500,7 +500,7 @@ export default function SuperAdminCompanies() {
         icon={<AlertTriangle className="w-5 h-5 text-red-500" />}
         title="ลบบริษัทถาวร"
         footer={
-          <div className="flex justify-end gap-2 px-6 py-4">
+          <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setPurgeTarget(null)} disabled={purging}>ยกเลิก</Button>
             <Button
               variant="danger"
@@ -514,7 +514,7 @@ export default function SuperAdminCompanies() {
         }
       >
         {purgeTarget && (
-          <div className="px-6 py-5 space-y-4">
+          <div className="space-y-4">
             <p className="text-gray-700 dark:text-slate-300">
               กำลังจะลบ <span className="font-semibold text-gray-900 dark:text-white">{purgeTarget.name}</span> ออกจากระบบถาวร
               — <span className="text-red-500 font-medium">กู้คืนไม่ได้</span>

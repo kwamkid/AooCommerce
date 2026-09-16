@@ -163,7 +163,7 @@ export default function SessionModal({
       title={mode === 'open' ? 'เปิดกะ' : 'ปิดกะ'}
       size="md"
     >
-      <div className="p-6">
+      <div>
         {mode === 'open' ? (
           <>
             {loadingTerminals ? (

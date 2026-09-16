@@ -856,7 +856,7 @@ export default function PosTerminalsPage() {
         size="sm"
         disableBackdropClose={savingBranch}
         footer={
-          <div className="flex justify-end gap-3 px-6 py-4">
+          <div className="flex justify-end gap-3">
             <Button variant="secondary" onClick={() => setShowBranchQuickAdd(false)} disabled={savingBranch}>
               ยกเลิก
             </Button>
@@ -868,7 +868,7 @@ export default function PosTerminalsPage() {
           </div>
         }
       >
-        <div className="px-6 py-5 space-y-4">
+        <div className="space-y-4">
           <FormInput
             label="รหัสสาขา"
             required
@@ -909,7 +909,7 @@ export default function PosTerminalsPage() {
         size="md"
         disableBackdropClose={saving}
         footer={
-          <div className="flex justify-end gap-3 px-6 py-4">
+          <div className="flex justify-end gap-3">
             <Button variant="secondary" onClick={resetForm} disabled={saving}>
               ยกเลิก
             </Button>
@@ -917,7 +917,7 @@ export default function PosTerminalsPage() {
           </div>
         }
       >
-        <div className="px-6 py-5 space-y-4">
+        <div className="space-y-4">
           <FormInput
             label="ชื่อแคชเชียร์"
             required
@@ -1028,7 +1028,7 @@ export default function PosTerminalsPage() {
         size="md"
         disableBackdropClose={savingChannel}
         footer={
-          <div className="flex justify-end gap-3 px-6 py-4">
+          <div className="flex justify-end gap-3">
             <Button variant="secondary" onClick={resetChannelForm} disabled={savingChannel}>
               ยกเลิก
             </Button>
@@ -1036,7 +1036,7 @@ export default function PosTerminalsPage() {
           </div>
         }
       >
-        <div className="px-6 py-5 space-y-4">
+        <div className="space-y-4">
           {/* Bank picker (bank_transfer only) — also auto-fills the channel
               name with the bank's Thai name so user gets something sensible
               for free; they can still rename later. */}

@@ -124,7 +124,7 @@ export default function PaymentModal({
       size="lg"
       disableBackdropClose={submitting}
       footer={
-        <div className="flex gap-3 justify-end p-5">
+        <div className="flex gap-3 justify-end">
           <Button variant="secondary" onClick={handleClose} disabled={submitting}>
             ยกเลิก
           </Button>
@@ -134,7 +134,7 @@ export default function PaymentModal({
         </div>
       }
     >
-      <div className="p-5">
+      <div>
         <div className="space-y-4">
           {totalAmount > 0 && (
             <p className="text-sm text-gray-600 dark:text-slate-400">

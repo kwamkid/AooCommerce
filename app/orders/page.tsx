@@ -879,7 +879,7 @@ function OrdersPageContent() {
           title="ตัวกรองเพิ่มเติม"
           size="md"
           footer={
-            <div className="px-5 py-4 flex items-center justify-between">
+            <div className="flex items-center justify-between">
               {(paymentFilter !== 'all' || createdByFilter !== 'all' || orderTypeFilter !== 'all' || deliveryDateRange?.startDate) ? (
                 <Button
                   variant="ghost"
@@ -905,7 +905,7 @@ function OrdersPageContent() {
             </div>
           }
         >
-          <div className="px-5 py-4 space-y-4">
+          <div className="space-y-4">
             {/* Payment status */}
             <div>
               <label className="field-label">สถานะชำระ</label>
@@ -1034,7 +1034,7 @@ function OrdersPageContent() {
           title="ยืนยันการเปลี่ยนสถานะคำสั่งซื้อ"
           size="lg"
           footer={
-            <div className="px-5 py-4 flex gap-3 justify-end">
+            <div className="flex gap-3 justify-end">
               <Button
                 variant="secondary"
                 disabled={updatingStatus}
@@ -1052,7 +1052,7 @@ function OrdersPageContent() {
             </div>
           }
         >
-          <div className="p-5 space-y-3">
+          <div className="space-y-3">
             <p className="body-text">
               คำสั่งซื้อ: <span className="font-medium">{statusUpdateModal.order?.order_number}</span>
             </p>

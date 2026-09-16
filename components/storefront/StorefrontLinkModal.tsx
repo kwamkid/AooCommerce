@@ -94,7 +94,7 @@ export default function StorefrontLinkModal({ open, onClose, onPick }: Props) {
 
   return (
     <Modal open={open} onClose={onClose} title="แทรกลิงก์หน้าร้าน" size="lg">
-      <div className="px-6 py-5 space-y-4">
+      <div className="space-y-4">
         {!links.loading && !links.enabled ? (
           <EmptyCard
             title="ยังไม่ได้เปิดหน้าร้านออนไลน์"

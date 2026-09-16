@@ -563,7 +563,7 @@ export default function AdAccountsPage() {
         hideCloseButton
         disableBackdropClose
       >
-        <div className="p-6 flex flex-col items-center text-center gap-3">
+        <div className="flex flex-col items-center text-center gap-3">
           <Loader2 className="w-8 h-8 text-primary animate-spin" />
           <div>
             <p className="body-text font-medium text-gray-900 dark:text-white">กำลังทดสอบการเชื่อมต่อ</p>

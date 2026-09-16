@@ -122,7 +122,7 @@ export default function ShipModal({ orderNumber, customerName, onSubmit, onClose
       size="md"
       disableBackdropClose={submitting}
       footer={
-        <div className="flex gap-3 p-5">
+        <div className="flex gap-3">
           <Button variant="secondary" className="flex-1" onClick={onClose} disabled={submitting}>
             ยกเลิก
           </Button>
@@ -138,7 +138,7 @@ export default function ShipModal({ orderNumber, customerName, onSubmit, onClose
         </div>
       }
     >
-      <div className="p-5">
+      <div>
         <p className="text-sm text-gray-500 dark:text-slate-400 mb-5">{orderNumber} — {customerName}</p>
 
         <div className="space-y-4">

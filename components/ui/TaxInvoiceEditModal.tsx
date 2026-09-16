@@ -110,7 +110,7 @@ export default function TaxInvoiceEditModal({ data, onSave, onClose, onSaveAndUp
       title={isNew ? 'ขอใบกำกับภาษี' : 'แก้ไขข้อมูลใบกำกับภาษี'}
       size="lg"
       footer={
-        <div className="flex justify-end gap-2 px-6 py-4 flex-wrap">
+        <div className="flex justify-end gap-2 flex-wrap">
           <Button variant="secondary" onClick={onClose}>
             ยกเลิก
           </Button>
@@ -127,7 +127,7 @@ export default function TaxInvoiceEditModal({ data, onSave, onClose, onSaveAndUp
         </div>
       }
     >
-      <div className="px-6 py-5 space-y-4">
+      <div className="space-y-4">
         <TaxInfoForm
           data={form as TaxInfoData}
           onChange={handleChange}

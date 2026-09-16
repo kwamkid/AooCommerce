@@ -974,7 +974,7 @@ export default function PaymentChannelsPage() {
         title="เพิ่ม PromptPay QR"
         size="md"
         footer={
-          <div className="flex justify-end gap-3 px-6 py-4">
+          <div className="flex justify-end gap-3">
             <Button variant="secondary" disabled={savingPromptPay} onClick={resetPromptPayForm}>
               ยกเลิก
             </Button>
@@ -986,7 +986,7 @@ export default function PaymentChannelsPage() {
           </div>
         }
       >
-        <div className="px-6 py-5">
+        <div>
           <FormInput
             label="PromptPay ID"
             required
@@ -1007,7 +1007,7 @@ export default function PaymentChannelsPage() {
         title={editingBankId ? 'แก้ไขบัญชีธนาคาร' : 'เพิ่มบัญชีธนาคาร'}
         size="md"
         footer={
-          <div className="flex justify-end gap-3 px-6 py-4">
+          <div className="flex justify-end gap-3">
             <Button variant="secondary" disabled={savingBank} onClick={resetBankForm}>
               ยกเลิก
             </Button>
@@ -1019,7 +1019,7 @@ export default function PaymentChannelsPage() {
           </div>
         }
       >
-        <div className="px-6 py-5 space-y-4">
+        <div className="space-y-4">
           {/* Bank dropdown — custom because options include logo + brand color */}
           <div ref={bankDropdownRef} className="relative">
             <label className="field-label">ธนาคาร <span className="text-red-500">*</span></label>

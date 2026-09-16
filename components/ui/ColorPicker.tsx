@@ -115,13 +115,13 @@ export default function ColorPicker({
         title={label ? `เลือก${label.replace(/\s*\(.*\)$/, '')}` : 'เลือกสี'}
         size="md"
         footer={
-          <div className="px-6 py-4 flex justify-end gap-2">
+          <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setOpen(false)}>ยกเลิก</Button>
             <Button variant="primary" onClick={confirm}>ใช้สีนี้</Button>
           </div>
         }
       >
-        <div className="px-6 py-5">
+        <div>
           {sourceColors.length > 0 && (
             <>
               <p className="field-label">{sourceLabel}</p>

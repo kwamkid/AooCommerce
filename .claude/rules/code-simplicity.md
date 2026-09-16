@@ -25,6 +25,10 @@ Reference: [/dev/design](../../app/dev/design/page.tsx) (ทุก variant) · [
 | ปุ่ม Export / Import | `ExportButton` / `ImportButton` (icon baked: Export = `Upload` ↑ · Import = `Download` ↓) | Button + Upload/Download เอง (สลับบ่อย) |
 | ปุ่มบันทึกฟอร์ม/โมดัล | `SaveButton` (คำ "บันทึก" + icon Save baked) | ประกอบเอง · label แปลก ("บันทึกข้อมูล") — ยกเว้นปุ่มบันทึกชำระ/บันทึกยอด |
 | Card | `Card` (padding none/sm/md/lg) | `<div className="bg-white rounded-lg shadow-sm p-X">` |
+| เนื้อหา/ปุ่มในโมดัล | `Modal` ใส่ padding ให้แล้ว (`.modal-body`/`.modal-footer`) · ฟอร์มครอบ **`ModalFormBody`** (`stacked` = ห่างขึ้น) · แถวปุ่มท้าย **`ModalFormFooter`** · เนื้อหาชนขอบส่ง **`bodyPadding={false}`** | ใส่ `p-4`/`p-5`/`px-6 py-5` ให้ wrapper เอง (ซ้อนสองชั้น) · ปล่อยปุ่มท้าย wrap (แคบไปให้ขยาย `size`) |
+| ช่องชื่อของหน้า master data (แบรนด์ · หมวดหมู่ · supplier) | **`MasterDataCell`** (`icon` `title` `href` `subtitle` `tone` `nested`) | ประกอบ div + กรอบไอคอน + `Link` เองในหน้า |
+| แถบค้นหาของหน้า list | **`ListFilterBar`** (`value` `onChange` `placeholder` `summary`) | `data-filter-card` + flex + `SearchInput` เอง |
+| ป้าย + ตัวควบคุมที่ไม่มีป้ายในตัว (FormSelect · กลุ่ม Radio) | **`FormField`** (`label` `hint`) | `<label className="field-label">` + div เองซ้ำทุกหน้า |
 | Page wrapper | `Container` (size: `full` list · `6xl` dashboard · `5xl` bulk (default) · `4xl` hub · `2xl` detail/edit · `xl` settings แคบ · + gap) | `<div className="max-w-5xl space-y-6">` |
 | Badge / tag | `Badge` (8 tones × pill/square × sm/md) | `<span className="bg-X-50 text-X-700 …rounded-full">` |
 | Badge **สถานะ** ทุกโดเมน | **`StatusBadge`** `<StatusBadge domain="statement" status={x} />` → คำเรียก+สี+ไอคอน · โดเมน: `order · orderDealer · payment · customerOrder · customerPayment · statement · replenishment · deptOrder · report · creditNote · creditNoteType · returnNote · promotion · transfer · stockDoc · posOrder · purchaseOrder · purchaseOrderSupplier · supplierReport · supplierType · broadcast` · props `size` `hideIcon` `trailing` | map สถานะในหน้า (`STATUS_CONFIG`/`STATUS_LABELS`/`statusBadge()`) · `getBadgeColor()` ทำ badge เอง · `<Badge tone>` กับสถานะ |
@@ -49,6 +53,7 @@ Reference: [/dev/design](../../app/dev/design/page.tsx) (ทุก variant) · [
 | KPI · bar · sparkline · progress | `Stat` · `BarChart` · `Sparkline` · `ProgressBar` (`Chart.tsx`) | สร้างเอง · ติดตั้ง chart lib |
 
 **Button variants**: `primary` CTA ส้ม · `secondary` ยกเลิก · `ghost` toolbar · `danger` ลบ/void · `success` ยืนยัน (หายาก) · `indigo`/`amber` ปุ่มหลักในแถว list page (รับออเดอร์เครดิต/ลูกค้าชำระแล้ว · จัดส่ง — ใช้แทน `.btn-focus-action` ที่ยุบแล้ว · การ์ดมือถือใช้ `fullWidth`)
+**ไอคอนในปุ่ม/เมนู/หัวโมดัล**: ขนาดคุมที่ CSS แล้ว (`.btn > svg` · `.action-menu-item` · `.modal-header-icon` · `PageHeader`) — ส่ง `icon={<Plus />}` เปล่า ๆ ได้ ไม่ต้องใส่ `className="w-4 h-4"` เอง
 **ความสูง control**: sm 32px (`h-8`) · **md 42px** (default Button/FormSelect = `<input>` · `.btn-md`/`.form-control-md`) · lg 44px (`h-11`) — วางคู่กันใช้ size เดียวกัน
 
 ### Global CSS (`app/globals.css`) — แก้หน้าตาที่นี่ที่เดียว ไม่ใช่ className ของ component
@@ -56,7 +61,7 @@ Reference: [/dev/design](../../app/dev/design/page.tsx) (ทุก variant) · [
 |---|---|
 | Typography | `.heading-1` (3xl bold · list title) · `.heading-2` (2xl · PageHeader) · `.heading-3` (lg semibold · card) · `.heading-4` · `.body-text` · `.subtitle-text` · `.helper-text` · `.page-subtitle` · `.section-desc` · `.field-label` (16px medium) — ใช้แทน `text-Nxl font-bold …` · ย่อเองบนมือถือ · **แถวที่วางข้อความสองขนาดไว้ด้วยกัน** (หัวข้อ + ค่าที่เลือก) ใช้ `items-baseline` ไม่ใช่ `items-center` ไม่งั้นตัวเล็กลอยสูงกว่าจนดูไม่กึ่งกลาง |
 | Button / Card / Badge | `.btn` `.btn-{sm/md/lg}` `.btn-{variant}` · `.card` `.card-flat` `.card-p-{sm/md/lg}` · `.badge` `.badge-{sm/md}` `.badge-{pill/square}` `.badge-{tone}` |
-| Modal | `.modal-root` `.modal-backdrop` `.modal-panel` `.modal-header` `.modal-body` `.modal-footer` `.modal-title` `.modal-close-btn` |
+| Modal | `.modal-root` `.modal-backdrop` `.modal-panel` `.modal-header` `.modal-header-icon` `.modal-body` (มี padding ในตัว) `.modal-body-flush` `.modal-footer` (มี padding ในตัว) `.modal-form-body` `.modal-form-footer` `.modal-title` `.modal-close-btn` |
 | Table / filter | `.data-table-wrap` `.data-thead` `.data-th` `.data-tbody` `.data-tr` `.data-td` `.data-pagination` · `.data-filter-card` |
 
 ### DataTable — ทุกหน้า list ต้องใช้ (`components/ui/DataTable.tsx`)

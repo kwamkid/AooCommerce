@@ -793,7 +793,7 @@ export default function ProductForm({
         }
         size="md"
         footer={
-          <div className="flex justify-end gap-2 p-4">
+          <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setPendingTypeChange(null)}>
               ยกเลิก
             </Button>
@@ -809,7 +809,7 @@ export default function ProductForm({
           </div>
         }
       >
-        <div className="p-5 space-y-3">
+        <div className="space-y-3">
           <p className="text-base text-gray-700 dark:text-slate-300">
             กำลังเปลี่ยนประเภทจาก{' '}
             <strong className="text-gray-900 dark:text-white">
@@ -849,7 +849,7 @@ export default function ProductForm({
         title="เพิ่มหมวดหมู่ใหม่"
         size="md"
         footer={
-          <div className="flex justify-end gap-2 p-4">
+          <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={closeNewCategory} disabled={creatingCategory}>ยกเลิก</Button>
             <Button variant="primary" onClick={handleCreateCategory} loading={creatingCategory} disabled={!newCategoryName.trim()}>
               เพิ่มหมวดหมู่
@@ -857,7 +857,7 @@ export default function ProductForm({
           </div>
         }
       >
-        <div className="p-5 space-y-4">
+        <div className="space-y-4">
           <FormInput
             autoFocus
             label={<>ชื่อหมวดหมู่<span className="text-red-500"> *</span></>}
@@ -889,7 +889,7 @@ export default function ProductForm({
         title="เพิ่มแบรนด์ใหม่"
         size="md"
         footer={
-          <div className="flex justify-end gap-2 p-4">
+          <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={closeNewBrand} disabled={creatingBrand}>ยกเลิก</Button>
             <Button variant="primary" onClick={handleCreateBrand} loading={creatingBrand} disabled={!newBrandName.trim()}>
               เพิ่มแบรนด์
@@ -897,7 +897,7 @@ export default function ProductForm({
           </div>
         }
       >
-        <div className="p-5">
+        <div>
           <FormInput
             autoFocus
             label={<>ชื่อแบรนด์<span className="text-red-500"> *</span></>}
@@ -916,7 +916,7 @@ export default function ProductForm({
         title="เพิ่มชื่อตัวเลือกใหม่"
         size="md"
         footer={
-          <div className="flex justify-end gap-2 p-4">
+          <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={closeNewVariationType} disabled={creatingVariationType}>ยกเลิก</Button>
             <Button variant="primary" onClick={handleCreateVariationType} loading={creatingVariationType} disabled={!newVariationTypeName.trim()}>
               เพิ่มชื่อตัวเลือก
@@ -924,7 +924,7 @@ export default function ProductForm({
           </div>
         }
       >
-        <div className="p-5">
+        <div>
           <FormInput
             autoFocus
             label={<>ชื่อตัวเลือก<span className="text-red-500"> *</span></>}

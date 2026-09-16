@@ -49,7 +49,7 @@ export default function FormModals({ hook }: Props) {
         hideCloseButton
       >
         {confirmDialog && (
-          <div className="p-6">
+          <div>
             <p className="text-base font-semibold text-gray-900 dark:text-white mb-1">{confirmDialog.message}</p>
             {confirmDialog.detail && (
               <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">{confirmDialog.detail}</p>
@@ -123,7 +123,7 @@ export default function FormModals({ hook }: Props) {
         disableBackdropClose={syncingShopee}
       >
         {showSyncConfirm && (
-          <div className="p-6">
+          <div>
             {syncResults ? (
               <>
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">ผลลัพธ์การ Sync</h3>

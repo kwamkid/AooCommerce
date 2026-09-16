@@ -462,7 +462,7 @@ export default function PcPage() {
       {/* Confirm-save modal (replaces POS PaymentModal — PC never handles money) */}
       {checkout && (
         <Modal open onClose={() => setCheckout(null)} size="sm" title="บันทึกยอดขาย">
-          <div className="px-6 py-5 space-y-3">
+          <div className="space-y-3">
             <div className="divide-y divide-gray-100 dark:divide-gray-700/50">
               {checkout.items.map(i => (
                 <div key={i.variation_id} className="flex items-center py-2 gap-2">

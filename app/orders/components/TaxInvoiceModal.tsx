@@ -110,14 +110,14 @@ export default function TaxInvoiceModal({
       title={`ออกใบกำกับภาษี — ${orderNumber}`}
       size="md"
       footer={
-        <div className="flex justify-end gap-2 px-5 py-4">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg">
+        <div className="flex justify-end gap-2">
+          <button onClick={onClose} className="text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg">
             ยกเลิก
           </button>
           <button
             onClick={handleSave}
             disabled={loading || prefilling}
-            className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-1.5"
+            className="text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-1.5"
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
             {hasAbbrev ? 'ออกใบกำกับภาษี (ยกเลิก ABB)' : 'บันทึก'}
@@ -125,7 +125,7 @@ export default function TaxInvoiceModal({
         </div>
       }
     >
-      <div className="px-5 py-4">
+      <div>
         {prefilling ? (
           <div className="flex items-center justify-center py-6">
             <Loader2 className="w-5 h-5 animate-spin text-gray-400" />

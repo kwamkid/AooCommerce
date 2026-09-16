@@ -40,7 +40,7 @@ export default function BulkErrorModal({ report, onClose, onDownloadTemplate }: 
       icon={<AlertCircle className="w-6 h-6 text-red-500" />}
       title="ไฟล์มีปัญหา"
       footer={
-        <div className="flex items-center justify-end gap-2 px-5 py-3">
+        <div className="flex items-center justify-end gap-2">
           {onDownloadTemplate && (
             <Button
               variant="secondary"
@@ -60,7 +60,7 @@ export default function BulkErrorModal({ report, onClose, onDownloadTemplate }: 
       }
     >
       {report && (
-        <div className="p-5 space-y-4 text-sm">
+        <div className="space-y-4 text-sm">
           <p className="text-gray-600 dark:text-slate-400">
             พบ <strong className="text-red-600 dark:text-red-400">{total} ปัญหา</strong>
             {' '}— กรุณาแก้ทั้งหมดในไฟล์ Excel แล้วอัพโหลดใหม่

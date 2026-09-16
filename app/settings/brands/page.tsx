@@ -1,7 +1,6 @@
 'use client';
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Award, Edit2, Factory, PackageSearch, Plus, Trash2 } from 'lucide-react';
 import { DEFAULT_RECORDS_PER_PAGE, RECORDS_PER_PAGE_OPTIONS } from '@/app/components/Pagination';
@@ -13,12 +12,14 @@ import Button from '@/components/ui/Button';
 import Container from '@/components/ui/Container';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import EntitySearchInput from '@/components/ui/EntitySearchInput';
+import FormField from '@/components/ui/FormField';
 import FormInput from '@/components/ui/FormInput';
 import FormSelect from '@/components/ui/FormSelect';
-import Modal from '@/components/ui/Modal';
+import ListFilterBar from '@/components/ui/ListFilterBar';
+import MasterDataCell from '@/components/ui/MasterDataCell';
+import Modal, { ModalFormBody, ModalFormFooter } from '@/components/ui/Modal';
 import PageHeader from '@/components/ui/PageHeader';
 import SaveButton from '@/components/ui/SaveButton';
-import SearchInput from '@/components/ui/SearchInput';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 import { apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
@@ -245,12 +246,12 @@ function BrandsPageInner() {
 
   const actionItems = (brand: BrandItem): ActionItem[] => [
     {
-      key: 'products', label: 'สินค้าในแบรนด์', description: 'เพิ่มหรือนำสินค้าออกจากแบรนด์', icon: <PackageSearch className="w-4 h-4" />,
+      key: 'products', label: 'สินค้าในแบรนด์', description: 'เพิ่มหรือนำสินค้าออกจากแบรนด์', icon: <PackageSearch />,
       onClick: () => router.push(`/settings/brands/${brand.id}`), primary: true,
     },
-    { key: 'edit', label: 'แก้ไขแบรนด์', icon: <Edit2 className="w-4 h-4" />, onClick: () => openEditModal(brand) },
+    { key: 'edit', label: 'แก้ไขแบรนด์', icon: <Edit2 />, onClick: () => openEditModal(brand) },
     {
-      key: 'delete', label: 'ลบ', icon: <Trash2 className="w-4 h-4" />,
+      key: 'delete', label: 'ลบ', icon: <Trash2 />,
       onClick: () => void handleDelete(brand), danger: true, disabled: deletingId === brand.id, dividerBefore: true,
     },
   ];
@@ -259,18 +260,13 @@ function BrandsPageInner() {
   const columns: DataTableColumn<BrandItem>[] = [
     {
       key: 'name', label: 'แบรนด์', alwaysVisible: true, grow: true, defaultWidth: 260,
-      render: brand => (
-        <div className="flex items-center gap-3">
-          <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Award className="w-4 h-4" /></span>
-          <Link href={`/settings/brands/${brand.id}`} className="data-primary block min-w-0 truncate hover:text-primary">{brand.name}</Link>
-        </div>
-      ),
+      render: brand => <MasterDataCell icon={<Award />} title={brand.name} href={`/settings/brands/${brand.id}`} />,
     },
     ...(features.supplier ? [{
       key: 'supplier', label: 'Supplier', defaultWidth: 320,
       render: (brand: BrandItem) => brand.supplier ? (
-        <div className="flex items-center gap-2"><Factory className="w-4 h-4 text-gray-400" /><span>{brand.supplier.name}</span></div>
-      ) : <span className="data-secondary text-gray-400">ยังไม่ผูก Supplier</span>,
+        <div className="table-meta"><Factory /><span>{brand.supplier.name}</span></div>
+      ) : <span className="table-muted">ยังไม่ผูก Supplier</span>,
     }] : []),
     ...(features.consignment ? [{
       key: 'gp', label: 'GP ฝากขาย', defaultWidth: 180,
@@ -302,30 +298,24 @@ function BrandsPageInner() {
     <Layout>
       <Container size="full">
         <PageHeader icon={<Award />} title="แบรนด์" subtitle={`กำหนด Supplier และ GP ฝากขายของแต่ละแบรนด์ รวม ${brands.length} แบรนด์`}
-          actions={<Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => setAddModalOpen(true)}>เพิ่มแบรนด์</Button>} />
-        <div className="data-filter-card">
-          <div className="flex items-center gap-3">
-            <div className="min-w-0 flex-1">
-              <SearchInput value={searchInput} onChange={handleSearchChange} placeholder="ค้นหาแบรนด์หรือ Supplier..." className="w-full" />
-            </div>
-            <Badge tone="orange">{brands.length} แบรนด์</Badge>
-          </div>
-        </div>
+          actions={<Button variant="primary" icon={<Plus />} onClick={() => setAddModalOpen(true)}>เพิ่มแบรนด์</Button>} />
+        <ListFilterBar value={searchInput} onChange={handleSearchChange} placeholder="ค้นหาแบรนด์หรือ Supplier..." summary={<Badge tone="orange">{brands.length} แบรนด์</Badge>} />
         <DataTable
           storageKey="settings-brands" columns={columns} data={paginatedBrands} loading={loading}
           getRowId={brand => brand.id} emptyMessage={searchQuery ? 'ไม่พบแบรนด์ที่ค้นหา' : 'ยังไม่มีแบรนด์สินค้า'}
-          emptyIcon={<Award className="w-10 h-10" />} currentPage={currentPage} totalPages={totalPages}
+          emptyIcon={<Award className="data-empty-icon" />} currentPage={currentPage} totalPages={totalPages}
           totalRecords={filteredBrands.length} recordsPerPage={recordsPerPage}
           onPageChange={page => setPagination(page)}
           onRecordsPerPageChange={limit => setPagination(1, limit)}
           onLimitChange={(limit, page) => setPagination(page, limit)}
           mobileCardRender={brand => (
-            <div className="flex items-center gap-3 p-4">
-              <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Award className="w-5 h-5" /></span>
-              <div className="min-w-0 flex-1">
-                <Link href={`/settings/brands/${brand.id}`} className="data-primary block truncate hover:text-primary">{brand.name}</Link>
-                {features.supplier && <p className="page-subtitle truncate">{brand.supplier?.name || 'ยังไม่ผูก Supplier'}</p>}
-              </div>
+            <div className="master-data-mobile-row">
+              <MasterDataCell
+                icon={<Award />}
+                title={brand.name}
+                href={`/settings/brands/${brand.id}`}
+                subtitle={features.supplier ? brand.supplier?.name || 'ยังไม่ผูก Supplier' : undefined}
+              />
               {features.consignment && brand.default_gp_rate != null && <Badge tone="blue">GP {brand.default_gp_rate}%</Badge>}
               {renderActions(brand)}
             </div>
@@ -333,43 +323,41 @@ function BrandsPageInner() {
         />
       </Container>
 
-      <Modal open={addModalOpen} onClose={closeAddModal} title="เพิ่มแบรนด์" icon={<Award className="w-5 h-5 text-primary" />} size="md"
-        footer={<div className="flex justify-end gap-2 px-6 py-4"><Button variant="secondary" onClick={closeAddModal} disabled={saving}>ยกเลิก</Button><SaveButton onClick={handleAdd} loading={saving} /></div>}
+      <Modal open={addModalOpen} onClose={closeAddModal} title="เพิ่มแบรนด์" icon={<Award />} size="md"
+        footer={<ModalFormFooter><Button variant="secondary" onClick={closeAddModal} disabled={saving}>ยกเลิก</Button><SaveButton onClick={handleAdd} loading={saving} /></ModalFormFooter>}
       >
-        <div className="px-6 py-5">
+        <ModalFormBody>
           <FormInput label="ชื่อแบรนด์" required value={addName} onChange={event => setAddName(event.target.value)}
             onKeyDown={event => { if (event.key === 'Enter') void handleAdd(); }} placeholder="เช่น Nike, Samsung" autoFocus />
-        </div>
+        </ModalFormBody>
       </Modal>
 
-      <Modal open={Boolean(editingBrand)} onClose={closeEditModal} title="แก้ไขแบรนด์" icon={<Edit2 className="w-5 h-5 text-primary" />} size="lg"
-        footer={<div className="flex justify-end gap-2 px-6 py-4"><Button variant="secondary" onClick={closeEditModal} disabled={saving}>ยกเลิก</Button><SaveButton onClick={handleSaveEdit} loading={saving} /></div>}
+      <Modal open={Boolean(editingBrand)} onClose={closeEditModal} title="แก้ไขแบรนด์" icon={<Edit2 />} size="lg"
+        footer={<ModalFormFooter><Button variant="secondary" onClick={closeEditModal} disabled={saving}>ยกเลิก</Button><SaveButton onClick={handleSaveEdit} loading={saving} /></ModalFormFooter>}
       >
-        <div className="space-y-5 px-6 py-5">
+        <ModalFormBody stacked>
           <FormInput label="ชื่อแบรนด์" required value={editingName} onChange={event => setEditingName(event.target.value)} autoFocus />
           {features.supplier && (
-            <div>
-              <label className="form-label">Supplier</label>
+            <FormField label="Supplier">
               <EntitySearchInput value={editingSupplierId} onChange={setEditingSupplierId} onClear={() => setEditingSupplierId('')}
                 options={suppliers.map(supplier => ({ id: supplier.id, label: supplier.name, subtitle: supplier.supplier_type }))}
                 placeholder="ค้นหา Supplier..."
                 selectedDisplay={editingSupplierId ? (
-                  <div className="form-control-md flex items-center gap-2"><Factory className="w-4 h-4 text-gray-400" /><span className="truncate">{suppliers.find(supplier => supplier.id === editingSupplierId)?.name}</span></div>
+                  <div className="entity-selected-value"><Factory /><span className="entity-selected-value-text">{suppliers.find(supplier => supplier.id === editingSupplierId)?.name}</span></div>
                 ) : undefined} />
-            </div>
+            </FormField>
           )}
           {features.consignment && (
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="form-grid-2">
               <FormInput label="GP ฝากขายของแบรนด์" type="number" min={0} max={100} postfix="%" value={editingGpRate}
                 onChange={event => setEditingGpRate(event.target.value)} hint="เว้นว่างเพื่อใช้ GP ฝากขายกลางของบริษัท" />
-              <div>
-                <label className="form-label">คิด GP จากราคา</label>
+              <FormField label="คิด GP จากราคา">
                 <FormSelect value={editingGpBase} onChange={value => setEditingGpBase(value as 'retail' | 'discounted')}
                   options={[{ id: 'retail', label: 'ราคาปลีก' }, { id: 'discounted', label: 'ราคาลด' }]} searchThreshold={99} />
-              </div>
+              </FormField>
             </div>
           )}
-        </div>
+        </ModalFormBody>
       </Modal>
       {confirmDialog}
     </Layout>

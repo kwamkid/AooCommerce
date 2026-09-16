@@ -235,10 +235,10 @@ export default function PushDealModal({ promotionId, promotionName, startDate, e
         </div>
       }
       footer={
-        <div className="flex items-center justify-end gap-2 px-5 py-3">
+        <div className="flex items-center justify-end gap-2">
           <button
             onClick={handleClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+            className="text-sm font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
           >
             ปิด
           </button>
@@ -246,7 +246,7 @@ export default function PushDealModal({ promotionId, promotionName, startDate, e
             <button
               onClick={pushAll}
               disabled={!hasDates || pushingAll}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+              className="flex items-center gap-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
             >
               {pushingAll ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -259,7 +259,7 @@ export default function PushDealModal({ promotionId, promotionName, startDate, e
         </div>
       }
     >
-      <div className="px-5 py-4">
+      <div>
           {!hasDates && (
             <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 rounded-lg text-sm mb-4">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />

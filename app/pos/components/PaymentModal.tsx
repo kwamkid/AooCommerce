@@ -142,7 +142,7 @@ export default function PaymentModal({ totalAmount, onConfirm, onClose, loading,
   if (loadingChannels) {
     return (
       <Modal open={true} onClose={onClose} hideCloseButton size="sm" disableBackdropClose>
-        <div className="p-8 text-center">
+        <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto" />
           <p className="text-gray-500 dark:text-gray-400 mt-3 text-sm">กำลังโหลดช่องทางชำระเงิน...</p>
         </div>
@@ -173,7 +173,7 @@ export default function PaymentModal({ totalAmount, onConfirm, onClose, loading,
   if (channels.length === 0) {
     return (
       <Modal open={true} onClose={onClose} hideCloseButton size="sm">
-        <div className="p-8">
+        <div>
           <p className="text-gray-900 dark:text-white text-center mb-2">ยังไม่มีช่องทางชำระเงิน POS</p>
           <p className="text-gray-500 dark:text-gray-400 text-sm text-center mb-4">สร้างช่องทางเริ่มต้น (เงินสด, โอนเงิน) เพื่อเริ่มใช้งาน</p>
           <button
@@ -190,7 +190,7 @@ export default function PaymentModal({ totalAmount, onConfirm, onClose, loading,
 
   return (
     <Modal open={true} onClose={onClose} title="ชำระเงิน" size="lg">
-      <div className="p-6">
+      <div>
         {/* Total */}
         <div className="text-center mb-6">
           <p className="text-gray-500 dark:text-gray-400 text-sm">ยอดรวม</p>

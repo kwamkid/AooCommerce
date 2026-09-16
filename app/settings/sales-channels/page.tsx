@@ -782,7 +782,7 @@ export default function SalesChannelsPage() {
           size="md"
           disableBackdropClose={submitting}
           footer={
-            <div className="flex gap-3 p-5">
+            <div className="flex gap-3">
               <Button
                 variant="secondary"
                 fullWidth
@@ -803,7 +803,7 @@ export default function SalesChannelsPage() {
             </div>
           }
         >
-          <div className="p-5 space-y-4">
+          <div className="space-y-4">
             {isEditingChat && (
               <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 text-sm text-emerald-700 dark:text-emerald-300 rounded-lg p-3">
                 ช่องทางนี้เชื่อมกับ chat account — แก้ชื่อ/credentials ได้ที่{' '}

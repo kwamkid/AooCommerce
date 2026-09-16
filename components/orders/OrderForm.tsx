@@ -3630,7 +3630,7 @@ export default function OrderForm({
         hideCloseButton
       >
         {addressConflict && (
-          <div className="p-5">
+          <div>
             <h3 className="text-base font-bold text-gray-900 dark:text-slate-100 mb-2">ที่อยู่ไม่ตรงกับ &quot;{addressConflict.addressName}&quot;</h3>
             <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">ที่อยู่ที่กรอกไม่ตรงกับที่อยู่เดิม ต้องการดำเนินการอย่างไร?</p>
             <div className="space-y-2">
@@ -3669,7 +3669,7 @@ export default function OrderForm({
         onClose={() => { setShowSuccessModal(false); if (!onSuccess) router.push('/orders?status=new'); }}
         size="md"
       >
-        <div className="p-6">
+        <div>
           <div className="text-center">
               <div className="mx-auto w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mb-4">
                 <CheckCircle className="w-10 h-10 text-green-600" />

@@ -15,7 +15,7 @@ interface VariationPickerProps {
 export default function VariationPicker({ productName, variations, onSelect, onClose }: VariationPickerProps) {
   return (
     <Modal open onClose={onClose} size="md" title={productName}>
-      <div className="p-6">
+      <div>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">เลือกตัวเลือก</p>
 
         <div className="grid grid-cols-2 gap-3">

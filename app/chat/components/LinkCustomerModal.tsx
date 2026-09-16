@@ -52,7 +52,7 @@ export default function LinkCustomerModal({ contact, platformColor, onLink, onCl
 
   return (
     <Modal open={true} onClose={onClose} title="เชื่อมกับลูกค้าในระบบ" size="md">
-      <div className="p-4">
+      <div>
         {confirmLinkCustomer ? (
           <div className="space-y-4">
             <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg p-4 text-center">

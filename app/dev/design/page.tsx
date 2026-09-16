@@ -786,16 +786,17 @@ export default function DesignSystemPage() {
         title="ตัวอย่าง Modal"
         icon={<Settings className="w-6 h-6 text-gray-500" />}
         footer={
-          <div className="flex items-center justify-end gap-2 px-5 py-3">
+          <div className="flex items-center justify-end gap-2">
             <Button variant="secondary" onClick={() => setModalOpen(false)}>ยกเลิก</Button>
             <Button variant="primary" onClick={() => setModalOpen(false)}>บันทึก</Button>
           </div>
         }
       >
-        <div className="p-5 space-y-3 text-sm text-gray-700 dark:text-slate-300">
-          <p>เนื้อหา modal วางในนี้ — ต้องใส่ <code>p-5</code> เอง (Modal ไม่บังคับ padding ใน children)</p>
+        <div className="space-y-3 text-sm text-gray-700 dark:text-slate-300">
+          <p>เนื้อหา modal วางในนี้ — <code>.modal-body</code> ใส่ padding ให้แล้ว (ต้องการชนขอบส่ง <code>bodyPadding={false}</code>)</p>
           <p>Backdrop bg-black/50 + Esc ปิดได้ + click backdrop ปิดได้ (override ได้)</p>
           <p>Sizes: <code>sm md lg xl 2xl 3xl 4xl</code></p>
+          <p>ฟอร์ม: ครอบด้วย <code>&lt;ModalFormBody&gt;</code> · แถวปุ่มท้าย <code>&lt;ModalFormFooter&gt;</code></p>
         </div>
       </Modal>
 

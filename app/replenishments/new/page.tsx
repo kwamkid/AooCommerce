@@ -346,7 +346,7 @@ function NewReplenishmentPageContent() {
         }
         size="md"
         footer={
-          <div className="flex gap-3 p-4">
+          <div className="flex gap-3">
             <Button
               variant="secondary"
               fullWidth
@@ -367,7 +367,7 @@ function NewReplenishmentPageContent() {
           </div>
         }
       >
-        <div className="p-6 space-y-4">
+        <div className="space-y-4">
           <div>
             <label className="field-label">วิธีส่ง</label>
             <FormSelect
@@ -432,7 +432,7 @@ function NewReplenishmentPageContent() {
         title="ยืนยันยกเลิก"
         size="sm"
         footer={
-          <div className="flex gap-3 p-4">
+          <div className="flex gap-3">
             <Button
               variant="secondary"
               fullWidth
@@ -452,7 +452,7 @@ function NewReplenishmentPageContent() {
           </div>
         }
       >
-        <p className="p-6 text-sm text-gray-600 dark:text-slate-400">ต้องการยกเลิกใบเติมสินค้านี้หรือไม่?</p>
+        <p className="text-sm text-gray-600 dark:text-slate-400">ต้องการยกเลิกใบเติมสินค้านี้หรือไม่?</p>
       </Modal>
     </Layout>
   );

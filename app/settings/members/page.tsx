@@ -762,7 +762,7 @@ export default function MembersPage() {
         icon={<UserPlus className="w-5 h-5 text-primary" />}
         size="2xl"
         footer={!generatedLink ? (
-          <div className="flex justify-end gap-2 px-6 py-4">
+          <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setShowAddModal(false)}>
               ยกเลิก
             </Button>
@@ -776,7 +776,7 @@ export default function MembersPage() {
             </Button>
           </div>
         ) : (
-          <div className="flex justify-end gap-2 px-6 py-4">
+          <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setShowAddModal(false)}>
               ปิด
             </Button>
@@ -794,7 +794,7 @@ export default function MembersPage() {
         )}
       >
         {!generatedLink ? (
-          <div className="px-6 py-5 space-y-4">
+          <div className="space-y-4">
             <p className="subtitle-text text-gray-500 dark:text-slate-400">
               สร้างลิงก์เชิญเพื่อให้ผู้ใช้สมัครและเข้าร่วมบริษัท — สิทธิ์ด้านล่างจะถูกมอบให้ตอนกดรับคำเชิญ
             </p>
@@ -828,7 +828,7 @@ export default function MembersPage() {
         title="แก้ไขข้อมูลสมาชิก"
         size="2xl"
         footer={
-          <div className="flex justify-end gap-2 px-6 py-4">
+          <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => { setShowEditModal(false); setEditingMember(null); }}>
               ยกเลิก
             </Button>
@@ -843,7 +843,7 @@ export default function MembersPage() {
       >
         {editingMember && (
           <form onSubmit={handleSaveEdit}>
-            <div className="px-6 py-5 space-y-5">
+            <div className="space-y-5">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="field-label">ชื่อ-นามสกุล</label>

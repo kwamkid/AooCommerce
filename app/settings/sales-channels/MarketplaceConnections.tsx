@@ -11,14 +11,15 @@ import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
 import Tooltip from '@/components/ui/Tooltip';
 import HelpHint from '@/components/ui/HelpHint';
-import { ChevronDown, Clock, ImagePlus, Link2, Loader2, RefreshCw, RotateCw, Settings2, ShoppingBag, Trash2, Warehouse } from 'lucide-react';
+import Popover from '@/components/ui/Popover';
+import { AlertTriangle, ChevronDown, Clock, ImagePlus, Link2, Loader2, RefreshCw, RotateCw, Settings2, ShoppingBag, Trash2, Warehouse } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import FormSelect from '@/components/ui/FormSelect';
 import Alert from '@/components/ui/Alert';
 import Badge from '@/components/ui/Badge';
 import MarketplaceQuotaPausedAlert from '@/components/ui/MarketplaceQuotaPausedAlert';
 import Toggle from '@/components/ui/Toggle';
-import Modal from '@/components/ui/Modal';
+import Modal, { ModalFormFooter } from '@/components/ui/Modal';
 import FormInput from '@/components/ui/FormInput';
 import SaveButton from '@/components/ui/SaveButton';
 import ImageDropzone from '@/components/ui/ImageDropzone';
@@ -29,10 +30,59 @@ import { formatThaiDateTime } from '@/lib/utils/format';
 import { MARKETPLACE_PLATFORMS } from '@/lib/marketplace/platforms';
 import type { ActionItem } from '@/components/ui/ActionMenu';
 import { marketplaceOnboardingSteps, nextOnboardingStep, onboardingIncomplete } from '@/lib/marketplace/onboarding';
+import type { OnboardingStep } from '@/lib/marketplace/onboarding';
 import MarketplaceAccountCard from './MarketplaceAccountCard';
 import MarketplaceOnboardingModal from './MarketplaceOnboardingModal';
 import { pushStockAllRequest } from '@/lib/marketplace/stock-actions';
 import type { MarketplaceAccountsState, MarketplaceAccount, MarketplacePlatform } from './useMarketplaceAccounts';
+
+/**
+ * ไอคอนเตือนบนหัวการ์ดร้าน — บอกแค่ว่า "ร้านนี้มีเรื่องค้าง" แล้วค่อยอธิบายตอนกด
+ * (เดิมเป็นแถบเหลืองเต็มแถวในเนื้อการ์ด กินที่ทุกใบทั้งที่คนอ่านครั้งเดียวก็พอ)
+ * ⛔ ตั้งครบแล้วต้องไม่มีไอคอนนี้เลย — การ์ดที่เรียบร้อยแล้วไม่ต้องมีเสียงรบกวน
+ */
+function OnboardingWarningButton({ steps, onOpenSetup }: { steps: OnboardingStep[]; onOpenSetup: () => void }) {
+  const [open, setOpen] = useState(false);
+  const anchorRef = useRef<HTMLButtonElement>(null);
+  const risky = steps.find(s => s.warning);
+  const next = nextOnboardingStep(steps);
+  const label = risky ? 'เสี่ยงส่งยอด 0 ไปทับของบนร้าน — กดดูรายละเอียด' : 'ร้านนี้ยังตั้งไม่ครบ — กดดูรายละเอียด';
+  return (
+    <>
+      <Tooltip text={label} box="inline-flex">
+        <button
+          ref={anchorRef}
+          type="button"
+          onClick={() => setOpen(v => !v)}
+          aria-label={label}
+          className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
+            risky
+              ? 'text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-900/30'
+              : 'text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30'
+          }`}
+        >
+          <AlertTriangle className="w-4 h-4" />
+        </button>
+      </Tooltip>
+      <Popover open={open} onClose={() => setOpen(false)} anchorRef={anchorRef} width={300} estimatedHeight={170} ariaLabel="สิ่งที่ร้านนี้ยังตั้งไม่ครบ">
+        <div className="space-y-3 p-3">
+          <p className="subtitle-text text-gray-700 dark:text-slate-300">
+            {risky ? risky.warning : `ร้านนี้ยังตั้งไม่ครบ — ขั้นต่อไป: ${next?.label}`}
+          </p>
+          <Button
+            variant="secondary"
+            size="sm"
+            fullWidth
+            icon={<Settings2 />}
+            onClick={() => { setOpen(false); onOpenSetup(); }}
+          >
+            ตั้งค่าร้านนี้
+          </Button>
+        </div>
+      </Popover>
+    </>
+  );
+}
 
 interface MarketplaceConnectionsProps {
   /** คลังที่ใช้งานได้ของบริษัท — หน้าแม่โหลดครั้งเดียวแล้วส่งต่อ */
@@ -312,34 +362,11 @@ export default function MarketplaceConnections({
   const onboardingAccount =
     [...shopeeAccounts, ...tiktokAccounts, ...lazadaAccounts].find(a => a.id === onboardingId) || null;
 
-  /**
-   * แถบ "ร้านนี้ยังตั้งไม่ครบ" บนการ์ด — ลำดับขั้นอยู่ที่ lib/marketplace/onboarding.ts
-   * ตั้งครบแล้วไม่โชว์อะไรเลย (การ์ดที่เรียบร้อยแล้วไม่ต้องมีเสียงรบกวน)
-   */
-  const onboardingBanner = (account: MarketplaceAccount) => {
+  /** ไอคอนเตือนบนหัวการ์ด (ลำดับขั้นอยู่ที่ lib/marketplace/onboarding.ts) — ตั้งครบแล้วไม่โชว์อะไรเลย */
+  const onboardingWarning = (account: MarketplaceAccount) => {
     const steps = marketplaceOnboardingSteps(account, { stockEnabled });
     if (!onboardingIncomplete(steps)) return null;
-    const risky = steps.find(s => s.warning);
-    const next = nextOnboardingStep(steps);
-    return (
-      <Alert tone={risky ? 'warning' : 'info'}>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <span>
-            {risky
-              ? 'เปิดซิงค์สต็อกอัตโนมัติไว้ทั้งที่ยังไม่ได้ตั้งยอดตั้งต้น — เสี่ยงส่งยอด 0 ไปทับของบนร้าน'
-              : `ร้านนี้ยังตั้งไม่ครบ — ขั้นต่อไป: ${next?.label}`}
-          </span>
-          <Button
-            variant="secondary"
-            size="sm"
-            icon={<Settings2 className="w-4 h-4" />}
-            onClick={() => setOnboardingId(account.id)}
-          >
-            ตั้งค่าร้านนี้
-          </Button>
-        </div>
-      </Alert>
-    );
+    return <OnboardingWarningButton steps={steps} onOpenSetup={() => setOnboardingId(account.id)} />;
   };
 
   /**
@@ -748,37 +775,31 @@ export default function MarketplaceConnections({
 
   /**
    * ตัวเลือก "ร้านนี้ตัด/ซิงค์สต็อกจากคลังไหน" — ใช้ร่วมทั้ง Shopee / TikTok / Lazada
+   * อยู่ต่อจากสวิตช์ Sync Stock บรรทัดเดียวกัน (ของคู่กัน: เปิดซิงค์แล้วต้องรู้ว่าใช้คลังไหน)
    * โชว์เมื่อบริษัทมีมากกว่า 1 คลังเท่านั้น (คลังเดียวไม่มีอะไรให้เลือก ไม่ต้องรก)
+   * ⛔ ห้ามเติมข้อความ "ยังไม่ได้เลือก — ตัดจากคลังหลัก" ต่อท้ายช่องอีก — ตัวเลือกแรกในช่อง
+   *    บอกชื่อคลังหลักอยู่แล้ว พูดซ้ำเป็นสีส้มทำให้ดูเหมือนมีอะไรผิดทั้งที่ค่าเริ่มต้นถูกต้อง
    */
   const warehousePicker = (account: MarketplaceAccount) => {
     // โผล่เมื่อเปิดซิงค์สต็อกแล้วเท่านั้น — ปิดอยู่ก็ไม่มีอะไรให้เลือกคลังไปส่ง
     if (!stockEnabled || warehouses.length <= 1) return null;
     if (account.auto_sync_stock === false) return null;
     return (
-      <div className="pt-1">
-        {/* ป้ายอยู่บนช่อง (โครงฟอร์มมาตรฐาน) — เดิมวางซ้ายช่องแล้วจอแคบตกบรรทัดกันมั่ว */}
-        <div className="flex items-center gap-1 mb-1 text-xs text-gray-700 dark:text-slate-300">
-          <Warehouse className="w-3.5 h-3.5" />
-          คลังที่ตัด/ซิงค์สต็อก
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="w-64">
-            <FormSelect
-              size="sm"
-              portal /* การ์ดร้านครอบด้วย overflow-hidden — ไม่ portal แล้วรายการคลังโดนตัดที่ขอบการ์ด */
-              value={account.warehouse_id || ''}
-              onChange={v => handleSelectWarehouse(account.id, v)}
-              options={[
-                { id: '', label: defaultWarehouseName ? `ใช้คลังหลัก (${defaultWarehouseName})` : 'ใช้คลังหลัก' },
-                ...warehouses.map(w => ({ id: w.id, label: w.name })),
-              ]}
-            />
-          </div>
-          {!account.warehouse_id && (
-            <span className="text-xs text-amber-600 dark:text-amber-400">
-              ยังไม่ได้เลือก — ออเดอร์ร้านนี้ตัดสต็อกจากคลังหลัก
-            </span>
-          )}
+      <div className="flex items-center gap-1.5">
+        <Tooltip text="คลังที่ร้านนี้ใช้ตัด/ซิงค์สต็อก" box="inline-flex">
+          <Warehouse className="w-3.5 h-3.5 text-gray-400" aria-label="คลังที่ตัด/ซิงค์สต็อก" />
+        </Tooltip>
+        <div className="w-48">
+          <FormSelect
+            size="sm"
+            portal /* การ์ดร้านครอบด้วย overflow-hidden — ไม่ portal แล้วรายการคลังโดนตัดที่ขอบการ์ด */
+            value={account.warehouse_id || ''}
+            onChange={v => handleSelectWarehouse(account.id, v)}
+            options={[
+              { id: '', label: defaultWarehouseName ? `คลังหลัก (${defaultWarehouseName})` : 'คลังหลัก' },
+              ...warehouses.map(w => ({ id: w.id, label: w.name })),
+            ]}
+          />
         </div>
       </div>
     );
@@ -791,13 +812,15 @@ export default function MarketplaceConnections({
    * อยู่บนหัวการ์ด (บรรทัดเดียวกับชื่อร้าน) — เห็นและสลับได้โดยไม่ต้องกางการ์ดก่อน
    * จอแคบไม่พอวางข้างชื่อร้าน จึงตกไปอยู่ในเนื้อการ์ดแทน (`className` เป็นตัวสลับ)
    * ⛔ ห้ามเอาคำอธิบายความเสี่ยง "ยังไม่ได้ตั้งยอด = ส่ง 0 ไปทับร้าน" กลับมาไว้ใต้สวิตช์
-   *    แถบสถานะการตั้งร้าน (onboardingBanner) พูดเรื่องนี้ให้แล้ว และพูดเฉพาะตอนที่เป็นจริง
+   *    ไอคอนเตือนบนหัวการ์ด (onboardingWarning) พูดเรื่องนี้ให้แล้ว และพูดเฉพาะตอนที่เป็นจริง
    */
-  const autoSyncToggles = (account: MarketplaceAccount, opts?: { productInfo?: boolean; className?: string }) => {
+  const cardControls = (account: MarketplaceAccount, opts?: { productInfo?: boolean; className?: string }) => {
     const productInfo = opts?.productInfo === true;
-    if (!stockEnabled && !productInfo) return null;
+    const warning = onboardingWarning(account);
+    if (!stockEnabled && !productInfo && !warning) return null;
     return (
-      <div className={`flex flex-wrap items-center gap-x-5 gap-y-1 ${opts?.className || ''}`}>
+      <div className={`flex flex-wrap items-center gap-x-4 gap-y-1 ${opts?.className || ''}`}>
+        {warning}
         {stockEnabled && (
           <div className="flex items-center gap-2">
             <Toggle
@@ -826,6 +849,7 @@ export default function MarketplaceConnections({
             </HelpHint>
           </div>
         )}
+        {warehousePicker(account)}
       </div>
     );
   };
@@ -952,7 +976,7 @@ export default function MarketplaceConnections({
                 onDisconnect={() => handleDisconnect(account.id)}
                 disconnecting={disconnectingId === account.id}
                 menuItems={cardMenuItems(account, days => handleSync(account.id, days))}
-                headerActions={autoSyncToggles(account, { className: 'hidden sm:flex mr-1' })}
+                headerActions={cardControls(account, { className: 'hidden sm:flex mr-1' })}
                 avatar={
                   <Tooltip
                     text={(account.metadata?.shop_logo as string) ? 'เปลี่ยนโลโก้ร้าน' : 'ใส่โลโก้ร้าน'}
@@ -979,12 +1003,8 @@ export default function MarketplaceConnections({
                   <span>เชื่อมต่อเมื่อ: {formatThaiDateTime(account.created_at)}</span>
                 </div>
 
-                {onboardingBanner(account)}
-
-                {warehousePicker(account)}
-
-                {/* Auto-Sync Toggles */}
-                {autoSyncToggles(account, { className: 'sm:hidden pt-1' })}
+                {/* จอแคบ: สวิตช์ + คลัง + ไอคอนเตือน ตกลงมาอยู่ในเนื้อการ์ดแทนหัวการ์ด */}
+                {cardControls(account, { className: 'sm:hidden pt-1' })}
 
                 {/* Sync Controls */}
               </MarketplaceAccountCard>
@@ -1016,7 +1036,7 @@ export default function MarketplaceConnections({
                 onDisconnect={() => handleDisconnect(account.id)}
                 disconnecting={disconnectingId === account.id}
                 menuItems={cardMenuItems(account, days => handleSimpleSync('tiktok', account.id, days))}
-                headerActions={autoSyncToggles(account, { className: 'hidden sm:flex mr-1' })}
+                headerActions={cardControls(account, { className: 'hidden sm:flex mr-1' })}
                 avatar={
                   <Tooltip
                     text={(account.metadata?.shop_logo as string) ? 'เปลี่ยนโลโก้ร้าน' : 'ใส่โลโก้ร้าน'}
@@ -1042,11 +1062,8 @@ export default function MarketplaceConnections({
                   <span>เชื่อมต่อเมื่อ: {formatThaiDateTime(account.created_at)}</span>
                 </div>
 
-                {onboardingBanner(account)}
-
-                {warehousePicker(account)}
-
-                {autoSyncToggles(account, { className: 'sm:hidden pt-1' })}
+                {/* จอแคบ: สวิตช์ + คลัง + ไอคอนเตือน ตกลงมาอยู่ในเนื้อการ์ดแทนหัวการ์ด */}
+                {cardControls(account, { className: 'sm:hidden pt-1' })}
 
               </MarketplaceAccountCard>
             );
@@ -1077,7 +1094,7 @@ export default function MarketplaceConnections({
                 onDisconnect={() => handleDisconnect(account.id)}
                 disconnecting={disconnectingId === account.id}
                 menuItems={cardMenuItems(account, days => handleSimpleSync('lazada', account.id, days))}
-                headerActions={autoSyncToggles(account, { className: 'hidden sm:flex mr-1' })}
+                headerActions={cardControls(account, { className: 'hidden sm:flex mr-1' })}
                 avatar={
                   <Tooltip
                     text={(account.metadata?.shop_logo as string) ? 'เปลี่ยนโลโก้ร้าน' : 'ใส่โลโก้ร้าน'}
@@ -1094,11 +1111,8 @@ export default function MarketplaceConnections({
                 </Tooltip>
                 }
               >
-                {onboardingBanner(account)}
-
-                {warehousePicker(account)}
-
-                {autoSyncToggles(account, { className: 'sm:hidden pt-1' })}
+                {/* จอแคบ: สวิตช์ + คลัง + ไอคอนเตือน ตกลงมาอยู่ในเนื้อการ์ดแทนหัวการ์ด */}
+                {cardControls(account, { className: 'sm:hidden pt-1' })}
 
               </MarketplaceAccountCard>
             );
@@ -1122,7 +1136,7 @@ export default function MarketplaceConnections({
           : `โลโก้ร้าน — ${logoModal?.name || 'ร้าน'}`}
         size="md"
         footer={logoModal?.step === 'upload' ? (
-          <div className="modal-footer px-6 py-4 flex justify-end gap-2">
+          <ModalFormFooter>
             <Button
               variant="secondary"
               onClick={() => { setLogoFile(null); setLogoModal(prev => (prev ? { ...prev, step: 'choose' } : prev)); }}
@@ -1130,15 +1144,15 @@ export default function MarketplaceConnections({
               ย้อนกลับ
             </Button>
             <SaveButton loading={savingLogo} onClick={handleSaveLogo} disabled={!logoFile} />
-          </div>
+          </ModalFormFooter>
         ) : (
-          <div className="modal-footer px-6 py-4 flex justify-end gap-2">
+          <ModalFormFooter>
             <Button variant="secondary" onClick={closeLogoModal}>ปิด</Button>
-          </div>
+          </ModalFormFooter>
         )}
       >
         {logoModal?.step === 'upload' ? (
-          <div className="px-6 py-5 space-y-3">
+          <div className="space-y-3">
             <p className="subtitle-text text-gray-500">
               ใช้รูปเดียวกับที่ตั้งไว้ในหน้าร้าน (Seller Center) จะตรงที่สุด — ระบบย่อให้เหลือ 300px อัตโนมัติ
             </p>

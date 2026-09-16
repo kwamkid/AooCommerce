@@ -314,13 +314,13 @@ export default function CustomerCounters({ customerId, customerType }: { custome
         icon={<Store className="w-5 h-5 text-primary" />}
         size="sm"
         footer={
-          <div className="flex justify-end gap-2 px-6 py-4">
+          <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setModalOpen(false)}>ยกเลิก</Button>
             <SaveButton loading={saving} onClick={handleSave} />
           </div>
         }
       >
-        <div className="px-6 py-5">
+        <div>
           <FormInput
             label="ชื่อสาขา"
             required
@@ -340,12 +340,12 @@ export default function CustomerCounters({ customerId, customerType }: { custome
         icon={<Users className="w-5 h-5 text-primary" />}
         size="md"
         footer={
-          <div className="flex justify-end gap-2 px-6 py-4">
+          <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setPcTarget(null)}>ปิด</Button>
           </div>
         }
       >
-        <div className="px-6 py-5 space-y-1">
+        <div className="space-y-1">
           {members.length === 0 ? (
             <p className="subtitle-text text-gray-500 dark:text-slate-400">
               ยังไม่มีสมาชิกในร้าน — เชิญพนักงาน (ตำแหน่ง PC ประจำห้าง) ได้ที่ ตั้งค่า → จัดการสมาชิก

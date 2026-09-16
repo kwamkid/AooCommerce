@@ -61,18 +61,18 @@ export default function PrintAfterActionModal({
       title={title}
       size="sm"
       footer={
-        <div className="flex items-center justify-end gap-2 px-5 py-3 bg-gray-50 dark:bg-slate-800/50">
+        <div className="flex items-center justify-end gap-2 bg-gray-50 dark:bg-slate-800/50">
           <button
             onClick={onClose}
             disabled={printing}
-            className="px-4 py-2 text-sm text-gray-600 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200 transition-colors disabled:opacity-50"
+            className="text-sm text-gray-600 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200 transition-colors disabled:opacity-50"
           >
             ข้ามไปก่อน
           </button>
           <button
             onClick={handlePrint}
             disabled={printing || selected.size === 0}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50"
           >
             {printing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
             พิมพ์ที่เลือก
@@ -80,7 +80,7 @@ export default function PrintAfterActionModal({
         </div>
       }
     >
-      <div className="px-5 py-4 space-y-2">
+      <div className="space-y-2">
         <p className="text-sm text-gray-500 dark:text-slate-400 mb-3">เลือกเอกสารที่ต้องการพิมพ์</p>
         {options.map(opt => (
           <button

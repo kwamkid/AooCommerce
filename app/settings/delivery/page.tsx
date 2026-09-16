@@ -634,13 +634,13 @@ export default function DeliverySettingsPage() {
           title={zoneForm.id ? 'แก้ไขพื้นที่จัดส่ง' : 'เพิ่มพื้นที่จัดส่ง'}
           size="lg"
           footer={
-            <div className="px-6 py-4 flex justify-end gap-2">
+            <div className="flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setZoneModal(false)}>ยกเลิก</Button>
               <SaveButton loading={saving} onClick={saveZone} />
             </div>
           }
         >
-          <div className="px-6 py-5 space-y-4">
+          <div className="space-y-4">
             {/* Preset — create mode เท่านั้น (พื้นที่ที่สร้างแล้วถูกกรองออก) */}
             {!zoneForm.id && (
               <PresetChips
@@ -765,13 +765,13 @@ export default function DeliverySettingsPage() {
           title={slotForm.id ? 'แก้ไขรอบส่ง' : 'เพิ่มรอบส่ง'}
           size="lg"
           footer={
-            <div className="px-6 py-4 flex justify-end gap-2">
+            <div className="flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setSlotModal(false)}>ยกเลิก</Button>
               <SaveButton loading={saving} onClick={saveSlot} />
             </div>
           }
         >
-          <div className="px-6 py-5 space-y-4">
+          <div className="space-y-4">
             {/* Preset — create mode เท่านั้น (รอบที่สร้างแล้วถูกกรองออก) */}
             {!slotForm.id && (
               <PresetChips

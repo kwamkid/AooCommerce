@@ -1472,7 +1472,7 @@ function ProductsPageContent() {
         title={`กำหนด Brand ให้สินค้า ${selectedIds.size} รายการ`}
         size="md"
         footer={
-          <div className="flex gap-2 justify-end p-4">
+          <div className="flex gap-2 justify-end">
             <Button variant="secondary" onClick={() => setShowBrandModal(false)}>
               ยกเลิก
             </Button>
@@ -1488,7 +1488,7 @@ function ProductsPageContent() {
           </div>
         }
       >
-        <div className="p-5 space-y-4">
+        <div className="space-y-4">
           {existingBrandCount > 0 && (
             <Alert tone="warning">
               สินค้า {selectedIds.size} รายการที่เลือก มี {existingBrandCount} รายการที่มี Brand อยู่แล้ว — จะถูกเปลี่ยนเป็น Brand ใหม่

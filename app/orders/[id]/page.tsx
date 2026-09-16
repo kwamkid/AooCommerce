@@ -1922,7 +1922,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
           title="แก้ไขข้อมูลจัดส่ง"
           size="2xl"
           footer={
-            <div className="flex justify-end gap-3 px-6 py-4">
+            <div className="flex justify-end gap-3">
               <Button variant="secondary" disabled={savingDelivery} onClick={() => setShowDeliveryModal(false)}>
                 ยกเลิก
               </Button>
@@ -1934,7 +1934,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
             </div>
           }
         >
-          <div className="px-6 py-5 space-y-4">
+          <div className="space-y-4">
             <FormInput
               label="ชื่อผู้รับ"
               required

@@ -49,8 +49,11 @@ Sidebar entry "ทั่วไป" link ไป `/settings/company` (= tab แร
 4. Manual entries (ไม่ใช่ preset) ก็ยัง create ได้
 - ตัวอย่าง: [lib/constants/carriers.ts](../../../lib/constants/carriers.ts) `CARRIER_PRESETS`
 
-### Modal padding gotcha
-`.modal-body` + `.modal-footer` ใน [globals.css](../../../app/globals.css) **ไม่มี padding built-in** — caller ต้องใส่ `px-6 py-5` (body) + `px-6 py-4` (footer) เอง ดู [TaxInvoiceEditModal](../../../components/ui/TaxInvoiceEditModal.tsx) เป็น reference
+### Modal padding — อยู่ที่ globals.css ที่เดียวแล้ว (2026-09-17)
+`.modal-body` (`px-6 py-5`) + `.modal-footer` (`px-6 py-4`) ใน [globals.css](../../../app/globals.css) **ใส่ padding ให้เอง** — ⛔ ห้ามใส่ padding ให้ wrapper ชั้นแรกของ body/footer อีก (ซ้อนเป็นสองชั้น)
+- ฟอร์มในโมดัล: `<ModalFormBody>` (ระยะระหว่างช่อง · `stacked` = ห่างขึ้น) · แถวปุ่มท้าย: `<ModalFormFooter>` (ชิดขวา gap-2 ไม่ตกบรรทัด)
+- เนื้อหาที่ต้องชนขอบจริง ๆ (รายการ divide-y เต็มกรอบ · ตาราง · พรีวิว) ส่ง **`bodyPadding={false}`** แล้วคุม padding รายส่วนเอง — ตัวอย่าง [ProductPicker](../../../components/marketplace/ProductPicker.tsx) · [HandoverPickerPanel](../../../app/orders/components/HandoverPickerPanel.tsx)
+- ปุ่มท้ายโมดัลตกบรรทัด = โมดัลแคบไป ให้ขยาย `size` ไม่ใช่ปล่อยให้ wrap
 
 ---
 

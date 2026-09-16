@@ -103,12 +103,12 @@ export function TemplatePickerModal({ open, onClose, accounts, onPick, disabled 
   return (
     <Modal open={open} onClose={onClose} size="2xl" title="สร้างกลุ่มจากแม่แบบ"
       footer={(
-        <div className="flex justify-end gap-2 px-6 py-4">
+        <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={onClose}>ปิด</Button>
         </div>
       )}
     >
-      <div className="px-6 py-5 space-y-3">
+      <div className="space-y-3">
         <p className="subtitle-text">
           กลุ่มที่ร้านค้าส่วนใหญ่ต้องมี — กดแล้วไปหน้าสร้างที่กรอกเงื่อนไขให้แล้ว แก้ได้ก่อนบันทึก
         </p>

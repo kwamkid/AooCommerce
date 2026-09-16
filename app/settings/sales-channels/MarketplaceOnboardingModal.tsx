@@ -13,7 +13,7 @@ import { Download, PackageSearch, Store, UploadCloud } from 'lucide-react';
 import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
-import Modal from '@/components/ui/Modal';
+import Modal, { ModalFormBody, ModalFormFooter } from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import Alert from '@/components/ui/Alert';
 import Stepper from '@/components/ui/Stepper';
@@ -75,26 +75,27 @@ export default function MarketplaceOnboardingModal({ account, onClose, onChanged
     }
   };
 
-  /** ปุ่มของขั้นที่กำลังทำอยู่ — ขั้นละชุด ไม่เอามาโชว์พร้อมกันทั้งหมด */
+  /** ปุ่มของขั้นที่กำลังทำอยู่ — ขั้นละชุด ไม่เอามาโชว์พร้อมกันทั้งหมด
+   *  คืนเป็นปุ่มล้วน ๆ (ไม่ห่อ div) เพราะไปวางใน footer แถวเดียวกับ "ไว้ทีหลัง" */
   const stepActions = () => {
     if (!current) return null;
     if (current.key === 'link_products') {
       return (
-        <Button variant="primary" icon={<Download className="w-4 h-4" />} onClick={goImport}>
+        <Button variant="primary" icon={<Download />} onClick={goImport}>
           นำเข้าสินค้าจาก {label}
         </Button>
       );
     }
     if (current.key === 'init_stock') {
       return (
-        <div className="flex flex-wrap gap-3">
-          <Button variant="primary" icon={<PackageSearch className="w-4 h-4" />} onClick={() => goStockJob('pull_stock')}>
-            ยึดยอดของร้าน (ดึงลงมา)
-          </Button>
-          <Button variant="secondary" icon={<UploadCloud className="w-4 h-4" />} onClick={() => goStockJob('push_stock')}>
+        <>
+          <Button variant="secondary" icon={<UploadCloud />} onClick={() => goStockJob('push_stock')}>
             ยึดยอดในระบบ (ส่งขึ้นไป)
           </Button>
-        </div>
+          <Button variant="primary" icon={<PackageSearch />} onClick={() => goStockJob('pull_stock')}>
+            ยึดยอดของร้าน (ดึงลงมา)
+          </Button>
+        </>
       );
     }
     return (
@@ -111,16 +112,18 @@ export default function MarketplaceOnboardingModal({ account, onClose, onChanged
     <Modal
       open
       onClose={onClose}
-      size="lg"
-      icon={<Store className="w-5 h-5" />}
+      /* 2xl เพราะปุ่มของขั้น "ตั้งยอดตั้งต้น" มีสองปุ่มยาว — แคบกว่านี้แล้วปุ่มตกบรรทัด */
+      size="2xl"
+      icon={<Store />}
       title={`เริ่มใช้งาน ${shopName}`}
       footer={
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={onClose}>{allDone ? 'ปิด' : 'ไว้ทีหลัง'}</Button>
-        </div>
+        <ModalFormFooter>
+          <Button variant="ghost" onClick={onClose}>{allDone ? 'ปิด' : 'ไว้ทีหลัง'}</Button>
+          {stepActions()}
+        </ModalFormFooter>
       }
     >
-      <div className="space-y-5">
+      <ModalFormBody stacked>
         <p className="body-text">
           เชื่อมต่อ {label} แล้ว — เหลืออีก {steps.filter(s => !s.done).length} ขั้นก่อนที่ร้านนี้จะทำงานเองได้
           {allDone && ' (ตั้งครบแล้ว)'}
@@ -156,7 +159,6 @@ export default function MarketplaceOnboardingModal({ account, onClose, onChanged
                   ร้านที่เพิ่งเปิดและนับสต็อกในระบบไว้แล้ว → ยึดยอดในระบบ
                 </p>
               )}
-              {stepActions()}
             </div>
           </div>
         ) : (
@@ -164,7 +166,7 @@ export default function MarketplaceOnboardingModal({ account, onClose, onChanged
             ตั้งครบทั้ง {steps.length} ขั้นแล้ว — จากนี้สต็อกจะซิงค์ให้เอง งานที่ต้องกดเองอยู่ที่หน้า &quot;ซิงค์สินค้า &amp; สต็อก&quot;
           </Alert>
         )}
-      </div>
+      </ModalFormBody>
     </Modal>
   );
 }

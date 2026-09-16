@@ -554,7 +554,7 @@ export default function StatementDetailPage() {
         title="บันทึกการชำระเงิน"
         size="md"
         footer={
-          <div className="flex justify-end gap-3 px-6 py-4">
+          <div className="flex justify-end gap-3">
             <Button variant="secondary" onClick={() => setShowPayModal(false)}>ยกเลิก</Button>
             <Button
               variant="success"
@@ -567,7 +567,7 @@ export default function StatementDetailPage() {
           </div>
         }
       >
-        <div className="px-6 py-5 space-y-4">
+        <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormInput
               label="จำนวนเงิน"

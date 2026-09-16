@@ -67,9 +67,9 @@ export default function ProductPicker({ onSelect, onCancel, excludeProductIds = 
   });
 
   return (
-    <Modal open={true} onClose={onCancel} title="เลือกสินค้าที่จะผูก" size="lg">
+    <Modal open={true} onClose={onCancel} title="เลือกสินค้าที่จะผูก" size="lg" bodyPadding={false}>
       {/* Search */}
-      <div className="p-3 border-b border-gray-200 dark:border-slate-700">
+      <div className="px-6 py-4 border-b border-gray-200 dark:border-slate-700">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-slate-500" />
           <input

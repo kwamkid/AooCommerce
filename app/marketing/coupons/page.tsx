@@ -503,13 +503,13 @@ function CouponFormModal({
       title={editing ? `แก้คูปอง ${editing.code}` : 'สร้างคูปอง'}
       size="2xl"
       footer={
-        <div className="flex justify-end gap-3 px-6 py-4">
+        <div className="flex justify-end gap-3">
           <Button variant="secondary" onClick={onClose}>ยกเลิก</Button>
           <Button variant="primary" loading={saving} onClick={onSave}>บันทึก</Button>
         </div>
       }
     >
-      <div className="px-6 py-5 space-y-5">
+      <div className="space-y-5">
         {/* โค้ด + ชื่อ — โค้ดแก้ไม่ได้หลังสร้าง เพราะบิลเก่าอ้างอยู่ */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormInput

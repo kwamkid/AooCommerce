@@ -616,7 +616,7 @@ export default function CompanySettingsPage() {
         size="sm"
         disableBackdropClose={savingBranch}
         footer={
-          <div className="flex justify-end gap-3 px-6 py-4">
+          <div className="flex justify-end gap-3">
             <Button variant="secondary" onClick={() => setBranchModalMode(null)} disabled={savingBranch}>
               ยกเลิก
             </Button>
@@ -628,7 +628,7 @@ export default function CompanySettingsPage() {
           </div>
         }
       >
-        <div className="px-6 py-5 space-y-4">
+        <div className="space-y-4">
           <FormInput
             label="รหัสสาขา"
             required

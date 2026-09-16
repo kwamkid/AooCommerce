@@ -426,7 +426,7 @@ export default function CarriersSettingsPage() {
           size="md"
           disableBackdropClose={submitting}
           footer={
-            <div className="flex justify-end gap-3 px-6 py-4">
+            <div className="flex justify-end gap-3">
               <Button variant="secondary" onClick={() => setModalMode(null)} disabled={submitting}>
                 ยกเลิก
               </Button>
@@ -438,7 +438,7 @@ export default function CarriersSettingsPage() {
             </div>
           }
         >
-          <div className="px-6 py-5 space-y-4">
+          <div className="space-y-4">
             {/* Preset picker — create mode only, hides codes already added */}
             {modalMode === 'create' && (() => {
               const existingCodes = new Set(carriers.map(c => c.code));

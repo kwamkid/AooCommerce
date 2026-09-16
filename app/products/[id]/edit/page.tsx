@@ -913,7 +913,7 @@ export default function EditProductPage() {
         title={mergeStep === 1 ? 'เลือกสินค้าที่จะรวม' : 'ตั้งค่าการรวมสินค้า'}
         size="2xl"
         footer={
-          <div className="flex items-center justify-end gap-3 px-6 py-4">
+          <div className="flex items-center justify-end gap-3">
             {mergeStep === 2 ? (
               <>
                 <Button
@@ -939,7 +939,7 @@ export default function EditProductPage() {
         }
       >
         <>
-          <div className="px-6 py-4">
+          <div>
               {/* Step 1: Search & Select */}
               {mergeStep === 1 && (
                 <div className="space-y-3">
@@ -1120,7 +1120,7 @@ export default function EditProductPage() {
         }
         size="md"
       >
-        <div className="px-6 py-4 text-base text-gray-600 dark:text-slate-300 space-y-3">
+        <div className="text-base text-gray-600 dark:text-slate-300 space-y-3">
           <div>
             <p className="font-medium text-gray-900 dark:text-white mb-1">ใช้เมื่อไหร่?</p>
             <p>เมื่อมีสินค้าซ้ำกันในระบบ เช่น Sync จาก Shopee มาแล้วสร้างสินค้าใหม่ เพราะ SKU ไม่ตรงกัน ทำให้ข้อมูลกระจาย</p>

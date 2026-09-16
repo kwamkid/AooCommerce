@@ -153,7 +153,7 @@ export default function ProductCodesHelp({ focus = 'code' }: { focus?: ProductCo
       </Tooltip>
 
       <Modal open={open} onClose={() => setOpen(false)} title="รหัสสินค้า · SKU · บาร์โค้ด ต่างกันยังไง" size="3xl">
-        <div className="p-5 space-y-5">
+        <div className="space-y-5">
           <CodesDiagram focus={focus} />
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {ITEMS.map(item => (

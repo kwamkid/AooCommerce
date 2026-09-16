@@ -103,7 +103,7 @@ export default function ProductSyncModal({ open, onClose, productId, accountId, 
       icon={<RefreshCw className="w-5 h-5" />}
       size="lg"
       footer={
-        <div className="flex justify-end gap-2 px-6 py-4">
+        <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={close}>ยกเลิก</Button>
           {preview === null ? (
             <Button
@@ -127,7 +127,7 @@ export default function ProductSyncModal({ open, onClose, productId, accountId, 
         </div>
       }
     >
-      <div className="px-6 py-5 space-y-5">
+      <div className="space-y-5">
         {/* ทิศทาง — ต้องเลือกก่อน */}
         <div>
           <p className="field-label mb-2">ให้ข้อมูลฝั่งไหนเป็นตัวจริง</p>

@@ -265,7 +265,7 @@ export default function SplitParcelModal({
         </div>
       }
       footer={
-        <div className="px-5 py-4 flex items-center justify-between">
+        <div className="flex items-center justify-between">
           <div className="text-sm text-gray-500">
             {parcels.length} กล่อง, {totalAssigned}/{totalRequired} ชิ้น
             <span className="text-xs text-gray-400 ml-2">(สูงสุด 5 กล่อง)</span>
@@ -273,14 +273,14 @@ export default function SplitParcelModal({
           <div className="flex gap-3">
             <button
               onClick={onClose}
-              className="px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+              className="text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
             >
               ยกเลิก
             </button>
             <button
               onClick={handleSubmit}
               disabled={!isValid || loading}
-              className="px-5 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg flex items-center gap-2"
+              className="text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg flex items-center gap-2"
             >
               {loading && <Loader2 className="w-4 h-4 animate-spin" />}
               แบ่งกล่อง
@@ -289,7 +289,7 @@ export default function SplitParcelModal({
         </div>
       }
     >
-      <div className="px-5 py-4 space-y-4">
+      <div className="space-y-4">
           {error && (
             <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-sm">
               {error}

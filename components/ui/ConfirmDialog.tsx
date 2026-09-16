@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import Button from './Button';
 import Modal from './Modal';
 
 interface ConfirmDialogProps {
@@ -41,13 +42,9 @@ export default function ConfirmDialog({
   confirmIcon,
   loading,
 }: ConfirmDialogProps) {
-  const confirmBtnClass = variant === 'danger'
-    ? 'bg-red-600 text-white hover:bg-red-700'
-    : 'bg-primary text-white hover:bg-primary-hover';
-
   return (
     <Modal open={open} onClose={onClose} size="md" hideCloseButton>
-      <div className="p-6">
+      <div>
         <div className="text-center mb-5">
           {icon && (
             <div className="w-12 h-12 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center mx-auto mb-3">
@@ -62,23 +59,18 @@ export default function ConfirmDialog({
 
         {children && <div className="mb-5">{children}</div>}
 
+        {/* ปุ่มของกลาง — เดิมเขียนสี/ขนาดเองจนเพี้ยนจาก <Button> ที่ใช้ทั้งระบบ */}
         <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors text-sm font-medium"
-          >
-            {cancelLabel}
-          </button>
-          <button
-            type="button"
+          <Button variant="secondary" fullWidth onClick={onClose}>{cancelLabel}</Button>
+          <Button
+            variant={variant === 'danger' ? 'danger' : 'primary'}
+            fullWidth
+            loading={loading}
+            icon={confirmIcon}
             onClick={onConfirm}
-            disabled={loading}
-            className={`flex-1 px-4 py-2.5 rounded-lg transition-colors text-sm font-medium flex items-center justify-center gap-2 ${confirmBtnClass} ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
           >
-            {confirmIcon}
             {confirmLabel}
-          </button>
+          </Button>
         </div>
       </div>
     </Modal>

@@ -10,12 +10,14 @@ import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import Container from '@/components/ui/Container';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
+import FormField from '@/components/ui/FormField';
 import FormInput from '@/components/ui/FormInput';
 import FormSelect from '@/components/ui/FormSelect';
-import Modal from '@/components/ui/Modal';
+import ListFilterBar from '@/components/ui/ListFilterBar';
+import MasterDataCell from '@/components/ui/MasterDataCell';
+import Modal, { ModalFormBody, ModalFormFooter } from '@/components/ui/Modal';
 import PageHeader from '@/components/ui/PageHeader';
 import SaveButton from '@/components/ui/SaveButton';
-import SearchInput from '@/components/ui/SearchInput';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 import { apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
@@ -239,12 +241,12 @@ function CategoriesPage() {
 
   const actionItems = (row: CategoryRow): ActionItem[] => [
     ...(row.level === 0 ? [{
-      key: 'add-child', label: 'เพิ่มหมวดย่อย', icon: <Plus className="w-4 h-4" />,
+      key: 'add-child', label: 'เพิ่มหมวดย่อย', icon: <Plus />,
       onClick: () => openAddModal(row.id), primary: true,
     }] : []),
-    { key: 'edit', label: 'แก้ไขชื่อ', icon: <Edit2 className="w-4 h-4" />, onClick: () => openEditModal(row) },
+    { key: 'edit', label: 'แก้ไขชื่อ', icon: <Edit2 />, onClick: () => openEditModal(row) },
     {
-      key: 'delete', label: 'ลบ', icon: <Trash2 className="w-4 h-4" />,
+      key: 'delete', label: 'ลบ', icon: <Trash2 />,
       onClick: () => void handleDelete(row), danger: true, disabled: deletingId === row.id, dividerBefore: true,
     },
   ];
@@ -262,17 +264,13 @@ function CategoriesPage() {
   const columns: DataTableColumn<CategoryRow>[] = [
     {
       key: 'name', label: 'หมวดหมู่', alwaysVisible: true, grow: true,
-      render: row => (
-        <div className={`flex items-center gap-3 ${row.level === 1 ? 'pl-7' : ''}`}>
-          <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg ${row.level === 0 ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-slate-300'}`}>
-            {row.level === 0 ? <Folder className="w-4 h-4" /> : <CornerDownRight className="w-4 h-4" />}
-          </span>
-          <div className="min-w-0">
-            <p className="data-primary truncate">{row.name}</p>
-            {row.parentName && <p className="page-subtitle truncate">อยู่ใน {row.parentName}</p>}
-          </div>
-        </div>
-      ),
+      render: row => <MasterDataCell
+        icon={row.level === 0 ? <Folder /> : <CornerDownRight />}
+        title={row.name}
+        subtitle={row.parentName ? `อยู่ใน ${row.parentName}` : undefined}
+        tone={row.level === 0 ? 'primary' : 'muted'}
+        nested={row.level === 1}
+      />,
     },
     {
       key: 'type', label: 'ประเภท', defaultWidth: 150,
@@ -297,23 +295,23 @@ function CategoriesPage() {
           icon={<FolderTree />}
           title="หมวดหมู่สินค้า"
           subtitle={`จัดโครงสร้างสินค้า ${parentCount} หมวดหลัก และ ${childCount} หมวดย่อย`}
-          actions={<Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => openAddModal()}>เพิ่มหมวดหมู่</Button>}
+          actions={<Button variant="primary" icon={<Plus />} onClick={() => openAddModal()}>เพิ่มหมวดหมู่</Button>}
         />
-        <div className="data-filter-card">
-          <div className="flex items-center gap-3">
-            <div className="min-w-0 flex-1">
-              <SearchInput value={searchInput} onChange={handleSearchChange} placeholder="ค้นหาหมวดหมู่หรือหมวดย่อย..." className="w-full" />
-            </div>
-            <div className="flex flex-shrink-0 items-center gap-2">
+        <ListFilterBar
+          value={searchInput}
+          onChange={handleSearchChange}
+          placeholder="ค้นหาหมวดหมู่หรือหมวดย่อย..."
+          summary={
+            <>
               <Badge tone="orange">{parentCount} หมวดหลัก</Badge>
               <Badge tone="gray">{childCount} หมวดย่อย</Badge>
-            </div>
-          </div>
-        </div>
+            </>
+          }
+        />
         <DataTable
           storageKey="settings-categories" columns={columns} data={paginatedRows} loading={loading}
           getRowId={row => row.id} emptyMessage={searchQuery ? 'ไม่พบหมวดหมู่ที่ค้นหา' : 'ยังไม่มีหมวดหมู่สินค้า'}
-          emptyIcon={<FolderTree className="w-10 h-10" />} currentPage={currentPage} totalPages={totalPages}
+          emptyIcon={<FolderTree className="data-empty-icon" />} currentPage={currentPage} totalPages={totalPages}
           totalRecords={displayRows.length} recordsPerPage={recordsPerPage}
           onPageChange={page => setPagination(page)}
           onRecordsPerPageChange={limit => setPagination(1, limit)}
@@ -321,27 +319,26 @@ function CategoriesPage() {
           getSubRows={searchQuery.trim() ? undefined : row => row.children}
           mobileCardRender={row => (
             <div>
-              <div className="flex items-center gap-3">
-                <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg ${row.level === 0 ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-slate-300'}`}>
-                  {row.level === 0 ? <Folder className="w-5 h-5" /> : <CornerDownRight className="w-5 h-5" />}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="data-primary truncate">{row.name}</p>
-                  <p className="page-subtitle">{row.level === 0 ? `${row.childCount} หมวดย่อย` : `หมวดย่อยของ ${row.parentName}`}</p>
-                </div>
+              <div className="master-data-mobile-row">
+                <MasterDataCell
+                  icon={row.level === 0 ? <Folder /> : <CornerDownRight />}
+                  title={row.name}
+                  subtitle={row.level === 0 ? `${row.childCount} หมวดย่อย` : `หมวดย่อยของ ${row.parentName}`}
+                  tone={row.level === 0 ? 'primary' : 'muted'}
+                />
                 {!searchQuery.trim() && row.children && row.children.length > 0 && (
                   <Button variant="ghost" size="sm" onClick={() => toggleMobileExpanded(row.id)} aria-label={expandedMobileIds.has(row.id) ? 'ซ่อนหมวดย่อย' : 'แสดงหมวดย่อย'}>
-                    <ChevronDown className={`w-4 h-4 transition-transform ${expandedMobileIds.has(row.id) ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={expandedMobileIds.has(row.id) ? 'master-data-expand-icon expanded' : 'master-data-expand-icon'} />
                   </Button>
                 )}
                 {renderActions(row)}
               </div>
               {!searchQuery.trim() && expandedMobileIds.has(row.id) && row.children && (
-                <div className="mt-3 divide-y divide-gray-100 border-t border-gray-100 pl-10 dark:divide-slate-700 dark:border-slate-700">
+                <div className="master-data-subrows">
                   {row.children.map(child => (
-                    <div key={child.id} className="flex items-center gap-2 py-3">
-                      <CornerDownRight className="w-4 h-4 flex-shrink-0 text-gray-400" />
-                      <span className="min-w-0 flex-1 truncate">{child.name}</span>
+                    <div key={child.id} className="master-data-subrow">
+                      <CornerDownRight />
+                      <span className="master-data-subrow-name">{child.name}</span>
                       {renderActions(child)}
                     </div>
                   ))}
@@ -353,30 +350,28 @@ function CategoriesPage() {
       </Container>
 
       <Modal open={addModalOpen} onClose={closeAddModal} title={addParentId ? 'เพิ่มหมวดย่อย' : 'เพิ่มหมวดหมู่'}
-        icon={<Tag className="w-5 h-5 text-primary" />} size="md"
-        footer={<div className="flex justify-end gap-2 px-6 py-4"><Button variant="secondary" onClick={closeAddModal} disabled={saving}>ยกเลิก</Button><SaveButton onClick={handleAdd} loading={saving} /></div>}
+        icon={<Tag />} size="md"
+        footer={<ModalFormFooter><Button variant="secondary" onClick={closeAddModal} disabled={saving}>ยกเลิก</Button><SaveButton onClick={handleAdd} loading={saving} /></ModalFormFooter>}
       >
-        <div className="space-y-5 px-6 py-5">
+        <ModalFormBody stacked>
           <FormInput label="ชื่อหมวดหมู่" required value={addName} onChange={event => setAddName(event.target.value)}
             onKeyDown={event => { if (event.key === 'Enter') void handleAdd(); }} placeholder="เช่น เครื่องดื่ม, อาหาร" autoFocus />
-          <div>
-            <label className="form-label">หมวดหมู่หลัก</label>
+          <FormField label="หมวดหมู่หลัก" hint="เลือกหมวดหลักเมื่อต้องการสร้างหมวดย่อย">
             <FormSelect value={addParentId || ''} onChange={value => setAddParentId(value || null)}
               options={categories.map(category => ({ id: category.id, label: category.name }))}
-              clearLabel="ไม่มี — สร้างเป็นหมวดหลัก" searchThreshold={8} />
-            <p className="page-subtitle mt-1">เลือกหมวดหลักเมื่อต้องการสร้างหมวดย่อย</p>
-          </div>
-        </div>
+              clearLabel="ไม่มี — สร้างเป็นหมวดหลัก" searchThreshold={8} portal />
+          </FormField>
+        </ModalFormBody>
       </Modal>
 
       <Modal open={Boolean(editingCategory)} onClose={closeEditModal} title="แก้ไขชื่อหมวดหมู่"
-        icon={<Edit2 className="w-5 h-5 text-primary" />} size="md"
-        footer={<div className="flex justify-end gap-2 px-6 py-4"><Button variant="secondary" onClick={closeEditModal} disabled={saving}>ยกเลิก</Button><SaveButton onClick={handleSaveEdit} loading={saving} /></div>}
+        icon={<Edit2 />} size="md"
+        footer={<ModalFormFooter><Button variant="secondary" onClick={closeEditModal} disabled={saving}>ยกเลิก</Button><SaveButton onClick={handleSaveEdit} loading={saving} /></ModalFormFooter>}
       >
-        <div className="px-6 py-5">
+        <ModalFormBody>
           <FormInput label="ชื่อหมวดหมู่" required value={editingName} onChange={event => setEditingName(event.target.value)}
             onKeyDown={event => { if (event.key === 'Enter') void handleSaveEdit(); }} autoFocus />
-        </div>
+        </ModalFormBody>
       </Modal>
       {confirmDialog}
     </Layout>

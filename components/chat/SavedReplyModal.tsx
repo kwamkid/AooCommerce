@@ -135,13 +135,13 @@ export default function SavedReplyModal({ open, onClose, reply, initialContent, 
       title={reply ? 'แก้ไข Saved Reply' : 'บันทึก Saved Reply'}
       size="lg"
       footer={
-        <div className="flex justify-end gap-2 px-6 py-4">
+        <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={onClose} disabled={saving}>ยกเลิก</Button>
           <SaveButton onClick={save} loading={saving} disabled={!!duplicate} />
         </div>
       }
     >
-      <div className="px-6 py-5 space-y-4">
+      <div className="space-y-4">
         <FormInput
           label="ชื่อเรียก"
           required

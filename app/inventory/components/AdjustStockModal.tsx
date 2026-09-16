@@ -124,13 +124,13 @@ export default function AdjustStockModal({ row, warehouses, initialWarehouseId, 
       title="ปรับสต็อก"
       size="md"
       footer={
-        <div className="flex justify-end gap-2 px-6 py-4">
+        <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={onClose}>ยกเลิก</Button>
           <SaveButton loading={saving} disabled={!warehouseId} onClick={handleSave} />
         </div>
       }
     >
-      <div className="p-6 space-y-4">
+      <div className="space-y-4">
         <div className="flex items-center gap-3 inner-panel inner-panel-body">
           <ProductImageThumb
             src={row.image_url}

@@ -164,6 +164,10 @@ html, body {
   font-weight: 500;
 }
 .btn:disabled { cursor: not-allowed; opacity: 0.5; }
+/* ขนาดไอคอนในปุ่ม — เขียนที่นี่ที่เดียว ผู้เรียกส่ง `icon={<Plus />}` เปล่า ๆ ได้ */
+.btn > svg { flex-shrink: 0; width: 1rem; height: 1rem; }
+.btn-sm > svg { width: 0.875rem; height: 0.875rem; }
+.btn-lg > svg { width: 1.125rem; height: 1.125rem; }
 
 /* Sizes — fixed heights matching FormSelect (.form-control-{size})
    ⚠️ md = 42px ไม่ใช่ 40 เพราะต้องเท่ากับ `<input>`/`select` ที่ globals ตั้งไว้ 42px —
@@ -372,17 +376,118 @@ h6:where(.heading-1, .heading-2, .heading-3, .heading-4) {
   .modal-header {
     @apply flex items-center justify-between p-5 border-b border-gray-200 dark:border-slate-700 rounded-t-xl;
   }
+  .modal-header-icon {
+    @apply mr-2 flex-shrink-0 text-primary [&>svg]:w-5 [&>svg]:h-5;
+  }
+  /* ⚠️ padding อยู่ที่นี่ที่เดียว (2026-09-17) — เดิมทุกหน้าที่เรียก <Modal> ต้องใส่เอง
+   * แล้วใส่ไม่เหมือนกัน (p-4 / p-5 / p-6 / px-6 py-5) หรือลืมใส่จนเนื้อหาชนขอบ
+   * เนื้อหาที่ต้องชนขอบจริง ๆ (รายการ divide-y เต็มกรอบ · ตาราง · พรีวิว) ส่ง `bodyPadding={false}` */
   .modal-body {
-    @apply flex-1 min-h-0 overflow-y-auto;
+    @apply flex-1 min-h-0 overflow-y-auto px-6 py-5;
+  }
+  .modal-body-flush {
+    @apply px-0 py-0;
   }
   .modal-footer {
-    @apply border-t border-gray-200 dark:border-slate-700 rounded-b-xl;
+    @apply px-6 py-4 border-t border-gray-200 dark:border-slate-700 rounded-b-xl;
+  }
+  /* ฟอร์มในโมดัล: ระยะระหว่างช่องกรอก (ไม่มี padding — .modal-body ให้แล้ว) */
+  .modal-form-body {
+    @apply space-y-4;
+  }
+  .modal-form-body-stacked {
+    @apply space-y-5;
+  }
+  /* แถวปุ่มท้ายโมดัล — ชิดขวา gap-2 ตามกติกา action group · ห้าม wrap
+   * (ปุ่มตกบรรทัดคือโมดัลแคบไป ให้ขยาย size ไม่ใช่ปล่อยให้ตก) */
+  .modal-form-footer {
+    @apply flex items-center justify-end gap-2;
   }
   .modal-close-btn {
     @apply flex-shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors;
   }
   .modal-title {
     @apply text-xl font-semibold text-gray-900 dark:text-white truncate;
+  }
+}
+
+/* ── Master data lists (แบรนด์ · หมวดหมู่ · supplier) ──
+ * ช่องชื่อของหน้า master data ทุกหน้าหน้าตาเดียวกัน — ไอคอนในกรอบสี + ชื่อ (ลิงก์ได้) + บรรทัดรอง
+ * ใช้ผ่าน <MasterDataCell> เสมอ ห้ามประกอบ div+Link เองในหน้า
+ */
+@layer components {
+  .master-data-cell {
+    @apply flex min-w-0 items-center gap-3;
+  }
+  .master-data-cell-nested {
+    @apply pl-6;
+  }
+  .master-data-cell-icon {
+    @apply flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg [&>svg]:w-4 [&>svg]:h-4;
+  }
+  .master-data-cell-icon-primary {
+    @apply bg-primary/10 text-primary;
+  }
+  .master-data-cell-icon-muted {
+    @apply bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-slate-300;
+  }
+  .master-data-cell-content {
+    @apply min-w-0 flex-1;
+  }
+  .master-data-cell-link {
+    @apply data-primary block min-w-0 truncate hover:text-primary;
+  }
+  .master-data-cell-title {
+    @apply data-primary block min-w-0 truncate;
+  }
+  .master-data-cell-subtitle {
+    @apply page-subtitle truncate;
+  }
+  /* การ์ดมือถือของหน้า master data — ช่องชื่อ + ป้าย + เมนู */
+  .master-data-mobile-row {
+    @apply flex items-center gap-3 p-4;
+  }
+  /* หมวดย่อยที่กางใต้การ์ดมือถือ */
+  .master-data-subrows {
+    @apply mt-3 divide-y divide-gray-100 border-t border-gray-100 pl-10 dark:divide-slate-700 dark:border-slate-700;
+  }
+  .master-data-subrow {
+    @apply flex items-center gap-2 py-3 [&>svg]:w-4 [&>svg]:h-4 [&>svg]:flex-shrink-0 [&>svg]:text-gray-400;
+  }
+  .master-data-subrow-name {
+    @apply min-w-0 flex-1 truncate;
+  }
+
+  /* ข้อมูลรองในช่องตาราง (ไอคอน + ข้อความ) และข้อความจาง ๆ ("ยังไม่ผูก Supplier") */
+  .table-meta {
+    @apply flex items-center gap-2 [&>svg]:w-4 [&>svg]:h-4 [&>svg]:flex-shrink-0 [&>svg]:text-gray-400;
+  }
+  .table-muted {
+    @apply data-secondary text-gray-400;
+  }
+  /* ไอคอนของ empty state ใน DataTable */
+  .data-empty-icon {
+    @apply w-10 h-10;
+  }
+
+  /* ── ฟอร์ม ── */
+  /* ป้าย + ตัวควบคุมที่ไม่มีป้ายในตัว (FormSelect · กลุ่ม Radio ฯลฯ) — ใช้ผ่าน <FormField> */
+  .form-field {
+    @apply space-y-1.5;
+  }
+  .form-field-hint {
+    @apply helper-text;
+  }
+
+  /* ── แถบค้นหาของหน้า list (ใช้ผ่าน <ListFilterBar>) ── */
+  .list-filter-row {
+    @apply flex items-center gap-3;
+  }
+  .list-filter-search {
+    @apply min-w-0 flex-1;
+  }
+  .list-filter-summary {
+    @apply flex flex-shrink-0 items-center gap-2;
   }
 }
 
@@ -750,7 +855,8 @@ input.line-btn-field-secondary::placeholder,
   .action-menu-item {
     @apply w-full px-3 py-2 text-left text-sm font-normal flex items-center gap-2.5
            whitespace-nowrap transition-colors text-gray-900 dark:text-slate-100
-           hover:bg-gray-50 dark:hover:bg-slate-700;
+           hover:bg-gray-50 dark:hover:bg-slate-700
+           [&>svg]:w-4 [&>svg]:h-4 [&>svg]:flex-shrink-0;
   }
   /* เมนู "สำคัญที่สุด" ของ dropdown นั้น — เกณฑ์คือ **งานของสถานะนี้**
    * (แท็บที่ต้องจัดส่ง = ใบจัดของ + ใบปะหน้า · แท็บอื่น = พิมพ์ทั้งหมด / ออกใบกำกับแบบเต็ม)

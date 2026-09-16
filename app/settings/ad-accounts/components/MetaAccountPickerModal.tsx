@@ -63,7 +63,7 @@ export default function MetaAccountPickerModal({
         ? `เลือกบัญชีโฆษณา (${accounts.length} บัญชี)`
         : `เลือก Dataset สำหรับ ${selected?.name || 'บัญชีที่เลือก'}`}
       footer={
-        <div className="flex gap-2 justify-end p-4">
+        <div className="flex gap-2 justify-end">
           {stage === 2 && (
             <Button variant="ghost" onClick={onBack} disabled={saving} icon={<ArrowLeft className="w-4 h-4" />}>
               กลับ
@@ -82,7 +82,7 @@ export default function MetaAccountPickerModal({
         </div>
       }
     >
-      <div className="p-4 space-y-3">
+      <div className="space-y-3">
         {stage === 1 ? (
           <>
             <Alert tone="info">

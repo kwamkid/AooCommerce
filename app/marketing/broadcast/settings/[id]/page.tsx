@@ -753,7 +753,7 @@ export default function BroadcastPageSettings() {
           icon={<Ticket className="w-5 h-5" />}
           size="md"
         >
-          <div className="px-6 py-5">
+          <div>
             {coupons.length === 0 ? (
               <EmptyCard
                 title="ยังไม่มีคูปองในระบบ"

@@ -511,7 +511,7 @@ export default function ImageUploader({
         title={lightboxIndex !== null ? `รูปที่ ${lightboxIndex + 1} / ${images.length}` : undefined}
       >
         {lightboxIndex !== null && images[lightboxIndex] && (
-          <div className="p-4">
+          <div>
             <div className="relative flex items-center justify-center">
               {/* Prev */}
               {lightboxIndex > 0 && (

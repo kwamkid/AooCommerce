@@ -198,7 +198,7 @@ export default function PromotionSelectModal({
         </div>
       }
       footer={
-        <div className="px-5 py-4 flex items-center justify-between">
+        <div className="flex items-center justify-between">
           <div>
             <p className="text-xs text-gray-500 dark:text-gray-400">ราคารวม</p>
             <p className="text-xl font-bold text-primary">฿{formatPrice(Math.round(getDisplayPrice() * 100) / 100)}</p>
@@ -227,7 +227,7 @@ export default function PromotionSelectModal({
         </div>
       }
     >
-      <div className="px-5 py-4 space-y-4">
+      <div className="space-y-4">
 
           {/* === bundle_set / buy_get_free: show all items === */}
           {(type === 'bundle_set' || type === 'buy_get_free') && (

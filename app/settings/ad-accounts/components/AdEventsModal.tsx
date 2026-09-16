@@ -80,7 +80,7 @@ export default function AdEventsModal({ open, account, onClose }: Props) {
       size="2xl"
       title={`event ที่ส่งจาก ${account.name || `act_${account.external_id}`} · 7 วัน`}
     >
-      <div className="p-4 space-y-3">
+      <div className="space-y-3">
         <FilterChips<EventFilter>
           value={filter}
           onChange={changeFilter}

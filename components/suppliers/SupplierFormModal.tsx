@@ -38,7 +38,7 @@ export default function SupplierFormModal({ open, onClose, onCreated }: Supplier
       title="เพิ่มซัพพลายเออร์ใหม่"
       icon={<Factory className="w-5 h-5 text-primary" />}
     >
-      <div className="p-4">
+      <div>
         <SupplierForm
           onSubmit={handleSubmit}
           onCancel={onClose}

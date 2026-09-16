@@ -179,6 +179,7 @@ export default function HandoverPickerPanel({
   return (
     <Modal
       open
+      bodyPadding={false}
       onClose={onSkip}
       size="lg"
       hideCloseButton
@@ -198,7 +199,7 @@ export default function HandoverPickerPanel({
         </div>
       }
       footer={
-        <div className="flex items-center justify-between p-5">
+        <div className="flex items-center justify-between">
           <button
             onClick={onSkip}
             disabled={loading}

@@ -59,7 +59,7 @@ export default function CustomerSearch({ selectedCustomer, onSelect, onClose }: 
 
   return (
     <Modal open onClose={onClose} size="md" title="เลือกลูกค้า">
-      <div className="p-6">
+      <div>
         {/* Walk-in button */}
         <button
           onClick={() => { onSelect(null); onClose(); }}
