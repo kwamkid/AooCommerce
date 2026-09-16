@@ -14,6 +14,7 @@ import {
   type ShopeePushPayload,
 } from '@/lib/shopee/push-handlers';
 import crypto from 'crypto';
+import { issueOrderDocuments } from '@/lib/documents/issue-order-documents';
 
 // Allow up to 60s — sync runs in background via after() but Vercel
 // still needs the function alive for background work to complete.
@@ -445,8 +446,7 @@ async function handleOrderTracking(
 
     // Auto-issue document (ABB/REC) if status changed
     if (updatePayload.order_status) {
-      const { autoIssueDocument } = await import('@/lib/invoice-service');
-      autoIssueDocument(order.id, account.company_id).catch(() => {});
+      await issueOrderDocuments([order.id], account.company_id);
     }
   }
 }

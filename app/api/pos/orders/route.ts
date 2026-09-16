@@ -2,13 +2,14 @@
 import { NextRequest, NextResponse, after } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
-import { deductStock } from '@/lib/stock-service';
 import { fetchCostMap } from '@/lib/cost-utils';
 import { computeOrderTotals } from '@/lib/order-totals';
 import { checkCoupon, normalizeCouponCode, type Coupon } from '@/lib/coupons';
 import { getCompositeAvailability } from '@/lib/composite';
 
 import { normalizePhoneQuery } from '@/lib/numeric-input';
+import { issueOrderDocuments } from '@/lib/documents/issue-order-documents';
+import { sellOrderStockOnce } from '@/lib/stock/order-stock';
 interface PosItemInput {
   variation_id: string;
   product_id: string;
@@ -515,66 +516,23 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Immediately deduct stock (not reserve — POS is instant)
-    // Only when warehouse is assigned to this session
-    if (warehouseId && stockConfig.stockEnabled) {
-      const allVariationIds: string[] = [];
-
-      for (const item of itemsWithTotals) {
-        if (!item.variation_id) continue;
-
-        // If promotion item, use stored components for stock deduction
-        if (item.promotion_id && item.promotion_components?.length) {
-          for (const comp of item.promotion_components) {
-            if (!comp.variation_id) continue;
-            try {
-              let varId = comp.variation_id;
-              const { data: checkVar } = await supabaseAdmin.from('product_variations').select('id').eq('id', varId).maybeSingle();
-              if (!checkVar) {
-                const { data: firstVar } = await supabaseAdmin.from('product_variations').select('id').eq('product_id', varId).limit(1).maybeSingle();
-                if (firstVar) varId = firstVar.id; else continue;
-              }
-              allVariationIds.push(varId);
-              await deductStock({
-                supabase: supabaseAdmin,
-                companyId: auth.companyId,
-                warehouseId,
-                variationId: varId,
-                qty: comp.quantity * item.quantity,
-                referenceType: 'pos_order',
-                referenceId: order.id,
-                notes: `POS ขาย ${receiptNumResult.data} (โปรโมชั่น)`,
-                createdBy: auth.userId,
-              });
-            } catch (promoErr) {
-              console.error('[POS] Promotion stock deduction error:', promoErr);
-            }
-          }
-          continue;
-        }
-
-        allVariationIds.push(item.variation_id);
-        try {
-          await deductStock({
-            supabase: supabaseAdmin,
-            companyId: auth.companyId,
-            warehouseId,
-            variationId: item.variation_id,
-            qty: item.quantity,
-            referenceType: 'pos_order',
-            referenceId: order.id,
-            notes: `POS ขาย ${receiptNumResult.data}`,
-            createdBy: auth.userId,
-          });
-        } catch (stockErr) {
-          console.error('[POS] Stock deduction error:', stockErr);
-        }
-      }
-
-      // Auto-sync stock to Shopee if linked
-      if (allVariationIds.length > 0) {
-        after(() => import('@/lib/marketplace/stock-push').then(m => m.syncStockNow(allVariationIds, [warehouseId])));
-      }
+    /**
+     * ตัดสต็อกทันที — POS ไม่มีช่วงจอง ลูกค้าจ่ายเงินแล้วหยิบของเดินออกไปเลย
+     *
+     * เดิมบล็อกนี้แตกโปรโมชันเองในหน้า route (ซ้ำกับที่ service กลางทำอยู่แล้ว) และบันทึก
+     * เป็น `reference_type: 'pos_order'` คนละแบบกับทางอื่น ทำให้ไม่มีการกันตัดซ้ำระดับใบ
+     * ตอนนี้ไปทาง `lib/stock/order-stock.ts` เหมือนทุกช่องทาง — แตกโปรโมชัน · แตกสินค้าชุด ·
+     * ดูหลักฐานกันตัดซ้ำ · กระจายยอดขึ้นร้าน อยู่ในที่เดียวหมด
+     */
+    const posStock = await sellOrderStockOnce({
+      companyId: auth.companyId!,
+      orderId: order.id,
+      warehouseId: warehouseId,
+      reference: `POS ${receiptNumResult.data}`,
+      createdBy: auth.userId,
+    });
+    if (posStock.errors.length > 0) {
+      console.error('[POS] ตัดสต็อกไม่สำเร็จบางรายการ:', posStock.errors);
     }
 
     // Create payment records
@@ -614,10 +572,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Auto-issue document (ABB/REC) for POS orders
-    {
-      const { autoIssueDocument } = await import('@/lib/invoice-service');
-      autoIssueDocument(order.id, auth.companyId!).catch(() => {});
-    }
+    await issueOrderDocuments([order.id], auth.companyId!);
 
     // Return order with receipt data
     return NextResponse.json({

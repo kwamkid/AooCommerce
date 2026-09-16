@@ -17,6 +17,7 @@ import { checkCoupon, normalizeCouponCode, type Coupon } from '@/lib/coupons';
 import { contactBelongsToCompany } from '@/lib/chat/contact-tables';
 
 import { normalizePhone } from '@/lib/numeric-input';
+import { issueOrderDocuments } from '@/lib/documents/issue-order-documents';
 // Type definitions
 interface OrderItemInput {
   variation_id: string; // product_variations.id
@@ -1661,14 +1662,10 @@ export async function PUT(request: NextRequest) {
         }
 
         // --- Auto-issue documents for all accepted orders ---
-        {
-          const { autoIssueDocument } = await import('@/lib/invoice-service');
-          const allAcceptedIds = [...nonVerifyingIds, ...verifyingIds,
-            ...shopeeOrders.map(o => o.id)];
-          for (const oid of allAcceptedIds) {
-            autoIssueDocument(oid, auth.companyId!).catch(() => {});
-          }
-        }
+        await issueOrderDocuments(
+          [...nonVerifyingIds, ...verifyingIds, ...shopeeOrders.map(o => o.id)],
+          auth.companyId!,
+        );
 
         return NextResponse.json({
           success: true,
@@ -1851,10 +1848,7 @@ export async function PUT(request: NextRequest) {
         }
 
         // Auto-issue documents for shipped orders (Flow B: TAX/DN, Flow A completed: ABB/REC)
-        const { autoIssueDocument } = await import('@/lib/invoice-service');
-        for (const order of ordersToShip || []) {
-          autoIssueDocument(order.id, auth.companyId!).catch(() => {});
-        }
+        await issueOrderDocuments((ordersToShip || []).map(o => o.id), auth.companyId!);
 
         return NextResponse.json({ success: true, shipped: shippedCount });
       }
@@ -2651,10 +2645,7 @@ export async function PUT(request: NextRequest) {
       // --- End stock logic on status change ---
 
       // Auto-issue document (ABB/REC) after any status/payment change
-      {
-        const { autoIssueDocument } = await import('@/lib/invoice-service');
-        autoIssueDocument(id, auth.companyId!).catch(() => {});
-      }
+      await issueOrderDocuments([id], auth.companyId!);
 
       return NextResponse.json({
         success: true,

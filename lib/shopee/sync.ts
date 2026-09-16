@@ -28,6 +28,7 @@ import {
   upsertShopeeProduct,
   tryAutoMatchBySku,
 } from '@/lib/shopee/product-helpers';
+import { issueOrderDocuments } from '@/lib/documents/issue-order-documents';
 
 // --- Sync Progress Types ---
 
@@ -851,8 +852,7 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
 
       // Auto-issue document (ABB/REC) for orders that progressed past READY_TO_SHIP
       if (['PROCESSED', 'SHIPPED', 'TO_CONFIRM_RECEIVE', 'COMPLETED'].includes(shopeeOrder.order_status)) {
-        const { autoIssueDocument } = await import('@/lib/invoice-service');
-        autoIssueDocument(existing.id, companyId).catch(() => {});
+        await issueOrderDocuments([existing.id], companyId);
       }
 
       // Deduct + unreserve stock when Shopee order ships (SHIPPED/TO_CONFIRM_RECEIVE/COMPLETED)

@@ -22,6 +22,7 @@ import {
   releaseOrderStockOnce,
   type OrderStockContext,
 } from '@/lib/stock/order-stock';
+import { issueOrderDocuments } from '@/lib/documents/issue-order-documents';
 
 // --- Sync Progress ---
 
@@ -528,8 +529,7 @@ async function updateExistingOrder(
 
     // Auto-issue documents
     if (['AWAITING_COLLECTION', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED'].includes(tiktokOrder.status)) {
-      const { autoIssueDocument } = await import('@/lib/invoice-service');
-      autoIssueDocument(existing.id, companyId).catch(() => {});
+      await issueOrderDocuments([existing.id], companyId);
     }
 
     // ตัดสต็อกเมื่อของออกจากคลังจริง — ตัวกลางกันซ้ำจากหลักฐานใน inventory_transactions
@@ -833,8 +833,7 @@ async function createNewOrder(
 
   // Auto-issue document if already past AWAITING_SHIPMENT
   if (['AWAITING_COLLECTION', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED'].includes(tiktokOrder.status)) {
-    const { autoIssueDocument } = await import('@/lib/invoice-service');
-    autoIssueDocument(order.id, companyId).catch(() => {});
+    await issueOrderDocuments([order.id], companyId);
   }
 
   // Push แจ้งเตือนออเดอร์ใหม่ (ออเดอร์เก่าจาก initial sync ถูกกรองด้วยเวลาใน helper)

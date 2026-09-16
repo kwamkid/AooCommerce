@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { addStock, deductStock } from '@/lib/stock-service';
+import { checkStockAvailability } from '@/lib/stock-utils';
 import { pushStockAfter } from '@/lib/marketplace/push-after';
 import { getConsignmentDestinationWarehouse } from '@/lib/consignment-warehouse';
 import { createOrAttachStatementForDeptReport } from '@/lib/statement-service';
@@ -109,6 +110,31 @@ export async function PUT(
         );
       }
 
+      const { data: reportItems } = await supabaseAdmin
+        .from('department_store_report_items')
+        .select('id, variation_id, qty_sold')
+        .eq('report_id', reportId);
+
+      /**
+       * ของในคลังห้างต้องพอกับยอดที่แจ้งว่าขายได้ — ห้างแจ้งขาย 10 ทั้งที่เราส่งไป 5
+       * แปลว่าข้อมูลผิด (ตกใบส่งของ หรือกรอกเกิน) ไม่ใช่ว่าของงอกเอง
+       * เดิม deductStock ไม่ได้เช็ค คลังห้างจึงติดลบเงียบ ๆ แล้วไม่มีใครรู้ว่าเริ่มเพี้ยนตอนไหน
+       * ต้องเช็ค**ก่อน**ปิดสถานะ ไม่งั้นพังกลางคันจะเหลือใบที่ปิดแล้วแต่ตัดของไปครึ่งเดียว
+       */
+      const shortages = await checkStockAvailability(
+        companyId,
+        warehouse.id,
+        (reportItems || [])
+          .filter(i => i.variation_id && i.qty_sold > 0)
+          .map(i => ({ variation_id: i.variation_id as string, quantity: i.qty_sold, raw: {} })),
+      );
+      if (shortages.length > 0) {
+        return NextResponse.json(
+          { error: `ยอดที่แจ้งขายมากกว่าของที่มีในคลัง — ${shortages.join(' · ')}`, errors: shortages },
+          { status: 400 },
+        );
+      }
+
       /**
        * ล็อกกันกดซ้ำก่อนตัดสต็อก — ยืนยันสองรอบ = ตัดของสองเท่าจากยอดขายชุดเดียว
        * (สถานะปลายทางคือ billed อยู่แล้ว ขั้นตอนข้างล่างจะเติมฟิลด์ที่เหลือให้)
@@ -127,11 +153,6 @@ export async function PUT(
       // 2. Deduct stock from consignment warehouse
       const confirmTouched: string[] = [];
       {
-        const { data: reportItems } = await supabaseAdmin
-          .from('department_store_report_items')
-          .select('id, variation_id, qty_sold')
-          .eq('report_id', reportId);
-
         for (const item of reportItems || []) {
           if (!item.variation_id || item.qty_sold <= 0) continue;
           confirmTouched.push(item.variation_id);

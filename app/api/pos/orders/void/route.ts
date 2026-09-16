@@ -1,8 +1,7 @@
 // Path: app/api/pos/orders/void/route.ts
-import { NextRequest, NextResponse, after } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
-import { getStockConfig } from '@/lib/stock-utils';
-import { returnStock } from '@/lib/stock-service';
+import { releaseOrderStockOnce } from '@/lib/stock/order-stock';
 
 // POST — Void a POS order
 export async function POST(request: NextRequest) {
@@ -40,41 +39,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Order already voided' }, { status: 400 });
     }
 
-    // Get order items for stock return
-    const { data: orderItems } = await supabaseAdmin
-      .from('order_items')
-      .select('variation_id, quantity')
-      .eq('order_id', order_id)
-      .eq('company_id', auth.companyId);
-
-    // Return stock
-    const stockConfig = await getStockConfig(auth.companyId);
-    const touched: string[] = [];
-    if (stockConfig.stockEnabled && order.warehouse_id) {
-      for (const item of (orderItems || [])) {
-        if (!item.variation_id) continue;
-        try {
-          await returnStock({
-            supabase: supabaseAdmin,
-            companyId: auth.companyId,
-            warehouseId: order.warehouse_id,
-            variationId: item.variation_id,
-            qty: item.quantity,
-            referenceType: 'pos_order',
-            referenceId: order_id,
-            notes: `POS Void ${order.receipt_number || ''} — ${reason || ''}`,
-            createdBy: auth.userId,
-          });
-          touched.push(item.variation_id);
-        } catch (stockErr) {
-          console.error('[POS Void] Stock return error:', stockErr);
-        }
-      }
-      // ของกลับเข้าคลังแล้ว → ร้าน marketplace ที่ผูกไว้ต้องเห็นยอดใหม่
-      if (touched.length > 0) {
-        const wh = order.warehouse_id as string;
-        after(() => import('@/lib/marketplace/stock-push').then(m => m.syncStockNow(touched, [wh])));
-      }
+    /**
+     * คืนของผ่าน service กลาง — เดิมวนรายการเองในหน้านี้แล้ว**ไม่แตกโปรโมชัน**
+     * บิลที่ขายเป็นชุดจึงคืนผิดตัว (คืนตัวแม่ที่ไม่มีสต็อก ส่วนชิ้นจริงที่ถูกตัดไปไม่ได้คืน)
+     * ตัวกลางเลือกวิธีคืนจากหลักฐานจริง (เคยตัด → คืนเข้าคลัง · จองอยู่ → ปลดจอง)
+     * และกระจายยอดขึ้นร้านให้เองด้วย
+     */
+    const stock = await releaseOrderStockOnce({
+      companyId: auth.companyId!,
+      orderId: order_id,
+      warehouseId: order.warehouse_id,
+      reference: `POS Void ${order.receipt_number || ''}${reason ? ` — ${reason}` : ''}`,
+      createdBy: auth.userId,
+    });
+    if (stock.errors.length > 0) {
+      console.error('[POS Void] คืนสต็อกไม่สำเร็จบางรายการ:', stock.errors);
     }
 
     // Update order status

@@ -19,6 +19,7 @@ import {
 } from '@/lib/shopee/pickup';
 import { logIntegration } from '@/lib/integration-logger';
 import { resolveCarrierFromOrder } from '@/lib/shopee/sync';
+import { issueOrderDocuments } from '@/lib/documents/issue-order-documents';
 
 /** คำตอบ "ให้มารับที่ไหน เมื่อไหร่" ที่ผู้ใช้เลือกมาจากจอ HandoverPickerPanel */
 interface PickupSelectionInput {
@@ -506,8 +507,7 @@ export async function POST(request: NextRequest) {
           }
 
           // Auto-issue document (ABB/REC)
-          const { autoIssueDocument } = await import('@/lib/invoice-service');
-          autoIssueDocument(order.id, companyId).catch(() => {});
+          await issueOrderDocuments([order.id], companyId);
 
           parallelResults.push({ order_id: order.id, order_sn: order.external_order_sn || '', success: true });
         } else if (orderErrorMap.has(order.id)) {

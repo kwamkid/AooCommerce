@@ -33,6 +33,7 @@ import {
   releaseOrderStockOnce,
   type OrderStockContext,
 } from '@/lib/stock/order-stock';
+import { issueOrderDocuments } from '@/lib/documents/issue-order-documents';
 
 export interface SyncProgressEvent {
   phase: 'collecting' | 'processing' | 'done';
@@ -389,8 +390,7 @@ async function updateExistingOrder(
 
     // Auto-issue documents เมื่อคอนเฟิร์ม/แพ็คแล้ว (processing ขึ้นไป)
     if (['packed', 'ready_to_ship_pending', 'ready_to_ship', 'shipped', 'delivered', 'confirmed'].includes(effStatus)) {
-      const { autoIssueDocument } = await import('@/lib/invoice-service');
-      autoIssueDocument(existing.id, companyId).catch(() => {});
+      await issueOrderDocuments([existing.id], companyId);
     }
 
     // ตัดสต็อกเมื่อของออกจากคลังจริง — ตัวกลางกันซ้ำจากหลักฐานใน inventory_transactions
@@ -680,8 +680,7 @@ async function createNewOrder(
   // Auto-issue documents ถ้าเข้ามาเลย processing แล้ว
   if (['packed', 'ready_to_ship_pending', 'ready_to_ship', 'shipped', 'delivered', 'confirmed'].includes(effStatus)) {
     if (!opts.skipDocuments) {
-      const { autoIssueDocument } = await import('@/lib/invoice-service');
-      autoIssueDocument(newOrder.id, companyId).catch(() => {});
+      await issueOrderDocuments([newOrder.id], companyId);
     }
   }
 

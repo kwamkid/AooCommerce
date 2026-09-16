@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { deductStock, addStock } from '@/lib/stock-service';
+import { checkStockAvailability } from '@/lib/stock-utils';
 import { pushStockAfter } from '@/lib/marketplace/push-after';
 import { getCustomerConsignmentWarehouse } from '@/lib/consignment-warehouse';
 
@@ -132,6 +133,32 @@ export async function PUT(
         return NextResponse.json({ error: 'ไม่พบคลังฝากขายของตัวแทนนี้' }, { status: 400 });
       }
 
+      // 2. Fetch report items
+      const { data: reportItems } = await supabaseAdmin
+        .from('consignment_report_items')
+        .select('id, variation_id, qty_sold')
+        .eq('report_id', reportId);
+
+      /**
+       * ของในคลังฝากขายต้องพอกับยอดที่แจ้งว่าขายได้ — ตัวแทน แจ้งขาย 10 ทั้งที่เราส่งไป 5
+       * แปลว่าข้อมูลผิด (ตกใบเติมของ หรือกรอกเกิน) ไม่ใช่ว่าของงอกเอง
+       * เดิม deductStock ไม่ได้เช็ค คลังฝากขายจึงติดลบเงียบ ๆ แล้วไม่มีใครรู้ว่าเริ่มเพี้ยนตอนไหน
+       * ต้องเช็ค**ก่อน**ปิดสถานะ ไม่งั้นพังกลางคันจะเหลือใบที่ปิดแล้วแต่ตัดของไปครึ่งเดียว
+       */
+      const shortages = await checkStockAvailability(
+        companyId,
+        warehouse.id,
+        (reportItems || [])
+          .filter(i => i.variation_id && i.qty_sold > 0)
+          .map(i => ({ variation_id: i.variation_id as string, quantity: i.qty_sold, raw: {} })),
+      );
+      if (shortages.length > 0) {
+        return NextResponse.json(
+          { error: `ยอดที่แจ้งขายมากกว่าของที่มีในคลัง — ${shortages.join(' · ')}`, errors: shortages },
+          { status: 400 },
+        );
+      }
+
       /**
        * ล็อกกันกดซ้ำก่อนตัดสต็อก — ยืนยันสองรอบ = ตัดของสองเท่าจากยอดขายชุดเดียว
        * (สถานะปลายทางคือ billed อยู่แล้ว ขั้นตอนที่ 6 จะเติมฟิลด์ที่เหลือให้)
@@ -146,12 +173,6 @@ export async function PUT(
       if (!confirmLocked || confirmLocked.length === 0) {
         return NextResponse.json({ error: 'รายงานนี้ถูกยืนยันไปแล้ว' }, { status: 409 });
       }
-
-      // 2. Fetch report items
-      const { data: reportItems } = await supabaseAdmin
-        .from('consignment_report_items')
-        .select('id, variation_id, qty_sold')
-        .eq('report_id', reportId);
 
       // 3. Deduct stock for each item
       const confirmTouched: string[] = [];

@@ -28,6 +28,7 @@ import {
   unreserveStock,
   returnStock,
   deductAndUnreserve,
+  deductStock,
 } from '@/lib/stock-service';
 import { getStockConfig } from '@/lib/stock-utils';
 import { syncStockNow } from '@/lib/marketplace/stock-push';
@@ -86,10 +87,15 @@ interface OrderStockHistory {
 }
 
 async function readHistory(orderId: string): Promise<OrderStockHistory> {
+  /**
+   * `pos_order` = บิลหน้าร้านที่บันทึกไว้ก่อนย้ายมาใช้ service กลาง — `reference_id`
+   * เป็น order id ตัวเดียวกัน ถ้าไม่นับด้วย บิลเก่าจะดูเหมือนไม่เคยแตะสต็อกเลย
+   * แล้วการยกเลิกจะไม่คืนของให้
+   */
   const { data, error } = await supabaseAdmin
     .from('inventory_transactions')
     .select('type')
-    .eq('reference_type', 'order')
+    .in('reference_type', ['order', 'pos_order'])
     .eq('reference_id', orderId);
   if (error) throw new Error(`อ่านประวัติสต็อกของออเดอร์ไม่สำเร็จ: ${error.message}`);
   const types = new Set((data || []).map(r => r.type as string));
@@ -253,6 +259,60 @@ export async function deductOrderStockOnce(
       result.touched.push(item.variation_id);
     } catch (e) {
       result.errors.push(`${item.variation_id}: ${e instanceof Error ? e.message : 'ตัดสต็อกไม่สำเร็จ'}`);
+    }
+  }
+  result.applied = result.touched.length > 0;
+  await pushIfNeeded(ctx, result.touched);
+  return result;
+}
+
+/**
+ * ขายหน้าร้าน — ของออกจากคลัง **ทันทีโดยไม่ผ่านการจอง** เรียกกี่ครั้งก็ตัดรอบเดียว
+ *
+ * ต่างจาก `deductOrderStockOnce` ตรงที่ตัวนั้นบังคับว่าต้องเคยจองมาก่อน (กันใบเก่าที่
+ * ดึงย้อนหลังมาทั้งที่ส่งไปแล้วโดนหักซ้ำ) แต่ POS ไม่มีช่วงจองเลย — ลูกค้ายืนอยู่ตรงหน้า
+ * จ่ายเงินแล้วหยิบของเดินออกไปในจังหวะเดียว ถ้าใช้ตัวนั้นจะถูกตีเป็น `never_reserved`
+ * แล้วไม่ตัดอะไรเลย
+ *
+ * เผื่อกรณีที่ใบนั้นเคยจองไว้จริง (เช่นสั่งล่วงหน้าแล้วมารับที่ร้าน) ก็ปลดจองให้ด้วย
+ * ไม่งั้นยอดจองจะค้างทั้งที่ของออกไปแล้ว
+ */
+export async function sellOrderStockOnce(
+  ctx: OrderStockContext,
+  items?: OrderStockItem[],
+): Promise<OrderStockResult> {
+  const g = await gate(ctx, items);
+  if (g.skip) return g.skip;
+
+  const history = await readHistory(ctx.orderId);
+  if (history.deducted) return EMPTY('already_done');
+
+  const result: OrderStockResult = { applied: false, touched: [], errors: [], insufficient: [] };
+  for (const item of g.items!) {
+    const common = {
+      supabase: supabaseAdmin,
+      companyId: ctx.companyId,
+      warehouseId: ctx.warehouseId!,
+      variationId: item.variation_id,
+      qty: item.quantity,
+      referenceType: 'order' as const,
+      referenceId: ctx.orderId,
+      notes: `ขายหน้าร้าน ${ctx.reference}`,
+      createdBy: ctx.createdBy ?? null,
+    };
+    try {
+      if (history.reserved) {
+        await deductAndUnreserve(common);
+      } else {
+        await deductStock({ ...common, checkAvailable: !g.allowOversell });
+      }
+      result.touched.push(item.variation_id);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'ตัดสต็อกไม่สำเร็จ';
+      if (message.includes('Insufficient') || message.includes('ไม่พอ')) {
+        result.insufficient.push(item.variation_id);
+      }
+      result.errors.push(`${item.variation_id}: ${message}`);
     }
   }
   result.applied = result.touched.length > 0;
