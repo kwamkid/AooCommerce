@@ -55,7 +55,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const company = await getStorefrontCompany(slug);
   if (!company) return { title: 'ไม่พบร้านนี้', robots: { index: false, follow: false } };
 
-  const product = await getStorefrontProduct(company.id, productSlug);
+  // ⚠️ ต้องส่งอาร์กิวเมนต์ **ชุดเดียวกับที่หน้าเรียก** ไม่งั้น `cache()` ถือเป็นคนละคีย์
+  // แล้วยิง query ชุดเต็มสองรอบต่อการเปิดหน้า 1 ครั้ง (กระทบ TTFB/CWV โดยตรง)
+  const product = await getStorefrontProduct(company.id, productSlug, company.features.stock);
   if (!product) {
     // URL ที่เคยมีสินค้า → บอกให้ชัดว่าเลิกขาย · follow:true เพื่อให้ crawler
     // เดินต่อไปหน้าสินค้าที่แนะนำได้ ไม่ตัน
@@ -92,8 +94,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       title,
       description,
       type: 'website',
+      siteName: shopName,
+      locale: 'th_TH',
       ...(cfg.public_base_url ? { url: storefrontUrl(cfg, slug, `/p/${product.slug}`) } : {}),
-      ...(product.images[0] ? { images: [product.images[0]] } : {}),
+      // สินค้าไม่มีรูป (ร้านที่เปิด show_without_image) ตกไปใช้โลโก้ร้าน — ดีกว่าแชร์แล้วไม่มีรูปเลย
+      images: [product.images[0] || cfg.logo_url || company.logo_url].filter(Boolean) as string[],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
     },
   };
 }

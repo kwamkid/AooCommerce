@@ -76,9 +76,13 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
       title,
       description,
       type: 'website',
+      siteName: shopName,
+      locale: 'th_TH',
       ...(canonical ? { url: canonical } : {}),
-      ...(company.logo_url ? { images: [company.logo_url] } : {}),
+      // โลโก้ของ **ร้าน** ก่อน ตกไปใช้ของบริษัท — ให้ตรงกับที่หัวร้าน/ท้ายหน้าร้านแสดงจริง
+      ...((cfg.logo_url || company.logo_url) ? { images: [cfg.logo_url || company.logo_url!] } : {}),
     },
+    twitter: { card: 'summary_large_image', title, description },
   };
 }
 
