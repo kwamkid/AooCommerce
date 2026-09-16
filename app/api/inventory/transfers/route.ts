@@ -3,7 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, isAdminRole, can } from '@/lib/supabase-admin';
 import { getStockConfig, parseStockDocLines, checkStockAvailability } from '@/lib/stock-utils';
-import { reserveStock, deductAndUnreserve, transferIn, returnStock, unreserveStock } from '@/lib/stock-service';
+import { reserveStock, shipToTransit, receiveFromTransit, cancelFromShipped, unreserveStock } from '@/lib/stock-service';
 import { pushStockAfter } from '@/lib/marketplace/push-after';
 
 /** แถว `inventory_transfer_items` เท่าที่ route นี้ใช้ */
@@ -376,9 +376,31 @@ export async function PUT(request: NextRequest) {
         return NextResponse.json({ error: 'คุณไม่มีสิทธิ์จัดส่งจากคลังต้นทางนี้' }, { status: 403 });
       }
 
-      // Deduct quantity + release reserved_quantity at source
-      for (const item of transfer.items) {
-        await deductAndUnreserve({
+      /**
+       * ล็อกกันกดซ้ำก่อนแตะสต็อก — กดส่งรัว ๆ สองครั้งเคยหักของสองรอบ
+       */
+      const { data: shipLocked } = await supabaseAdmin
+        .from('inventory_transfers')
+        .update({
+          status: 'shipping',
+          shipped_at: new Date().toISOString(),
+          shipped_by: auth.userId,
+        })
+        .eq('id', transfer_id)
+        .eq('status', 'pending')
+        .select('id');
+
+      if (!shipLocked || shipLocked.length === 0) {
+        return NextResponse.json({ error: 'ใบโอนย้ายนี้ถูกจัดส่งไปแล้ว' }, { status: 409 });
+      }
+
+      /**
+       * ของระหว่างทางต้องอยู่ใน `in_transit` ไม่ใช่หายไปเฉย ๆ
+       * เดิมใช้ deductAndUnreserve = ตัดออกจาก quantity ล้วน ๆ ระหว่างที่ยังไม่ถึงปลายทาง
+       * ของก้อนนี้ไม่ปรากฏที่ไหนในระบบเลย รับไม่ครบ/ยกเลิกทีหลังก็ไม่มีตัวเลขให้เทียบว่าหายไปเท่าไร
+       */
+      for (const item of transfer.items as TransferItemRow[]) {
+        await shipToTransit({
           supabase: supabaseAdmin,
           companyId: auth.companyId!,
           warehouseId: transfer.from_warehouse_id,
@@ -388,18 +410,8 @@ export async function PUT(request: NextRequest) {
           referenceId: transfer.id,
           notes: `โอนย้ายออก ${transfer.transfer_number}`,
           createdBy: auth.userId,
-          transactionType: 'transfer_out',
         });
       }
-
-      await supabaseAdmin
-        .from('inventory_transfers')
-        .update({
-          status: 'shipping',
-          shipped_at: new Date().toISOString(),
-          shipped_by: auth.userId,
-        })
-        .eq('id', transfer_id);
 
       // ไม่ต้องกระจายขึ้นร้าน: deductAndUnreserve ลดทั้ง quantity และ reserved เท่ากัน
       // → ยอดพร้อมขายเท่าเดิม (ของถูกกันไว้ตั้งแต่ตอนสร้างใบแล้ว) ยิงไปก็เปลืองโควตาเปล่า
@@ -420,33 +432,65 @@ export async function PUT(request: NextRequest) {
         return NextResponse.json({ error: 'กรุณาระบุจำนวนที่รับ' }, { status: 400 });
       }
 
-      for (const ri of receivedItems) {
-        const { item_id, qty_received } = ri;
-        if (qty_received === undefined || qty_received === null) continue;
-
-        const transferItem = (transfer.items as TransferItemRow[]).find(i => i.id === item_id);
-        if (!transferItem) continue;
-
-        if (qty_received < 0) {
+      const sentItems = transfer.items as TransferItemRow[];
+      const receivedMap = new Map<string, number>();
+      for (const ri of (receivedItems as { item_id: string; qty_received: number | null }[])) {
+        if (ri.qty_received === undefined || ri.qty_received === null) continue;
+        const sentItem = sentItems.find(i => i.id === ri.item_id);
+        if (!sentItem) continue;
+        if (ri.qty_received < 0) {
           return NextResponse.json({ error: 'จำนวนรับไม่สามารถติดลบได้' }, { status: 400 });
         }
-        if (qty_received > transferItem.qty_sent) {
-          return NextResponse.json({ error: `จำนวนรับไม่สามารถมากกว่าจำนวนส่ง (${transferItem.qty_sent})` }, { status: 400 });
+        if (ri.qty_received > sentItem.qty_sent) {
+          return NextResponse.json(
+            { error: `จำนวนรับไม่สามารถมากกว่าจำนวนส่ง (${sentItem.qty_sent})` },
+            { status: 400 }
+          );
         }
+        receivedMap.set(ri.item_id, ri.qty_received);
+      }
 
-        // Update transfer item qty_received
+      /**
+       * ล็อกกันกดซ้ำก่อนแตะสต็อก — รับซ้ำสองรอบ = ของเข้าปลายทางสองเท่า in_transit ติดลบ
+       */
+      const { data: recvLocked } = await supabaseAdmin
+        .from('inventory_transfers')
+        .update({
+          status: 'received',
+          received_at: new Date().toISOString(),
+          received_by: auth.userId,
+          receive_notes: receive_notes || null,
+        })
+        .eq('id', transfer_id)
+        .eq('status', 'shipping')
+        .select('id');
+
+      if (!recvLocked || recvLocked.length === 0) {
+        return NextResponse.json({ error: 'ใบโอนย้ายนี้ถูกรับไปแล้ว' }, { status: 409 });
+      }
+
+      /**
+       * วนจาก**รายการที่ส่งจริง** ไม่ใช่เฉพาะแถวที่หน้าจอกรอกมา — เดิมวนจาก `receivedItems`
+       * แถวที่ผู้รับไม่ได้กรอก (หรือ payload ตกหล่น) จะไม่ถูกแตะเลย ของค้างใน in_transit
+       * ทั้งที่ใบปิดเป็น "รับแล้ว" = ของหายถาวร ไม่กรอก → ถือว่ารับ 0 แล้วคืนต้นทางให้หมด
+       */
+      for (const sentItem of sentItems) {
+        const qtyReceived = receivedMap.get(sentItem.id) ?? 0;
+
         await supabaseAdmin
           .from('inventory_transfer_items')
-          .update({ qty_received })
-          .eq('id', item_id);
+          .update({ qty_received: qtyReceived })
+          .eq('id', sentItem.id);
 
-        if (qty_received > 0) {
-          await transferIn({
+        if (qtyReceived > 0) {
+          // in_transit ต้นทาง -= , quantity ปลายทาง +=
+          await receiveFromTransit({
             supabase: supabaseAdmin,
             companyId: auth.companyId!,
-            warehouseId: transfer.to_warehouse_id,
-            variationId: transferItem.variation_id,
-            qty: qty_received,
+            sourceWarehouseId: transfer.from_warehouse_id,
+            destWarehouseId: transfer.to_warehouse_id,
+            variationId: sentItem.variation_id,
+            qty: qtyReceived,
             referenceType: 'transfer',
             referenceId: transfer.id,
             notes: `รับโอนย้ายเข้า ${transfer.transfer_number}`,
@@ -454,14 +498,14 @@ export async function PUT(request: NextRequest) {
           });
         }
 
-        // If qty_received < qty_sent, return the difference to source
-        const shortfall = transferItem.qty_sent - qty_received;
+        const shortfall = sentItem.qty_sent - qtyReceived;
         if (shortfall > 0) {
-          await returnStock({
+          // ของที่ไม่ถึงปลายทาง กลับเข้าคลังต้นทาง (in_transit -= , quantity +=)
+          await cancelFromShipped({
             supabase: supabaseAdmin,
             companyId: auth.companyId!,
             warehouseId: transfer.from_warehouse_id,
-            variationId: transferItem.variation_id,
+            variationId: sentItem.variation_id,
             qty: shortfall,
             referenceType: 'transfer',
             referenceId: transfer.id,
@@ -470,17 +514,6 @@ export async function PUT(request: NextRequest) {
           });
         }
       }
-
-      // Update transfer status — always 'received' (no more 'partial')
-      await supabaseAdmin
-        .from('inventory_transfers')
-        .update({
-          status: 'received',
-          received_at: new Date().toISOString(),
-          received_by: auth.userId,
-          receive_notes: receive_notes || null,
-        })
-        .eq('id', transfer_id);
 
       // รับเข้าปลายทาง + ส่วนที่รับไม่ครบคืนต้นทาง → ยอดเปลี่ยนสองคลัง ต้องดันทั้งคู่
       pushStockAfter(
@@ -540,8 +573,22 @@ export async function PUT(request: NextRequest) {
         return NextResponse.json({ error: 'ไม่มีสิทธิ์ยกเลิกใบโอนย้ายนี้' }, { status: 403 });
       }
 
+      /**
+       * ล็อกกันกดซ้ำก่อนแตะสต็อก — ยกเลิกสองรอบ = ปลดจอง/คืนของซ้ำ ของงอก
+       */
+      const { data: cancelLocked } = await supabaseAdmin
+        .from('inventory_transfers')
+        .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+        .eq('id', transfer_id)
+        .eq('status', transfer.status)
+        .select('id');
+
+      if (!cancelLocked || cancelLocked.length === 0) {
+        return NextResponse.json({ error: 'ใบโอนย้ายนี้ถูกยกเลิกไปแล้ว' }, { status: 409 });
+      }
+
       if (transfer.status === 'pending') {
-        for (const item of transfer.items) {
+        for (const item of transfer.items as TransferItemRow[]) {
           await unreserveStock({
             supabase: supabaseAdmin,
             companyId: auth.companyId!,
@@ -555,9 +602,9 @@ export async function PUT(request: NextRequest) {
           });
         }
       } else {
-        // shipping → cancelled: return stock to source
-        for (const item of transfer.items) {
-          await returnStock({
+        // shipping → cancelled: ของอยู่ใน in_transit → ดึงกลับเข้า quantity ต้นทาง
+        for (const item of transfer.items as TransferItemRow[]) {
+          await cancelFromShipped({
             supabase: supabaseAdmin,
             companyId: auth.companyId!,
             warehouseId: transfer.from_warehouse_id,
@@ -570,14 +617,6 @@ export async function PUT(request: NextRequest) {
           });
         }
       }
-
-      await supabaseAdmin
-        .from('inventory_transfers')
-        .update({
-          status: 'cancelled',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', transfer_id);
 
       // ปลดจอง (pending) หรือคืนของเข้าคลัง (shipping) — ทั้งสองแบบยอดพร้อมขายต้นทางเพิ่ม
       pushStockAfter((transfer.items as TransferItemRow[]).map(i => i.variation_id), [transfer.from_warehouse_id]);

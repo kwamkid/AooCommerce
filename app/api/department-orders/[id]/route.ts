@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
-import { shipToTransit, receiveFromTransit, cancelFromShipped, deductStock, unreserveStock, reserveStock } from '@/lib/stock-service';
+import { shipToTransit, receiveFromTransit, cancelFromShipped, deductStock, addStock, unreserveStock, reserveStock } from '@/lib/stock-service';
 import { pushStockAfter } from '@/lib/marketplace/push-after';
 import { getConsignmentDestinationWarehouse } from '@/lib/consignment-warehouse';
 
@@ -141,7 +141,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         return NextResponse.json({ error: 'สามารถจัดส่งได้เฉพาะสถานะ "ที่ต้องจัดส่ง" เท่านั้น' }, { status: 400 });
       }
       const { shipping_method, shipping_carrier, tracking_number, notes } = body;
-      await supabaseAdmin
+      /**
+       * ปิดสถานะแบบมีเงื่อนไข = ล็อกกันกดซ้ำ — กดรัว ๆ สองครั้ง ทั้งสองคำขออ่านสถานะเดิม
+       * ทันเหมือนกันแล้วขยับสต็อกคนละรอบ ให้ DB ตัดสินว่าใครได้ไปต่อ
+       */
+      const { data: locked } = await supabaseAdmin
         .from('department_orders')
         .update({
           status: 'shipped',
@@ -152,7 +156,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           shipped_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
-        .eq('id', id);
+        .eq('id', id)
+        .eq('status', 'pending')
+        .select('id');
+
+      if (!locked || locked.length === 0) {
+        return NextResponse.json({ error: 'ใบนี้ถูกจัดส่งไปแล้ว' }, { status: 409 });
+      }
 
       // Ship stock: reserved → in_transit
       if (existing.warehouse_id) {
@@ -258,6 +268,27 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         return NextResponse.json({ error: 'confirmed_items is required' }, { status: 400 });
       }
 
+      for (const item of confirmed_items as { id: string; confirmed_quantity: number }[]) {
+        if (typeof item.confirmed_quantity !== 'number' || item.confirmed_quantity < 0) {
+          return NextResponse.json({ error: 'จำนวนที่รับต้องเป็นตัวเลขและติดลบไม่ได้' }, { status: 400 });
+        }
+      }
+
+      /**
+       * หาคลังปลายทางให้ได้**ก่อน** เปลี่ยนสถานะ — ของใบนี้ค้างอยู่ใน in_transit ของคลังต้นทาง
+       * ถ้าปิดใบเป็น "รับแล้ว" ทั้งที่ไม่มีปลายทางให้ลง ของจะค้าง in_transit ตลอดกาล
+       * (หายจากทั้งคลังต้นทางและปลายทาง) แล้วใบก็ปิดไปแล้ว ไม่มีทางย้อนกลับมาแก้
+       */
+      const consignWarehouse = await getConsignmentDestinationWarehouse(
+        supabaseAdmin, existing.company_id, existing.customer_id, existing.counter_id
+      );
+      if (!consignWarehouse || !existing.warehouse_id) {
+        return NextResponse.json(
+          { error: 'ยังไม่ได้ตั้งคลังปลายทางของห้าง/สาขานี้ — ตั้งคลังก่อนจึงจะยืนยันรับได้' },
+          { status: 400 }
+        );
+      }
+
       // Update confirmed_quantity per item
       for (const item of confirmed_items as { id: string; confirmed_quantity: number }[]) {
         await supabaseAdmin
@@ -275,7 +306,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
       // Determine final status
       const allMatch = (allItems || []).every(
-        (i: { quantity: number; confirmed_quantity: number }) => i.confirmed_quantity === i.quantity
+        (i: { quantity: number; confirmed_quantity: number | null }) =>
+          (i.confirmed_quantity ?? i.quantity) === i.quantity
       );
       const newStatus = allMatch ? 'received' : 'partial_received';
 
@@ -285,7 +317,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         return sum + qty * (item.unit_price || 0);
       }, 0);
 
-      await supabaseAdmin
+      /**
+       * ปิดสถานะแบบมีเงื่อนไข — กดยืนยันรัว ๆ สองครั้ง ทั้งสองคำขออ่านสถานะทัน
+       * "pending_confirm" เหมือนกันแล้วย้ายของคนละรอบ = ของเข้าคลังปลายทางสองเท่า
+       * ให้ DB ตัดสินว่าใครได้ไปต่อ แล้วค่อยแตะสต็อก
+       */
+      const { data: locked } = await supabaseAdmin
         .from('department_orders')
         .update({
           status: newStatus,
@@ -294,74 +331,102 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           internal_notes: confirm_notes || null,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', id);
+        .eq('id', id)
+        .eq('status', 'pending_confirm')
+        .select('id');
 
-      // Update consignment warehouse inventory + clear in_transit
-      const consignWarehouse = await getConsignmentDestinationWarehouse(
-        supabaseAdmin, existing.company_id, existing.customer_id, existing.counter_id
-      );
+      if (!locked || locked.length === 0) {
+        return NextResponse.json({ error: 'ใบนี้ถูกยืนยันไปแล้ว' }, { status: 409 });
+      }
 
       // คลังที่ "ยอดพร้อมขาย" เปลี่ยนจริงในรอบนี้ — receiveFromTransit ย้าย in_transit ออกจาก
       // ต้นทางเฉย ๆ ยอดพร้อมขายเท่าเดิม จะเปลี่ยนก็ต่อเมื่อรับขาด (คืนเข้าคลัง) หรือรับเกิน (หักเพิ่ม)
       const confirmTouched: string[] = [];
       let sourceChanged = false;
 
-      if (consignWarehouse && existing.warehouse_id) {
-        for (const item of (allItems || []) as {
-          id: string; variation_id: string | null;
-          confirmed_quantity: number; quantity: number;
-        }[]) {
-          if (!item.variation_id) continue;
-          const confirmed = item.confirmed_quantity > 0 ? item.confirmed_quantity : item.quantity;
-          if (confirmed <= 0) continue;
+      for (const item of (allItems || []) as {
+        id: string; variation_id: string | null;
+        confirmed_quantity: number | null; quantity: number;
+      }[]) {
+        if (!item.variation_id) continue;
 
-          // Move confirmed qty from source in_transit → destination stock
+        const sent = item.quantity || 0;
+        if (sent <= 0) continue;
+
+        /**
+         * `null` = ยังไม่ได้กรอก → ถือว่ารับครบ · `0` = ห้างยืนยันว่า**ไม่ได้รับเลย**
+         * (เดิมเช็ค `> 0` ทำให้ 0 ถูกกลืนเป็น "รับครบ" — ของที่จริง ๆ หายระหว่างทาง
+         *  ถูกบันทึกว่าถึงห้างเรียบร้อย ไม่มีใครรู้ว่าหาย)
+         */
+        const confirmed = item.confirmed_quantity ?? sent;
+
+        /**
+         * ใบนี้ฝากไว้ใน in_transit ของคลังต้นทางแค่ `sent` — ถ้ารับเกิน แล้วดึงจาก transit
+         * ตามจำนวนที่รับ จะไปกินของที่ใบอื่นฝากไว้ (transit ติดลบ/ใบอื่นรับไม่ครบตามมา)
+         * ส่วนที่เกินจึงต้องหักจากของจริงในคลังต้นทางแทน แล้วค่อยเติมให้ปลายทางแยกต่างหาก
+         */
+        const fromTransit = Math.min(confirmed, sent);
+
+        confirmTouched.push(item.variation_id);
+
+        if (fromTransit > 0) {
           await receiveFromTransit({
             supabase: supabaseAdmin,
             companyId: existing.company_id,
             sourceWarehouseId: existing.warehouse_id,
             destWarehouseId: consignWarehouse.id,
             variationId: item.variation_id,
-            qty: confirmed,
+            qty: fromTransit,
             referenceType: 'department_order',
             referenceId: id,
             notes: `รับเข้าคลังห้าง: ${existing.department_order_number}`,
             createdBy: auth.userId,
           });
+        }
 
-          // Handle stock mismatch
-          confirmTouched.push(item.variation_id);
+        const shortfall = sent - fromTransit;
+        if (shortfall > 0) {
+          // รับขาด: คืนส่วนที่ไม่ถึงกลับคลังต้นทาง (in_transit -= , quantity +=)
+          sourceChanged = true;
+          await cancelFromShipped({
+            supabase: supabaseAdmin,
+            companyId: existing.company_id,
+            warehouseId: existing.warehouse_id,
+            variationId: item.variation_id,
+            qty: shortfall,
+            referenceType: 'department_order',
+            referenceId: id,
+            notes: `คืน stock ขาดส่ง: ${existing.department_order_number} (ส่ง ${sent} รับ ${confirmed})`,
+            createdBy: auth.userId,
+          });
+        }
 
-          const delta = item.quantity - confirmed;
-          if (delta !== 0) sourceChanged = true;
-          if (delta > 0) {
-            // รับขาด: คืน delta กลับคลังต้นทาง
-            await cancelFromShipped({
-              supabase: supabaseAdmin,
-              companyId: existing.company_id,
-              warehouseId: existing.warehouse_id,
-              variationId: item.variation_id,
-              qty: delta,
-              referenceType: 'department_order',
-              referenceId: id,
-              notes: `คืน stock ขาดส่ง: ${existing.department_order_number} (ส่ง ${item.quantity} รับ ${confirmed})`,
-              createdBy: auth.userId,
-            });
-          } else if (delta < 0) {
-            // รับเกิน: หัก stock เพิ่มจากคลังต้นทาง
-            const excess = Math.abs(delta);
-            await deductStock({
-              supabase: supabaseAdmin,
-              companyId: existing.company_id,
-              warehouseId: existing.warehouse_id,
-              variationId: item.variation_id,
-              qty: excess,
-              referenceType: 'department_order',
-              referenceId: id,
-              notes: `หัก stock เกิน: ${existing.department_order_number} (ส่ง ${item.quantity} รับ ${confirmed})`,
-              createdBy: auth.userId,
-            });
-          }
+        const excess = confirmed - sent;
+        if (excess > 0) {
+          // รับเกิน: หักของจริงจากคลังต้นทาง แล้วเติมให้ปลายทาง (เดิมไม่ได้เติม ของเกินหายเฉย ๆ)
+          sourceChanged = true;
+          await deductStock({
+            supabase: supabaseAdmin,
+            companyId: existing.company_id,
+            warehouseId: existing.warehouse_id,
+            variationId: item.variation_id,
+            qty: excess,
+            referenceType: 'department_order',
+            referenceId: id,
+            notes: `หัก stock เกิน: ${existing.department_order_number} (ส่ง ${sent} รับ ${confirmed})`,
+            createdBy: auth.userId,
+          });
+          await addStock({
+            supabase: supabaseAdmin,
+            companyId: existing.company_id,
+            warehouseId: consignWarehouse.id,
+            variationId: item.variation_id,
+            qty: excess,
+            referenceType: 'department_order',
+            referenceId: id,
+            notes: `รับเกินเข้าคลังห้าง: ${existing.department_order_number} (ส่ง ${sent} รับ ${confirmed})`,
+            createdBy: auth.userId,
+          });
         }
       }
 
@@ -424,7 +489,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       }
 
       pushStockAfter(confirmTouched, [
-        consignWarehouse?.id,
+        consignWarehouse.id,
         ...(sourceChanged ? [existing.warehouse_id] : []),
       ]);
 
@@ -456,10 +521,20 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         return NextResponse.json({ error: 'ยกเลิกได้เฉพาะสถานะ "ที่ต้องจัดส่ง" เท่านั้น' }, { status: 400 });
       }
 
-      await supabaseAdmin
+      /**
+       * ปิดสถานะแบบมีเงื่อนไข = ล็อกกันกดซ้ำ — กดรัว ๆ สองครั้ง ทั้งสองคำขออ่านสถานะเดิม
+       * ทันเหมือนกันแล้วขยับสต็อกคนละรอบ ให้ DB ตัดสินว่าใครได้ไปต่อ
+       */
+      const { data: locked } = await supabaseAdmin
         .from('department_orders')
         .update({ status: 'cancelled', updated_at: new Date().toISOString() })
-        .eq('id', id);
+        .eq('id', id)
+        .eq('status', 'pending')
+        .select('id');
+
+      if (!locked || locked.length === 0) {
+        return NextResponse.json({ error: 'ใบนี้ถูกยกเลิกไปแล้ว' }, { status: 409 });
+      }
 
       // Unreserve stock
       const cancelTouched: string[] = [];
@@ -502,6 +577,22 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
       const now = new Date().toISOString();
       const voidReason = 'ยกเลิกใบส่งห้าง (void)';
+
+      /**
+       * ล็อกก่อนแตะสต็อก — void พาของกลับจาก in_transit เข้าคลังแล้วจองใหม่
+       * กดซ้ำสองรอบ = ของงอกหนึ่งชุดและ in_transit ติดลบ
+       * (สถานะปลายทางคือ pending อยู่แล้วตามขั้นตอนที่ 4 ข้างล่าง จึงตั้งตรงนี้ได้เลย)
+       */
+      const { data: voidLocked } = await supabaseAdmin
+        .from('department_orders')
+        .update({ status: 'pending', updated_at: now })
+        .eq('id', id)
+        .eq('status', 'shipped')
+        .select('id');
+
+      if (!voidLocked || voidLocked.length === 0) {
+        return NextResponse.json({ error: 'ใบนี้ถูก void ไปแล้ว' }, { status: 409 });
+      }
 
       // 1. Return stock: in_transit → quantity, then re-reserve
       if (existing.warehouse_id) {

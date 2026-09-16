@@ -132,6 +132,21 @@ export async function PUT(
         return NextResponse.json({ error: 'ไม่พบคลังฝากขายของตัวแทนนี้' }, { status: 400 });
       }
 
+      /**
+       * ล็อกกันกดซ้ำก่อนตัดสต็อก — ยืนยันสองรอบ = ตัดของสองเท่าจากยอดขายชุดเดียว
+       * (สถานะปลายทางคือ billed อยู่แล้ว ขั้นตอนที่ 6 จะเติมฟิลด์ที่เหลือให้)
+       */
+      const { data: confirmLocked } = await supabaseAdmin
+        .from('consignment_reports')
+        .update({ status: 'billed' })
+        .eq('id', reportId)
+        .eq('status', 'draft')
+        .select('id');
+
+      if (!confirmLocked || confirmLocked.length === 0) {
+        return NextResponse.json({ error: 'รายงานนี้ถูกยืนยันไปแล้ว' }, { status: 409 });
+      }
+
       // 2. Fetch report items
       const { data: reportItems } = await supabaseAdmin
         .from('consignment_report_items')

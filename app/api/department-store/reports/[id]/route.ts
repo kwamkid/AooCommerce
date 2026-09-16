@@ -98,9 +98,35 @@ export async function PUT(
         supabaseAdmin, companyId, report.customer_id, report.counter_id
       );
 
+      /**
+       * ไม่มีคลังห้าง = ยืนยันไม่ได้ — เดิมข้ามการตัดสต็อกไปเงียบ ๆ แล้วปิดใบเป็น "วางบิลแล้ว"
+       * ของที่ขายไปจริงยังค้างในระบบเต็มจำนวน ยอดสต็อกกับยอดขายเถียงกันโดยไม่มีใครรู้
+       */
+      if (!warehouse) {
+        return NextResponse.json(
+          { error: 'ยังไม่ได้ตั้งคลังของห้าง/สาขานี้ — ตั้งคลังก่อนจึงจะยืนยันยอดขายได้' },
+          { status: 400 }
+        );
+      }
+
+      /**
+       * ล็อกกันกดซ้ำก่อนตัดสต็อก — ยืนยันสองรอบ = ตัดของสองเท่าจากยอดขายชุดเดียว
+       * (สถานะปลายทางคือ billed อยู่แล้ว ขั้นตอนข้างล่างจะเติมฟิลด์ที่เหลือให้)
+       */
+      const { data: confirmLocked } = await supabaseAdmin
+        .from('department_store_reports')
+        .update({ status: 'billed' })
+        .eq('id', reportId)
+        .eq('status', 'draft')
+        .select('id');
+
+      if (!confirmLocked || confirmLocked.length === 0) {
+        return NextResponse.json({ error: 'รายงานนี้ถูกยืนยันไปแล้ว' }, { status: 409 });
+      }
+
       // 2. Deduct stock from consignment warehouse
       const confirmTouched: string[] = [];
-      if (warehouse) {
+      {
         const { data: reportItems } = await supabaseAdmin
           .from('department_store_report_items')
           .select('id, variation_id, qty_sold')
@@ -175,7 +201,7 @@ export async function PUT(
         .eq('id', reportId);
 
       // คลังห้างอาจถูกผูกกับร้านออนไลน์ไว้ — ถ้าไม่ได้ผูก syncStockNow จะเงียบไปเอง
-      pushStockAfter(confirmTouched, [warehouse?.id]);
+      pushStockAfter(confirmTouched, [warehouse.id]);
 
       return NextResponse.json({
         success: true,

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { deductStock } from '@/lib/stock-service';
+import { pushStockAfter } from '@/lib/marketplace/push-after';
 
 // GET /api/return-notes/[id]
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -64,7 +66,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (action === 'cancel') {
       const { data: existing } = await supabaseAdmin
         .from('return_notes')
-        .select('id, status, credit_note_id')
+        .select('id, rn_number, status, credit_note_id, warehouse_id')
         .eq('id', id)
         .eq('company_id', auth.companyId)
         .single();
@@ -72,10 +74,50 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       if (!existing) return NextResponse.json({ error: 'ไม่พบใบรับคืน' }, { status: 404 });
       if (existing.status === 'cancelled') return NextResponse.json({ error: 'ใบรับคืนถูกยกเลิกแล้ว' }, { status: 400 });
 
-      await supabaseAdmin
+      /**
+       * ปิดสถานะแบบมีเงื่อนไข — กดยกเลิกรัว ๆ สองครั้งพร้อมกัน ทั้งสองคำขออ่าน `existing`
+       * ทัน "issued" เหมือนกันแล้วหักของคืนคนละรอบ = ของหายเป็นสองเท่า
+       * ให้ DB เป็นคนตัดสินว่าใครได้ไปต่อ ใครตกรอบ
+       */
+      const { data: locked } = await supabaseAdmin
         .from('return_notes')
         .update({ status: 'cancelled', updated_at: new Date().toISOString() })
-        .eq('id', id);
+        .eq('id', id)
+        .eq('company_id', auth.companyId)
+        .neq('status', 'cancelled')
+        .select('id');
+
+      if (!locked || locked.length === 0) {
+        return NextResponse.json({ error: 'ใบรับคืนถูกยกเลิกแล้ว' }, { status: 400 });
+      }
+
+      /**
+       * ตอนสร้างใบรับคืน ของถูก `addStock` เข้าคลังไปแล้ว — ยกเลิกใบต้องหักกลับด้วย
+       * ไม่งั้นกดสร้าง/ยกเลิกวนไปเรื่อย ๆ ของงอกจากอากาศไม่จำกัด
+       */
+      const cancelTouched: string[] = [];
+      if (existing.warehouse_id) {
+        const { data: rnItems } = await supabaseAdmin
+          .from('return_note_items')
+          .select('variation_id, quantity')
+          .eq('return_note_id', id);
+
+        for (const item of (rnItems || []) as { variation_id: string | null; quantity: number }[]) {
+          if (!item.variation_id || item.quantity <= 0) continue;
+          cancelTouched.push(item.variation_id);
+          await deductStock({
+            supabase: supabaseAdmin,
+            companyId: auth.companyId!,
+            warehouseId: existing.warehouse_id,
+            variationId: item.variation_id,
+            qty: item.quantity,
+            referenceType: 'return_note_cancel',
+            referenceId: id,
+            notes: `ยกเลิกใบรับคืน: ${existing.rn_number}`,
+            createdBy: auth.userId,
+          });
+        }
+      }
 
       // Cancel linked credit note too
       if (existing.credit_note_id) {
@@ -84,6 +126,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           .update({ status: 'cancelled', updated_at: new Date().toISOString() })
           .eq('id', existing.credit_note_id);
       }
+
+      pushStockAfter(cancelTouched, [existing.warehouse_id]);
 
       return NextResponse.json({ success: true, status: 'cancelled' });
     }

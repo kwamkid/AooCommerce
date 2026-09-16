@@ -2,7 +2,7 @@
 // Public API for transfer receive — no authentication required
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
-import { transferIn, returnStock } from '@/lib/stock-service';
+import { receiveFromTransit, cancelFromShipped } from '@/lib/stock-service';
 import { pushStockAfter } from '@/lib/marketplace/push-after';
 import { isAllowedImageUpload } from '@/lib/upload-validation';
 
@@ -139,61 +139,30 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Process each item: add to destination, return shortfall to source
+    const sentItems = transfer.items as { id: string; variation_id: string; qty_sent: number }[];
+    const receivedMap = new Map<string, number>();
     for (const ri of receivedItems) {
-      const { item_id, qty_received } = ri;
-      if (qty_received === undefined || qty_received === null) continue;
-
-      const transferItem = transfer.items.find((i: any) => i.id === item_id);
-      if (!transferItem) continue;
-
-      if (qty_received < 0 || qty_received > transferItem.qty_sent) continue;
-
-      // Update transfer item
-      await supabaseAdmin
-        .from('inventory_transfer_items')
-        .update({ qty_received })
-        .eq('id', item_id);
-
-      // Add to destination warehouse
-      if (qty_received > 0) {
-        await transferIn({
-          supabase: supabaseAdmin,
-          companyId: transfer.company_id,
-          warehouseId: transfer.to_warehouse_id,
-          variationId: transferItem.variation_id,
-          qty: qty_received,
-          referenceType: 'transfer',
-          referenceId: transfer.id,
-          notes: `รับโอนย้ายเข้า ${transfer.transfer_number}`,
-        });
+      if (ri.qty_received === undefined || ri.qty_received === null) continue;
+      const sentItem = sentItems.find(i => i.id === ri.item_id);
+      if (!sentItem) continue;
+      if (ri.qty_received < 0 || ri.qty_received > sentItem.qty_sent) {
+        return NextResponse.json(
+          { error: `จำนวนรับต้องอยู่ระหว่าง 0 ถึง ${sentItem.qty_sent}` },
+          { status: 400 }
+        );
       }
-
-      // Return shortfall to source
-      const shortfall = transferItem.qty_sent - qty_received;
-      if (shortfall > 0) {
-        await returnStock({
-          supabase: supabaseAdmin,
-          companyId: transfer.company_id,
-          warehouseId: transfer.from_warehouse_id,
-          variationId: transferItem.variation_id,
-          qty: shortfall,
-          referenceType: 'transfer',
-          referenceId: transfer.id,
-          notes: `คืนจากโอนย้าย ${transfer.transfer_number} (รับไม่ครบ)`,
-        });
-      }
+      receivedMap.set(ri.item_id, ri.qty_received);
     }
 
     // Determine status: if all received matches sent → received, else → pending_confirm
-    const allMatch = receivedItems.every(ri => {
-      const transferItem = transfer.items.find((i: any) => i.id === ri.item_id);
-      return transferItem && ri.qty_received === transferItem.qty_sent;
-    });
+    const allMatch = sentItems.every(i => (receivedMap.get(i.id) ?? 0) === i.qty_sent);
     const newStatus = allMatch ? 'received' : 'pending_confirm';
 
-    // Update transfer status
-    await supabaseAdmin
+    /**
+     * ล็อกกันกดซ้ำก่อนแตะสต็อก — หน้านี้เป็นลิงก์สาธารณะ (ไม่ต้องล็อกอิน) ผู้รับกดซ้ำหรือ
+     * เน็ตสะดุดแล้วกดใหม่ได้ง่ายมาก รับสองรอบ = ของเข้าปลายทางสองเท่า in_transit ติดลบ
+     */
+    const { data: locked } = await supabaseAdmin
       .from('inventory_transfers')
       .update({
         status: newStatus,
@@ -202,11 +171,58 @@ export async function POST(request: NextRequest) {
         receive_photo_url: receivePhotoUrl,
         receive_notes: receiveNotes?.trim() || null,
       })
-      .eq('id', transfer.id);
+      .eq('id', transfer.id)
+      .eq('status', 'shipping')
+      .select('id');
+
+    if (!locked || locked.length === 0) {
+      return NextResponse.json({ error: 'ใบโอนย้ายนี้ถูกรับสินค้าไปแล้ว' }, { status: 409 });
+    }
+
+    /**
+     * วนจาก**รายการที่ส่งจริง** ไม่ใช่เฉพาะแถวที่ผู้รับกรอกมา — แถวที่ไม่ได้กรอกจะไม่ถูกแตะเลย
+     * ของค้างใน in_transit ทั้งที่ใบปิดไปแล้ว = ของหายถาวร ไม่กรอก → ถือว่ารับ 0 คืนต้นทางให้หมด
+     */
+    for (const sentItem of sentItems) {
+      const qtyReceived = receivedMap.get(sentItem.id) ?? 0;
+
+      await supabaseAdmin
+        .from('inventory_transfer_items')
+        .update({ qty_received: qtyReceived })
+        .eq('id', sentItem.id);
+
+      if (qtyReceived > 0) {
+        await receiveFromTransit({
+          supabase: supabaseAdmin,
+          companyId: transfer.company_id,
+          sourceWarehouseId: transfer.from_warehouse_id,
+          destWarehouseId: transfer.to_warehouse_id,
+          variationId: sentItem.variation_id,
+          qty: qtyReceived,
+          referenceType: 'transfer',
+          referenceId: transfer.id,
+          notes: `รับโอนย้ายเข้า ${transfer.transfer_number}`,
+        });
+      }
+
+      const shortfall = sentItem.qty_sent - qtyReceived;
+      if (shortfall > 0) {
+        await cancelFromShipped({
+          supabase: supabaseAdmin,
+          companyId: transfer.company_id,
+          warehouseId: transfer.from_warehouse_id,
+          variationId: sentItem.variation_id,
+          qty: shortfall,
+          referenceType: 'transfer',
+          referenceId: transfer.id,
+          notes: `คืนจากโอนย้าย ${transfer.transfer_number} (รับไม่ครบ)`,
+        });
+      }
+    }
 
     // รับเข้าปลายทาง + ส่วนที่รับไม่ครบคืนต้นทาง → ยอดเปลี่ยนสองคลัง ต้องดันทั้งคู่
     pushStockAfter(
-      (transfer.items as { variation_id: string }[]).map(i => i.variation_id),
+      sentItems.map(i => i.variation_id),
       [transfer.to_warehouse_id, transfer.from_warehouse_id],
     );
 
