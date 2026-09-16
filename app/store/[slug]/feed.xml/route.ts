@@ -102,7 +102,10 @@ export async function GET(
       // รหัสสินค้าต้อง **นิ่งตลอดอายุการขาย** — Merchant ผูกประวัติ/สถิติกับค่านี้
       // ใช้ id ของตัวเลือก ไม่ใช่ sku (sku ร้านแก้เองได้ทุกเมื่อ)
       const id = v.id;
-      const title = clamp(v.label ? `${p.name} - ${v.label}` : p.name, TITLE_MAX);
+      // ⚠️ ต่อชื่อตัวเลือกเฉพาะสินค้าที่**มีหลายตัวเลือกจริง** — สินค้าตัวเลือกเดียวมี label
+      // ไว้ใช้ภายใน ร้านตั้งเป็นอะไรก็ได้ (ของจริงเจอตั้งเป็นบาร์โค้ด → ชื่อในฟีดกลายเป็น
+      // "…Pockit Travel Bag - 4891188016268") ซึ่งทำให้ Merchant จับคู่สินค้าได้แย่ลง
+      const title = clamp(hasVariants && v.label ? `${p.name} - ${v.label}` : p.name, TITLE_MAX);
       const gtin = (v.barcode || '').trim();
       const mpn = (v.sku || '').trim();
 
