@@ -2,9 +2,12 @@
 import { NextRequest, NextResponse, after } from 'next/server';
 import { parseGiftCard } from '@/lib/gift-card';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
-import { getStockConfig } from '@/lib/stock-utils';
+import {
+  reserveOrderStockOnce,
+  deductOrderStockOnce,
+  releaseOrderStockOnce,
+} from '@/lib/stock/order-stock';
 import { createCreditNote } from '@/lib/credit-notes/auto-cn';
-import { reserveStock, unreserveStock, returnStock, deductAndUnreserve } from '@/lib/stock-service';
 import { getPromotionComponents } from '@/lib/promotion-service';
 import { fetchCostMap } from '@/lib/cost-utils';
 import { resolveDeliverySnapshot } from '@/lib/delivery-server';
@@ -265,6 +268,49 @@ async function rememberRecipientAddress(
 }
 
 // POST - Create new order with items and shipments
+/**
+ * คลังของบิลใบนี้ — ลำดับ: ที่ staff เลือกในฟอร์ม → คลังของช่องทางขาย → คลังหลักของบริษัท
+ * (ช่องทางมีคลังของตัวเองได้ เช่นไลฟ์ที่แพ็คจากสาขา — ดู `sales_channels.warehouse_id`)
+ *
+ * แยกออกมาเพราะ **หน้าร้านออนไลน์เคยไม่หาคลังเลย** บิลจึงไม่ผูกคลังแล้วข้ามสต็อกทั้งชีวิต
+ */
+export async function resolveOrderWarehouse(
+  companyId: string,
+  formWarehouseId: string | null,
+  salesChannelId: string | null,
+): Promise<string | null> {
+  if (formWarehouseId) return formWarehouseId;
+
+  if (salesChannelId) {
+    const { data: channel } = await supabaseAdmin
+      .from('sales_channels')
+      .select('warehouse_id')
+      .eq('id', salesChannelId)
+      .eq('company_id', companyId)
+      .maybeSingle();
+    if (channel?.warehouse_id) {
+      const { data: active } = await supabaseAdmin
+        .from('warehouses')
+        .select('id')
+        .eq('id', channel.warehouse_id)
+        .eq('is_active', true)
+        .maybeSingle();
+      if (active?.id) return active.id;
+    }
+  }
+
+  const { data: fallback } = await supabaseAdmin
+    .from('warehouses')
+    .select('id')
+    .eq('company_id', companyId)
+    .eq('is_active', true)
+    .order('is_default', { ascending: false })
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  return fallback?.id || null;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const auth = await checkAuthWithCompany(request);
@@ -864,98 +910,35 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // --- Stock reservation (best-effort, errors logged but don't block order) ---
+    // --- จองสต็อก (ผ่านตัวกลาง lib/stock/order-stock.ts) ---
     try {
-      const stockConfig = await getStockConfig(auth.companyId!);
-      if (stockConfig.stockEnabled) {
-        // ลำดับการเลือกคลัง: ที่ staff เลือกในฟอร์ม → คลังของช่องทางขาย → คลังหลัก
-        // (ช่องทางมีคลังของตัวเองได้ เช่น ไลฟ์ที่แพ็คจากสาขา — ดู sales_channels.warehouse_id)
-        let warehouseId = orderData.warehouse_id || null;
-        if (!warehouseId && orderData.sales_channel_id) {
-          const { data: channel } = await supabaseAdmin
-            .from('sales_channels')
-            .select('warehouse_id')
-            .eq('id', orderData.sales_channel_id)
-            .eq('company_id', auth.companyId)
-            .maybeSingle();
-          if (channel?.warehouse_id) {
-            const { data: chWh } = await supabaseAdmin
-              .from('warehouses')
-              .select('id')
-              .eq('id', channel.warehouse_id)
-              .eq('is_active', true)
-              .maybeSingle();
-            warehouseId = chWh?.id || null;
-          }
-        }
-        if (!warehouseId) {
-          const { data: defaultWarehouse } = await supabaseAdmin
-            .from('warehouses')
-            .select('id')
-            .eq('company_id', auth.companyId)
-            .eq('is_active', true)
-            .order('is_default', { ascending: false })
-            .order('created_at', { ascending: true })
-            .limit(1)
-            .single();
-          warehouseId = defaultWarehouse?.id || null;
-        }
-
-        if (warehouseId) {
-          // Save warehouse_id to the order
-          await supabaseAdmin
-            .from('orders')
-            .update({ warehouse_id: warehouseId })
-            .eq('id', order.id)
-            .eq('company_id', auth.companyId);
-
-          for (const item of itemsWithTotals) {
-            if (!item.variation_id) continue;
-            try {
-              if (item.promotion_id && item.promotion_components?.length) {
-                // Promotion item: reserve stock for each selected component
-                for (const comp of item.promotion_components) {
-                  if (!comp.variation_id) continue;
-                  // Resolve: variation_id might be a product_id for product-level items
-                  let varId = comp.variation_id;
-                  const { data: checkVar } = await supabaseAdmin.from('product_variations').select('id').eq('id', varId).maybeSingle();
-                  if (!checkVar) {
-                    const { data: firstVar } = await supabaseAdmin.from('product_variations').select('id').eq('product_id', varId).limit(1).maybeSingle();
-                    if (firstVar) varId = firstVar.id; else continue;
-                  }
-                  await reserveStock({
-                    supabase: supabaseAdmin,
-                    companyId: auth.companyId!,
-                    warehouseId,
-                    variationId: varId,
-                    qty: comp.quantity * item.quantity,
-                    referenceType: 'order',
-                    referenceId: order.id,
-                    notes: `Reserve for order ${order.order_number} (promo component)`,
-                    createdBy: auth.userId,
-                  });
-                }
-              } else {
-                // Normal item: reserve as-is
-                await reserveStock({
-                  supabase: supabaseAdmin,
-                  companyId: auth.companyId!,
-                  warehouseId,
-                  variationId: item.variation_id,
-                  qty: item.quantity,
-                  referenceType: 'order',
-                  referenceId: order.id,
-                  notes: `Reserve for order ${order.order_number}`,
-                  createdBy: auth.userId,
-                });
-              }
-            } catch (itemStockErr) {
-              console.error(`[STOCK RESERVE] Error reserving stock for variation ${item.variation_id}:`, itemStockErr);
-            }
-          }
-        } else {
-          console.warn('[STOCK RESERVE] Stock enabled but no warehouse found for company', auth.companyId);
-        }
+      const warehouseId = await resolveOrderWarehouse(
+        auth.companyId!, orderData.warehouse_id || null, orderData.sales_channel_id || null,
+      );
+      if (warehouseId) {
+        await supabaseAdmin
+          .from('orders')
+          .update({ warehouse_id: warehouseId })
+          .eq('id', order.id)
+          .eq('company_id', auth.companyId);
+      }
+      // ผู้ใช้กดแล้วรออยู่ — ไม่ยิง API ของร้าน marketplace ในสายนี้ (push: 'none')
+      // แล้วค่อยกระจายยอดใน after() ข้างล่าง
+      const stock = await reserveOrderStockOnce({
+        companyId: auth.companyId!,
+        orderId: order.id,
+        warehouseId,
+        reference: order.order_number,
+        createdBy: auth.userId,
+        push: 'none',
+      });
+      if (stock.errors.length > 0) {
+        console.error(`[STOCK RESERVE] ${order.order_number}:`, stock.errors.join(' · '));
+      }
+      if (stock.touched.length > 0) {
+        const touched = stock.touched;
+        after(() => import('@/lib/marketplace/stock-push')
+          .then(m => m.syncStockNow(touched, warehouseId ? [warehouseId] : undefined)));
       }
     } catch (stockErr) {
       console.error('[STOCK RESERVE] Error during stock reservation:', stockErr);
@@ -1739,7 +1722,7 @@ export async function PUT(request: NextRequest) {
         // Cancel orders + handle stock (unreserve for new/ready_to_ship)
         const { data: ordersToCancel } = await supabaseAdmin
           .from('orders')
-          .select('id, order_status, warehouse_id')
+          .select('id, order_number, order_status, warehouse_id')
           .in('id', validIds)
           .eq('company_id', auth.companyId)
           .neq('order_status', 'cancelled');
@@ -1759,66 +1742,27 @@ export async function PUT(request: NextRequest) {
             .eq('company_id', auth.companyId);
           if (!error) cancelledCount++;
 
-          // Stock return/unreserve based on order status
-          if (!error && order.warehouse_id) {
-            const wasShipped = ['shipping', 'completed'].includes(order.order_status);
-            const wasReserved = ['new', 'ready_to_ship', 'processing'].includes(order.order_status);
-            if (wasShipped || wasReserved) {
-              try {
-                const { data: orderItems } = await supabaseAdmin
-                  .from('order_items')
-                  .select('variation_id, quantity, promotion_id, promotion_components')
-                  .eq('order_id', order.id)
-                  .eq('company_id', auth.companyId);
-                for (const oi of orderItems || []) {
-                  if (!oi.variation_id) continue;
-                  const stockFn = wasShipped ? returnStock : unreserveStock;
-                  const notes = wasShipped ? 'Return stock for cancelled order' : 'Unreserve for cancelled order';
-
-                  if (oi.promotion_id && oi.promotion_components?.length) {
-                    // Promotion item: reverse stock for each stored component
-                    for (const comp of oi.promotion_components as any[]) {
-                      if (!comp.variation_id) continue;
-                      try {
-                        // Resolve product-level items
-                        let varId = comp.variation_id;
-                        const { data: checkVar } = await supabaseAdmin.from('product_variations').select('id').eq('id', varId).maybeSingle();
-                        if (!checkVar) {
-                          const { data: firstVar } = await supabaseAdmin.from('product_variations').select('id').eq('product_id', varId).limit(1).maybeSingle();
-                          if (firstVar) varId = firstVar.id; else continue;
-                        }
-                        await stockFn({
-                          supabase: supabaseAdmin,
-                          companyId: auth.companyId!,
-                          warehouseId: order.warehouse_id,
-                          variationId: varId,
-                          qty: comp.quantity * oi.quantity,
-                          referenceType: 'order',
-                          referenceId: order.id,
-                          notes: `${notes} (promo component)`,
-                          createdBy: auth.userId,
-                        });
-                      } catch (promoErr) {
-                        console.error('[CANCEL] Error reversing promo component stock:', promoErr);
-                      }
-                    }
-                  } else {
-                    await stockFn({
-                      supabase: supabaseAdmin,
-                      companyId: auth.companyId!,
-                      warehouseId: order.warehouse_id,
-                      variationId: oi.variation_id,
-                      qty: oi.quantity,
-                      referenceType: 'order',
-                      referenceId: order.id,
-                      notes,
-                      createdBy: auth.userId,
-                    });
-                  }
-                }
-              } catch (e) {
-                console.error('[BULK CANCEL] Stock error for order', order.id, e);
+          // คืนสต็อก (ผ่านตัวกลาง — เลือกคืนของ/ปลดจองจากสิ่งที่เคยเกิดจริง)
+          if (!error) {
+            try {
+              const stock = await releaseOrderStockOnce({
+                companyId: auth.companyId!,
+                orderId: order.id,
+                warehouseId: (order.warehouse_id as string | null) ?? null,
+                reference: (order.order_number as string) || order.id,
+                createdBy: auth.userId,
+                push: 'none',
+              });
+              if (stock.errors.length > 0) {
+                console.error('[BULK CANCEL] Stock error for order', order.id, stock.errors.join(' · '));
               }
+              if (stock.touched.length > 0 && order.warehouse_id) {
+                const touched = stock.touched;
+                const wh = order.warehouse_id as string;
+                after(() => import('@/lib/marketplace/stock-push').then(m => m.syncStockNow(touched, [wh])));
+              }
+            } catch (e) {
+              console.error('[BULK CANCEL] Stock error for order', order.id, e);
             }
           }
         }
@@ -1871,7 +1815,7 @@ export async function PUT(request: NextRequest) {
         // Fetch orders to process stock deduction
         const { data: ordersToShip, error: fetchErr } = await supabaseAdmin
           .from('orders')
-          .select('id, order_status, warehouse_id, is_split, source, marketplace_account_id')
+          .select('id, order_number, order_status, warehouse_id, is_split, source, marketplace_account_id')
           .in('id', validIds)
           .eq('company_id', auth.companyId)
           .eq('order_status', 'processing');
@@ -1923,62 +1867,21 @@ export async function PUT(request: NextRequest) {
             }
           }
 
-          // Stock deduction (best-effort)
-          if (!error && order.warehouse_id) {
+          // ตัดสต็อก (ผ่านตัวกลาง — ตรรกะเดียวกับจัดส่งทีละใบ)
+          if (!error) {
             try {
-              const stockConfig = await getStockConfig(auth.companyId!);
-              if (stockConfig.stockEnabled) {
-                const { data: orderItems } = await supabaseAdmin
-                  .from('order_items')
-                  .select('variation_id, quantity, promotion_id, promotion_components')
-                  .eq('order_id', order.id)
-                  .eq('company_id', auth.companyId);
-                for (const oi of orderItems || []) {
-                  if (!oi.variation_id) continue;
-                  try {
-                    if (oi.promotion_id && oi.promotion_components?.length) {
-                      for (const comp of oi.promotion_components as any[]) {
-                        if (!comp.variation_id) continue;
-                        let varId = comp.variation_id;
-                        const { data: checkVar } = await supabaseAdmin.from('product_variations').select('id').eq('id', varId).maybeSingle();
-                        if (!checkVar) {
-                          const { data: firstVar } = await supabaseAdmin.from('product_variations').select('id').eq('product_id', varId).limit(1).maybeSingle();
-                          if (firstVar) varId = firstVar.id; else continue;
-                        }
-                        await deductAndUnreserve({
-                          supabase: supabaseAdmin,
-                          companyId: auth.companyId!,
-                          warehouseId: order.warehouse_id,
-                          variationId: varId,
-                          qty: comp.quantity * oi.quantity,
-                          referenceType: 'order',
-                          referenceId: order.id,
-                          notes: 'Deduct for bulk shipment (promo component)',
-                          createdBy: auth.userId,
-                        });
-                        allVarIds.push(varId);
-                      }
-                    } else {
-                      await deductAndUnreserve({
-                        supabase: supabaseAdmin,
-                        companyId: auth.companyId!,
-                        warehouseId: order.warehouse_id,
-                        variationId: oi.variation_id,
-                        qty: oi.quantity,
-                        referenceType: 'order',
-                        referenceId: order.id,
-                        notes: 'Deduct for bulk shipment',
-                        createdBy: auth.userId,
-                      });
-                      allVarIds.push(oi.variation_id);
-                    }
-                  } catch (e) {
-                    console.error('[BULK SHIP] Stock error', e);
-                  }
-                }
-              }
+              const stock = await deductOrderStockOnce({
+                companyId: auth.companyId!,
+                orderId: order.id,
+                warehouseId: (order.warehouse_id as string | null) ?? null,
+                reference: (order.order_number as string) || order.id,
+                createdBy: auth.userId,
+                push: 'none',
+              });
+              if (stock.errors.length > 0) console.error('[BULK SHIP] Stock error', stock.errors.join(' · '));
+              allVarIds.push(...stock.touched);
             } catch (e) {
-              console.error('[BULK SHIP] Stock config error', e);
+              console.error('[BULK SHIP] Stock error', e);
             }
           }
         }
@@ -2740,101 +2643,46 @@ export async function PUT(request: NextRequest) {
         }
       }
 
-      // --- Stock logic on status change (best-effort) ---
+      // --- สต็อกตอนเปลี่ยนสถานะ (ผ่านตัวกลาง lib/stock/order-stock.ts) ---
+      //
+      // ⚠️ ห้ามกลับไปเทียบ "คู่สถานะ" อีก — ของเดิมเช็ค `new → shipping` ทั้งที่เส้นจริงของบิล
+      // คือ `new → processing → shipping|completed` ⇒ กดจัดส่งแล้วไม่ตัดสต็อกเลย
+      // (พบ 16 ก.ย. 2569: บิลที่ส่งแล้ว 15/15 ใบไม่มีรายการตัดสต็อก) · ตัวกลางตัดสินจาก
+      // หลักฐานใน inventory_transactions จึงกดซ้ำ/สถานะข้ามขั้นก็ยังถูก
       if (body.order_status && body.order_status !== existingOrder.order_status) {
         try {
-          const stockConfig = await getStockConfig(auth.companyId!);
-          if (stockConfig.stockEnabled) {
-            // Fetch the order's warehouse_id
-            const { data: orderForStock } = await supabaseAdmin
-              .from('orders')
-              .select('warehouse_id')
-              .eq('id', id)
-              .eq('company_id', auth.companyId)
-              .single();
+          const { data: orderForStock } = await supabaseAdmin
+            .from('orders')
+            .select('warehouse_id, order_number')
+            .eq('id', id)
+            .eq('company_id', auth.companyId)
+            .single();
 
-            const warehouseId = orderForStock?.warehouse_id;
-            if (warehouseId) {
-              // Fetch order items (include promotion fields)
-              const { data: orderItems } = await supabaseAdmin
-                .from('order_items')
-                .select('variation_id, quantity, promotion_id, promotion_components')
-                .eq('order_id', id)
-                .eq('company_id', auth.companyId);
+          const newStatus = body.order_status as string;
+          const ctx = {
+            companyId: auth.companyId!,
+            orderId: id,
+            warehouseId: (orderForStock?.warehouse_id as string | null) ?? null,
+            reference: (orderForStock?.order_number as string) || id,
+            createdBy: auth.userId,
+            // ผู้ใช้กดแล้วรออยู่ — กระจายยอดขึ้นร้านใน after() ไม่ใช่ในสายนี้
+            push: 'none' as const,
+          };
+          const stock = ['shipping', 'completed'].includes(newStatus)
+            ? await deductOrderStockOnce(ctx)
+            : newStatus === 'cancelled'
+              ? await releaseOrderStockOnce(ctx)
+              : null;
 
-              const oldStatus = existingOrder.order_status;
-              const newStatus = body.order_status;
-
-              // Helper: resolve variation_id for promo components (product-level → first variation)
-              const resolveVarId = async (varId: string): Promise<string | null> => {
-                if (!varId) return null;
-                const { data: checkVar } = await supabaseAdmin.from('product_variations').select('id').eq('id', varId).maybeSingle();
-                if (checkVar) return varId;
-                const { data: firstVar } = await supabaseAdmin.from('product_variations').select('id').eq('product_id', varId).limit(1).maybeSingle();
-                return firstVar?.id || null;
-              };
-
-              // Helper: get all variation_ids + quantities to process (expands promo components)
-              const getStockItems = async (items: any[]): Promise<{ variationId: string; qty: number }[]> => {
-                const result: { variationId: string; qty: number }[] = [];
-                for (const oi of items) {
-                  if (!oi.variation_id) continue;
-                  if (oi.promotion_id && oi.promotion_components?.length) {
-                    for (const comp of oi.promotion_components as any[]) {
-                      if (!comp.variation_id) continue;
-                      const varId = await resolveVarId(comp.variation_id);
-                      if (varId) result.push({ variationId: varId, qty: comp.quantity * oi.quantity });
-                    }
-                  } else {
-                    result.push({ variationId: oi.variation_id, qty: oi.quantity });
-                  }
-                }
-                return result;
-              };
-
-              const stockItems = await getStockItems(orderItems || []);
-
-              if (oldStatus === 'new' && newStatus === 'shipping') {
-                // Deduct + unreserve stock
-                for (const si of stockItems) {
-                  try {
-                    await deductAndUnreserve({
-                      supabase: supabaseAdmin, companyId: auth.companyId!, warehouseId,
-                      variationId: si.variationId, qty: si.qty,
-                      referenceType: 'order', referenceId: id,
-                      notes: 'Deduct for order shipment', createdBy: auth.userId,
-                    });
-                  } catch (itemErr) {
-                    console.error(`[STOCK OUT] Error deducting stock for ${si.variationId}:`, itemErr);
-                  }
-                }
-                // Auto-sync stock to Shopee
-                const shippingVarIds = stockItems.map(s => s.variationId);
-                if (shippingVarIds.length > 0) {
-                  after(() => import('@/lib/marketplace/stock-push').then(m => m.syncStockNow(shippingVarIds, [warehouseId])));
-                }
-              } else if (newStatus === 'cancelled') {
-                const stockFn = oldStatus === 'shipping' ? returnStock : unreserveStock;
-                const notes = oldStatus === 'shipping' ? 'Return stock for cancelled shipment' : 'Unreserve for cancelled order';
-                for (const si of stockItems) {
-                  try {
-                    await stockFn({
-                      supabase: supabaseAdmin, companyId: auth.companyId!, warehouseId,
-                      variationId: si.variationId, qty: si.qty,
-                      referenceType: 'order', referenceId: id,
-                      notes, createdBy: auth.userId,
-                    });
-                  } catch (itemErr) {
-                    console.error(`[STOCK CANCEL] Error for ${si.variationId}:`, itemErr);
-                  }
-                }
-                if (oldStatus === 'shipping') {
-                  const cancelVarIds = stockItems.map(s => s.variationId);
-                  if (cancelVarIds.length > 0) {
-                    after(() => import('@/lib/marketplace/stock-push').then(m => m.syncStockNow(cancelVarIds, [warehouseId])));
-                  }
-                }
-              }
+          if (stock) {
+            if (stock.errors.length > 0) {
+              console.error(`[STOCK ${newStatus}] ${ctx.reference}:`, stock.errors.join(' · '));
+            }
+            if (stock.touched.length > 0 && ctx.warehouseId) {
+              const touched = stock.touched;
+              const wh = ctx.warehouseId;
+              after(() => import('@/lib/marketplace/stock-push')
+                .then(m => m.syncStockNow(touched, [wh])));
             }
           }
         } catch (stockErr) {
@@ -2888,7 +2736,7 @@ export async function DELETE(request: NextRequest) {
     // Fetch current order status and warehouse_id before cancelling
     const { data: orderBeforeCancel } = await supabaseAdmin
       .from('orders')
-      .select('order_status, warehouse_id')
+      .select('order_status, warehouse_id, order_number')
       .eq('id', orderId)
       .eq('company_id', auth.companyId)
       .single();
@@ -2914,71 +2762,25 @@ export async function DELETE(request: NextRequest) {
     // ปิดลิงก์จ่ายเงิน Beam ที่ยังเปิดอยู่ (ที่ Beam ด้วย) — ออเดอร์ที่ยกเลิกแล้วต้องรับเงินไม่ได้
     after(() => import('@/lib/beam/settle').then(m => m.closeBeamLinksForOrder(orderId, 'cancelled')).catch(() => null));
 
-    // --- Stock return/unreserve on cancel (best-effort) ---
+    // --- คืนสต็อกตอนลบบิล (ผ่านตัวกลาง) ---
     if (orderBeforeCancel && orderBeforeCancel.order_status !== 'cancelled') {
       try {
-        const stockConfig = await getStockConfig(auth.companyId!);
-        if (stockConfig.stockEnabled && orderBeforeCancel.warehouse_id) {
-          const warehouseId = orderBeforeCancel.warehouse_id;
-          const oldStatus = orderBeforeCancel.order_status;
-
-          // Fetch order items (include promotion fields)
-          const { data: orderItems } = await supabaseAdmin
-            .from('order_items')
-            .select('variation_id, quantity, promotion_id, promotion_components')
-            .eq('order_id', orderId)
-            .eq('company_id', auth.companyId);
-
-          // Helper: resolve variation_id for promo components (product-level → first variation)
-          const resolveVarId = async (varId: string): Promise<string | null> => {
-            if (!varId) return null;
-            const { data: checkVar } = await supabaseAdmin.from('product_variations').select('id').eq('id', varId).maybeSingle();
-            if (checkVar) return varId;
-            const { data: firstVar } = await supabaseAdmin.from('product_variations').select('id').eq('product_id', varId).limit(1).maybeSingle();
-            return firstVar?.id || null;
-          };
-
-          // Helper: expand promotion components into individual variation_ids
-          const getStockItems = async (items: any[]): Promise<{ variationId: string; qty: number }[]> => {
-            const result: { variationId: string; qty: number }[] = [];
-            for (const oi of items) {
-              if (!oi.variation_id) continue;
-              if (oi.promotion_id && oi.promotion_components?.length) {
-                for (const comp of oi.promotion_components as any[]) {
-                  if (!comp.variation_id) continue;
-                  const varId = await resolveVarId(comp.variation_id);
-                  if (varId) result.push({ variationId: varId, qty: comp.quantity * oi.quantity });
-                }
-              } else {
-                result.push({ variationId: oi.variation_id, qty: oi.quantity });
-              }
-            }
-            return result;
-          };
-
-          const stockItems = await getStockItems(orderItems || []);
-          const stockFn = oldStatus === 'shipping' ? returnStock : unreserveStock;
-          const notes = oldStatus === 'shipping' ? 'Return stock for cancelled shipment' : 'Unreserve for cancelled order';
-
-          for (const si of stockItems) {
-            try {
-              await stockFn({
-                supabase: supabaseAdmin, companyId: auth.companyId!, warehouseId,
-                variationId: si.variationId, qty: si.qty,
-                referenceType: 'order', referenceId: orderId,
-                notes, createdBy: auth.userId,
-              });
-            } catch (itemErr) {
-              console.error(`[STOCK DELETE CANCEL] Error for ${si.variationId}:`, itemErr);
-            }
-          }
-
-          if (oldStatus === 'shipping') {
-            const deleteVarIds = stockItems.map(s => s.variationId);
-            if (deleteVarIds.length > 0) {
-              after(() => import('@/lib/marketplace/stock-push').then(m => m.syncStockNow(deleteVarIds)));
-            }
-          }
+        const ctx = {
+          companyId: auth.companyId!,
+          orderId,
+          warehouseId: (orderBeforeCancel.warehouse_id as string | null) ?? null,
+          reference: (orderBeforeCancel.order_number as string) || orderId,
+          createdBy: auth.userId,
+          push: 'none' as const,
+        };
+        const stock = await releaseOrderStockOnce(ctx);
+        if (stock.errors.length > 0) {
+          console.error(`[STOCK DELETE CANCEL] ${ctx.reference}:`, stock.errors.join(' · '));
+        }
+        if (stock.touched.length > 0 && ctx.warehouseId) {
+          const touched = stock.touched;
+          const wh = ctx.warehouseId;
+          after(() => import('@/lib/marketplace/stock-push').then(m => m.syncStockNow(touched, [wh])));
         }
       } catch (stockErr) {
         console.error('[STOCK DELETE CANCEL] Error during stock update:', stockErr);

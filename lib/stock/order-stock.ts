@@ -100,16 +100,61 @@ async function readHistory(orderId: string): Promise<OrderStockHistory> {
   };
 }
 
+/**
+ * รายการที่ต้องแตะสต็อกจริงของใบนี้ — **แตกรายการโปรโมชันเป็นชิ้นที่ลูกค้าได้รับ**
+ *
+ * บิลที่ขายเป็นชุดโปรโมชันเก็บ `promotion_components` ไว้ในแถวเดียว ของที่ออกจากคลัง
+ * คือชิ้นส่วนพวกนั้น ไม่ใช่ตัวแม่ — เดิมโค้ดแตกเองซ้ำ 4 ที่ใน /api/orders แล้วแต่ละที่
+ * เขียนไม่เหมือนกัน (ตัวจองแตก แต่ตัวยกเลิกบางเส้นไม่แตก = คืนผิดตัว)
+ *
+ * ⚠️ ต่างจากสินค้าชุด (composite) ที่ stock-service แตกให้เองตอนเขียน — โปรโมชันต้องแตก
+ *    ที่นี่เพราะเป็นข้อมูลของ "บิลใบนั้น" ไม่ใช่โครงสร้างของสินค้า
+ */
 async function readItems(orderId: string): Promise<OrderStockItem[]> {
   const { data, error } = await supabaseAdmin
     .from('order_items')
-    .select('variation_id, quantity')
+    .select('variation_id, quantity, promotion_id, promotion_components')
     .eq('order_id', orderId);
   if (error) throw new Error(`อ่านรายการสินค้าของออเดอร์ไม่สำเร็จ: ${error.message}`);
-  return (data || [])
-    .filter(r => r.variation_id)
-    .map(r => ({ variation_id: r.variation_id as string, quantity: Number(r.quantity) || 0 }))
-    .filter(r => r.quantity > 0);
+
+  type Row = {
+    variation_id: string | null;
+    quantity: number | null;
+    promotion_id: string | null;
+    promotion_components: { variation_id?: string | null; quantity?: number | null }[] | null;
+  };
+
+  const out: OrderStockItem[] = [];
+  for (const row of (data || []) as Row[]) {
+    if (!row.variation_id) continue;
+    const qty = Number(row.quantity) || 0;
+    if (qty <= 0) continue;
+
+    if (row.promotion_id && row.promotion_components?.length) {
+      for (const comp of row.promotion_components) {
+        const compQty = (Number(comp.quantity) || 0) * qty;
+        if (!comp.variation_id || compQty <= 0) continue;
+        const variationId = await resolveVariationId(comp.variation_id);
+        if (variationId) out.push({ variation_id: variationId, quantity: compQty });
+      }
+      continue;
+    }
+    out.push({ variation_id: row.variation_id, quantity: qty });
+  }
+  return out;
+}
+
+/**
+ * ชิ้นส่วนโปรโมชันบางใบเก็บเป็น `product_id` (โปรโมชันระดับสินค้า ให้เลือกตัวเลือกทีหลัง)
+ * — แปลงเป็น variation จริงก่อนแตะสต็อก ไม่งั้นจองไม่ลงเงียบ ๆ
+ */
+async function resolveVariationId(id: string): Promise<string | null> {
+  const { data: exact } = await supabaseAdmin
+    .from('product_variations').select('id').eq('id', id).maybeSingle();
+  if (exact) return id;
+  const { data: first } = await supabaseAdmin
+    .from('product_variations').select('id').eq('product_id', id).limit(1).maybeSingle();
+  return first?.id || null;
 }
 
 /** ยอดขายได้ของทุกร้านที่ผูก variation เหล่านี้ต้องขยับตาม ไม่งั้นขายซ้ำของชิ้นเดียวกัน */
