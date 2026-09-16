@@ -8,7 +8,14 @@
  */
 
 import type { RefObject } from 'react';
-import { SAVED_REPLY_VARS, type SavedReplyVar } from '@/lib/chat/saved-reply-vars';
+import { SAVED_REPLY_VARS } from '@/lib/chat/saved-reply-vars';
+
+/** ตัวแปรหนึ่งตัวบนแถวชิป — `SavedReplyVar` เข้ากันได้อยู่แล้ว (ส่วนเกินไม่ถูกใช้) */
+export interface VarChipItem {
+  token: string;
+  label: string;
+  hint: string;
+}
 
 interface Props {
   /** ช่องที่จะแทรกลงไป — ไม่มี ref (ยังไม่ mount) ก็ต่อท้ายให้แทน */
@@ -17,14 +24,21 @@ interface Props {
   onChange: (next: string) => void;
   /** จำกัดเฉพาะบางตัว — เช่นงานอัตโนมัติที่ไม่มี "ผู้ตอบ" */
   only?: string[];
+  /**
+   * ตัวแปรเฉพาะของช่องนั้นที่ไม่ได้มาจากบริบทแชท (เช่นโค้ดคูปองของการ์ดชวนรับข่าวสาร)
+   * ⚠️ ห้ามเอาไปยัดใน `SAVED_REPLY_VARS` — ทะเบียนนั้นใช้ร่วมกับข้อความสำเร็จรูปในหน้าแชท
+   * ตัวที่หน้านั้นแทนค่าไม่ได้จะกลายเป็นชิปกดแล้วได้โทเคนค้าง
+   */
+  extra?: VarChipItem[];
   label?: string;
   className?: string;
 }
 
-export default function VarChips({ targetRef, value, onChange, only, label = 'แทรกตัวแปร:', className }: Props) {
-  const vars: SavedReplyVar[] = only
+export default function VarChips({ targetRef, value, onChange, only, extra, label = 'แทรกตัวแปร:', className }: Props) {
+  const shared: VarChipItem[] = only
     ? SAVED_REPLY_VARS.filter(v => only.includes(v.token))
     : SAVED_REPLY_VARS;
+  const vars = [...shared, ...(extra || [])];
   if (vars.length === 0) return null;
 
   const insert = (token: string) => {

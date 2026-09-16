@@ -13,7 +13,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 import { getChatAccount } from '@/lib/chat-config';
 import { graphPost } from '@/lib/meta/graph';
 import { logIntegrationNow } from '@/lib/integration-logger';
-import { readOptinConfig, type OptinTrigger } from '@/lib/broadcast/optin';
+import { applyCouponCode, readOptinConfig, type OptinTrigger } from '@/lib/broadcast/optin';
 import { applySavedReplyVars } from '@/lib/chat/saved-reply-vars';
 
 interface ContactRow {
@@ -95,9 +95,7 @@ export async function grantOptinReward(
       customerName: contact.display_name,
       shopName: account.account_name,
     });
-    const text = message.includes('{code}')
-      ? message.replace('{code}', coupon!.code)
-      : `${message} ${coupon!.code}`;
+    const text = applyCouponCode(message, coupon!.code);
 
     const res = await graphPost<{ message_id?: string }>(`/${pageId}/messages`, pageToken, {
       recipient: { id: contact.fb_psid },

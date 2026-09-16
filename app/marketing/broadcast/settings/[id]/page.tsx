@@ -41,7 +41,8 @@ import { supabase } from '@/lib/supabase';
 import { formatPrice, formatThaiDateTime } from '@/lib/utils/format';
 import { BROADCAST_SETUP_KEYS } from '@/lib/broadcast/platforms';
 import {
-  readOptinConfig, validateOptinConfig, OPTIN_TRIGGERS, OPTIN_TITLE_MAX, OPTIN_INTRO_MAX,
+  readOptinConfig, validateOptinConfig, applyCouponCode, OPTIN_TRIGGERS, OPTIN_TITLE_MAX,
+  OPTIN_INTRO_MAX, OPTIN_COUPON_TOKEN,
   type OptinConfig, type OptinScenario, type OptinTrigger,
 } from '@/lib/broadcast/optin';
 
@@ -353,9 +354,8 @@ export default function BroadcastPageSettings() {
     // และบรรทัด "You've chosen to receive…" (เจ้าของให้เอาออกทั้งคู่)
     // พรีวิวมีไว้ดู**ข้อความที่ร้านตั้งเอง** ของที่แก้ไม่ได้ใส่มาแล้วรกเปล่า ๆ
     if (previewCoupon) {
-      const msg = previewScenario.reward_message.includes('{code}')
-        ? previewScenario.reward_message.replace('{code}', previewCoupon.code)
-        : `${previewScenario.reward_message} ${previewCoupon.code}`;
+      // แทนค่าผ่านตัวกลางตัวเดียวกับตัวส่งจริง — พรีวิวจะได้ไม่มีทางเพี้ยนจากของที่ลูกค้าได้รับ
+      const msg = applyCouponCode(previewScenario.reward_message, previewCoupon.code);
       list.push({ key: 'coupon', node: <TextBubble>{msg}</TextBubble> });
     }
     return list;
@@ -615,13 +615,20 @@ export default function BroadcastPageSettings() {
                                     value={sc.reward_message}
                                     rows={2}
                                     onChange={e => updateScenario(trigger, { reward_message: e.target.value })}
-                                    hint="ใส่ {code} ตรงที่อยากให้โค้ดไปอยู่ — ไม่ใส่ ระบบจะต่อโค้ดไว้ท้ายข้อความให้"
+                                    hint="ไม่แทรกโค้ดคูปอง ระบบจะต่อโค้ดไว้ท้ายข้อความให้"
                                   />
+                                  {/* โค้ดคูปองเป็นตัวแปรเหมือนกัน — ต้องอยู่แถวเดียวกับตัวอื่น
+                                      ไม่ใช่ปล่อยให้พิมพ์โทเคนเอาเองจากคำอธิบาย (เจ้าของท้วง 16 ก.ย. 2026) */}
                                   <VarChips
                                     targetRef={rewardRef}
                                     value={sc.reward_message}
                                     onChange={v => updateScenario(trigger, { reward_message: v })}
                                     only={['{{ชื่อลูกค้า}}', '{{ชื่อร้าน}}']}
+                                    extra={[{
+                                      token: OPTIN_COUPON_TOKEN,
+                                      label: 'โค้ดคูปอง',
+                                      hint: 'โค้ดของคูปองใบที่เลือกไว้ข้างบน',
+                                    }]}
                                     className="mt-1.5"
                                   />
                                 </div>

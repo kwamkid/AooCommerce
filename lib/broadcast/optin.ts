@@ -43,8 +43,26 @@ export interface OptinScenario {
    * ควรได้คนละใบ (หรือคนซื้อแล้วไม่ต้องได้เลย)
    */
   coupon_id: string | null;
-  /** ข้อความที่ส่งพร้อมโค้ด — `{code}` จะถูกแทนที่ด้วยโค้ดจริง */
+  /** ข้อความที่ส่งพร้อมโค้ด — แทนค่าผ่าน `applyCouponCode()` ห้ามแทนเอง */
   reward_message: string;
+}
+
+/**
+ * โทเคนโค้ดคูปองในข้อความรางวัล — เขียนแบบ `{{…}}` ภาษาไทยชุดเดียวกับ
+ * `SAVED_REPLY_VARS` ของหน้าแชท เพราะอยู่ในช่องพิมพ์เดียวกัน คนละแบบแล้วสับสน
+ * (เดิมเป็น `{code}` — เจ้าของท้วง 16 ก.ย. 2026 ว่ามันก็คือตัวแปรเหมือนกัน)
+ */
+export const OPTIN_COUPON_TOKEN = '{{โค้ดคูปอง}}';
+/** รูปแบบเดิมก่อนเปลี่ยนมาใช้ `{{…}}` — ยังรับไว้เพราะร้านอาจตั้งค่าไว้แล้ว */
+const OPTIN_COUPON_TOKEN_LEGACY = '{code}';
+
+/**
+ * ใส่โค้ดจริงลงในข้อความรางวัล — **ที่เดียว** ที่รู้กติกานี้ (ทั้งพรีวิวและตัวส่งเรียกตัวนี้)
+ * ไม่มีโทเคนในข้อความ = ต่อโค้ดไว้ท้ายให้ ⇒ ลูกค้าไม่มีทางได้ข้อความที่ไม่มีโค้ด
+ */
+export function applyCouponCode(message: string, code: string): string {
+  const token = [OPTIN_COUPON_TOKEN, OPTIN_COUPON_TOKEN_LEGACY].find(t => message.includes(t));
+  return token ? message.split(token).join(code) : `${message} ${code}`.trim();
 }
 
 /** ข้อความนำยาวเกินนี้ในแชทอ่านไม่ไหว (ของ Messenger จริง ๆ ได้ 2,000) */
@@ -84,7 +102,7 @@ export const OPTIN_TRIGGERS: Record<OptinTrigger, TriggerInfo> = {
     description: 'ปุ่มในกล่องพิมพ์ของห้องแชท — แอดมินเลือกจังหวะเอง',
     defaultEnabled: true,
     defaultTitle: (shop) => trimTitle(`รับข่าวสารและโปรโมชันจาก ${shop}`),
-    defaultRewardMessage: 'ขอบคุณที่กดรับข่าวสาร 🎁 นี่คือโค้ดส่วนลดของคุณ: {code}',
+    defaultRewardMessage: 'ขอบคุณที่กดรับข่าวสาร 🎁 นี่คือโค้ดส่วนลดของคุณ: {{โค้ดคูปอง}}',
   },
   after_sale: {
     label: 'หลังปิดการขาย',
@@ -93,7 +111,7 @@ export const OPTIN_TRIGGERS: Record<OptinTrigger, TriggerInfo> = {
     // ⛔ ห้ามมีคำว่าส่วนลด/% — คนเพิ่งจ่ายเงินไป เสนอส่วนลดตอนนี้ = บอกเขาว่าเมื่อกี้ซื้อแพงไป
     defaultTitle: () => 'ขอบคุณที่สั่งซื้อ — กดรับข่าวสารไว้ รู้ก่อนใครเมื่อมีของใหม่เข้า',
     // ถ้าจะให้คูปองคนที่เพิ่งซื้อ ต้องพูดให้ชัดว่าเป็นของ**ครั้งหน้า** ไม่ใช่ส่วนลดที่เขาพลาดไป
-    defaultRewardMessage: 'ขอบคุณที่สั่งซื้อค่ะ 💛 เก็บโค้ดนี้ไว้ใช้ครั้งหน้าได้เลย: {code}',
+    defaultRewardMessage: 'ขอบคุณที่สั่งซื้อค่ะ 💛 เก็บโค้ดนี้ไว้ใช้ครั้งหน้าได้เลย: {{โค้ดคูปอง}}',
   },
   quiet: {
     label: 'คุยจบแล้วเงียบไป',
@@ -101,7 +119,7 @@ export const OPTIN_TRIGGERS: Record<OptinTrigger, TriggerInfo> = {
     defaultEnabled: false,
     // คนกลุ่มนี้ยังไม่ตัดสินใจ — ส่วนลดคือเหตุผลให้กลับมา
     defaultTitle: (shop) => trimTitle(`รับส่วนลดและโปรโมชันพิเศษจาก ${shop}`),
-    defaultRewardMessage: 'นี่คือโค้ดส่วนลดของคุณค่ะ 🎁 ใช้ได้เลยตอนสั่งซื้อ: {code}',
+    defaultRewardMessage: 'นี่คือโค้ดส่วนลดของคุณค่ะ 🎁 ใช้ได้เลยตอนสั่งซื้อ: {{โค้ดคูปอง}}',
   },
 };
 
