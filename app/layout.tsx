@@ -25,6 +25,9 @@ const sarabun = Sarabun({
 });
 
 export const metadata: Metadata = {
+  // ฐานของ URL สัมพัทธ์ใน OG/canonical — ไม่ตั้งไว้ Next เตือนและ resolve เป็น localhost
+  // (ตอนนี้รอดเพราะรูป OG เป็น absolute ของ Supabase ล้วน แต่ห้ามพึ่งความบังเอิญนั้น)
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://aoocommerce.vercel.app'),
   title: 'AooCommerce - ระบบจัดการธุรกิจ',
   description: 'ระบบจัดการธุรกิจครบวงจร สั่งซื้อ จัดส่ง และติดตามลูกค้า',
   icons: {

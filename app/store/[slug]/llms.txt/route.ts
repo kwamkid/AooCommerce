@@ -97,7 +97,16 @@ export async function GET(
   }
 
   if (products.length > 0) {
+    // ⚠️ ร้านที่มีสินค้าเกินเพดานเคย**ถูกตัดเงียบ ๆ** — AI อ่านแล้วเข้าใจว่าร้านมีแค่นี้
+    // ต้องบอกจำนวนจริงและชี้ทางไปดูต่อเสมอ
     L.push('## สินค้า', '');
+    if (catalog.total > products.length) {
+      L.push(
+        `> แสดง ${products.length} จากทั้งหมด ${catalog.total} รายการ `
+        + `ดูรายการเต็มได้ที่ ${storefrontUrl(cfg, slug, '/sitemap.xml')}`,
+        '',
+      );
+    }
     for (const p of products) {
       const price = p.price_max > p.price_min
         ? `${formatStorePrice(p.price_min)}-${formatStorePrice(p.price_max)}`
@@ -110,7 +119,9 @@ export async function GET(
 
   L.push('## หน้าอ้างอิง', '');
   L.push(`- [สินค้าทั้งหมด](${storefrontUrl(cfg, slug)})`);
-  L.push(`- [พื้นที่จัดส่งและรอบส่ง](${storefrontUrl(cfg, slug, '/delivery')})`);
+  if (zones.length > 0) {
+    L.push(`- [พื้นที่จัดส่งและรอบส่ง](${storefrontUrl(cfg, slug, '/delivery')})`);
+  }
   L.push('');
 
   return new NextResponse(L.join('\n'), {

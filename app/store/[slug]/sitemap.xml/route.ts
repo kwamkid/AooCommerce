@@ -3,10 +3,17 @@
 // URLs always use the configured public domain; without one there is nothing
 // worth submitting, so we return 404 rather than a sitemap of unindexable URLs.
 import { NextResponse } from 'next/server';
-import { getStorefrontCompany, getStorefrontCatalog, catalogOptionsFor } from '@/lib/storefront-server';
+import {
+  getStorefrontCompany, getStorefrontCatalog, catalogOptionsFor, getStorefrontDelivery,
+} from '@/lib/storefront-server';
 import { storefrontUrl, type StorefrontProduct } from '@/lib/storefront';
 
-/** เพดานจำนวน URL สินค้าใน sitemap เดียว (ยังไม่ได้แตก sitemap index) */
+/**
+ * เพดานจำนวน URL สินค้าใน sitemap เดียว
+ * ⚠️ ร้านที่เกินเพดานจะ **ถูกตัดเงียบ ๆ** — ยังไม่ได้ทำ sitemap index
+ * ตอนนี้ร้านจริงอยู่หลักร้อย ยังไม่ถึง แต่ถ้าถึงเมื่อไหร่ต้องแตกเป็น index ไม่ใช่ขยายเพดาน
+ * (มาตรฐาน sitemap จำกัด 50,000 URL / 50MB ต่อไฟล์)
+ */
 const SITEMAP_MAX = 5000;
 /** ขนาดหน้าที่ใช้ไล่ catalog — ใหญ่พอให้รอบน้อย เล็กพอให้ `.in(...)` ไม่บวม */
 const SITEMAP_PAGE = 500;
@@ -42,13 +49,26 @@ export async function GET(
   }
   products.length = Math.min(products.length, SITEMAP_MAX);
 
+  // หน้า /delivery มีอยู่เสมอแม้ร้านไม่ได้ตั้งโซนไว้ — แต่ตอนนั้นมันว่างเปล่า (thin page)
+  // และแถบหมวดก็ซ่อนลิงก์ไปแล้ว ⇒ อย่าส่งเข้า sitemap ให้ Google เก็บหน้าที่ไม่มีอะไร
+  // (เงื่อนไขเดียวกับ `hasDelivery` ใน layout.tsx)
+  const { zones } = await getStorefrontDelivery(company.id);
+
+  // lastmod ของหน้าแรก = สินค้าที่ถูกแก้ล่าสุด — บอก Google ตรง ๆ ว่าควรกลับมาดูเมื่อไหร่
+  // (เดิมหน้าแรกไม่มี lastmod เลย ทั้งที่เป็นหน้าที่เปลี่ยนบ่อยที่สุด)
+  const newest = products.reduce<string | null>(
+    (acc, p) => (!acc || p.updated_at > acc ? p.updated_at : acc), null,
+  );
+
   const entries = [
-    { loc: storefrontUrl(cfg, slug), priority: '1.0', lastmod: null as string | null },
-    { loc: storefrontUrl(cfg, slug, '/delivery'), priority: '0.5', lastmod: null },
+    { loc: storefrontUrl(cfg, slug), priority: '1.0', lastmod: newest },
+    ...(zones.length > 0
+      ? [{ loc: storefrontUrl(cfg, slug, '/delivery'), priority: '0.5', lastmod: null as string | null }]
+      : []),
     ...products.map(p => ({
       loc: storefrontUrl(cfg, slug, `/p/${p.slug}`),
       priority: '0.8',
-      lastmod: p.updated_at,
+      lastmod: p.updated_at as string | null,
     })),
   ];
 
