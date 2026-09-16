@@ -1347,7 +1347,18 @@
 .sf-buybar { display: none; }
 
 @media (max-width: 640px) {
-  .sf-buy-row-inline { display: none; }
+  /* แถบล่างแคบเกินจะใส่ครบทั้งจำนวนและปุ่มสองตัว — แบ่งกัน: กล่องจำนวนอยู่ในเนื้อหน้า
+     (ที่เดิม) ส่วนปุ่มซื้อสองตัวย้ายลงแถบ · ซ่อนกันคนละฝั่งด้วย CSS ไม่ใช่ JS
+     จึงไม่ต้องมี state แยกและไม่มีจังหวะที่หายไปทั้งคู่ */
+  .sf-buy-row-inline .sf-cta { display: none; }
+  .sf-buybar .sf-qty { display: none; }
+  /* เหลือกล่องจำนวนอยู่ลำพัง ต้องมีป้ายบอกว่าปรับอะไร (บนเดสก์ท็อปมีปุ่มข้าง ๆ อยู่แล้ว) */
+  .sf-buy-row-inline { align-items: center; }
+  /* :has() กันเคสของหมด — แถวนั้นมีแต่ปุ่ม "สินค้าหมดชั่วคราว" ที่ถูกซ่อนไปแล้ว
+     ถ้าไม่กัน จะเหลือคำว่า "จำนวน" ลอยอยู่คำเดียวโดยไม่มีอะไรให้ปรับ */
+  .sf-buy-row-inline:has(.sf-qty)::before {
+    content: 'จำนวน'; color: var(--sf-muted); font-size: 14px;
+  }
 
   .sf-buybar {
     position: fixed;
@@ -1382,13 +1393,10 @@
   .sf-buybar .sf-cart-text { display: none; }
 
   /* แตะได้ ≥44px ทุกปุ่ม (ปุ่มจำนวนของแถบไม่ย่อลงเหมือนแถวในเนื้อหน้า) */
-  .sf-buybar .sf-qty { flex: none; }
-  .sf-buybar .sf-qty button { width: 44px; height: 46px; }
-  .sf-buybar .sf-qty span { min-width: 30px; }
 
   /* ปุ่มหยิบใส่ตะกร้ากินความกว้างที่เหลือทั้งหมด (ทับ min-width ของ .sf-cta-add) */
   .sf-buybar .sf-cta {
-    flex: 1;
+    flex: 1 1 0;      /* ปุ่มสองตัวแบ่งที่ที่เหลือเท่ากัน */
     min-width: 0;
     min-height: 46px;
     padding: 10px 12px;
@@ -1403,7 +1411,32 @@
 @media (max-width: 360px) {
   .sf-buybar { gap: 6px; padding-left: 10px; padding-right: 10px; }
   .sf-buybar .sf-cta { font-size: 14px; padding: 10px 8px; }
-  .sf-buybar .sf-qty button { width: 40px; }
-  .sf-buybar .sf-qty span { min-width: 26px; }
   .sf-buybar .sf-cart-link { min-width: 44px; padding: 0 8px; }
 }
+
+/* ── ปุ่มคู่ "ใส่ตะกร้า" + "ซื้อเลย" ──────────────────────────────────
+   สองปุ่มที่หน้าตาเหมือนกันเป๊ะไม่บอกว่าอันไหนคือปุ่มตัดสินใจ — จึงทับสไตล์ปุ่ม
+   ของธีม (solid/outline/soft) เฉพาะคู่นี้: ซื้อเลย = ทึบเสมอ · ใส่ตะกร้า = เส้นขอบ
+   ⚠️ ต้องอยู่ท้ายไฟล์ ไม่งั้นบล็อก .sf-btn-outline / .sf-btn-soft ด้านบนจะชนะ
+   สถานะ "เพิ่มลงตะกร้าแล้ว" (.sf-cta-added) มีสีเขียวของตัวเอง กันไว้ด้วย :not() */
+.sf-cta-buy,
+.sf-btn-outline .sf-cta-buy,
+.sf-btn-soft .sf-cta-buy {
+  background: var(--sf-cta);
+  color: var(--sf-cta-contrast);
+  border: 1px solid var(--sf-cta);
+}
+.sf-cta-buy:hover { filter: brightness(0.93); background: var(--sf-cta); }
+.sf-cta-add:not(.sf-cta-added),
+.sf-btn-outline .sf-cta-add:not(.sf-cta-added),
+.sf-btn-soft .sf-cta-add:not(.sf-cta-added) {
+  background: transparent;
+  color: var(--sf-cta-ink);
+  border: 1px solid var(--sf-cta-ink);
+}
+.sf-cta-add:not(.sf-cta-added):hover {
+  background: color-mix(in srgb, var(--sf-cta) 12%, transparent);
+  filter: none;
+}
+/* เดสก์ท็อป: ปุ่มใส่ตะกร้ามีราคาต่อท้าย จึงกว้างกว่า — ซื้อเลยไม่ต้องยืดตาม */
+.sf-cta-buy { min-height: 46px; padding-left: 26px; padding-right: 26px; }

@@ -3,6 +3,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Minus, Plus, Check } from 'lucide-react';
 import { addToCart } from '@/lib/storefront-cart';
@@ -53,7 +54,9 @@ export default function AddToCartButton({
   const [selectedId, setSelectedId] = useState(preselected?.id || '');
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
+  const [buying, setBuying] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
+  const router = useRouter();
 
   if (sellable.length === 0) {
     // ของหมดทุกตัวเลือก — แถบล่างจอยังมีไว้ให้กดกลับไปตะกร้าได้ (ปุ่มซื้อกดไม่ได้)
@@ -126,8 +129,27 @@ export default function AddToCartButton({
   };
 
   /**
-   * กล่องจำนวน + ปุ่มหยิบใส่ตะกร้า — วาดสองที่ (ในเนื้อหน้า + แถบล่างจอบนมือถือ)
+   * "ซื้อเลย" = หยิบใส่ตะกร้าแล้วไปหน้าชำระเงินทันที (ของที่ค้างในตะกร้าอยู่แล้วไปด้วย
+   * เหมือนกดใส่ตะกร้าแล้วกดตะกร้าเอง) · ไม่เล่น animation บินเข้าตะกร้าเพราะกำลังจะเปลี่ยนหน้า
+   */
+  const handleBuyNow = () => {
+    if (buying) return;
+    setBuying(true);
+    addToCart(shop, {
+      variation_id: selected.id,
+      product_slug: productSlug,
+      name: productName,
+      variation_label: selected.label,
+      price: selected.price,
+      image: selected.image || images[0] || null,
+    }, qty);
+    router.push(storefrontHref(shop, '/checkout'));
+  };
+
+  /**
+   * กล่องจำนวน + ปุ่มซื้อ — วาดสองที่ (ในเนื้อหน้า + แถบล่างจอบนมือถือ)
    * โดยใช้ state ชุดเดียวกัน · CSS ซ่อนตัวที่ไม่ใช้ตามความกว้างจอ จึงเห็นทีละชุดเสมอ
+   * (บนมือถือ กล่องจำนวนโชว์ในเนื้อหน้า ส่วนปุ่มสองตัวโชว์ในแถบล่าง — แถบแคบเกินจะใส่ครบ)
    */
   const buyControls = (inBar: boolean) => (
     <>
@@ -145,8 +167,16 @@ export default function AddToCartButton({
         <span className="sf-cta-face" key={added ? 'done' : 'idle'}>
           {added
             ? <><Check strokeWidth={2.2} aria-hidden="true" />เพิ่มลงตะกร้าแล้ว</>
-            : <>หยิบใส่ตะกร้า · {formatStorePrice(selected.price * qty)}</>}
+            : <>{inBar ? 'ใส่ตะกร้า' : <>หยิบใส่ตะกร้า · {formatStorePrice(selected.price * qty)}</>}</>}
         </span>
+      </button>
+      <button
+        type="button"
+        className="sf-cta sf-cta-buy"
+        disabled={buying}
+        onClick={handleBuyNow}
+      >
+        <span className="sf-cta-face">{buying ? 'กำลังไป…' : 'ซื้อเลย'}</span>
       </button>
     </>
   );
