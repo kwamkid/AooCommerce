@@ -535,6 +535,7 @@ export default function StockPreview({ account, direction, onApplied, onBack, on
             getRowId={(row) => row.variation_id}
             selectedIds={selected}
             onSelectionChange={setSelected}
+            selectAllScope={filtered} /* ติ๊กหัวตาราง = ทุกแถวที่กรองอยู่ ไม่ใช่แค่หน้านี้ */
             isRowSelectable={(row) => isActionable(row.plan)}
             emptyMessage="ไม่มีรายการในตัวกรองนี้"
             emptyIcon={<Package className="w-10 h-10 text-gray-300 dark:text-slate-600" />}

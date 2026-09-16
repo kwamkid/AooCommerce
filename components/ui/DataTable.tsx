@@ -143,6 +143,11 @@ export interface DataTableProps<T> {
    *  อย่างพรีวิวสต็อก) ให้เปิดอันนี้ แล้วช่องข้อความใส่ `truncate` เอง */
   fitWidth?: boolean;
 
+  /** ขอบเขตของช่องติ๊กบนหัวตาราง — ไม่ส่ง = แถวในหน้านี้ (พฤติกรรมเดิม)
+   *  ตารางที่แบ่งหน้าแล้วอยากให้ "ติ๊กหัวตาราง" หมายถึงทุกแถวที่กรองอยู่ (ไม่ใช่แค่หน้านี้)
+   *  ให้ส่งชุดเต็มมา — ไม่งั้นผู้ใช้นึกว่าติ๊กครบแล้วทั้งที่ได้แค่หน้าเดียว */
+  selectAllScope?: T[];
+
   // ── Mobile card custom render (optional — overrides auto card) ──
   mobileCardRender?: (row: T, index: number) => ReactNode;
 
@@ -189,6 +194,7 @@ export default function DataTable<T>({
   onSelectionChange,
   isRowSelectable,
   fitWidth = false,
+  selectAllScope,
   mobileCardRender,
   paginationChildren,
   sortBy,
@@ -403,13 +409,20 @@ export default function DataTable<T>({
   // ── Selection helpers ──
   const hasSelection = !!selectedIds && !!onSelectionChange;
   // ไม่ส่ง isRowSelectable = ทุกแถวติ๊กได้ (พฤติกรรมเดิมของทุกหน้าที่ใช้อยู่)
-  const selectableRows = isRowSelectable ? data.filter(isRowSelectable) : data;
+  const scopeRows = selectAllScope ?? data;
+  const selectableRows = isRowSelectable ? scopeRows.filter(isRowSelectable) : scopeRows;
   const allSelected =
     hasSelection && selectableRows.length > 0 && selectableRows.every(r => selectedIds!.has(getRowId(r)));
+  /** ติ๊ก/ถอดเฉพาะแถวในขอบเขต — ไม่ล้างทั้งชุด เพราะแถวที่เลือกไว้จากหน้า/ตัวกรองอื่น
+   *  ต้องไม่หายไปเงียบ ๆ (ของเดิมติ๊กหัวตารางหน้า 2 แล้วหน้า 1 หลุดหมด) */
   const toggleAll = () => {
-    if (!onSelectionChange) return;
-    if (allSelected) onSelectionChange(new Set());
-    else onSelectionChange(new Set(selectableRows.map(r => getRowId(r))));
+    if (!onSelectionChange || !selectedIds) return;
+    const next = new Set(selectedIds);
+    for (const row of selectableRows) {
+      const id = getRowId(row);
+      if (allSelected) next.delete(id); else next.add(id);
+    }
+    onSelectionChange(next);
   };
   const toggleRow = (id: string) => {
     if (!onSelectionChange || !selectedIds) return;
