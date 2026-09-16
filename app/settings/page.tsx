@@ -13,6 +13,7 @@ import Modal from '@/components/ui/Modal';
 import GeneralSettingsTabs from '@/components/settings/GeneralSettingsTabs';
 import { NoPermissionCard } from '@/components/ui/StateCard';
 import FormInput from '@/components/ui/FormInput';
+import UnitNumberField from '@/components/ui/UnitNumberField';
 import Toggle from '@/components/ui/Toggle';
 import { useFormValidation } from '@/lib/useFormValidation';
 import { useAuth } from '@/lib/auth-context';
@@ -20,7 +21,7 @@ import { useCompany } from '@/lib/company-context';
 import { can } from '@/lib/permissions';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
-import { Gift, Plus, X, Loader2, Tag, Edit2, Check, Trash2, AlertTriangle, Clock, Building2 } from 'lucide-react';
+import { Gift, Plus, X, Loader2, Tag, Edit2, Check, Trash2, AlertTriangle, Clock, Building2, CalendarClock } from 'lucide-react';
 
 export default function SettingsPage() {
   const { userProfile } = useAuth();
@@ -67,33 +68,56 @@ export default function SettingsPage() {
   const [billExpiryDays, setBillExpiryDays] = useState(7);
   const [loadingBillExpiry, setLoadingBillExpiry] = useState(true);
 
+  /**
+   * รอบวางบิล — ค่าตั้งต้นของทั้งบริษัท ใช้ร่วมกันทั้งลูกค้าตัวแทนและลูกค้าห้าง
+   * (ลูกค้าแต่ละรายทับได้เองที่หน้าลูกค้า)
+   */
+  const [billing, setBilling] = useState({ statement_day: 31, credit_days: 30 });
+  useEffect(() => {
+    apiFetch('/api/settings/billing')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (!d) return;
+        const b = {
+          statement_day: Number(d.statement_day) || 31,
+          credit_days: Number.isFinite(Number(d.credit_days)) ? Number(d.credit_days) : 30,
+        };
+        setBilling(b);
+        initialSettingsRef.current = { ...initialSettingsRef.current, billing: b };
+      })
+      .catch(() => { /* โหลดไม่ได้ก็ไม่ควรทำให้ทั้งหน้าพัง */ });
+  }, []);
+
   // ── บันทึกเดียวของทั้งหน้า ──
   // ยกเว้น "ประเภทตัวเลือกสินค้า" ที่เป็นการเพิ่ม/ลบรายการ ซึ่งมีผลทันทีอยู่แล้ว
   // เอามารวมในปุ่มบันทึกไม่ได้ (จะกลายเป็นว่าเพิ่มไปแล้วแต่ยังไม่นับจนกว่าจะกดบันทึก)
-  const initialSettingsRef = useRef({ billExpiryEnabled: false, billExpiryDays: 7, giftCard: { enabled: false, fee: 0 } });
+  const initialSettingsRef = useRef({ billExpiryEnabled: false, billExpiryDays: 7, giftCard: { enabled: false, fee: 0 }, billing: { statement_day: 31, credit_days: 30 } });
   const [savingAll, setSavingAll] = useState(false);
   const settingsDirty =
     billExpiryEnabled !== initialSettingsRef.current.billExpiryEnabled ||
     billExpiryDays !== initialSettingsRef.current.billExpiryDays ||
     giftCard.enabled !== initialSettingsRef.current.giftCard.enabled ||
-    giftCard.fee !== initialSettingsRef.current.giftCard.fee;
+    giftCard.fee !== initialSettingsRef.current.giftCard.fee ||
+    billing.statement_day !== initialSettingsRef.current.billing.statement_day ||
+    billing.credit_days !== initialSettingsRef.current.billing.credit_days;
 
   const saveAllSettings = async () => {
     setSavingAll(true);
     setError(''); setSuccess('');
     try {
-      const [billRes, giftRes] = await Promise.all([
+      const [billRes, giftRes, billingRes] = await Promise.all([
         apiFetch('/api/settings/bill-expiry', {
           method: 'PUT',
           body: JSON.stringify({ bill_expiry_days: billExpiryEnabled ? billExpiryDays : 0 }),
         }),
         apiFetch('/api/settings/gift-card', { method: 'PUT', body: JSON.stringify(giftCard) }),
+        apiFetch('/api/settings/billing', { method: 'PUT', body: JSON.stringify(billing) }),
       ]);
-      if (!billRes.ok || !giftRes.ok) {
+      if (!billRes.ok || !giftRes.ok || !billingRes.ok) {
         setError('บันทึกไม่สำเร็จบางส่วน กรุณาลองใหม่');
         return;
       }
-      initialSettingsRef.current = { billExpiryEnabled, billExpiryDays, giftCard: { ...giftCard } };
+      initialSettingsRef.current = { billExpiryEnabled, billExpiryDays, giftCard: { ...giftCard }, billing: { ...billing } };
       setSuccess('บันทึกการตั้งค่าแล้ว');
       setTimeout(() => setSuccess(''), 3000);
     } finally {
@@ -417,6 +441,37 @@ export default function SettingsPage() {
           </div>
         </ToggleCard>
 
+        {/* รอบวางบิล — ค่าตั้งต้นของทั้งบริษัท
+            อยู่ตรงนี้เพราะ **ทั้งลูกค้าตัวแทนและลูกค้าห้างวางบิลรอบเดือนเหมือนกัน**
+            ไม่ใช่เรื่องของฟีเจอร์ฝากขายอย่างเดียว · ไม่มีสวิตช์เปิด/ปิดเพราะปิดไม่ได้ */}
+        <Card className="card-p-lg">
+          <div className="flex items-start gap-3 mb-4">
+            <CalendarClock className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="font-medium text-gray-900 dark:text-white">รอบวางบิล</h3>
+              <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">
+                ค่าตั้งต้นของลูกค้าตัวแทนและลูกค้าห้าง — ตั้งทับรายคนได้ที่หน้าลูกค้า
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg">
+            <UnitNumberField
+              label="วางบิลทุกวันที่"
+              value={billing.statement_day}
+              onChange={(n) => setBilling(b => ({ ...b, statement_day: Math.min(Math.max(n || 31, 1), 31) }))}
+              hint="31 = สิ้นเดือน · เดือนที่สั้นกว่าร่นมาเป็นวันสุดท้ายให้เอง"
+              min={1} max={31}
+            />
+            <UnitNumberField
+              label="ชำระภายใน"
+              value={billing.credit_days}
+              onChange={(n) => setBilling(b => ({ ...b, credit_days: Math.min(Math.max(n ?? 30, 0), 180) }))}
+              unit="วัน" hint="นับจากวันวางบิล ไม่ใช่วันที่กดยืนยัน"
+              min={0} max={180}
+            />
+          </div>
+        </Card>
+
         {/* บริการเสริมของร้าน — ใช้ได้ทุกช่องทางที่สร้างออเดอร์ (หน้าร้านออนไลน์
             และเปิดบิลเองจากแชท) จึงอยู่ตรงนี้ ไม่ใช่ในตั้งค่าหน้าร้านออนไลน์ */}
         <ToggleCard
@@ -522,7 +577,7 @@ export default function SettingsPage() {
         }
         size="md"
         footer={
-          <div className="flex gap-3 p-4">
+          <div className="flex gap-3">
             <Button
               variant="secondary"
               fullWidth
@@ -544,7 +599,7 @@ export default function SettingsPage() {
           </div>
         }
       >
-        <div className="p-6">
+        <div>
           <p className="text-sm text-gray-600 dark:text-slate-400 mb-4">
             การดำเนินการนี้จะลบข้อมูลต่อไปนี้ <strong className="text-red-600">อย่างถาวร</strong>:
           </p>
@@ -588,7 +643,7 @@ export default function SettingsPage() {
         size="md"
         footer={
           currentCompany && (
-            <div className="flex gap-3 p-4">
+            <div className="flex gap-3">
               <Button
                 variant="secondary"
                 fullWidth
@@ -613,7 +668,7 @@ export default function SettingsPage() {
         }
       >
         {currentCompany && (
-          <div className="p-6">
+          <div>
             <p className="text-sm text-gray-600 dark:text-slate-400 mb-3">
               คุณกำลังจะลบบริษัท <strong className="text-gray-900 dark:text-white">{currentCompany.name}</strong> <strong className="text-red-600">อย่างถาวร</strong> รวมถึง:
             </p>

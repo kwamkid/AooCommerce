@@ -28,7 +28,6 @@ function deriveFeatureFlagsFromChannels(channels: Channel[], current: FeatureFla
         next.supplier = true;
         break;
       case 'wholesale':
-        next.billing_cycle = true;
         break;
       case 'retail':
         // base case — no extra feature flags

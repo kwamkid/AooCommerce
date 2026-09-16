@@ -85,17 +85,22 @@ export default function ConsignmentSettings({ data, onChange, inputClassName, la
   const [defaults, setDefaults] = useState<CompanyDefaults | null>(null);
 
   useEffect(() => {
-    apiFetch('/api/settings/features').then(r => r.json()).then(d => {
-      const cs = d.consignment_settings;
+    // ค่าตั้งต้นมาจากสองที่: GP/เงื่อนไขฝากขาย อยู่ที่ตั้งค่าฟีเจอร์ ส่วนวันวางบิล
+    // อยู่ที่ ตั้งค่า > ทั่วไป > บิล และสินค้า (ใช้ร่วมกับลูกค้าห้างด้วย)
+    Promise.all([
+      apiFetch('/api/settings/features').then(r => (r.ok ? r.json() : null)).catch(() => null),
+      apiFetch('/api/settings/billing').then(r => (r.ok ? r.json() : null)).catch(() => null),
+    ]).then(([f, b]) => {
+      const cs = f?.consignment_settings;
       // ไม่มีค่าที่ตั้งไว้ก็ยังต้องมี defaults เพื่อโชว์ "ตามระบบ" ให้ถูก
       setDefaults({
         default_gp_rate: cs?.default_gp_rate ?? 30,
         default_gp_base_price: cs?.default_gp_base_price || 'retail',
         default_report_due_days: cs?.default_report_due_days ?? 15,
         default_payment_terms: cs?.default_payment_terms ?? 30,
-        default_statement_day: cs?.default_statement_day ?? 31,
+        default_statement_day: Number(b?.statement_day) || 31,
       });
-    }).catch(() => {});
+    });
   }, []);
 
   // Custom = has value in DB, Default = null/empty → resolve from global at runtime

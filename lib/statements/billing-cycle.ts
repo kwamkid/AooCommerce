@@ -19,6 +19,9 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 /** วันวางบิลตั้งต้นเมื่อไม่ได้ตั้งทั้งที่บริษัทและที่ลูกค้า — สิ้นเดือน */
 export const DEFAULT_STATEMENT_DAY = 31;
 
+/** เครดิตตั้งต้นเมื่อไม่ได้ตั้งที่ไหนเลย */
+export const DEFAULT_CREDIT_DAYS = 30;
+
 export interface BillingPeriod {
   /** วันแรกของรอบ (รวม) */
   start: string;
@@ -150,18 +153,30 @@ export async function billingTermsFor(
       .single(),
   ]);
 
-  // เก็บอยู่ใต้ settings.consignment เพราะหน้าตั้งค่าอยู่ในการ์ด "ตัวแทนจำหน่าย"
-  // (สายขายขาดเครดิตก็ถูกเปิด/ปิดด้วยฟีเจอร์เดียวกัน)
-  const settings = (company?.settings ?? {}) as { consignment?: { default_statement_day?: number } };
-  const companyDay = Number(settings.consignment?.default_statement_day) || 0;
+  /**
+   * ค่าตั้งต้นของบริษัทอยู่ที่ settings.billing (ตั้งค่า > ทั่วไป > รอบวางบิล)
+   * — **ใช้ร่วมกันทั้งตัวแทนและห้าง** ไม่ได้ผูกกับฟีเจอร์ฝากขาย เพราะทั้งสองสาย
+   * วางบิลรอบเดือนเหมือนกัน
+   */
+  const settings = (company?.settings ?? {}) as {
+    billing?: { statement_day?: number; credit_days?: number };
+    consignment?: { default_payment_terms?: number };
+  };
 
   const statementDay = customer?.statement_day
-    || companyDay
+    || Number(settings.billing?.statement_day)
     || DEFAULT_STATEMENT_DAY;
 
-  const creditDays = isConsignment
-    ? (customer?.consignment_payment_terms ?? customer?.credit_days ?? 30)
-    : (customer?.credit_days ?? 30);
+  /**
+   * ลำดับเครดิต: ลูกค้า → บริษัท → ค่าตั้งต้นระบบ
+   * ฝากขายมีช่องของตัวเอง (`consignment_payment_terms`) เพราะสัญญาฝากขากำหนดแยก
+   * จากเครดิตการค้าปกติ — ตั้งไว้ก็ใช้อันนั้นก่อน
+   */
+  const creditDays = (isConsignment ? customer?.consignment_payment_terms : null)
+    ?? customer?.credit_days
+    ?? Number(settings.billing?.credit_days)
+    ?? Number(settings.consignment?.default_payment_terms)   // ค่าที่เคยตั้งไว้ก่อนย้ายที่
+    ?? DEFAULT_CREDIT_DAYS;
 
   return { statementDay, creditDays: Number(creditDays) || 0 };
 }
@@ -170,6 +185,6 @@ export async function billingTermsFor(
 export async function companyStatementDay(companyId: string): Promise<number> {
   const { data } = await supabaseAdmin
     .from('companies').select('settings').eq('id', companyId).single();
-  const settings = (data?.settings ?? {}) as { consignment?: { default_statement_day?: number } };
-  return Number(settings.consignment?.default_statement_day) || DEFAULT_STATEMENT_DAY;
+  const settings = (data?.settings ?? {}) as { billing?: { statement_day?: number } };
+  return Number(settings.billing?.statement_day) || DEFAULT_STATEMENT_DAY;
 }

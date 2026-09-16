@@ -10,7 +10,6 @@ export interface FeatureFlags {
   // required = "บังคับกรอก" บนหน้า Feature เสริม · ค่าเก่าที่เก็บเป็น boolean
   // ยังอ่านได้ (parseFeatures แปลงให้เป็น { enabled, required:false })
   delivery_slot: { enabled: boolean; required: boolean };
-  billing_cycle: boolean;
   marketplace_sync: boolean;
   pos: boolean;
   consignment: boolean;
@@ -50,7 +49,6 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
     delivery_date: { enabled: true, required: true },
     delivery_zone: true,
     delivery_slot: { enabled: true, required: false },
-    billing_cycle: true,
     marketplace_sync: false,
     pos: false,
     consignment: false,
@@ -64,7 +62,6 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
     delivery_date: { enabled: false, required: false },
     delivery_zone: false,
     delivery_slot: { enabled: false, required: false },
-    billing_cycle: false,
     marketplace_sync: true,
     pos: false,
     consignment: false,
@@ -78,7 +75,6 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
     delivery_date: { enabled: false, required: false },
     delivery_zone: false,
     delivery_slot: { enabled: false, required: false },
-    billing_cycle: false,
     marketplace_sync: true,
     pos: false,
     consignment: false,
@@ -92,7 +88,6 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
     delivery_date: { enabled: false, required: false },
     delivery_zone: false,
     delivery_slot: { enabled: false, required: false },
-    billing_cycle: false,
     marketplace_sync: true,
     pos: true,
     consignment: true,
@@ -106,7 +101,6 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
     delivery_date: { enabled: false, required: false },
     delivery_zone: false,
     delivery_slot: { enabled: false, required: false },
-    billing_cycle: true,
     marketplace_sync: true,
     pos: true,
     consignment: true,
@@ -120,7 +114,6 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
     delivery_date: { enabled: false, required: false },
     delivery_zone: false,
     delivery_slot: { enabled: false, required: false },
-    billing_cycle: true,
     marketplace_sync: false,
     pos: false,
     consignment: false,
@@ -134,7 +127,6 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
     delivery_date: { enabled: false, required: false },
     delivery_zone: false,
     delivery_slot: { enabled: false, required: false },
-    billing_cycle: true,
     marketplace_sync: false,
     pos: false,
     consignment: true,
@@ -156,7 +148,6 @@ export const DEFAULT_FEATURES: FeatureFlags = {
   delivery_date: { enabled: false, required: false },
   delivery_zone: false,
   delivery_slot: { enabled: false, required: false },
-  billing_cycle: false,
   marketplace_sync: false,
   pos: false,
   consignment: false,
@@ -177,7 +168,6 @@ export function detectPreset(f: FeatureFlags): BusinessPreset | null {
       f.delivery_zone === defaults.delivery_zone &&
       f.delivery_slot.enabled === defaults.delivery_slot.enabled &&
       f.delivery_slot.required === defaults.delivery_slot.required &&
-      f.billing_cycle === defaults.billing_cycle &&
       f.marketplace_sync === defaults.marketplace_sync &&
       f.pos === defaults.pos &&
       f.consignment === defaults.consignment &&
@@ -223,7 +213,6 @@ export function parseFeatures(settings: Record<string, unknown> | null | undefin
           enabled: (rawSlot as { enabled?: boolean } | undefined)?.enabled ?? DEFAULT_FEATURES.delivery_slot.enabled,
           required: (rawSlot as { required?: boolean } | undefined)?.required ?? DEFAULT_FEATURES.delivery_slot.required,
         },
-    billing_cycle: stored.billing_cycle ?? DEFAULT_FEATURES.billing_cycle,
     marketplace_sync: stored.marketplace_sync ?? DEFAULT_FEATURES.marketplace_sync,
     pos: stored.pos ?? DEFAULT_FEATURES.pos,
     consignment: stored.consignment ?? DEFAULT_FEATURES.consignment,

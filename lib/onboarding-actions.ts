@@ -18,7 +18,6 @@ export function deriveFeatureFlagsFromChannels(channels: Channel[], current: Fea
       case 'marketplace': next.marketplace_sync = true; break;
       case 'pos':         next.pos = true; break;
       case 'consignment': next.consignment = true; next.supplier = true; break;
-      case 'wholesale':   next.billing_cycle = true; break;
       case 'retail':      /* base case */ break;
     }
   }

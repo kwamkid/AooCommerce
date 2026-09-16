@@ -14,7 +14,7 @@ import {
   type FeatureFlags, PRESET_DEFAULTS, PRESET_LABELS, PRESET_DESCRIPTIONS, detectPreset, type BusinessPreset,
   type DeliveryFieldMode, DELIVERY_FIELD_MODE_LABELS, DELIVERY_FIELD_MODE_HINTS, deliveryFieldMode, deliveryFieldFromMode,
 } from '@/lib/features';
-import { CalendarDays, ShoppingCart, Monitor, Handshake, Tag, Factory, PackageCheck, Loader2, CreditCard, Truck, Store, Layers, Users, Warehouse, Building, Lock, MapPin, Clock } from 'lucide-react';
+import { CalendarDays, ShoppingCart, Monitor, Handshake, Tag, Factory, PackageCheck, Loader2, Truck, Store, Layers, Users, Warehouse, Building, Lock, MapPin, Clock } from 'lucide-react';
 import { featureLockReason, type PackageGates } from '@/lib/package-features';
 import FilterChips, { FILTER_CHIP_PRIMARY_ACTIVE, type FilterChip } from '@/components/ui/FilterChips';
 import { type BrandGpRow } from '@/components/customers/BrandGpCommissions';
@@ -22,7 +22,6 @@ import GpOverridePanel from '@/components/customers/GpOverridePanel';
 import Toggle from '@/components/ui/Toggle';
 import Card from '@/components/ui/Card';
 import ToggleCard from '@/components/ui/ToggleCard';
-import NumberInput from '@/components/ui/NumberInput';
 import UnitNumberField from '@/components/ui/UnitNumberField';
 import { NoPermissionCard } from '@/components/ui/StateCard';
 import StickyActionBar from '@/components/ui/StickyActionBar';
@@ -33,7 +32,6 @@ const FEATURE_ICONS: Partial<Record<keyof FeatureFlags, React.ReactNode>> = {
   delivery_date: <CalendarDays className="w-3 h-3" />,
   delivery_zone: <MapPin className="w-3 h-3" />,
   delivery_slot: <Clock className="w-3 h-3" />,
-  billing_cycle: <CreditCard className="w-3 h-3" />,
   marketplace_sync: <ShoppingCart className="w-3 h-3" />,
   pos: <Monitor className="w-3 h-3" />,
   consignment: <Handshake className="w-3 h-3" />,
@@ -46,7 +44,6 @@ const FEATURE_SHORT: Partial<Record<keyof FeatureFlags, string>> = {
   delivery_date: 'วันส่ง',
   delivery_zone: 'พื้นที่ส่ง',
   delivery_slot: 'รอบส่ง',
-  billing_cycle: 'วางบิล',
   marketplace_sync: 'Marketplace',
   pos: 'POS',
   consignment: 'ฝากขาย',
@@ -84,7 +81,6 @@ const CONSIGNMENT_DEFAULTS: ConsignmentSettingsData = {
   default_gp_base_price: 'retail',
   default_report_due_days: 15,
   default_payment_terms: 30,
-  default_statement_day: 31,
   vat_included: true,
 };
 
@@ -250,24 +246,17 @@ export default function FeaturesPage() {
     },
     {
       key: 'consignment',
-      label: 'ฝากขาย (Consignment)',
-      description: 'บริหารตัวแทนจำหน่ายแบบฝากขาย — DN (ม.78(3))',
+      label: 'ลูกค้าตัวแทน',
+      description: 'ฝากขาย (ม.78(3)) · ขายขาดเงินสด · ขายขาดเครดิต — วางบิลรอบเดือน',
       icon: <Handshake className="w-5 h-5" />,
       color: 'text-amber-600',
     },
     {
       key: 'department_store',
-      label: 'ห้าง / Modern Trade',
-      description: 'ลูกค้าห้าง Statement รายเดือน',
+      label: 'ลูกค้าห้าง',
+      description: 'ห้างฝากขาย · ขายขาดเงินสด · ขายขาดเครดิต — วางบิลรอบเดือน',
       icon: <PackageCheck className="w-5 h-5" />,
       color: 'text-purple-600',
-    },
-    {
-      key: 'billing_cycle',
-      label: 'วางบิล / เครดิต',
-      description: 'ระบบวางบิลสิ้นเดือนสำหรับลูกค้าเครดิต',
-      icon: <CreditCard className="w-5 h-5" />,
-      color: 'text-violet-600',
     },
   ];
 
@@ -438,8 +427,6 @@ type ConsignmentSettingsData = {
   default_gp_base_price: 'retail' | 'discounted';
   default_report_due_days: number;
   default_payment_terms: number;
-  /** วันวางบิลประจำเดือน (1-31) — ค่าตั้งต้นของทุกลูกค้าที่ไม่ได้ตั้งเอง */
-  default_statement_day: number;
   vat_included: boolean;
 };
 
@@ -472,15 +459,9 @@ function ConsignmentSettingsPanel({
         canEdit={isOwnerOrAdmin}
       />
 
-      {/* รอบวางบิล + เครดิต */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-        <UnitNumberField
-          label="วางบิลทุกวันที่"
-          value={settings.default_statement_day}
-          onChange={(n) => onChange({ default_statement_day: Math.min(Math.max(n || 31, 1), 31) })}
-          hint="31 = สิ้นเดือน"
-          min={1} max={31}
-        />
+      {/* เงื่อนไขของสายฝากขายโดยเฉพาะ — วันวางบิลอยู่ที่ ตั้งค่า > ทั่วไป > บิล และสินค้า
+          เพราะใช้ร่วมกับลูกค้าห้างด้วย ไม่ใช่เรื่องของฝากขายอย่างเดียว */}
+      <div className="grid grid-cols-2 gap-3">
         <UnitNumberField
           label="ส่งยอดภายใน"
           value={settings.default_report_due_days}
