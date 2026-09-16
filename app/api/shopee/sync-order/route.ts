@@ -83,6 +83,7 @@ export async function POST(request: NextRequest) {
           orders_created: 1,
           orders_updated: 0,
           orders_skipped: 0,
+        orders_stock_skipped: 0,
           products_created: fallbackResult.products_created,
           customers_created: fallbackResult.customers_created,
           errors: [],

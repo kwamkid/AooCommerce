@@ -27,6 +27,7 @@ import {
 import { parallelLimit } from '@/lib/parallel';
 import { fetchCostMap } from '@/lib/cost-utils';
 import { reserveStock as reserveStockService, deductAndUnreserve, returnStock as returnStockService } from '@/lib/stock-service';
+import { holdsStockInWarehouse, skipStockReason } from '@/lib/marketplace/order-stock';
 import { pushStockAfterOrderSync } from '@/lib/marketplace/stock-push';
 import { getStockConfig } from '@/lib/stock-utils';
 
@@ -42,6 +43,8 @@ export interface SyncResult {
   orders_created: number;
   orders_updated: number;
   orders_skipped: number;
+  /** ใบที่สร้างแล้วแต่ไม่แตะคลัง (ของออกไปแล้ว/ยกเลิกแล้วก่อนระบบรู้จัก) */
+  orders_stock_skipped: number;
   products_created: number;
   customers_created: number;
   errors: string[];
@@ -148,7 +151,7 @@ export async function syncSingleLazadaOrder(
   opts: OrderImportOptions = {}
 ): Promise<SyncResult> {
   const creds = await ensureValidToken(account);
-  const result: SyncResult = { orders_created: 0, orders_updated: 0, orders_skipped: 0, products_created: 0, customers_created: 0, errors: [] };
+  const result: SyncResult = { orders_created: 0, orders_updated: 0, orders_skipped: 0, orders_stock_skipped: 0, products_created: 0, customers_created: 0, errors: [] };
 
   const { order, error: orderErr } = await getLazadaOrder(creds, orderId);
   if (orderErr || !order) {
@@ -163,7 +166,10 @@ export async function syncSingleLazadaOrder(
 
   try {
     const upsert = await upsertOrder(account, order, items, opts);
-    if (upsert.action === 'created') result.orders_created++;
+    if (upsert.action === 'created') {
+      result.orders_created++;
+      if (upsert.stockSkipped) result.orders_stock_skipped++;
+    }
     else if (upsert.action === 'updated') result.orders_updated++;
     else result.orders_skipped++;
     result.products_created += upsert.productsCreated;
@@ -187,7 +193,7 @@ export async function syncOrdersByTimeRange(
 ): Promise<SyncResult> {
   console.log(`[Lazada Sync] syncOrdersByTimeRange: seller=${account.shop_id}, from=${new Date(timeFromMs).toISOString()}, to=${new Date(timeToMs).toISOString()}`);
   const creds = await ensureValidToken(account);
-  const result: SyncResult = { orders_created: 0, orders_updated: 0, orders_skipped: 0, products_created: 0, customers_created: 0, errors: [] };
+  const result: SyncResult = { orders_created: 0, orders_updated: 0, orders_skipped: 0, orders_stock_skipped: 0, products_created: 0, customers_created: 0, errors: [] };
 
   // 1) Collect order headers (paginated)
   const orders: LazadaOrder[] = [];
@@ -233,7 +239,10 @@ export async function syncOrdersByTimeRange(
         try {
           const items = byOrder[String(order.order_id)] || [];
           const upsert = await upsertOrder(account, order, items, opts);
-          if (upsert.action === 'created') result.orders_created++;
+          if (upsert.action === 'created') {
+      result.orders_created++;
+      if (upsert.stockSkipped) result.orders_stock_skipped++;
+    }
           else if (upsert.action === 'updated') result.orders_updated++;
           else result.orders_skipped++;
           result.products_created += upsert.productsCreated;
@@ -263,6 +272,8 @@ export async function syncOrdersByTimeRange(
 
 interface UpsertResult {
   action: 'created' | 'updated' | 'skipped';
+  /** สร้างใบใหม่แต่ไม่ได้จองสต็อก เพราะของออกจากคลัง/ยกเลิกไปแล้ว */
+  stockSkipped?: boolean;
   productsCreated: number;
   customersCreated: number;
 }
@@ -637,50 +648,35 @@ async function createNewOrder(
   }));
   await supabaseAdmin.from('order_items').insert(orderItemsToInsert);
 
-  // Reserve stock
-  if (warehouseId && !LAZADA_CANCEL_STATUSES.has(effStatus)) {
+  // จองสต็อก — **เฉพาะออเดอร์ที่ของยังอยู่ในคลังเรา** (เกณฑ์เดียวกับทุก platform)
+  //
+  // เดิมที่นี่ "จองแล้วตัดทันที" ให้ออเดอร์ที่เข้ามาในสถานะส่งแล้ว — ซึ่งไปหักคงคลัง
+  // ซ้ำกับการนับของพนักงาน (ของออกจากร้านไปก่อนที่ระบบจะรู้จักออเดอร์ใบนี้ด้วยซ้ำ)
+  // ⇒ ออเดอร์ที่ของออกไปแล้ว/ยกเลิกแล้ว บันทึกเป็นประวัติอย่างเดียว ไม่แตะคลัง
+  const holdsStock = holdsStockInWarehouse(order_status);
+  if (!holdsStock) {
+    console.log(`[Lazada Sync] ${order.order_id} ไม่จองสต็อก — ${skipStockReason(order_status)}`);
+  }
+  if (warehouseId && holdsStock && !opts.skipStock) {
     try {
       const stockConfig = await getStockConfig(companyId);
       if (stockConfig.stockEnabled) {
         for (const item of resolvedItems) {
-          if (item.variation_id) {
-            if (opts.skipStock) {
-              // backfill: ของออกจากชั้นไปแล้วหรือยังไม่ควรจอง — ข้ามไป
-            } else await reserveStockService({
-              supabase: supabaseAdmin,
-              companyId,
-              warehouseId,
-              variationId: item.variation_id,
-              qty: item.qty,
-              referenceType: 'order',
-              referenceId: newOrder.id,
-              notes: `Lazada order: ${order.order_id}`,
-            });
-          }
+          if (!item.variation_id) continue;
+          await reserveStockService({
+            supabase: supabaseAdmin,
+            companyId,
+            warehouseId,
+            variationId: item.variation_id,
+            qty: item.qty,
+            referenceType: 'order',
+            referenceId: newOrder.id,
+            notes: `Lazada order: ${order.order_id}`,
+          });
         }
-        // จอง/ตัดแล้ว "ยอดขายได้" ลดทันที → ร้านอื่นต้องรู้ ไม่งั้นขายซ้ำของชิ้นเดียวกัน
+        // จองแล้ว "ยอดขายได้" ลดทันที → ร้านอื่นต้องรู้ ไม่งั้นขายซ้ำของชิ้นเดียวกัน
         const touchedOnCreate = resolvedItems.map(i => i.variation_id).filter(Boolean) as string[];
-        // สั่งเข้ามาในสถานะส่งแล้ว → ตัดจริงทันที
-        if (LAZADA_SHIPPED_PLUS.has(effStatus)) {
-          for (const item of resolvedItems) {
-            if (!item.variation_id) continue;
-            try {
-              await deductAndUnreserve({
-                supabase: supabaseAdmin,
-                companyId,
-                warehouseId,
-                variationId: item.variation_id,
-                qty: item.qty,
-                referenceType: 'order',
-                referenceId: newOrder.id,
-                notes: `Lazada shipped: ${order.order_id}`,
-              });
-            } catch (stockErr) {
-              console.error(`[Lazada Sync] Stock deduct error for ${order.order_id}:`, stockErr);
-            }
-          }
-        }
-        if (!opts.skipStock) await pushStockAfterOrderSync(touchedOnCreate, warehouseId, account.id);
+        await pushStockAfterOrderSync(touchedOnCreate, warehouseId, account.id);
       }
     } catch (stockErr) {
       console.error(`[Lazada Sync] Stock reservation error for ${order.order_id}:`, stockErr);
@@ -723,6 +719,7 @@ async function createNewOrder(
 
   return {
     action: 'created',
+    stockSkipped: !holdsStock,
     productsCreated: newlyCreatedProductIds.length,
     customersCreated: isNewCustomer ? 1 : 0,
   };

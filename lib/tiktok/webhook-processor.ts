@@ -37,7 +37,7 @@ export async function syncSingleOrder(
 
     if (existingOrder?.external_status === webhookStatus) {
       console.log(`[TikTok Webhook] Skipping duplicate sync for ${orderId} (status=${webhookStatus})`);
-      return { orders_created: 0, orders_updated: 0, orders_skipped: 1, products_created: 0, customers_created: 0, errors: [] };
+      return { orders_created: 0, orders_updated: 0, orders_skipped: 1, orders_stock_skipped: 0, products_created: 0, customers_created: 0, errors: [] };
     }
   }
 

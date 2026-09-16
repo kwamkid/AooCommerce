@@ -9,6 +9,7 @@ import { parallelLimit } from '@/lib/parallel';
 import { sendNewOrderPushById } from '@/lib/push/send';
 import { fetchCostMap } from '@/lib/cost-utils';
 import { reserveStock as reserveStockService, returnStock as returnStockService, unreserveStock as unreserveStockService, deductAndUnreserve } from '@/lib/stock-service';
+import { holdsStockInWarehouse, skipStockReason } from '@/lib/marketplace/order-stock';
 import { pushStockAfterOrderSync } from '@/lib/marketplace/stock-push';
 import { getStockConfig } from '@/lib/stock-utils';
 import {
@@ -175,6 +176,8 @@ export interface SyncResult {
   orders_created: number;
   orders_updated: number;
   orders_skipped: number;
+  /** ใบที่สร้างแล้วแต่ไม่แตะคลัง (ของออกไปแล้ว/ยกเลิกแล้วก่อนระบบรู้จัก) */
+  orders_stock_skipped: number;
   products_created: number;
   customers_created: number;
   errors: string[];
@@ -192,6 +195,7 @@ export async function syncOrdersByOrderSn(
     orders_created: 0,
     orders_updated: 0,
     orders_skipped: 0,
+    orders_stock_skipped: 0,
     products_created: 0,
     customers_created: 0,
     errors: [],
@@ -287,6 +291,7 @@ export async function syncOrdersByOrderSn(
           const upsertResult = await upsertOrder(account, shopeeOrder, invoiceMap[shopeeOrder.order_sn]);
           if (upsertResult.action === 'created') {
             result.orders_created++;
+            if (upsertResult.stockSkipped) result.orders_stock_skipped++;
           } else if (upsertResult.action === 'updated') {
             result.orders_updated++;
           } else {
@@ -348,6 +353,7 @@ export async function syncOrdersByTimeRange(
     orders_created: 0,
     orders_updated: 0,
     orders_skipped: 0,
+    orders_stock_skipped: 0,
     products_created: 0,
     customers_created: 0,
     errors: [],
@@ -452,6 +458,7 @@ export async function syncOrdersByTimeRange(
       result.orders_created += syncResult.orders_created;
       result.orders_updated += syncResult.orders_updated;
       result.orders_skipped += syncResult.orders_skipped;
+      result.orders_stock_skipped += syncResult.orders_stock_skipped;
       result.products_created += syncResult.products_created;
       result.customers_created += syncResult.customers_created;
       result.errors.push(...syncResult.errors);
@@ -503,14 +510,14 @@ export async function syncIncompleteOrders(
 
   if (fetchError) {
     console.error(`[Shopee Sync] Failed to fetch incomplete orders:`, fetchError);
-    return { orders_created: 0, orders_updated: 0, orders_skipped: 0, products_created: 0, customers_created: 0, errors: [fetchError.message] };
+    return { orders_created: 0, orders_updated: 0, orders_skipped: 0, orders_stock_skipped: 0, products_created: 0, customers_created: 0, errors: [fetchError.message] };
   }
 
   const orderSns = (incompleteOrders || []).map(o => o.external_order_sn!).filter(Boolean);
   console.log(`[Shopee Sync] Found ${orderSns.length} incomplete orders to re-sync`);
 
   if (orderSns.length === 0) {
-    return { orders_created: 0, orders_updated: 0, orders_skipped: 0, products_created: 0, customers_created: 0, errors: [] };
+    return { orders_created: 0, orders_updated: 0, orders_skipped: 0, orders_stock_skipped: 0, products_created: 0, customers_created: 0, errors: [] };
   }
 
   onProgress?.({
@@ -638,6 +645,8 @@ async function syncCanSplitOrder(
 
 interface UpsertResult {
   action: 'created' | 'updated' | 'skipped';
+  /** สร้างใบใหม่แต่ไม่ได้จองสต็อก เพราะของออกจากคลัง/ยกเลิกไปแล้ว */
+  stockSkipped?: boolean;
   productsCreated: number;
   customersCreated: number;
 }
@@ -1557,8 +1566,16 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
     console.error(`[Shopee Sync] Failed to map promotions for order ${shopeeOrder.order_sn}:`, promoMapErr);
   }
 
-  // Reserve stock in parallel
-  const stockItems = resolvedItems.filter(item => item.variation_id && warehouseId);
+  // จองสต็อก — **เฉพาะออเดอร์ที่ของยังอยู่ในคลังเรา**
+  //
+  // ออเดอร์เก่าที่ขนส่งรับไปแล้ว/ยกเลิกแล้ว ของไม่ได้อยู่ในร้านตั้งแต่ตอนพนักงานนับสต็อก
+  // ครั้งล่าสุด → จองซ้ำ = พร้อมขายหายไปเปล่า ๆ และไม่มีขาตัด/คืนตามมาให้ด้วย
+  // (ตรรกะตัด/คืนอยู่ในสาย "ออเดอร์ที่มีอยู่แล้วเปลี่ยนสถานะ" เท่านั้น) ⇒ จองค้างถาวร
+  const holdsStock = holdsStockInWarehouse(order_status);
+  const stockItems = holdsStock ? resolvedItems.filter(item => item.variation_id && warehouseId) : [];
+  if (!holdsStock) {
+    console.log(`[Shopee Sync] ${shopeeOrder.order_sn} ไม่จองสต็อก — ${skipStockReason(order_status)}`);
+  }
   if (stockItems.length > 0) {
     await Promise.all(stockItems.map(item =>
       reserveStock(companyId, warehouseId!, item.variation_id!, item.qty, order.id, order.order_number)
@@ -1670,6 +1687,7 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
     action: 'created',
     productsCreated: uniqueNewProducts,
     customersCreated: isNewCustomer ? 1 : 0,
+    stockSkipped: !holdsStock,
   };
 }
 

@@ -16,6 +16,7 @@ import { parallelLimit } from '@/lib/parallel';
 import { sendNewOrderPushById } from '@/lib/push/send';
 import { fetchCostMap } from '@/lib/cost-utils';
 import { reserveStock as reserveStockService, deductAndUnreserve, returnStock as returnStockService } from '@/lib/stock-service';
+import { holdsStockInWarehouse, skipStockReason } from '@/lib/marketplace/order-stock';
 import { pushStockAfterOrderSync } from '@/lib/marketplace/stock-push';
 import { getStockConfig } from '@/lib/stock-utils';
 
@@ -173,6 +174,8 @@ export interface SyncResult {
   orders_created: number;
   orders_updated: number;
   orders_skipped: number;
+  /** ใบที่สร้างแล้วแต่ไม่แตะคลัง (ของออกไปแล้ว/ยกเลิกแล้วก่อนระบบรู้จัก) */
+  orders_stock_skipped: number;
   products_created: number;
   customers_created: number;
   errors: string[];
@@ -194,6 +197,7 @@ export async function syncOrdersByIds(
     orders_created: 0,
     orders_updated: 0,
     orders_skipped: 0,
+    orders_stock_skipped: 0,
     products_created: 0,
     customers_created: 0,
     errors: [],
@@ -287,6 +291,7 @@ export async function syncOrdersByTimeRange(
     orders_created: 0,
     orders_updated: 0,
     orders_skipped: 0,
+    orders_stock_skipped: 0,
     products_created: 0,
     customers_created: 0,
     errors: [],
@@ -383,14 +388,14 @@ export async function syncIncompleteOrders(
     .order('created_at', { ascending: true });
 
   if (fetchError) {
-    return { orders_created: 0, orders_updated: 0, orders_skipped: 0, products_created: 0, customers_created: 0, errors: [fetchError.message] };
+    return { orders_created: 0, orders_updated: 0, orders_skipped: 0, orders_stock_skipped: 0, products_created: 0, customers_created: 0, errors: [fetchError.message] };
   }
 
   const orderIds = (incompleteOrders || []).map(o => o.external_order_sn!).filter(Boolean);
   console.log(`[TikTok Sync] Found ${orderIds.length} incomplete orders to re-sync`);
 
   if (orderIds.length === 0) {
-    return { orders_created: 0, orders_updated: 0, orders_skipped: 0, products_created: 0, customers_created: 0, errors: [] };
+    return { orders_created: 0, orders_updated: 0, orders_skipped: 0, orders_stock_skipped: 0, products_created: 0, customers_created: 0, errors: [] };
   }
 
   return syncOrdersByIds(account, orderIds, onProgress);
@@ -400,6 +405,8 @@ export async function syncIncompleteOrders(
 
 interface UpsertResult {
   action: 'created' | 'updated' | 'skipped';
+  /** สร้างใบใหม่แต่ไม่ได้จองสต็อก เพราะของออกจากคลัง/ยกเลิกไปแล้ว */
+  stockSkipped?: boolean;
   productsCreated: number;
   customersCreated: number;
 }
@@ -799,8 +806,14 @@ async function createNewOrder(
   }));
   await supabaseAdmin.from('order_items').insert(orderItemsToInsert);
 
-  // Reserve stock
-  if (warehouseId) {
+  // จองสต็อก — **เฉพาะออเดอร์ที่ของยังอยู่ในคลังเรา** (เกณฑ์เดียวกับทุก platform)
+  // ออเดอร์เก่าที่ขนส่งรับไปแล้ว/ยกเลิกแล้ว ของไม่ได้อยู่ในร้านตั้งแต่ตอนนับสต็อกครั้งล่าสุด
+  // → จองซ้ำ = พร้อมขายหายเปล่า ๆ และไม่มีขาตัด/คืนตามมา (จองค้างถาวร)
+  const holdsStock = holdsStockInWarehouse(order_status);
+  if (!holdsStock) {
+    console.log(`[TikTok Sync] ${tiktokOrder.id} ไม่จองสต็อก — ${skipStockReason(order_status)}`);
+  }
+  if (warehouseId && holdsStock) {
     try {
       const stockConfig = await getStockConfig(companyId);
       if (stockConfig.stockEnabled) {
@@ -862,6 +875,7 @@ async function createNewOrder(
 
   return {
     action: 'created',
+    stockSkipped: !holdsStock,
     productsCreated: newlyCreatedProductIds.length,
     customersCreated: isNewCustomer ? 1 : 0,
   };

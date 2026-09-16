@@ -269,6 +269,9 @@ export default function MarketplaceConnections({
         const parts: string[] = [];
         if ((result.orders_created as number) > 0) parts.push(`คำสั่งซื้อใหม่ ${result.orders_created}`);
         if ((result.orders_updated as number) > 0) parts.push(`อัพเดทคำสั่งซื้อ ${result.orders_updated}`);
+        // ใบที่ของออกจากคลังไปแล้วก่อนระบบรู้จัก — บันทึกเป็นประวัติแต่ไม่แตะคลัง
+        // ต้องบอกให้เห็น ไม่งั้นคนนึกว่าสต็อกถูกหักให้แล้ว
+        if ((result.orders_stock_skipped as number) > 0) parts.push(`ไม่แตะสต็อก ${result.orders_stock_skipped} ใบ (ของออกไปแล้ว/ยกเลิกแล้ว)`);
         const summary = parts.length > 0 ? parts.join(', ') : 'ไม่มีข้อมูลใหม่';
         showToast(`Sync สำเร็จ: ${summary}`, 'success');
         refetch();
@@ -665,6 +668,8 @@ export default function MarketplaceConnections({
       const parts: string[] = [];
       if (result.orders_created > 0) parts.push(`คำสั่งซื้อใหม่ ${result.orders_created}`);
       if (result.orders_updated > 0) parts.push(`อัพเดทคำสั่งซื้อ ${result.orders_updated}`);
+      // ใบที่ของออกจากคลังไปแล้วก่อนระบบรู้จัก — บันทึกเป็นประวัติแต่ไม่แตะคลัง
+      if (result.orders_stock_skipped > 0) parts.push(`ไม่แตะสต็อก ${result.orders_stock_skipped} ใบ (ของออกไปแล้ว/ยกเลิกแล้ว)`);
       const summary = parts.length > 0 ? parts.join(', ') : 'ไม่มีข้อมูลใหม่';
       showToast(`Sync สำเร็จ: ${summary}`, 'success');
       refetch();
