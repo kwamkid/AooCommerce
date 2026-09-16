@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-09-17 — เอกสารภาษีอัตโนมัติอาจไม่ออกเลย เพราะปล่อย promise ลอยทั้ง 11 จุด
+
+**ที่เกิด**: ทุกจุดที่เรียก `autoIssueDocument` — `/api/orders` (3) · POS · Shopee webhook · Shopee bulk-ship · `lib/{shopee,tiktok,lazada}/sync.ts`
+**อาการ**: บางออเดอร์ไม่มี ABB/TAX/DN/REC ออกให้ แบบสุ่ม ไม่มีรูปแบบ และ**ไม่มี log บอกเลย**
+**Root cause**: ทั้ง 11 จุดเขียนเหมือนกันหมดว่า `autoIssueDocument(id, companyId).catch(() => {})` — **ปล่อย promise ลอย ไม่ `await` ไม่อยู่ใน `after()`** บน Vercel พอ response ถูกส่งออก function ถูก freeze ทันที งานที่ยังไม่เสร็จตายกลางคัน · `.catch(() => {})` กลืน error ทิ้ง จึงไม่เหลือแม้แต่บรรทัด log (กับดักเดียวกับที่ทำให้ Shopee stock push ตายเงียบ พ.ค.–ส.ค. 2026 — ดู `memory/after-in-route-handlers.md`)
+**วิธีแก้**: [lib/documents/issue-order-documents.ts](lib/documents/issue-order-documents.ts) — ทางเข้าเดียว **await ให้เสร็จจริงก่อนตอบกลับ** (งานคือ query ไม่กี่ตัวกับ insert ช้าขึ้นหลักสิบมิลลิวินาที) · พังทีละใบได้ไม่ล้มทั้งชุด (`parallelLimit` 5) · ทุกใบที่พังมี `console.error` พร้อม order id
+**ป้องกัน regression**: ⛔ **`.catch(() => {})` บน promise ที่ไม่ได้ await = บั๊กเสมอ** ไม่ใช่การกันพัง — งานเบื้องหลังใน route ต้อง `await` หรืออยู่ใน `after()` เท่านั้น และ error ต้องมี log · ⛔ ห้ามเรียก `autoIssueDocument` ตรง ให้ผ่าน `issueOrderDocuments()`
+
 ## 2026-09-16 — เอกสารคลัง/ฝากขาย: ของหายระหว่างทาง · "รับ 0 = รับครบ" · กดซ้ำได้ของงอก
 
 **ที่เกิด**: [app/api/inventory/transfers/route.ts](app/api/inventory/transfers/route.ts) · [app/api/transfers/receive/route.ts](app/api/transfers/receive/route.ts) · [app/api/department-orders/[id]/route.ts](app/api/department-orders/[id]/route.ts) · [app/api/replenishments/[id]/route.ts](app/api/replenishments/[id]/route.ts) · [app/api/return-notes/[id]/route.ts](app/api/return-notes/[id]/route.ts) · รายงานขายฝากตัวแทน/ห้าง
