@@ -135,6 +135,14 @@ export interface DataTableProps<T> {
    *  และ "เลือกทั้งหมด" จะข้ามให้เอง (ตารางพรีวิวสต็อก: แถวที่ไม่มีอะไรให้ทำ) */
   isRowSelectable?: (row: T) => boolean;
 
+  /** บังคับให้ความกว้างที่ประกาศไว้เป็นจริง (`table-layout: fixed`) — เนื้อหายาวจะถูกตัด
+   *  ไม่ดันคอลัมน์บานจนตารางล้นจอ
+   *
+   *  ค่าเริ่มต้นของตารางทั้งระบบคือ `auto` (คอลัมน์โตตามเนื้อหา) ซึ่งเหมาะกับหน้า list
+   *  ที่อยากให้อ่านข้อความเต็ม ๆ · ตารางที่ต้อง **พอดีจอเดียว** (เครื่องมือตรวจก่อนลงมือ
+   *  อย่างพรีวิวสต็อก) ให้เปิดอันนี้ แล้วช่องข้อความใส่ `truncate` เอง */
+  fitWidth?: boolean;
+
   // ── Mobile card custom render (optional — overrides auto card) ──
   mobileCardRender?: (row: T, index: number) => ReactNode;
 
@@ -180,6 +188,7 @@ export default function DataTable<T>({
   selectedIds,
   onSelectionChange,
   isRowSelectable,
+  fitWidth = false,
   mobileCardRender,
   paginationChildren,
   sortBy,
@@ -466,7 +475,7 @@ export default function DataTable<T>({
              *     remaining space and stays pinned to the right edge when
              *     container > sum.
              */
-            className="w-full"
+            className={`w-full ${fitWidth ? 'table-fixed' : ''}`}
             style={{ minWidth: minTableWidth }}
           >
             <thead className="data-thead">
@@ -555,7 +564,7 @@ export default function DataTable<T>({
                       return (
                         <td
                           key={col.key}
-                          className={`data-td ${alignTextClass(col)} ${col.cellClassName || ''} ${editable && !inEdit ? 'cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-900/10' : ''}`}
+                          className={`data-td ${alignTextClass(col)} ${fitWidth ? 'overflow-hidden' : ''} ${col.cellClassName || ''} ${editable && !inEdit ? 'cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-900/10' : ''}`}
                           onClick={
                             col.stopPropagation
                               ? (e) => e.stopPropagation()
@@ -583,7 +592,7 @@ export default function DataTable<T>({
                       {visibleCols.map(col => (
                         <td
                           key={col.key}
-                          className={`data-td ${alignTextClass(col)} ${col.cellClassName || ''}`}
+                          className={`data-td ${alignTextClass(col)} ${fitWidth ? 'overflow-hidden' : ''} ${col.cellClassName || ''}`}
                           onClick={col.stopPropagation ? (e) => e.stopPropagation() : undefined}
                         >
                           {col.render(sub, subIdx)}
@@ -598,6 +607,23 @@ export default function DataTable<T>({
           </table>
         </div>
         </div>
+        {/* ซ่อนแถบแบ่งหน้า = ปุ่มรีเซ็ตคอลัมน์กับเมนูซ่อนคอลัมน์หายไปด้วย (มันอยู่ในแถบนั้น)
+            ตารางที่ไม่แบ่งหน้าจึงต้องมีแถบเล็ก ๆ ของตัวเอง ไม่งั้นผู้ใช้หาปุ่มไม่เจอ */}
+        {hidePagination && (
+          <div className="hidden md:flex items-center justify-end gap-1 px-3 py-2 border-t border-gray-200 dark:border-slate-700">
+            <span className="helper-text mr-auto">{totalRecords} รายการ</span>
+            <button
+              type="button"
+              onClick={resetLayout}
+              title="รีเซ็ตความกว้าง/ลำดับคอลัมน์"
+              aria-label="รีเซ็ตคอลัมน์"
+              className="flex-shrink-0 p-2 text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+            <ColumnSettingsDropdown configs={configs} visible={visibleColumns} toggle={toggleColumn} dropUp />
+          </div>
+        )}
         {!hidePagination && (
           <Pagination
             currentPage={currentPage} totalPages={totalPages} totalRecords={totalRecords}

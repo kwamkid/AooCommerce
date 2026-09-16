@@ -306,8 +306,8 @@ export default function StockPreview({ account, direction, onApplied, onBack, on
       sortable: true,
       render: (row) => (
         <div className="min-w-0">
-          <div className="body-text truncate">{row.name || 'ไม่มีชื่อ'}</div>
-          {row.sku && <div className="helper-text text-gray-500">SKU: {row.sku}</div>}
+          <div className="body-text truncate" title={row.name || undefined}>{row.name || 'ไม่มีชื่อ'}</div>
+          {row.sku && <div className="helper-text text-gray-500 truncate">SKU: {row.sku}</div>}
         </div>
       ),
     },
@@ -530,6 +530,7 @@ export default function StockPreview({ account, direction, onApplied, onBack, on
           <DataTable<StockPreviewRow>
             storageKey="mp-stock-preview-v2" /* v2: โครงคอลัมน์เปลี่ยน (สินค้าไม่ใช่ grow แล้ว) — ล้างความกว้างที่จำไว้ชุดเก่า */
             columns={columns}
+            fitWidth
             data={pageRows}
             getRowId={(row) => row.variation_id}
             selectedIds={selected}

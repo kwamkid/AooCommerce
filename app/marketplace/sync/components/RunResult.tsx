@@ -400,6 +400,7 @@ export default function RunResult({ runId, onBack, onOpenRun, onRecheck }: Props
           <DataTable<SyncRunItem>
             storageKey="mp-sync-run-items"
             columns={columns}
+            fitWidth
             data={shownItems}
             getRowId={(item) => item.variation_id}
             emptyMessage="รอบนี้ไม่ได้เปลี่ยนอะไร"
