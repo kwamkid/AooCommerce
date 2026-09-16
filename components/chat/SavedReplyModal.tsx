@@ -26,7 +26,8 @@ import { useToast } from '@/lib/toast-context';
 import { apiFetch, invalidateApiCache } from '@/lib/api-client';
 import { supabase } from '@/lib/supabase';
 import { storageKeyFor } from '@/lib/storage-key';
-import { SAVED_REPLY_VARS } from '@/lib/chat/saved-reply-vars';
+import VarChips from '@/components/ui/VarChips';
+import InsertLinkButton from '@/components/storefront/InsertLinkButton';
 import {
   MAX_SAVED_REPLY_IMAGES, MAX_SAVED_REPLY_TITLE, SAVED_REPLY_TITLE_HINT,
   sanitizeSavedReplyTitle, hasDisallowedTitleChars, findDuplicateTitle,
@@ -80,18 +81,6 @@ export default function SavedReplyModal({ open, onClose, reply, initialContent, 
   );
 
   /** แทรกโทเคนตรงตำแหน่งเคอร์เซอร์ ไม่ใช่ต่อท้าย — คนเขียนอยู่กลางประโยคจะได้ไม่ต้องย้ายเอง */
-  const insertVar = (token: string) => {
-    const el = contentRef.current;
-    if (!el) { setContent(prev => prev + token); return; }
-    const start = el.selectionStart ?? content.length;
-    const end = el.selectionEnd ?? start;
-    setContent(content.slice(0, start) + token + content.slice(end));
-    requestAnimationFrame(() => {
-      el.focus();
-      el.setSelectionRange(start + token.length, start + token.length);
-    });
-  };
-
   const save = async () => {
     const t = title.trim();
     const c = content.trim();
@@ -175,19 +164,11 @@ export default function SavedReplyModal({ open, onClose, reply, initialContent, 
             placeholder="พิมพ์ข้อความที่ใช้ตอบลูกค้าบ่อย ๆ"
             className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 dark:bg-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-base"
           />
+          {/* ชิปตัวแปรของกลาง (ยกออกมาจากไฟล์นี้เอง) + ปุ่มแทรกลิงก์หน้าร้าน
+              ปุ่มลิงก์ไม่ขึ้นเลยถ้าร้านยังไม่เปิดหน้าร้าน — ไม่มีหน้าให้ลิงก์ไป */}
           <div className="flex flex-wrap items-center gap-1.5 mt-2">
-            <span className="helper-text text-gray-500">แทรกตัวแปร:</span>
-            {SAVED_REPLY_VARS.map(v => (
-              <button
-                key={v.token}
-                type="button"
-                title={v.hint}
-                onClick={() => insertVar(v.token)}
-                className="helper-text px-2 py-0.5 rounded-full border border-gray-300 dark:border-slate-600 text-gray-600 dark:text-slate-300 hover:border-primary hover:text-primary transition-colors"
-              >
-                {v.label}
-              </button>
-            ))}
+            <VarChips targetRef={contentRef} value={content} onChange={setContent} className="contents" />
+            <InsertLinkButton targetRef={contentRef} value={content} onChange={setContent} />
           </div>
           <p className="helper-text text-gray-500 mt-1">
             ระบบเติมค่าให้ตอนแทรกลงช่องพิมพ์ — ดูข้อความจริงก่อนกดส่งได้เสมอ<br />

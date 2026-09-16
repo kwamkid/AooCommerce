@@ -12,20 +12,8 @@
 // server-only (แตะ supabaseAdmin) — ห้าม import จากหน้าจอ
 
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { parseStorefront, storefrontUrl } from '@/lib/storefront';
+import { parseStorefront, storefrontAbsoluteUrl, storefrontProductUrl } from '@/lib/storefront';
 import type { BroadcastAction, BroadcastProductCard } from './content';
-
-/**
- * โฮสต์สาธารณะของระบบ — ลิงก์ที่ส่งออกไปกับข้อความต้องเป็น URL เต็มเสมอ
- * (path เปล่า ๆ เปิดจากในแอป LINE ไม่ได้) · ค่าสำรองตรงกับ `lib/chat/channel-health.ts`
- */
-const PUBLIC_BASE_URL = (process.env.NEXT_PUBLIC_APP_URL || 'https://aoocommerce.vercel.app')
-  .replace(/\/+$/, '');
-
-/** ร้านที่ยังไม่ตั้งโดเมนของตัวเอง `storefrontUrl()` คืน path ภายใน — ต้องเติมโฮสต์ให้ */
-function absolute(url: string): string {
-  return url.startsWith('/') ? `${PUBLIC_BASE_URL}${url}` : url;
-}
 
 interface ProductLinkRow {
   id: string;
@@ -67,7 +55,7 @@ export async function fillStorefrontProductLinks(
   for (const r of (data || []) as ProductLinkRow[]) {
     // ซ่อนจากหน้าร้าน/ปิดการขายอยู่ = ลิงก์ไปแล้วเจอ 404 — ปล่อยให้ตกไปเป็น "สนใจสินค้านี้"
     if (!r.slug || !r.storefront_visible || !r.is_active) continue;
-    linkById.set(r.id, absolute(storefrontUrl(cfg, slug, `/p/${r.slug}`)));
+    linkById.set(r.id, storefrontProductUrl(cfg, slug, r.slug));
   }
   if (linkById.size === 0) return products;
 
@@ -105,7 +93,7 @@ export async function fillStorefrontCouponLinks(
   const cfg = parseStorefront(company?.settings as Record<string, unknown> | null);
   if (!cfg.enabled || !slug) return;
 
-  const base = absolute(storefrontUrl(cfg, slug, ''));
+  const base = storefrontAbsoluteUrl(cfg, slug);
   const joiner = base.includes('?') ? '&' : '?';
   for (const a of pending) {
     a.url = `${base}${joiner}coupon=${encodeURIComponent(a.code.trim())}`;

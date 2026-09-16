@@ -31,6 +31,7 @@ import HelpHint from '@/components/ui/HelpHint';
 import ImageDropzone from '@/components/ui/ImageDropzone';
 import StickyActionBar from '@/components/ui/StickyActionBar';
 import VarChips from '@/components/ui/VarChips';
+import InsertLinkButton from '@/components/storefront/InsertLinkButton';
 import PhonePreview, { type PhoneChatMessage } from '@/components/broadcast/PhonePreview';
 import { LoadingCard, NoPermissionCard, EmptyCard } from '@/components/ui/StateCard';
 import { useAuthGuard } from '@/lib/useAuthGuard';
@@ -638,18 +639,26 @@ export default function BroadcastPageSettings() {
                                   />
                                   {/* โค้ดคูปองเป็นตัวแปรเหมือนกัน — ต้องอยู่แถวเดียวกับตัวอื่น
                                       ไม่ใช่ปล่อยให้พิมพ์โทเคนเอาเองจากคำอธิบาย (เจ้าของท้วง 16 ก.ย. 2026) */}
-                                  <VarChips
-                                    targetRef={rewardRef}
-                                    value={sc.reward_message}
-                                    onChange={v => updateScenario(trigger, { reward_message: v })}
-                                    only={['{{ชื่อลูกค้า}}', '{{ชื่อร้าน}}']}
-                                    extra={[{
-                                      token: OPTIN_COUPON_TOKEN,
-                                      label: 'โค้ดคูปอง',
-                                      hint: 'โค้ดของคูปองใบที่เลือกไว้ข้างบน',
-                                    }]}
-                                    className="mt-1.5"
-                                  />
+                                  <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                                    <VarChips
+                                      targetRef={rewardRef}
+                                      value={sc.reward_message}
+                                      onChange={v => updateScenario(trigger, { reward_message: v })}
+                                      only={['{{ชื่อลูกค้า}}', '{{ชื่อร้าน}}']}
+                                      extra={[{
+                                        token: OPTIN_COUPON_TOKEN,
+                                        label: 'โค้ดคูปอง',
+                                        hint: 'โค้ดของคูปองใบที่เลือกไว้ข้างบน',
+                                      }]}
+                                      className="contents"
+                                    />
+                                    {/* ชวนให้ลูกค้าไปใช้โค้ดต่อได้ทันที — ไม่ขึ้นถ้ายังไม่เปิดหน้าร้าน */}
+                                    <InsertLinkButton
+                                      targetRef={rewardRef}
+                                      value={sc.reward_message}
+                                      onChange={v => updateScenario(trigger, { reward_message: v })}
+                                    />
+                                  </div>
                                 </div>
                               </div>
                             )}

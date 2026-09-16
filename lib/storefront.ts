@@ -254,6 +254,33 @@ export function storefrontHref(slug: string, path = ''): string {
   return `/store/${slug}${suffix}`;
 }
 
+/**
+ * โฮสต์สาธารณะของระบบ — ลิงก์ที่ส่งออกไปกับข้อความถึงลูกค้าต้องเป็น URL เต็มเสมอ
+ * (path เปล่า ๆ เปิดจากในแอป LINE/Messenger ไม่ได้) · ค่าสำรองตรงกับ `lib/chat/channel-health.ts`
+ */
+export const PUBLIC_APP_BASE_URL =
+  (process.env.NEXT_PUBLIC_APP_URL || 'https://aoocommerce.vercel.app').replace(/\/+$/, '');
+
+/** URL เต็มของหน้าร้าน — ร้านที่ยังไม่ตั้งโดเมนของตัวเอง `storefrontUrl()` คืน path ภายใน ต้องเติมโฮสต์ให้ */
+export function storefrontAbsoluteUrl(cfg: StorefrontConfig, slug: string, path = ''): string {
+  const url = storefrontUrl(cfg, slug, path);
+  return url.startsWith('/') ? `${PUBLIC_APP_BASE_URL}${url}` : url;
+}
+
+/** ลิงก์หน้าสินค้า — `slug` ของสินค้า ไม่ใช่ id (id ในลิงก์อ่านไม่รู้เรื่องและเสีย SEO) */
+export function storefrontProductUrl(cfg: StorefrontConfig, shopSlug: string, productSlug: string): string {
+  return storefrontAbsoluteUrl(cfg, shopSlug, `/p/${productSlug}`);
+}
+
+/**
+ * ลิงก์หน้าหมวด — หน้าร้านกรองด้วย query `?cat=` (ยังไม่มี path ของตัวเอง)
+ * ส่ง **slug ของหมวด** เสมอ ไม่ใช่ชื่อ: ชื่อเปลี่ยนเมื่อไหร่ ลิงก์ที่ส่งไปหาลูกค้าตาย
+ * (หน้าร้านยังรับชื่อได้อยู่เพื่อลิงก์เก่า — ดู `resolveCategoryParam`)
+ */
+export function storefrontCategoryUrl(cfg: StorefrontConfig, shopSlug: string, categorySlug: string): string {
+  return `${storefrontAbsoluteUrl(cfg, shopSlug)}?cat=${encodeURIComponent(categorySlug)}`;
+}
+
 // ต่างกันให้พอเห็น — 10px กับ 20px บนการ์ดกว้าง 250px แทบแยกไม่ออก
 const RADIUS_PX: Record<StorefrontConfig['radius'], string> = {
   sharp: '0px',

@@ -9,6 +9,7 @@
 
 import type { RefObject } from 'react';
 import { SAVED_REPLY_VARS } from '@/lib/chat/saved-reply-vars';
+import { insertAtCursor } from '@/lib/insert-at-cursor';
 
 /** ตัวแปรหนึ่งตัวบนแถวชิป — `SavedReplyVar` เข้ากันได้อยู่แล้ว (ส่วนเกินไม่ถูกใช้) */
 export interface VarChipItem {
@@ -41,17 +42,7 @@ export default function VarChips({ targetRef, value, onChange, only, extra, labe
   const vars = [...shared, ...(extra || [])];
   if (vars.length === 0) return null;
 
-  const insert = (token: string) => {
-    const el = targetRef.current;
-    if (!el) { onChange(value + token); return; }
-    const start = el.selectionStart ?? value.length;
-    const end = el.selectionEnd ?? start;
-    onChange(value.slice(0, start) + token + value.slice(end));
-    requestAnimationFrame(() => {
-      el.focus();
-      el.setSelectionRange(start + token.length, start + token.length);
-    });
-  };
+  const insert = (token: string) => onChange(insertAtCursor(targetRef.current, value, token));
 
   return (
     <div className={`flex flex-wrap items-center gap-1.5 ${className || ''}`}>
