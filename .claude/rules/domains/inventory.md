@@ -11,6 +11,20 @@ paths:
 > สร้าง 2026-09-13 ตอนรื้อโมดูล (แผนเต็ม `memo/plan-stock-module-2026-09-13.md`) · โหลดเองเมื่อแตะไฟล์ตาม `paths:` · ตัดสต็อกจริงต้องผ่าน `lib/stock-service.ts` เสมอ (ดู `lib-services.md`)
 > ⛔ **ยอดใน `inventory` เปลี่ยนได้ทางเดียวคือ RPC `apply_inventory_delta` (ผ่าน `applyDelta()` ใน stock-service)** — DB บังคับด้วย trigger `trg_guard_inventory_writes` (ปฏิเสธ UPDATE ยอด / INSERT ยอดไม่เป็นศูนย์ ที่ไม่มีธง `app.inventory_write` ซึ่ง RPC ตั้งให้) · ซ่อมข้อมูลด้วยมือ = `set_config('app.inventory_write','stock-service',true)` ใน transaction เดียวกัน **และต้อง insert `inventory_transactions` เอง** · รวมสินค้า (merge) ลง log "ตัดทิ้ง" ก่อนลบแถว — DB บวก/ลบเองในคำสั่งเดียว · ห้าม read-modify-write (เคยทำสต็อกหาย 7 ชิ้นจาก webhook ชนกัน ดู fix-bug.md 2026-09-13) · เช็คของพอต้องใช้ `requireAvailable` ให้ DB เช็คตอน lock · **ดึงยอดจาก marketplace มาทับ (import · pull-stock · sync รายสินค้า) ก็ต้องผ่าน `adjustStock` — `referenceType = `${platform}_sync`` (`shopee_sync` · `lazada_sync` · `tiktok_sync` · platform ใหม่ต้องเพิ่มป้ายใน `REFERENCE_TYPE_LABELS` ของ `app/inventory/components/types.ts`)** ห้าม `from('inventory').update/insert` นอก stock-service · ตรวจสุขภาพ: `inventory.quantity` ต้องเท่ากับ `balance_after` ของ log ล่าสุด (13 ก.ย. 2026 เติม log ย้อนหลัง 456 แถว `reference_id = backfill-2026-09-13` ให้ตรง — ยอดไม่เปลี่ยน · แถวที่ไม่มี log และยอด 0 ถือว่าตรง)
 
+## ⚠️ RPC รายการที่มี CTE หลายชั้น — ตั้ง `plan_cache_mode = force_custom_plan`
+
+`get_inventory_list` เคยช้า **20 เท่าตั้งแต่การเรียกครั้งที่ 6 เป็นต้นไป** (15ms → 300ms) ทั้งที่ข้อมูลเล็ก
+(ABC มี `inventory` 3,036 แถว · ตัวเลือก 1,108) — ไม่ใช่เพราะ index หรือข้อมูลโต แต่เป็นพฤติกรรมของ
+PostgreSQL: plpgsql จำแผนไว้ พอเรียกครบ 5 ครั้งจะสลับไป **generic plan** ที่ไม่รู้ค่าพารามิเตอร์จริง
+แล้วเลือกแผนผิดสำหรับ query ที่มีตัวกรองเป็น `null` บ่อย (`p_search` · `p_warehouse_ids` · `p_category_id`)
+
+- **วิธีจับ**: วัดแบบเรียกซ้ำ ๆ ในลูป ไม่ใช่ `explain analyze` ครั้งเดียว —
+  `do $$ … for i in 1..8 loop … clock_timestamp() … end loop $$;` แล้วดูว่ารอบที่ 6 กระโดดไหม
+- **วิธีแก้**: `alter function <fn>(<args>) set plan_cache_mode = force_custom_plan;` (migration
+  `20260916_inventory_list_force_custom_plan.sql`) — เสียเวลาวางแผน ~1ms แลกกับที่ประหยัดได้ ~285ms
+- **RPC รายการตัวอื่นที่มีโครงแบบเดียวกันให้ตรวจด้วยวิธีนี้ก่อนสรุปว่า "เร็วแล้ว"** —
+  `get_products_list` วัดแล้วไม่มีอาการ (8–10ms คงที่) จึงไม่ต้องตั้ง
+
 ## หน้ารายการ (แท็บสินค้าคงคลัง) — RPC `get_inventory_list` รอบเดียวจบ
 
 - `GET /api/inventory?view=list` → RPC `get_inventory_list(company, page, limit, search, warehouse_ids[], category, brand, supplier, status, sort_by, sort_asc)` คืน `{items, total, status_counts}` · **path เดิม** `?warehouse_id=` / `?dealer_id=` (OrderForm สลับคลัง · ReplenishmentForm · หน้า PO · รายงานตัวแทน/ห้าง · DealerOrderForm) = `inventoryScopeView`: อ่าน `inventory` ของคลังที่ขอทั้งหมดผ่าน `fetchAllRows` รวมต่อตัวเลือก คืนแค่ `variation_id · quantity · reserved_quantity · available · in_transit_quantity` (+ `consign_breakdown` เมื่อเป็นตัวแทน) **ไม่มีข้อมูลสินค้า** · ไม่ส่งทั้งสอง = 400 · RPC `get_inventory_filtered` / `get_inventory_by_warehouse` / view `inventory_summary` ลบแล้ว (Phase 5)
