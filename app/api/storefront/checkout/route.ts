@@ -12,6 +12,10 @@ import { resolveStorefrontViewer, resolveCheckoutCustomer, resolveShippingAddres
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { sendNewOrderPushById } from '@/lib/push/send';
 import { getStorefrontCompany } from '@/lib/storefront-server';
+import { after } from 'next/server';
+import { reserveOrderStockOnce } from '@/lib/stock/order-stock';
+import { getStockConfig, checkStockAvailability } from '@/lib/stock-utils';
+import { resolveOrderWarehouse } from '@/lib/stock/order-warehouse';
 import { effectivePrice } from '@/lib/storefront';
 import { computeOrderTotals, splitVatInclusive } from '@/lib/order-totals';
 import { checkCoupon, normalizeCouponCode, type Coupon } from '@/lib/coupons';
@@ -335,6 +339,24 @@ export async function POST(request: NextRequest) {
       }, shipToOther)
     : null;
 
+  // ร้านที่ปิด "ยอมให้ขายเกิน" ต้องปฏิเสธตั้งแต่ก่อนสร้างบิล — ปล่อยให้สั่งสำเร็จแล้วค่อยไป
+  // ล้มตอนจอง = ลูกค้าได้เลขที่คำสั่งซื้อของที่ไม่มีจริง (สวิตช์อยู่ที่ ตั้งค่า > คลังสินค้า)
+  const storefrontWarehouseId = await resolveOrderWarehouse(company.id, null, null);
+  const storefrontStockConfig = await getStockConfig(company.id);
+  if (storefrontStockConfig.stockEnabled && !storefrontStockConfig.allowOversell && storefrontWarehouseId) {
+    const short = await checkStockAvailability(
+      company.id,
+      storefrontWarehouseId,
+      lines.map(l => ({ variation_id: l.variation_id, quantity: l.quantity, raw: {} })),
+    );
+    if (short.length > 0) {
+      return NextResponse.json(
+        { error: `สินค้าบางรายการมีไม่พอ — ${short.join(' · ')}` },
+        { status: 409 },
+      );
+    }
+  }
+
   const { data: order, error: orderError } = await supabaseAdmin
     .from('orders')
     .insert({
@@ -442,6 +464,37 @@ export async function POST(request: NextRequest) {
     await supabaseAdmin.from('orders').delete().eq('id', order.id).eq('company_id', company.id);
     console.error('[storefront checkout] items insert failed:', itemsError);
     return NextResponse.json({ error: 'สร้างรายการสินค้าไม่สำเร็จ' }, { status: 500 });
+  }
+
+  // จองสต็อก — เดิมหน้าร้านออนไลน์ **ไม่จองและไม่ผูกคลังเลย** บิลจึงข้ามสต็อกทั้งชีวิต
+  // (ทุกจุดใน /api/orders เช็ค `if (order.warehouse_id)` ก่อนแตะสต็อก) ⇒ ลูกค้าสั่งของที่หมด
+  // แล้วได้ · ส่งของแล้วยอดคงคลังก็ไม่ลด
+  try {
+    const warehouseId = storefrontWarehouseId;
+    if (warehouseId) {
+      await supabaseAdmin
+        .from('orders')
+        .update({ warehouse_id: warehouseId })
+        .eq('id', order.id)
+        .eq('company_id', company.id);
+    }
+    const stock = await reserveOrderStockOnce({
+      companyId: company.id,
+      orderId: order.id,
+      warehouseId,
+      reference: order.order_number,
+      push: 'none',   // ลูกค้ารอหน้าจอ checkout อยู่ — กระจายยอดขึ้นร้านใน after()
+    });
+    if (stock.errors.length > 0) {
+      console.error(`[storefront checkout] จองสต็อก ${order.order_number} ไม่ครบ:`, stock.errors.join(' · '));
+    }
+    if (stock.touched.length > 0 && warehouseId) {
+      const touched = stock.touched;
+      after(() => import('@/lib/marketplace/stock-push')
+        .then(m => m.syncStockNow(touched, [warehouseId])));
+    }
+  } catch (stockErr) {
+    console.error('[storefront checkout] จองสต็อกล้มเหลว:', stockErr);
   }
 
   // Push แจ้งเตือนพนักงาน — ออเดอร์หน้าร้านออนไลน์เข้าใหม่
