@@ -13,7 +13,7 @@
 // หน้าลองใน /dev/design/broadcast-editor ใช้ตัวนี้ตัวเดียวกัน
 'use client';
 
-import { useSyncExternalStore, type Dispatch, type ReactNode, type SetStateAction } from 'react';
+import { useRef, useSyncExternalStore, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import {
   DndContext, PointerSensor, useSensor, useSensors, closestCenter, type DragEndEvent,
 } from '@dnd-kit/core';
@@ -30,6 +30,7 @@ import FilterChips, { FILTER_CHIP_PRIMARY_ACTIVE } from '@/components/ui/FilterC
 import ActionMenu from '@/components/ui/ActionMenu';
 import ChipsInput from '@/components/ui/ChipsInput';
 import MessageComposer from '@/components/ui/MessageComposer';
+import VarChips from '@/components/ui/VarChips';
 import ImageDropzone from '@/components/ui/ImageDropzone';
 import ProductSearchInput, { type ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import { CARD_RATIO_CLASS } from '@/components/broadcast/BroadcastPreview';
@@ -39,6 +40,7 @@ import {
   BLOCKS_MAX, BLOCK_CARDS_MAX, BLOCK_CARD_TEXT_MAX, BLOCK_CARD_TITLE_MAX, BLOCK_TYPE_LABELS, BUTTON_LABEL_MAX,
   CARD_BUTTONS_MAX, EMPTY_ACTION,
   type BroadcastBlockType, type BroadcastCardRatio, type BroadcastProductCard,
+  BROADCAST_VARS,
 } from '@/lib/broadcast/content';
 import {
   GalleryHorizontalEnd, GripVertical, Image as ImageIcon, MessageSquareText, Package, PenLine, Plus,
@@ -397,6 +399,7 @@ function SortableBlock({ block, index, onChange, onImageChange, onRemove, picker
   picker: BlocksPickerProps;
 }) {
   const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({ id: block.id });
+  const textRef = useRef<HTMLTextAreaElement>(null);
   let editor: ReactNode;
   if (block.type === 'text') {
     editor = (
@@ -406,6 +409,18 @@ function SortableBlock({ block, index, onChange, onImageChange, onRemove, picker
         maxLength={LINE_TEXT_MAX}
         rows={3}
         placeholder="พิมพ์ข้อความที่จะส่งถึงลูกค้า"
+        textareaRef={textRef}
+        // ⛔ **มีตัวแปรเดียวโดยตั้งใจ** — บรอดแคสต์ส่งด้วย multicast (500 คน เนื้อหาชุดเดียวกัน)
+        // ตัวแปรที่ต่างกันรายคนจะกลายเป็นโทเคนดิบในมือลูกค้าหลายพันคน ดู BROADCAST_VARS
+        toolbar={(
+          <VarChips
+            targetRef={textRef}
+            value={block.text}
+            onChange={text => onChange({ ...block, text })}
+            only={[...BROADCAST_VARS]}
+            label="แทรก:"
+          />
+        )}
       />
     );
   } else if (block.type === 'image' || block.type === 'rich') {

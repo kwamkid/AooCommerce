@@ -33,6 +33,7 @@ import {
   type BroadcastContent,
   type BroadcastProductCard,
   type BroadcastGalleryImage,
+  applyBroadcastVars,
 } from '@/lib/broadcast/content';
 import { fillStorefrontCouponLinks, fillStorefrontProductLinks } from '@/lib/broadcast/product-links';
 import { resolveAccountPicture } from '@/lib/chat/account-picture';
@@ -385,7 +386,7 @@ export async function POST(request: NextRequest) {
       ? body.content.blocks.map(toBlock)
       : [];
     if (blocks.some(b => !b)) return NextResponse.json({ error: 'บล็อกไม่ถูกต้อง' }, { status: 400 });
-    const content: BroadcastContent = isBlocks ? {
+    let content: BroadcastContent = isBlocks ? {
       kind: 'blocks',
       text: '',
       blocks: blocks as BroadcastBlock[],
@@ -462,6 +463,11 @@ export async function POST(request: NextRequest) {
     }
     if (content.kind === 'blocks') couponActions.push(...blockCouponActions(content.blocks || []));
     if (couponActions.length > 0) await fillStorefrontCouponLinks(auth.companyId, couponActions);
+
+    // แทนค่า {{ชื่อร้าน}} **ก่อน** ประกอบข้อความและก่อนเก็บลง DB — ทั้งพรีวิว รายงาน
+    // และสำเนาในห้องแชทจะได้เห็นข้อความชุดเดียวกับที่ลูกค้าได้รับ
+    // (ตัวแปรรายคนทำไม่ได้กับ multicast — ดู BROADCAST_VARS ใน lib/broadcast/content.ts)
+    content = applyBroadcastVars(content, target.label);
 
     let messages: unknown;
     let recipientCount: number;

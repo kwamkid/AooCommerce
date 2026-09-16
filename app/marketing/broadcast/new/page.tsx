@@ -45,7 +45,9 @@ import {
   describeAudienceRefine,
   type StoredAudienceFilter,
 } from '@/lib/broadcast/audience';
-import { blocksSummary, validateBroadcastContent, type BroadcastContent } from '@/lib/broadcast/content';
+import {
+  applyBroadcastVars, blocksSummary, validateBroadcastContent, type BroadcastContent,
+} from '@/lib/broadcast/content';
 import { Send } from 'lucide-react';
 import ChannelStep from './components/ChannelStep';
 import AudienceStep from './components/AudienceStep';
@@ -485,8 +487,19 @@ export default function NewBroadcastPage() {
 
   /** เนื้อหาที่จะตรวจ — รูปที่ยังไม่อัปใช้ค่าแทน https ไปก่อน (อัปจริงตอนกดส่งเท่านั้น) */
   const draftContent = useMemo(() => editorToContent(blocks, quickReplies, draftImage), [blocks, quickReplies]);
-  /** ตัวอย่างในแชทต้องเห็นรูปที่ยังไม่ได้อัป — ใช้ object URL ของไฟล์แทน */
-  const previewContent = useMemo(() => editorToContent(blocks, quickReplies, previewImage), [blocks, quickReplies]);
+  /**
+   * ตัวอย่างในแชทต้องเห็นรูปที่ยังไม่ได้อัป — ใช้ object URL ของไฟล์แทน
+   * และแทนค่า {{ชื่อร้าน}} ด้วย **ตัวกลางตัวเดียวกับที่ API ใช้ตอนส่งจริง**
+   * ⇒ สิ่งที่ร้านเห็นตอนกดส่ง = สิ่งที่ลูกค้าได้รับ · เลือกหลายบัญชีค่อยเป็นชื่อบัญชีแรก
+   *   (1 บัญชี = 1 ใบอยู่แล้ว แต่ละใบจะแทนด้วยชื่อของตัวเองตอน API สร้าง)
+   */
+  const previewContent = useMemo(
+    () => applyBroadcastVars(
+      editorToContent(blocks, quickReplies, previewImage),
+      selectedAccounts[0]?.name || '',
+    ),
+    [blocks, quickReplies, selectedAccounts],
+  );
 
   // ตรวจด้วยฟังก์ชันเดียวกับที่ API ใช้ — หน้าจอกับ server จึงพูดตรงกันเสมอ
   // เนื้อหาชุดเดียวต้องผ่าน **ทุกช่องทางที่เลือก** — ตัวไหนไม่ผ่านก็บอกตัวนั้น

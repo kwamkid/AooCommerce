@@ -250,6 +250,51 @@ export const BLOCK_TYPE_LABELS: Record<BroadcastBlockType, string> = {
   cards: 'การ์ด',
 };
 
+/**
+ * ตัวแปรที่ใช้ได้ในบรอดแคสต์ — **มีตัวเดียวโดยตั้งใจ**
+ *
+ * ⛔ **ห้ามเพิ่ม `{{ชื่อลูกค้า}}` หรืออะไรที่ต่างกันรายคน** จนกว่าจะเปลี่ยนวิธีส่งก่อน:
+ * LINE ส่งด้วย `/message/multicast` (500 คน/ครั้ง **เนื้อหาชุดเดียวกันเป๊ะ**) และโหมด
+ * ผู้ติดตามทั้งหมดใช้ `/message/broadcast` ซึ่งเราไม่รู้ด้วยซ้ำว่าผู้รับเป็นใคร
+ * ⇒ ตัวแปรรายคนจะถูกส่งออกไปเป็นโทเคนดิบให้ลูกค้าหลายพันคนเห็นพร้อมกัน
+ * (ถ้าจะทำจริงต้องเปลี่ยนเป็น push ทีละคน — ยิง API มากขึ้น 500 เท่า และโหมด
+ *  "ผู้ติดตามทั้งหมด" ทำไม่ได้เลย · เจ้าของรับทราบและเลือกเอาแค่ชื่อร้านก่อน 17 ก.ย. 2026)
+ */
+export const BROADCAST_VARS = ['{{ชื่อร้าน}}'] as const;
+
+/**
+ * แทนค่าตัวแปรในเนื้อหาทั้งใบ — **ตัวกลางตัวเดียวของทั้งพรีวิวและตัวส่ง**
+ * เรียกคนละที่กันเมื่อไหร่ สิ่งที่ร้านเห็นตอนกดส่งกับสิ่งที่ลูกค้าได้รับจะไม่ตรงกัน
+ */
+export function applyBroadcastVars(content: BroadcastContent, shopName: string): BroadcastContent {
+  const name = (shopName || '').trim();
+  if (!name) return content;                       // ไม่รู้ชื่อร้าน = คงโทเคนไว้ให้เห็นว่ายังไม่ถูกแทน
+  const sub = (t: string) => t.split('{{ชื่อร้าน}}').join(name);
+
+  const blocks = (content.blocks || []).map((b): BroadcastBlock => {
+    if (b.type === 'text') return { ...b, text: sub(b.text) };
+    if (b.type === 'cards') {
+      return {
+        ...b,
+        cards: b.cards.map(c => ({
+          ...c,
+          title: sub(c.title),
+          text: sub(c.text),
+          buttons: c.buttons.map(btn => ({ ...btn, label: sub(btn.label) })),
+        })),
+      };
+    }
+    return b;                                      // image / rich ไม่มีข้อความให้แทน
+  });
+
+  return {
+    ...content,
+    blocks,
+    ...(content.text ? { text: sub(content.text) } : {}),
+    ...(content.title ? { title: sub(content.title) } : {}),
+  };
+}
+
 /** ทุก "ไปที่สินค้า" ในบล็อก (รูปเต็มจอ · กดการ์ด · ปุ่มบนการ์ด) — API เติมลิงก์หน้าร้านให้ก่อนส่ง */
 export function blockProductActions(
   blocks: BroadcastBlock[],

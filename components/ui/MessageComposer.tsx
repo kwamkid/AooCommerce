@@ -44,6 +44,8 @@ interface MessageComposerProps {
   image?: ComposerImage;
   /** ของเพิ่มในแถบล่าง ถัดจากปุ่มแนบรูป (เช่นชิปเลือกว่ารูปแสดงแบบไหน) */
   toolbar?: ReactNode;
+  /** เข้าถึงช่องพิมพ์จริง — ปุ่มใน `toolbar` ที่ต้องแทรกข้อความตรงเคอร์เซอร์ต้องใช้ (เช่น `VarChips`) */
+  textareaRef?: React.RefObject<HTMLTextAreaElement | null>;
   error?: string | null;
 }
 
@@ -69,6 +71,7 @@ const IMAGE_ONLY_CLASSES = {
 
 export default function MessageComposer({
   value, onChange, label, emptyHint, placeholder, rows = 5, maxLength, disabled, image, toolbar, error,
+  textareaRef,
 }: MessageComposerProps) {
   const hasText = onChange != null;
   // ปุ่มแนบในแถบล่างมีเฉพาะกล่องที่มีช่องพิมพ์และยังไม่มีรูป — กล่องรูปอย่างเดียวมี dropzone ใหญ่อยู่แล้ว
@@ -117,6 +120,7 @@ export default function MessageComposer({
       >
         {hasText && (
           <textarea
+            ref={textareaRef}
             id={id}
             value={value ?? ''}
             rows={rows}
