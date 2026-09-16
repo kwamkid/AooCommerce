@@ -422,7 +422,7 @@ export default function StorefrontSettingsPage() {
     brand: null,
     images: [previewPhoto(p.w, p.h, cfg.primary_color)],
     variations: [{
-      id: `preview-v-${i}`, label: null, sku: null,
+      id: `preview-v-${i}`, label: null, sku: null, barcode: null,
       price: p.price, compare_at: null, in_stock: true, image: null,
     }],
     price_min: p.price,

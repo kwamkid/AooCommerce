@@ -183,6 +183,7 @@ interface RawVariation {
   product_id: string;
   variation_label: string | null;
   sku: string | null;
+  barcode?: string | null;
   default_price: number;
   discount_price: number | null;
   is_active: boolean;
@@ -193,7 +194,9 @@ interface RawVariation {
 }
 
 // ⛔ ไม่มีคอลัมน์ `stock` โดยตั้งใจ — ดู fetchAvailability() ว่าทำไมห้ามอ่าน
-const VARIATION_SELECT = 'id, product_id, variation_label, sku, default_price, discount_price, is_active, is_default, attributes';
+// `barcode` เปิดเผยได้ — เป็นรหัสสากลที่พิมพ์อยู่บนกล่องสินค้า ไม่ใช่ข้อมูลภายใน
+// และ Google Merchant ต้องใช้เป็น `g:gtin` (ไม่มี = ต้องประกาศ identifier_exists: no)
+const VARIATION_SELECT = 'id, product_id, variation_label, sku, barcode, default_price, discount_price, is_active, is_default, attributes';
 
 /**
  * พร้อมขายจริงของแต่ละตัวเลือก — **ผ่าน RPC `get_variation_stock` เท่านั้น**
@@ -286,6 +289,7 @@ function toPublicVariation(
     id: v.id,
     label: v.variation_label,
     sku: v.sku,
+    barcode: v.barcode ?? null,
     price,
     compare_at,
     // ร้านที่ไม่ได้ใช้ระบบคลัง ถือว่าพร้อมขายเสมอ — ไม่งั้นทั้งร้านขึ้น "สินค้าหมด"

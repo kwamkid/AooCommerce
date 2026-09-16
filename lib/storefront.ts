@@ -393,6 +393,8 @@ export interface StorefrontVariation {
   id: string;
   label: string | null;
   sku: string | null;
+  /** บาร์โค้ดสากล (EAN/UPC) — Google Merchant ใช้เป็น `g:gtin` · เปิดเผยได้ อยู่บนกล่องสินค้าอยู่แล้ว */
+  barcode: string | null;
   price: number;          // ราคาที่ขายจริง (discount_price ถ้ามี ไม่งั้น default_price)
   compare_at: number | null;  // ราคาก่อนลด (null = ไม่ได้ลด)
   in_stock: boolean;
