@@ -485,8 +485,11 @@ h6:where(.heading-1, .heading-2, .heading-3, .heading-4) {
 }
 /* Messenger — พื้นห้องขาว ไม่ใช่ฟ้าแบบ LINE */
 .phone-mock-screen-messenger { background-color: #fff; }
-/* แผงข้างที่มีการ์ดอื่นอยู่ด้วย — ย่อทั้งเครื่องลง สัดส่วนยังเป็น iPhone เหมือนเดิม */
-.phone-mock-md { max-width: 17rem; }
+/* แผงข้างที่มีการ์ดอื่นอยู่ด้วย — **ย่อทั้งเครื่องพร้อมกัน** ด้วย zoom
+   ⚠️ ห้ามย่อแค่ max-width — ตัวอักษร/ไอคอน/ระยะข้างในถูกออกแบบตามมือถือจริง (390px)
+   บีบเฉพาะกรอบแล้วของข้างในจะดูโตเกินจริงทันที (เจ้าของท้วง 16 ก.ย. 2026)
+   zoom ย่อทุกอย่างตามสัดส่วนเดียวกัน ต่างจาก transform:scale ตรงที่ไม่ทิ้งที่ว่างไว้ */
+.phone-mock-md { zoom: 0.7; } /* 20rem × 0.7 = 14rem — ป้าย/คำอธิบายรอบ ๆ ต้องกว้างเท่านี้ด้วย (w-56) */
 .phone-mock-status {
   display: grid;
   grid-template-columns: 1fr auto 1fr;

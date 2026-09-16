@@ -678,7 +678,9 @@ export default function BroadcastPageSettings() {
             </div>
 
             {/* พรีวิวตัวเดียวใช้ร่วมทั้ง 3 จังหวะ — เปลี่ยนตามอันที่กางอยู่ */}
-            <div className="lg:sticky lg:top-4">
+            {/* w-56 = ความกว้างจริงของเครื่องหลัง zoom (20rem × 0.7) — ป้ายกับคำอธิบายอยู่นอกตัวที่ถูกย่อ
+                ไม่คุมความกว้างเอง คอลัมน์จะกว้างกว่ามือถือแล้วดูเหมือนวางไม่ตรงกัน */}
+            <div className="lg:sticky lg:top-4 w-56 mx-auto lg:mx-0">
               <p className="field-label mb-2">ตัวอย่างที่ลูกค้าเห็น</p>
               <PhonePreview
                 accountName={page.account_name}
@@ -687,7 +689,7 @@ export default function BroadcastPageSettings() {
                 size="md"
                 platform="facebook"
               />
-              <p className="helper-text mt-2 max-w-[19rem]">
+              <p className="helper-text mt-2">
                 จังหวะ &quot;{OPTIN_TRIGGERS[expanded].label}&quot; · ข้อความสีจางกับปุ่มบนการ์ดเป็นของ Facebook แก้ไม่ได้
                 {previewCoupon && ' · ฟองสุดท้ายส่งหลังลูกค้ากดรับ'}
               </p>
