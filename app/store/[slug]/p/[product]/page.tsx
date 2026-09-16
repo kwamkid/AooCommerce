@@ -331,6 +331,7 @@ export default async function StorefrontProductPage({ params }: PageProps) {
           <DetailPrice priceMin={product.price_min} priceMax={product.price_max} />
 
           <AddToCartButton
+            acceptingOrders={cfg.accepting_orders}
             shop={slug}
             productSlug={product.slug}
             productName={product.name}

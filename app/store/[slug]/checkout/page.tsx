@@ -2,6 +2,8 @@
 // Checkout อยู่บน aoo เต็มหน้าเสมอ (ทั้งทาง standalone และทาง WordPress embed)
 // — noindex เพราะเป็นหน้าธุรกรรม ไม่ใช่หน้าที่ต้องติดอันดับ
 import type { Metadata } from 'next';
+import Link from 'next/link';
+import { storefrontHref } from '@/lib/storefront';
 import { getStorefrontCompany, storeUtilityMetadata } from '@/lib/storefront-server';
 import CheckoutClient from './checkout-client';
 
@@ -25,6 +27,19 @@ export default async function CheckoutPage({
   const { coupon } = await searchParams;
   const company = await getStorefrontCompany(slug);
   if (!company) return null;   // layout แสดงหน้า 'ไม่พบร้านนี้' ให้แล้ว
+
+  // พักรับออร์เดอร์ = ไม่ต้องให้กรอกฟอร์มจนจบแล้วค่อยโดน API ปฏิเสธ — บอกตั้งแต่เข้าหน้า
+  if (!company.config.accepting_orders) {
+    return (
+      <div className="sf-container">
+        <div className="sf-hero">
+          <h1>ร้านพักรับออร์เดอร์ชั่วคราว</h1>
+          <p>ของในตะกร้ายังอยู่ครบ กลับมาสั่งต่อได้เมื่อร้านเปิดรับออร์เดอร์อีกครั้ง</p>
+        </div>
+        <Link href={storefrontHref(slug)} className="sf-cta">ดูสินค้าต่อ</Link>
+      </div>
+    );
+  }
 
   return (
     <CheckoutClient

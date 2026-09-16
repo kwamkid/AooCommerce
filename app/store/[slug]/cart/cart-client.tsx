@@ -6,7 +6,7 @@ import { useCart, setQuantity, removeFromCart } from '@/lib/storefront-cart';
 import { formatStorePrice, storefrontHref } from '@/lib/storefront';
 import CheckoutSteps from '@/components/storefront/CheckoutSteps';
 
-export default function CartClient({ shop }: { shop: string }) {
+export default function CartClient({ shop, acceptingOrders = true }: { shop: string; acceptingOrders?: boolean }) {
   const { lines, subtotal, hydrated } = useCart(shop);
 
   if (!hydrated) {
@@ -86,7 +86,12 @@ export default function CartClient({ shop }: { shop: string }) {
         </div>
         <p className="sf-cart-note">ค่าจัดส่งคำนวณในขั้นตอนถัดไปตามพื้นที่จัดส่ง</p>
         <div className="sf-order-actions">
-          <Link href={storefrontHref(shop, '/checkout')} className="sf-cta sf-cta-block">สั่งซื้อ</Link>
+          {acceptingOrders ? (
+            <Link href={storefrontHref(shop, '/checkout')} className="sf-cta sf-cta-block">สั่งซื้อ</Link>
+          ) : (
+            /* ของในตะกร้ายังอยู่ครบ — พอร้านกลับมารับออร์เดอร์ กดสั่งต่อได้เลย ไม่ต้องเลือกใหม่ */
+            <button type="button" className="sf-cta sf-cta-block" disabled>ร้านพักรับออร์เดอร์ชั่วคราว</button>
+          )}
           <Link href={storefrontHref(shop)} className="sf-btn-ghost sf-cta-block">
             <ChevronLeft strokeWidth={2} aria-hidden="true" />ช้อปต่อ
           </Link>

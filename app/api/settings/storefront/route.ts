@@ -173,6 +173,7 @@ export async function PUT(request: NextRequest) {
     sell_warehouse_id: typeof body.sell_warehouse_id === 'string'
       ? (await isOwnActiveWarehouse(auth.companyId!, body.sell_warehouse_id) ? body.sell_warehouse_id : '')
       : current.sell_warehouse_id,
+    accepting_orders: body.accepting_orders ?? current.accepting_orders,
     allow_ai_crawlers: body.allow_ai_crawlers ?? current.allow_ai_crawlers,
     line_login: body.line_login ?? current.line_login,
     primary_color: color || current.primary_color,

@@ -38,6 +38,17 @@ export interface StorefrontConfig {
    * ร้านที่ปิดระบบคลัง (`stockEnabled=false`) ไม่ต้องตั้ง — ถือว่ามีของทุกตัวเสมอ
    */
   sell_warehouse_id: string;
+  /**
+   * ร้านรับออร์เดอร์อยู่ไหม — **คนละเรื่องกับ `enabled`**
+   *   `enabled: false`          = ปิดเว็บ ไม่มีใครเข้าถึงหน้าร้านได้เลย
+   *   `accepting_orders: false` = เว็บยังเปิดดูได้ทุกหน้า แค่กดสั่งซื้อไม่ได้ (พักรับออร์เดอร์)
+   *
+   * ⛔ **ห้ามยุบสองอันนี้เข้าด้วยกัน** — ตอนปิดทั้งเว็บ ทุก URL (หน้าแรก + สินค้าทุกตัว)
+   * จะเรนเดอร์หน้า "ปิดร้าน" เหมือนกันหมด = เนื้อหาซ้ำหลายร้อย URL ในสายตา Google
+   * ซึ่งแย่กว่าไม่ถูก index เสียอีก (Google เก็บหน้า "ปิดร้าน" ไว้แทนหน้าสินค้าจริง)
+   * ⇒ "พักรับออร์เดอร์" จึงต้องเป็นสวิตช์ของตัวเองที่ **ไม่แตะ SEO เลย**
+   */
+  accepting_orders: boolean;
   /** อนุญาตให้ AI crawler (GPTBot/ClaudeBot/PerplexityBot/…) เก็บข้อมูล */
   allow_ai_crawlers: boolean;
   /**
@@ -153,6 +164,7 @@ export const DEFAULT_STOREFRONT: StorefrontConfig = {
   logo_url: '',
   public_base_url: '',
   public_base_path: '',
+  accepting_orders: true,
   allow_ai_crawlers: true,
   line_login: false,
   primary_color: '#F4511E',
@@ -222,6 +234,8 @@ export function parseStorefront(settings: Record<string, unknown> | null | undef
     contact_address: String(stored.contact_address ?? DEFAULT_STOREFRONT.contact_address),
     public_base_path: normalizeBasePath(stored.public_base_path ?? DEFAULT_STOREFRONT.public_base_path),
     sell_warehouse_id: String(stored.sell_warehouse_id ?? DEFAULT_STOREFRONT.sell_warehouse_id),
+    // ร้านเดิมที่ยังไม่มีคีย์นี้ = รับออร์เดอร์อยู่ (ห้าม default เป็น false ไม่งั้นร้านที่เปิดอยู่ปิดรับหมด)
+    accepting_orders: stored.accepting_orders ?? DEFAULT_STOREFRONT.accepting_orders,
     allow_ai_crawlers: stored.allow_ai_crawlers ?? DEFAULT_STOREFRONT.allow_ai_crawlers,
     line_login: stored.line_login ?? DEFAULT_STOREFRONT.line_login,
     primary_color: stored.primary_color ?? DEFAULT_STOREFRONT.primary_color,

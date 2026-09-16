@@ -37,7 +37,7 @@ import CopyField from '@/components/ui/CopyField';
 import { useCompany } from '@/lib/company-context';
 import OptionCards from '@/components/ui/OptionCards';
 import { Check, ChevronDown, Loader2, X } from 'lucide-react';
-import { ExternalLink, Globe, KeyRound, Palette, Plus, Store } from 'lucide-react';
+import { ExternalLink, Globe, KeyRound, Palette, PauseCircle, Plus, Store } from 'lucide-react';
 import Tabs from '@/components/ui/Tabs';
 import { useFeatures } from '@/lib/features-context';
 
@@ -499,6 +499,30 @@ export default function StorefrontSettingsPage() {
                   aria-label="เปิดหน้าร้าน"
                 />
               </div>
+
+              {/* พักรับออร์เดอร์ — แยกจากสวิตช์ปิดร้านโดยตั้งใจ ขึ้นเฉพาะตอนร้านเปิดอยู่
+                  (ร้านที่ปิดทั้งเว็บอยู่แล้ว ไม่มีความหมายที่จะบอกว่ารับออร์เดอร์ไหม) */}
+              {cfg.enabled && (
+                <div className="flex items-center justify-between gap-4 mt-4 pt-4 border-t border-gray-100 dark:border-slate-700">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${cfg.accepting_orders ? 'bg-gray-100 dark:bg-slate-700' : 'bg-amber-50'}`}>
+                      <PauseCircle className={`w-5 h-5 ${cfg.accepting_orders ? 'text-gray-400' : 'text-amber-600'}`} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="heading-4">พักรับออร์เดอร์ชั่วคราว</p>
+                      <p className="section-desc">
+                        ลูกค้ายังเปิดดูสินค้าได้ทุกหน้า แต่กดสั่งซื้อไม่ได้ · ใช้ตอนของขาด/หยุดยาว
+                        แทนการปิดหน้าร้าน ซึ่งทำให้อันดับใน Google หายทั้งร้าน
+                      </p>
+                    </div>
+                  </div>
+                  <Toggle
+                    checked={!cfg.accepting_orders}
+                    onChange={(v) => patch({ accepting_orders: !v })}
+                    aria-label="พักรับออร์เดอร์ชั่วคราว"
+                  />
+                </div>
+              )}
             </Card>
 
             <Card padding="md">
@@ -991,9 +1015,9 @@ export default function StorefrontSettingsPage() {
                   {/* ก่ออิฐ + กรอบคงที่ = การ์ดสูงเท่ากันอยู่แล้ว จึงได้หน้าตาเดียวกับตาราง แต่เสียลำดับการอ่านไปฟรี ๆ */}
                   {cfg.layout === 'masonry' && cfg.image_ratio !== 'auto' && (
                     <p className="helper-text text-amber-700 dark:text-amber-500 sm:col-span-2 -mt-2">
-                      กรอบ {cfg.image_ratio} บังคับให้รูปสูงเท่ากันทุกใบอยู่แล้ว "ก่ออิฐ" จึงออกมาหน้าตาเกือบเหมือน "ตาราง"
+                      กรอบ {cfg.image_ratio} บังคับให้รูปสูงเท่ากันทุกใบอยู่แล้ว &quot;ก่ออิฐ&quot; จึงออกมาหน้าตาเกือบเหมือน &quot;ตาราง&quot;
                       (ต่างแค่การ์ดที่ชื่อสินค้ายาวคนละบรรทัด) แต่แลกด้วยลำดับการอ่านที่ไหลลงคอลัมน์ —
-                      ถ้าอยากได้ก่ออิฐจริง ๆ ให้เลือกสัดส่วน "ตามไฟล์ต้นฉบับ" คู่กัน
+                      ถ้าอยากได้ก่ออิฐจริง ๆ ให้เลือกสัดส่วน &quot;ตามไฟล์ต้นฉบับ&quot; คู่กัน
                     </p>
                   )}
                 </div>

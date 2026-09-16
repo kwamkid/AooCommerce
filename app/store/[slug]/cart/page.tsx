@@ -16,5 +16,5 @@ export default async function CartPage({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const company = await getStorefrontCompany(slug);
   if (!company) return null;   // layout แสดงหน้า 'ไม่พบร้านนี้' ให้แล้ว
-  return <CartClient shop={slug} />;
+  return <CartClient shop={slug} acceptingOrders={company.config.accepting_orders} />;
 }

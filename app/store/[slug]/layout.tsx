@@ -81,6 +81,14 @@ export default async function StoreLayout({
         payments={payments}
       />
 
+      {/* พักรับออร์เดอร์ — บอกทุกหน้า ไม่ใช่รอให้ลูกค้าเลือกของจนถึงปุ่มสั่งแล้วค่อยรู้
+          ⚠️ ไม่แตะ SEO เลย (ไม่ noindex ไม่เปลี่ยน canonical) — นั่นคือเหตุผลทั้งหมดที่แยก
+          สวิตช์นี้ออกจาก `enabled` */}
+      {!cfg.accepting_orders && (
+        <div className="sf-announcement sf-announcement-paused">
+          ร้านพักรับออร์เดอร์ชั่วคราว — ดูสินค้าได้ตามปกติ แต่ยังสั่งซื้อไม่ได้
+        </div>
+      )}
       {cfg.announcement && (
         <div className="sf-announcement">{cfg.announcement}</div>
       )}

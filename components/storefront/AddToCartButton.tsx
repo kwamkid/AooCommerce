@@ -31,6 +31,11 @@ interface Props {
   /** สินค้าชุด — มีค่า = เลือกทีละช่อง แทนรายการแบน */
   optionGroups?: StorefrontOptionGroup[];
   /**
+   * ร้านพักรับออร์เดอร์ — หน้ายังดูได้ครบ แค่กดสั่งไม่ได้
+   * ⚠️ นี่เป็นแค่ชั้นหน้าจอ ด่านจริงอยู่ที่ `/api/storefront/checkout` (ปุ่ม disabled กันคนที่ยิง API ตรงไม่ได้)
+   */
+  acceptingOrders?: boolean;
+  /**
    * ธีมของร้านสำหรับแถบซื้อล่างจอบนมือถือ — แถบถูก portal ออกไปนอก `.sf-root`
    * จึงไม่ได้รับ token/คลาสธีมทางการสืบทอด ต้องส่งมาให้ตรง ๆ (ดู StoreBuyBar.tsx)
    */
@@ -47,7 +52,7 @@ function announceImage(v: StorefrontVariation) {
 
 export default function AddToCartButton({
   shop, productSlug, productName, variations, images, defaultVariationId, optionGroups,
-  themeClasses, themeVars,
+  themeClasses, themeVars, acceptingOrders = true,
 }: Props) {
   const sellable = variations.filter(v => v.in_stock);
   const preselected = sellable.find(v => v.id === defaultVariationId) || sellable[0];
@@ -57,6 +62,20 @@ export default function AddToCartButton({
   const [buying, setBuying] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const router = useRouter();
+
+  // พักรับออร์เดอร์ — วาดเหมือนเคสของหมด (ปุ่มกดไม่ได้ + บอกเหตุผล) แต่คนละข้อความ
+  // เพื่อไม่ให้ลูกค้าเข้าใจผิดว่าของหมด ทั้งที่ของมี แค่ร้านหยุดรับชั่วคราว
+  if (!acceptingOrders) {
+    const paused = (
+      <button type="button" className="sf-cta" disabled>ร้านพักรับออร์เดอร์ชั่วคราว</button>
+    );
+    return (
+      <div>
+        <div className="sf-buy-row sf-buy-row-inline">{paused}</div>
+        <StoreBuyBar themeClasses={themeClasses} themeVars={themeVars}>{paused}</StoreBuyBar>
+      </div>
+    );
+  }
 
   if (sellable.length === 0) {
     // ของหมดทุกตัวเลือก — แถบล่างจอยังมีไว้ให้กดกลับไปตะกร้าได้ (ปุ่มซื้อกดไม่ได้)

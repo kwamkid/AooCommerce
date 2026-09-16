@@ -96,6 +96,11 @@ export async function POST(request: NextRequest) {
 
   const company = await getStorefrontCompany(body.shop);
   if (!company) return NextResponse.json({ error: 'ไม่พบหน้าร้าน' }, { status: 404 });
+  // ⛔ ด่านจริงของ "พักรับออร์เดอร์" อยู่ตรงนี้ ไม่ใช่ที่ปุ่ม — ปุ่มที่ disabled กันได้แค่คนที่กดผ่านหน้าจอ
+  // ใครก็ยิง endpoint นี้ตรงได้ (เป็น public write path ที่ถือว่าทุก field เป็นของปลอมอยู่แล้ว)
+  if (!company.config.accepting_orders) {
+    return NextResponse.json({ error: 'ร้านพักรับออร์เดอร์ชั่วคราว' }, { status: 409 });
+  }
 
   // ── validate contact + address ──
   const name = (body.name || '').trim();
