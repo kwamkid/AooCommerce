@@ -174,6 +174,22 @@ export default async function StorefrontProductPage({ params }: PageProps) {
   };
 
   // ประโยคข้อเท็จจริงเรื่องจัดส่ง — ประกอบจาก zone/slot จริง ไม่ให้ร้านมานั่งเขียนเอง
+  // ประโยคข้อเท็จจริงของตัวสินค้า — ราคา/สต็อก/แบรนด์ **เคยอยู่แต่ใน JSON-LD กับป้าย UI**
+  // (`฿259` ไม่มีคำว่า "ราคา"/"บาท" · สต็อกอยู่แค่บนป้ายปุ่ม) ซึ่งผิดกติกาของโปรเจกต์ที่ว่า
+  // ข้อเท็จจริงต้องเป็น**ประโยคเต็มใน server HTML** เพราะ AI crawler ส่วนใหญ่ไม่รัน JS
+  // และ AEO อ้างอิงทีละ passage — ไม่มีประโยค = ไม่มีอะไรให้ยกไปตอบ
+  const priceSentence = hasRange
+    ? `ราคา ${formatStorePrice(product.price_min)}–${formatStorePrice(product.price_max)} บาท`
+    : `ราคา ${formatStorePrice(product.price_min)} บาท`;
+  const factSentence =
+    `${product.name}`
+    + (product.brand ? ` เป็นสินค้าแบรนด์ ${product.brand}` : '')
+    + (product.category ? `${product.brand ? ' ' : ' อยู่'}ในหมวด ${product.category}` : '')
+    + ` จาก ${shopName} ${priceSentence}`
+    + (product.variations.length > 1 ? ` มีให้เลือก ${product.variations.length} แบบ` : '')
+    + (product.in_stock ? ' ขณะนี้มีสินค้าพร้อมจัดส่ง' : ' ขณะนี้สินค้าหมดชั่วคราว')
+    + '.';
+
   const deliverySentences: string[] = [];
   if (zones.length > 0) {
     const free = zones.find(z => z.free_over != null);
@@ -221,6 +237,9 @@ export default async function StorefrontProductPage({ params }: PageProps) {
           <p className="sf-detail-meta">
             {[product.brand, product.category].filter(Boolean).join(' · ') || shopName}
           </p>
+          {/* ประโยคข้อเท็จจริงสำหรับ AI/Google — ไม่ซ้ำกับของที่เห็นอยู่แล้วบนหน้า จึงซ่อนจากสายตา
+              แต่**อยู่ใน HTML จริง** (sr-only ไม่ใช่ display:none — crawler อ่านได้ ไม่ถือว่าซ่อนข้อความ) */}
+          <p className="sf-sr-only">{factSentence}</p>
 
           {/* ช่วงราคาใน HTML แรก (SEO) แล้วเปลี่ยนเป็นราคาของแบบที่ลูกค้ากดเลือก */}
           <DetailPrice priceMin={product.price_min} priceMax={product.price_max} />

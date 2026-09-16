@@ -9,6 +9,7 @@ import { storefrontCssVars, storefrontRootClasses, storefrontHref } from '@/lib/
 import StoreHeader from '@/components/storefront/StoreHeader';
 import type { NavLink } from '@/components/storefront/MobileNav';
 import ShopUnavailable from '@/components/storefront/ShopUnavailable';
+import ShopJsonLd from '@/components/storefront/ShopJsonLd';
 import '@/components/storefront/storefront.css';
 import '@/components/storefront/storefront-skeleton.css';
 
@@ -63,6 +64,18 @@ export default async function StoreLayout({
     >
       {/* หน้าร้านสว่างเสมอ ไม่มีโทนมืด — สีเป็นของร้าน ไม่ใช่ของเครื่องผู้เข้าชม
           (ThemeProvider ข้าม /store/* ให้แล้ว ดู lib/theme-context) */}
+      {/* entity ของร้าน — วางที่ layout จึงติดทุกหน้า (เดิมทั้งหน้าร้านไม่มี Organization เลย) */}
+      <ShopJsonLd
+        cfg={cfg}
+        slug={slug}
+        shopName={shopName}
+        logoUrl={cfg.logo_url || company.logo_url || null}
+        contactPhone={contactPhone}
+        contactEmail={contactEmail}
+        contactAddress={contactAddress}
+        zones={delivery.zones}
+      />
+
       {cfg.announcement && (
         <div className="sf-announcement">{cfg.announcement}</div>
       )}
