@@ -5,26 +5,32 @@
 //
 // ⛔ **ห้ามใส่ช่อง "ความถี่" กลับเข้ามา** — ยิงจริงแล้ว Meta ปฏิเสธ ความถี่เป็นสิ่งที่ลูกค้า
 // เลือกเองตอนกดรับ แล้วส่งกลับมาทาง webhook (ดู lib/broadcast/optin.ts)
+// ⛔ **คูปองต้องมาจากโมดูลคูปอง** — ที่นี่แค่ "เลือกใบไหน" ไม่ตั้งเงื่อนไขซ้ำ
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Users, Info, ChevronDown, Image as ImageIcon } from 'lucide-react';
+import Link from 'next/link';
+import { Users, Info, ChevronDown, Image as ImageIcon, Ticket, Search } from 'lucide-react';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
 import Card from '@/components/ui/Card';
+import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import Alert from '@/components/ui/Alert';
+import Modal from '@/components/ui/Modal';
 import FormSelect from '@/components/ui/FormSelect';
 import FormInput from '@/components/ui/FormInput';
 import FormTextarea from '@/components/ui/FormTextarea';
+import SearchInput from '@/components/ui/SearchInput';
 import Toggle from '@/components/ui/Toggle';
 import NumberInput from '@/components/ui/NumberInput';
 import ChannelBadge from '@/components/ui/ChannelBadge';
 import HelpHint from '@/components/ui/HelpHint';
 import ImageDropzone from '@/components/ui/ImageDropzone';
 import StickyActionBar from '@/components/ui/StickyActionBar';
+import LinePhonePreview from '@/components/broadcast/LinePhonePreview';
 import { LoadingCard, NoPermissionCard, EmptyCard } from '@/components/ui/StateCard';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import { useToast } from '@/lib/toast-context';
@@ -42,7 +48,6 @@ import {
 const MIN_BUDGET_BAHT = 35;
 /** ราคาต่อข้อความยังไม่นิ่ง (วัดได้ 0.05 บาทจากใบเดียว) — เผื่อไว้เพื่อคำนวณงบ */
 const ASSUMED_COST_PER_MESSAGE = 0.5;
-/** เผื่อให้งบไม่ตันกลางทาง */
 const BUDGET_HEADROOM = 1.5;
 
 const QUIET_WINDOWS = [
@@ -50,6 +55,8 @@ const QUIET_WINDOWS = [
   { id: '30-60', label: '30–60 นาที', subtitle: 'แนะนำ' },
   { id: '60-180', label: '1–3 ชั่วโมง', subtitle: 'ห่างขึ้น เหมาะกับร้านที่ลูกค้าคิดนาน' },
 ];
+
+const TRIGGER_ORDER: OptinTrigger[] = ['manual', 'after_sale', 'quiet'];
 
 interface PageAccount {
   id: string;
@@ -74,46 +81,67 @@ interface SubscriberInfo {
   next_eligible_at: string | null;
 }
 
-/** งบที่ควรตั้งจากจำนวนคนที่ส่งถึงได้ — ยังไม่มีผู้สมัคร = ขั้นต่ำที่ Meta รับ */
+interface CouponOption {
+  id: string;
+  code: string;
+  name: string | null;
+  discount_type: string;
+  discount_value: number;
+  min_spend: number | null;
+  valid_until: string | null;
+}
+
 function budgetFor(eligible: number): number {
   return Math.max(MIN_BUDGET_BAHT, Math.ceil(eligible * ASSUMED_COST_PER_MESSAGE * BUDGET_HEADROOM));
 }
 
+function couponSummary(c: CouponOption): string {
+  const off = c.discount_type === 'percent' ? `ลด ${c.discount_value}%` : `ลด ${formatPrice(c.discount_value)} บาท`;
+  const min = c.min_spend ? ` · ซื้อขั้นต่ำ ${formatPrice(c.min_spend)}` : '';
+  const until = c.valid_until ? ` · ถึง ${formatThaiDateTime(c.valid_until).split(' ')[0]}` : '';
+  return `${off}${min}${until}`;
+}
+
+/** ฟองข้อความธรรมดาในกรอบมือถือ */
+function TextBubble({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="max-w-[210px] rounded-2xl rounded-tl-sm bg-white dark:bg-slate-700 px-3 py-2 text-[13px] leading-snug whitespace-pre-wrap shadow-sm">
+      {children}
+    </div>
+  );
+}
+
 /**
- * ตัวอย่างการ์ดที่ลูกค้าจะเห็นใน Messenger
+ * การ์ดชวนสมัครอย่างที่ลูกค้าเห็นจริงใน Messenger
  * ⚠️ บรรทัดบนกับข้อความรองเป็นของ **Meta เขียนเอง** เราแก้ไม่ได้ — วาดไว้ให้ร้านเห็นว่า
  * ข้อความที่ตัวเองตั้งจะไปอยู่ตรงไหน จะได้ไม่เขียนซ้ำกับสิ่งที่ Meta พูดให้อยู่แล้ว
  */
-function CardPreview({ pageName, title, imageUrl }: { pageName: string; title: string; imageUrl: string | null }) {
+function OptinCardBubble({ pageName, title, imageUrl }: { pageName: string; title: string; imageUrl: string | null }) {
   return (
-    <div>
-      <p className="field-label mb-1">ตัวอย่างที่ลูกค้าเห็น</p>
-      <div className="max-w-[260px] rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden bg-gray-50 dark:bg-slate-900/40">
-        <p className="helper-text px-3 py-2 text-center">
-          {pageName} would like to send you messages, which may be promotional.
-        </p>
-        <div className="bg-white dark:bg-slate-800">
-          {imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={imageUrl} alt="" className="w-full aspect-square object-cover" />
-          ) : (
-            <div className="w-full aspect-square flex flex-col items-center justify-center gap-1 text-gray-400 bg-gray-100 dark:bg-slate-700">
-              <ImageIcon className="w-6 h-6" strokeWidth={1.5} />
-              <span className="helper-text">โลโก้เพจ</span>
-            </div>
-          )}
-          <div className="p-3">
-            <p className="body-text font-medium leading-snug">{title || 'หัวข้อบนการ์ด'}</p>
-            <p className="helper-text mt-1">
-              Don&apos;t want to miss out on the latest sales? You can stop these messages at any time.
-            </p>
+    <div className="w-full">
+      <p className="text-[11px] leading-snug text-gray-500 dark:text-slate-400 text-center px-2 pb-1.5">
+        {pageName} would like to send you messages, which may be promotional.
+      </p>
+      <div className="rounded-xl overflow-hidden bg-white dark:bg-slate-700 shadow-sm">
+        {imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={imageUrl} alt="" className="w-full aspect-square object-cover" />
+        ) : (
+          <div className="w-full aspect-square flex flex-col items-center justify-center gap-1 bg-gray-100 dark:bg-slate-600 text-gray-400">
+            <ImageIcon className="w-5 h-5" strokeWidth={1.5} />
+            <span className="text-[11px]">โลโก้เพจ</span>
           </div>
-          <div className="border-t border-gray-200 dark:border-slate-700 py-2 text-center">
-            <span className="body-text font-medium text-gray-600 dark:text-slate-300">Get updates</span>
-          </div>
+        )}
+        <div className="p-2.5">
+          <p className="text-[13px] font-medium leading-snug">{title || 'หัวข้อบนการ์ด'}</p>
+          <p className="text-[11px] leading-snug text-gray-500 dark:text-slate-400 mt-0.5">
+            Don&apos;t want to miss out on the latest sales? You can stop these messages at any time.
+          </p>
+        </div>
+        <div className="border-t border-gray-200 dark:border-slate-600 py-1.5 text-center text-[13px] font-medium text-gray-600 dark:text-slate-300">
+          Get updates
         </div>
       </div>
-      <p className="helper-text mt-1">ข้อความสีจางกับปุ่มเป็นของ Facebook — แก้ไม่ได้</p>
     </div>
   );
 }
@@ -133,19 +161,20 @@ export default function BroadcastPageSettings() {
 
   const [adAccountId, setAdAccountId] = useState('');
   const [budgetBaht, setBudgetBaht] = useState(MIN_BUDGET_BAHT);
-  /** ร้านพิมพ์งบเองแล้วหรือยัง — ถ้ายัง ระบบคำนวณให้เรื่อย ๆ ตามจำนวนผู้สมัคร */
   const [budgetTouched, setBudgetTouched] = useState(false);
   const [optin, setOptin] = useState<OptinConfig>(() => readOptinConfig(null));
   const [imageFiles, setImageFiles] = useState<Partial<Record<OptinTrigger, File | null>>>({});
   /** URL พรีวิวของไฟล์ที่เพิ่งเลือก — สร้างครั้งเดียวตอนเลือก ไม่ใช่ทุก render (ไม่งั้นรั่ว) */
   const [imagePreviews, setImagePreviews] = useState<Partial<Record<OptinTrigger, string>>>({});
   const [imageBusy, setImageBusy] = useState(false);
-  /** จังหวะที่กางอยู่ — ทีละอันพอ ไม่งั้นหน้ายาวจนหาไม่เจอ */
-  const [expanded, setExpanded] = useState<OptinTrigger | null>('manual');
-  /** คูปองที่ร้านสร้างไว้แล้ว — ดึงจากโมดูลคูปอง ไม่ตั้งเงื่อนไขซ้ำที่นี่ */
-  const [coupons, setCoupons] = useState<{ id: string; code: string; name: string | null }[]>([]);
-  /** ผู้ใช้ไม่มีสิทธิ์ดูคูปอง (API ใช้ marketing.coupons คนละตัวกับหน้านี้) */
+  /** จังหวะที่กางอยู่ — ทีละอันพอ และเป็นตัวที่พรีวิวข้างขวาแสดงด้วย */
+  const [expanded, setExpanded] = useState<OptinTrigger>('manual');
+
+  const [coupons, setCoupons] = useState<CouponOption[]>([]);
   const [couponsDenied, setCouponsDenied] = useState(false);
+  /** เปิดโมดัลเลือกคูปองให้จังหวะไหน */
+  const [couponPickerFor, setCouponPickerFor] = useState<OptinTrigger | null>(null);
+  const [couponSearch, setCouponSearch] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -170,17 +199,16 @@ export default function BroadcastPageSettings() {
       const adData = adRes.ok ? await adRes.json() : null;
       const ads = ((adData?.accounts || adData || []) as AdAccountOption[]).filter(a => a.external_id);
       setAdAccounts(ads);
-      // มีบัญชีโฆษณาที่ใช้ได้ใบเดียว = ไม่มีอะไรให้เลือก เลือกให้เลย
       const usable = ads.filter(a => a.status === 'active');
       if (usable.length === 1) setAdAccountId(prev => prev || usable[0].external_id);
 
       // คูปองที่เลือกได้ — หน้านี้ใช้สิทธิ์ chat.broadcast แต่ API คูปองใช้ marketing.coupons
-      // คนที่ไม่มีสิทธิ์จึงเห็นคำอธิบายแทน dropdown (ไม่ใช่ error)
+      // คนที่ไม่มีสิทธิ์จึงเห็นคำอธิบายแทนปุ่ม (ไม่ใช่ error)
       const couponRes = await apiFetch('/api/coupons');
       if (couponRes.ok) {
         const data = await couponRes.json().catch(() => null);
-        const list = (data?.coupons || data || []) as { id: string; code: string; name: string | null; is_active?: boolean }[];
-        setCoupons(list.filter(c => c.id && c.is_active !== false).map(c => ({ id: c.id, code: c.code, name: c.name })));
+        const list = (data?.coupons || data || []) as (CouponOption & { is_active?: boolean })[];
+        setCoupons(list.filter(c => c?.id && c.is_active !== false));
       } else if (couponRes.status === 403) {
         setCouponsDenied(true);
       }
@@ -191,7 +219,6 @@ export default function BroadcastPageSettings() {
         const data = await subRes.json().catch(() => null);
         if (data) {
           setSubs(data as SubscriberInfo);
-          // ร้านยังไม่เคยตั้งงบเอง → คำนวณให้จากจำนวนคนที่ส่งถึงได้จริง
           setBudgetBaht(prev => (prev > MIN_BUDGET_BAHT ? prev : budgetFor(Number(data.eligible_now) || 0)));
         }
       } else {
@@ -208,6 +235,7 @@ export default function BroadcastPageSettings() {
 
   const updateScenario = (trigger: OptinTrigger, patch: Partial<OptinScenario>) =>
     setOptin(s => ({ ...s, [trigger]: { ...s[trigger], ...patch } }));
+  const updateOptin = (patch: Partial<OptinConfig>) => setOptin(s => ({ ...s, ...patch }));
 
   const setScenarioImage = (trigger: OptinTrigger, file: File | null) => {
     setImageFiles(s => ({ ...s, [trigger]: file }));
@@ -220,7 +248,6 @@ export default function BroadcastPageSettings() {
       return next;
     });
   };
-  const updateOptin = (patch: Partial<OptinConfig>) => setOptin(s => ({ ...s, ...patch }));
 
   /** รูปขึ้น storage ตอนกดบันทึกเท่านั้น — เลือกแล้วเปลี่ยนใจไม่ทิ้งไฟล์ขยะไว้ */
   const uploadImage = async (file: File): Promise<string> => {
@@ -243,7 +270,7 @@ export default function BroadcastPageSettings() {
     setSaving(true);
     try {
       const next: OptinConfig = { ...optin };
-      for (const trigger of Object.keys(OPTIN_TRIGGERS) as OptinTrigger[]) {
+      for (const trigger of TRIGGER_ORDER) {
         const file = imageFiles[trigger];
         if (file) next[trigger] = { ...next[trigger], image_url: await uploadImage(file) };
       }
@@ -281,15 +308,42 @@ export default function BroadcastPageSettings() {
     }
   };
 
+  const previewScenario = optin[expanded];
+  const previewImage = imagePreviews[expanded] || previewScenario?.image_url || page?.picture_url || null;
+  const previewCoupon = previewScenario?.coupon_id
+    ? coupons.find(c => c.id === previewScenario.coupon_id)
+    : undefined;
+
+  // ลำดับที่ลูกค้าเห็นจริง: ข้อความนำ → การ์ด → (คูปองหลังกดรับ)
+  const previewMessages = useMemo(() => {
+    if (!page || !previewScenario) return [];
+    const list: { key: string; wide?: boolean; node: React.ReactNode }[] = [];
+    if (previewScenario.intro.trim()) {
+      list.push({ key: 'intro', node: <TextBubble>{previewScenario.intro}</TextBubble> });
+    }
+    list.push({
+      key: 'card',
+      wide: true,
+      node: <OptinCardBubble pageName={page.account_name} title={previewScenario.title} imageUrl={previewImage} />,
+    });
+    if (previewCoupon) {
+      const msg = previewScenario.reward_message.includes('{code}')
+        ? previewScenario.reward_message.replace('{code}', previewCoupon.code)
+        : `${previewScenario.reward_message} ${previewCoupon.code}`;
+      list.push({ key: 'coupon', node: <TextBubble>{msg}</TextBubble> });
+    }
+    return list;
+  }, [page, previewScenario, previewImage, previewCoupon]);
+
   if (permLoading || loading) {
-    return <Layout><Container size="2xl"><LoadingCard /></Container></Layout>;
+    return <Layout><Container size="5xl"><LoadingCard /></Container></Layout>;
   }
   if (!allowed) {
-    return <Layout><Container size="2xl"><NoPermissionCard /></Container></Layout>;
+    return <Layout><Container size="5xl"><NoPermissionCard /></Container></Layout>;
   }
   if (!page) {
     return (
-      <Layout><Container size="2xl">
+      <Layout><Container size="5xl">
         <PageHeader title="ตั้งค่าบรอดแคสต์" backHref="/marketing/broadcast/settings" />
         <EmptyCard title="ไม่พบเพจนี้" subtitle="อาจถูกปิดหรือถอดออกไปแล้ว" />
       </Container></Layout>
@@ -297,10 +351,13 @@ export default function BroadcastPageSettings() {
   }
 
   const suggested = subs ? budgetFor(subs.eligible_now) : null;
+  const filteredCoupons = couponSearch.trim()
+    ? coupons.filter(c => `${c.code} ${c.name || ''}`.toLowerCase().includes(couponSearch.trim().toLowerCase()))
+    : coupons;
 
   return (
     <Layout>
-      <Container size="2xl">
+      <Container size="5xl">
         <PageHeader
           title={page.account_name}
           subtitle="ตั้งค่าบรอดแคสต์ของเพจนี้"
@@ -380,7 +437,6 @@ export default function BroadcastPageSettings() {
           </div>
         </Card>
 
-        {/* การ์ดชวนรับข่าวสาร — พับเก็บทีละจังหวะ */}
         <Card padding="md">
           <p className="heading-3 flex items-center gap-1 mb-1">
             การ์ดชวนรับข่าวสาร
@@ -396,162 +452,192 @@ export default function BroadcastPageSettings() {
             หลังปิดการขายให้ใช้แนว &quot;ติดตามของใหม่&quot; ส่วนคนที่ยังไม่ซื้อค่อยใช้ส่วนลดดึงกลับ
           </Alert>
 
-          <div className="mt-3 space-y-2">
-            {(['manual', 'after_sale', 'quiet'] as OptinTrigger[]).map(trigger => {
-              const sc = optin[trigger];
-              const info = OPTIN_TRIGGERS[trigger];
-              const open = expanded === trigger;
-              const previewUrl = imagePreviews[trigger] || sc.image_url || null;
-              return (
-                <div key={trigger} className="inner-panel">
-                  <div className="inner-panel-head flex items-center justify-between gap-3">
-                    <button
-                      type="button"
-                      className="flex items-center gap-2 min-w-0 text-left flex-1"
-                      onClick={() => setExpanded(open ? null : trigger)}
-                      aria-expanded={open}
-                    >
-                      <ChevronDown className={`w-4 h-4 flex-shrink-0 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
-                      <span className="min-w-0">
-                        <span className="body-text font-medium block">{info.label}</span>
-                        <span className="subtitle-text block">{open ? info.description : sc.title || info.description}</span>
-                      </span>
-                    </button>
-                    {trigger === 'manual' ? (
-                      <Badge tone="gray" size="sm">เปิดอยู่เสมอ</Badge>
-                    ) : (
-                      <Toggle
-                        checked={sc.enabled}
-                        onChange={v => { updateScenario(trigger, { enabled: v }); if (v) setExpanded(trigger); }}
-                        aria-label={`เปิดการชวน${info.label}`}
-                      />
-                    )}
-                  </div>
-
-                  {open && (
-                    <div className="inner-panel-body grid md:grid-cols-[170px_1fr_auto] gap-4 items-start">
-                      {/* รูปมาก่อน — Facebook ไม่รับการ์ดที่ไม่มีรูป */}
-                      <div>
-                        <label className="field-label flex items-center gap-1 mb-1">
-                          รูปบนการ์ด
-                          <HelpHint>Facebook ไม่รับการ์ดที่ไม่มีรูป — ไม่อัปเอง ระบบจะใช้โลโก้เพจแทน</HelpHint>
-                        </label>
-                        <ImageDropzone
-                          value={imageFiles[trigger] ?? null}
-                          onChange={f => setScenarioImage(trigger, f)}
-                          initialPreviewUrl={sc.image_url || null}
-                          aspect="1:1"
-                          // การ์ดของ Messenger บังคับจัตุรัส — ให้ผู้ใช้เลือกเองว่าจะเอาส่วนไหน
-                          cropAspect={1}
-                          changeOnClick
-                          maxWidthOrHeight={600}
-                          onBusyChange={setImageBusy}
-                          label="อัปรูป"
-                          hint="ไม่ใส่ = ใช้โลโก้เพจ"
-                          alt={`รูปการ์ด${info.label}`}
+          {/* ซ้าย = ตั้งค่าทีละจังหวะ · ขวา = มือถือจำลองของจังหวะที่กางอยู่ (ตัวเดียวกับที่บรอดแคสต์ใช้) */}
+          <div className="grid lg:grid-cols-[minmax(0,1fr)_auto] gap-4 items-start mt-3">
+            <div className="space-y-2 min-w-0">
+              {TRIGGER_ORDER.map(trigger => {
+                const sc = optin[trigger];
+                const info = OPTIN_TRIGGERS[trigger];
+                const open = expanded === trigger;
+                const coupon = sc.coupon_id ? coupons.find(c => c.id === sc.coupon_id) : undefined;
+                return (
+                  <div key={trigger} className="inner-panel">
+                    <div className="inner-panel-head flex items-center justify-between gap-3">
+                      <button
+                        type="button"
+                        className="flex items-center gap-2 min-w-0 text-left flex-1"
+                        onClick={() => setExpanded(trigger)}
+                        aria-expanded={open}
+                      >
+                        <ChevronDown className={`w-4 h-4 flex-shrink-0 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+                        <span className="min-w-0">
+                          <span className="body-text font-medium block">{info.label}</span>
+                          <span className="subtitle-text block truncate">{open ? info.description : sc.title || info.description}</span>
+                        </span>
+                      </button>
+                      {trigger === 'manual' ? (
+                        <Badge tone="gray" size="sm">เปิดอยู่เสมอ</Badge>
+                      ) : (
+                        <Toggle
+                          checked={sc.enabled}
+                          onChange={v => { updateScenario(trigger, { enabled: v }); if (v) setExpanded(trigger); }}
+                          aria-label={`เปิดการชวน${info.label}`}
                         />
-                      </div>
+                      )}
+                    </div>
 
-                      <div className="grid gap-3">
-                        <FormInput
-                          label="หัวข้อบนการ์ด"
-                          value={sc.title}
-                          maxLength={OPTIN_TITLE_MAX}
-                          onChange={e => updateScenario(trigger, { title: e.target.value })}
-                          placeholder={info.defaultTitle(page.account_name)}
-                          hint={`สูงสุด ${OPTIN_TITLE_MAX} ตัวอักษร · การ์ดของ Facebook มีแค่หัวข้อเดียว`}
-                        />
-                        <FormTextarea
-                          label="ข้อความนำก่อนการ์ด (ไม่บังคับ)"
-                          value={sc.intro}
-                          maxLength={OPTIN_INTRO_MAX}
-                          rows={3}
-                          onChange={e => updateScenario(trigger, { intro: e.target.value })}
-                          placeholder="เช่น ขอบคุณที่อุดหนุนนะคะ 💛 กดรับข่าวสารไว้ จะได้ไม่พลาดของใหม่และโปรพิเศษค่ะ"
-                          hint="ส่งเป็นข้อความธรรมดาก่อนการ์ด — ฟรี ไม่คิดเงินเหมือนข้อความการตลาด"
-                        />
-
-                        {/* คูปองของจังหวะนี้ — คนซื้อแล้วกับคนยังไม่ซื้อควรได้คนละใบ (หรือไม่ได้เลย) */}
+                    {open && (
+                      <div className="inner-panel-body grid sm:grid-cols-[150px_minmax(0,1fr)] gap-3 items-start">
+                        {/* รูปมาก่อน — Facebook ไม่รับการ์ดที่ไม่มีรูป */}
                         <div>
                           <label className="field-label flex items-center gap-1 mb-1">
-                            คูปองที่ส่งให้เมื่อกดรับ
-                            <HelpHint>
-                              ใส่คูปองในการ์ดไม่ได้ (Facebook ให้แค่รูป หัวข้อ ปุ่ม) — ระบบจะส่งโค้ดตามเข้าแชท
-                              ทันทีที่ลูกค้ากดรับ · เงื่อนไข/วันหมดอายุ/โควตา ตั้งที่ <strong>การตลาด › คูปอง</strong> ที่เดียว
-                            </HelpHint>
+                            รูปบนการ์ด
+                            <HelpHint>Facebook ไม่รับการ์ดที่ไม่มีรูป — ไม่อัปเอง ระบบจะใช้โลโก้เพจแทน</HelpHint>
                           </label>
-                          {couponsDenied ? (
-                            <p className="helper-text">ไม่มีสิทธิ์ดูรายการคูปอง — ให้ผู้ดูแลตั้งให้ที่ การตลาด › คูปอง</p>
-                          ) : (
-                            <FormSelect
-                              value={sc.coupon_id || ''}
-                              onChange={v => updateScenario(trigger, { coupon_id: v || null })}
-                              options={[
-                                { id: '', label: 'ไม่ส่งคูปอง' },
-                                ...coupons.map(c => ({ id: c.id, label: c.code, subtitle: c.name || undefined })),
-                              ]}
-                              placeholder={coupons.length ? 'ไม่ส่งคูปอง' : 'ยังไม่มีคูปองในระบบ'}
-                              disabled={coupons.length === 0}
-                            />
-                          )}
+                          <ImageDropzone
+                            value={imageFiles[trigger] ?? null}
+                            onChange={f => setScenarioImage(trigger, f)}
+                            initialPreviewUrl={sc.image_url || null}
+                            aspect="1:1"
+                            cropAspect={1}
+                            changeOnClick
+                            maxWidthOrHeight={600}
+                            onBusyChange={setImageBusy}
+                            label="อัปรูป"
+                            hint="ไม่ใส่ = ใช้โลโก้เพจ"
+                            alt={`รูปการ์ด${info.label}`}
+                          />
                         </div>
 
-                        {sc.coupon_id && (
-                          <FormTextarea
-                            label="ข้อความที่ส่งพร้อมโค้ด"
-                            value={sc.reward_message}
-                            rows={2}
-                            onChange={e => updateScenario(trigger, { reward_message: e.target.value })}
-                            hint="ใส่ {code} ตรงที่อยากให้โค้ดไปอยู่ — ไม่ใส่ ระบบจะต่อโค้ดไว้ท้ายข้อความให้"
+                        <div className="grid gap-3 min-w-0">
+                          <FormInput
+                            label="หัวข้อบนการ์ด"
+                            value={sc.title}
+                            maxLength={OPTIN_TITLE_MAX}
+                            onChange={e => updateScenario(trigger, { title: e.target.value })}
+                            placeholder={info.defaultTitle(page.account_name)}
+                            hint={`สูงสุด ${OPTIN_TITLE_MAX} ตัวอักษร · การ์ดของ Facebook มีแค่หัวข้อเดียว`}
                           />
-                        )}
+                          <FormTextarea
+                            label="ข้อความนำก่อนการ์ด (ไม่บังคับ)"
+                            value={sc.intro}
+                            maxLength={OPTIN_INTRO_MAX}
+                            rows={2}
+                            onChange={e => updateScenario(trigger, { intro: e.target.value })}
+                            placeholder="เช่น ขอบคุณที่อุดหนุนนะคะ 💛 กดรับข่าวสารไว้ จะได้ไม่พลาดของใหม่และโปรพิเศษค่ะ"
+                            hint="ส่งเป็นข้อความธรรมดาก่อนการ์ด — ฟรี ไม่คิดเงินเหมือนข้อความการตลาด"
+                          />
+
+                          {/* คูปองของจังหวะนี้ — เปิดสวิตช์แล้วเลือกใบจากโมดูลคูปอง */}
+                          <div>
+                            <div className="flex items-center justify-between gap-3">
+                              <label className="field-label flex items-center gap-1">
+                                ส่งคูปองเมื่อกดรับ
+                                <HelpHint>
+                                  ใส่คูปองในการ์ดไม่ได้ (Facebook ให้แค่รูป หัวข้อ ปุ่ม) — ระบบส่งโค้ดตามเข้าแชท
+                                  ทันทีที่ลูกค้ากดรับ · เงื่อนไข/วันหมดอายุ/โควตา ตั้งที่ <strong>การตลาด › คูปอง</strong> ที่เดียว
+                                </HelpHint>
+                              </label>
+                              <Toggle
+                                checked={!!sc.coupon_id}
+                                disabled={couponsDenied}
+                                onChange={v => {
+                                  if (v) { setCouponSearch(''); setCouponPickerFor(trigger); }
+                                  else updateScenario(trigger, { coupon_id: null });
+                                }}
+                                aria-label={`ส่งคูปองเมื่อกดรับ (${info.label})`}
+                              />
+                            </div>
+
+                            {couponsDenied ? (
+                              <p className="helper-text mt-1">ไม่มีสิทธิ์ดูรายการคูปอง — ให้ผู้ดูแลตั้งให้ที่ การตลาด › คูปอง</p>
+                            ) : sc.coupon_id && (
+                              <div className="mt-2 grid gap-2">
+                                <button
+                                  type="button"
+                                  className="choice-card choice-card-active flex items-center gap-2 p-2.5 text-left w-full"
+                                  onClick={() => { setCouponSearch(''); setCouponPickerFor(trigger); }}
+                                >
+                                  <Ticket className="w-4 h-4 text-primary flex-shrink-0" />
+                                  <span className="min-w-0 flex-1">
+                                    <span className="body-text font-medium block truncate">{coupon?.code || 'คูปองที่เลือกไว้'}</span>
+                                    <span className="subtitle-text block truncate">
+                                      {coupon ? couponSummary(coupon) : 'คูปองนี้อาจถูกลบหรือปิดไปแล้ว — เลือกใหม่'}
+                                    </span>
+                                  </span>
+                                  <span className="subtitle-text text-primary flex-shrink-0">เปลี่ยน</span>
+                                </button>
+                                <FormTextarea
+                                  label="ข้อความที่ส่งพร้อมโค้ด"
+                                  value={sc.reward_message}
+                                  rows={2}
+                                  onChange={e => updateScenario(trigger, { reward_message: e.target.value })}
+                                  hint="ใส่ {code} ตรงที่อยากให้โค้ดไปอยู่ — ไม่ใส่ ระบบจะต่อโค้ดไว้ท้ายข้อความให้"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
+                    )}
+                  </div>
+                );
+              })}
 
-                      <CardPreview pageName={page.account_name} title={sc.title} imageUrl={previewUrl} />
-                    </div>
-                  )}
+              {/* กติการ่วมของทั้ง 3 จังหวะ */}
+              <div className="grid sm:grid-cols-3 gap-3 pt-3">
+                <div>
+                  <label className="field-label flex items-center gap-1 mb-1">
+                    ถามซ้ำได้ทุก
+                    <HelpHint>Facebook ให้ขอซ้ำได้สัปดาห์ละครั้ง — ตั้งถี่กว่านี้ไม่ได้</HelpHint>
+                  </label>
+                  <FormSelect
+                    value={String(optin.reask_days)}
+                    onChange={v => updateOptin({ reask_days: Number(v) })}
+                    options={[7, 14, 30, 60, 90].map(n => ({ id: String(n), label: `${n} วัน` }))}
+                  />
                 </div>
-              );
-            })}
-          </div>
+                <div>
+                  <label className="field-label block mb-1">ถามคนเดิมได้ไม่เกิน</label>
+                  <FormSelect
+                    value={String(optin.max_asks)}
+                    onChange={v => updateOptin({ max_asks: Number(v) })}
+                    options={[1, 2, 3, 5].map(n => ({ id: String(n), label: `${n} ครั้ง` }))}
+                  />
+                </div>
+                <div>
+                  <label className="field-label flex items-center gap-1 mb-1">
+                    ช่วงที่ถือว่าคุยจบ
+                    <HelpHint>
+                      นับจากข้อความล่าสุดของลูกค้า และส่งเฉพาะห้องที่แอดมินตอบไปแล้ว —
+                      ห้องที่ลูกค้ายังถามค้างอยู่จะไม่ถูกขัดจังหวะ
+                    </HelpHint>
+                  </label>
+                  <FormSelect
+                    value={`${optin.quiet_min_minutes}-${optin.quiet_max_minutes}`}
+                    onChange={v => {
+                      const [min, max] = v.split('-').map(Number);
+                      updateOptin({ quiet_min_minutes: min, quiet_max_minutes: max });
+                    }}
+                    options={QUIET_WINDOWS}
+                  />
+                </div>
+              </div>
+            </div>
 
-          {/* กติการ่วมของทั้ง 3 จังหวะ */}
-          <div className="grid sm:grid-cols-3 gap-3 mt-4 pt-4 border-t border-gray-100 dark:border-slate-700">
-            <div>
-              <label className="field-label flex items-center gap-1 mb-1">
-                ถามซ้ำได้ทุก
-                <HelpHint>Facebook ให้ขอซ้ำได้สัปดาห์ละครั้ง — ตั้งถี่กว่านี้ไม่ได้</HelpHint>
-              </label>
-              <FormSelect
-                value={String(optin.reask_days)}
-                onChange={v => updateOptin({ reask_days: Number(v) })}
-                options={[7, 14, 30, 60, 90].map(n => ({ id: String(n), label: `${n} วัน` }))}
+            {/* พรีวิวตัวเดียวใช้ร่วมทั้ง 3 จังหวะ — เปลี่ยนตามอันที่กางอยู่ */}
+            <div className="lg:sticky lg:top-4">
+              <p className="field-label mb-2">ตัวอย่างที่ลูกค้าเห็น</p>
+              <LinePhonePreview
+                accountName={page.account_name}
+                accountPictureUrl={page.picture_url}
+                messages={previewMessages}
+                size="md"
               />
-            </div>
-            <div>
-              <label className="field-label block mb-1">ถามคนเดิมได้ไม่เกิน</label>
-              <FormSelect
-                value={String(optin.max_asks)}
-                onChange={v => updateOptin({ max_asks: Number(v) })}
-                options={[1, 2, 3, 5].map(n => ({ id: String(n), label: `${n} ครั้ง` }))}
-              />
-            </div>
-            <div>
-              <label className="field-label flex items-center gap-1 mb-1">
-                ช่วงที่ถือว่าคุยจบ
-                <HelpHint>
-                  นับจากข้อความล่าสุดของลูกค้า และส่งเฉพาะห้องที่แอดมินตอบไปแล้ว —
-                  ห้องที่ลูกค้ายังถามค้างอยู่จะไม่ถูกขัดจังหวะ
-                </HelpHint>
-              </label>
-              <FormSelect
-                value={`${optin.quiet_min_minutes}-${optin.quiet_max_minutes}`}
-                onChange={v => {
-                  const [min, max] = v.split('-').map(Number);
-                  updateOptin({ quiet_min_minutes: min, quiet_max_minutes: max });
-                }}
-                options={QUIET_WINDOWS}
-              />
+              <p className="helper-text mt-2 max-w-[19rem]">
+                จังหวะ &quot;{OPTIN_TRIGGERS[expanded].label}&quot; · ข้อความสีจางกับปุ่มบนการ์ดเป็นของ Facebook แก้ไม่ได้
+                {previewCoupon && ' · ฟองสุดท้ายส่งหลังลูกค้ากดรับ'}
+              </p>
             </div>
           </div>
         </Card>
@@ -569,6 +655,63 @@ export default function BroadcastPageSettings() {
           disabled={!adAccountId || adAccounts.length === 0 || imageBusy}
           onCancel={() => router.push('/marketing/broadcast/settings')}
         />
+
+        {/* เลือกคูปองจากที่ร้านสร้างไว้ — ที่นี่ไม่ตั้งเงื่อนไขคูปองเอง */}
+        <Modal
+          open={!!couponPickerFor}
+          onClose={() => setCouponPickerFor(null)}
+          title="เลือกคูปองที่จะส่งให้"
+          icon={<Ticket className="w-5 h-5" />}
+          size="md"
+        >
+          <div className="px-6 py-5">
+            {coupons.length === 0 ? (
+              <EmptyCard
+                title="ยังไม่มีคูปองในระบบ"
+                subtitle="สร้างคูปองที่ การตลาด › คูปอง ก่อน แล้วกลับมาเลือกที่นี่"
+              />
+            ) : (
+              <>
+                <SearchInput
+                  value={couponSearch}
+                  onChange={setCouponSearch}
+                  placeholder="ค้นหาโค้ดหรือชื่อคูปอง"
+                />
+                <div className="mt-3 space-y-2 max-h-[50vh] overflow-y-auto">
+                  {filteredCoupons.map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      className="choice-card flex items-center gap-3 p-3 text-left w-full"
+                      onClick={() => {
+                        if (couponPickerFor) updateScenario(couponPickerFor, { coupon_id: c.id });
+                        setCouponPickerFor(null);
+                      }}
+                    >
+                      <Ticket className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                      <span className="min-w-0 flex-1">
+                        <span className="body-text font-medium block truncate">{c.code}</span>
+                        <span className="subtitle-text block truncate">
+                          {c.name ? `${c.name} · ` : ''}{couponSummary(c)}
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+                  {filteredCoupons.length === 0 && (
+                    <p className="helper-text text-center py-4">ไม่พบคูปองที่ค้นหา</p>
+                  )}
+                </div>
+              </>
+            )}
+            <div className="flex items-center justify-between gap-3 mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
+              <Link href="/marketing/coupons" className="subtitle-text text-primary hover:underline">
+                <Search className="w-4 h-4 inline-block mr-1 -mt-0.5" />
+                จัดการคูปองทั้งหมด
+              </Link>
+              <Button variant="secondary" onClick={() => setCouponPickerFor(null)}>ปิด</Button>
+            </div>
+          </div>
+        </Modal>
       </Container>
     </Layout>
   );
