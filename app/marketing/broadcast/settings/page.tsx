@@ -1,15 +1,12 @@
 // Path: app/marketing/broadcast/settings/page.tsx
 //
-// ตั้งค่าบรอดแคสต์ราย **เพจ Facebook** — ตั้งเสร็จเพจถึงจะโผล่ให้เลือกในหน้าสร้างบรอดแคสต์
-//
-// ทำไมต้องตั้งค่าก่อน: ข้อความการตลาดบน Messenger **ส่งผ่านบัญชีโฆษณาและคิดเงินต่อข้อความ**
-// (คนละท่อกับแชทปกติที่ฟรีในกรอบ 24 ชม.) เพจที่ยังไม่ผูกบัญชีโฆษณา/ยังไม่ตั้งงบจึงส่งไม่ได้
-// — กติกาความพร้อมอยู่ที่ `isBroadcastReadyFromCredentials()` ที่เดียว ทั้งหน้านี้ หน้าเลือก
-// ช่องทาง และ API ตอนส่งจริงอ่านตัวเดียวกัน
+// รายการเพจ Facebook + สถานะว่าตั้งค่าครบหรือยัง — ตั้งค่าจริงอยู่ที่ `[id]/page.tsx` ทีละเพจ
+// (ร้านมีได้หลายเพจ ยัดทุกเพจทุกหัวข้อไว้หน้าเดียวแล้วหาไม่เจอว่าอันไหนตั้งแล้ว)
 'use client';
 
 import { useState, useCallback } from 'react';
-import { Megaphone, Users, Info } from 'lucide-react';
+import Link from 'next/link';
+import { Megaphone, Settings, Info, Check } from 'lucide-react';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
@@ -17,50 +14,15 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import Alert from '@/components/ui/Alert';
-import FormSelect from '@/components/ui/FormSelect';
-import FormInput from '@/components/ui/FormInput';
-import Toggle from '@/components/ui/Toggle';
-import NumberInput from '@/components/ui/NumberInput';
 import ChannelBadge from '@/components/ui/ChannelBadge';
-import HelpHint from '@/components/ui/HelpHint';
 import { LoadingCard, NoPermissionCard, EmptyCard } from '@/components/ui/StateCard';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import { useToast } from '@/lib/toast-context';
 import { useFetchOnce } from '@/lib/use-fetch-once';
-import { apiFetch, invalidateApiCache } from '@/lib/api-client';
-import { formatPrice, formatThaiDateTime } from '@/lib/utils/format';
+import { apiFetch } from '@/lib/api-client';
+import { formatPrice } from '@/lib/utils/format';
 import { BROADCAST_PLATFORMS, BROADCAST_SETUP_KEYS } from '@/lib/broadcast/platforms';
-import {
-  readOptinConfig, validateOptinConfig, OPTIN_TRIGGERS, OPTIN_TITLE_MAX,
-  type OptinConfig, type OptinScenario, type OptinTrigger,
-} from '@/lib/broadcast/optin';
-
-/** งบที่ Meta ยอมรับต่ำสุดเท่าที่ยิงจริงแล้วผ่าน — 1 บาทถูกปฏิเสธ (Invalid parameter) */
-const MIN_BUDGET_BAHT = 35;
-const DEFAULT_BUDGET_BAHT = 100;
-/** ราคาต่อข้อความยังไม่รู้ค่าจริง (ยังไม่มี spend กลับมาจาก Meta) — ใช้ประมาณไว้คำนวณงบก่อน */
-const ASSUMED_COST_PER_MESSAGE = 2;
-
-/** ค่าที่ผู้ใช้กำลังแก้ของเพจหนึ่ง (ยังไม่บันทึก) */
-interface PageDraft {
-  adAccountId: string;
-  budgetBaht: number;
-  /** การ์ดชวนรับข่าวสารทั้ง 3 สถานการณ์ — โครงอยู่ที่ lib/broadcast/optin.ts */
-  optin: OptinConfig;
-}
-
-const EMPTY_DRAFT: PageDraft = {
-  adAccountId: '',
-  budgetBaht: DEFAULT_BUDGET_BAHT,
-  optin: readOptinConfig(null),
-};
-
-/** ช่วง "เงียบแล้ว" ที่ให้เลือก — ทุกตัวมี**ขอบบน** เสมอ (ดูเหตุผลใน validateOptinConfig) */
-const QUIET_WINDOWS = [
-  { id: '15-45', label: '15–45 นาที', subtitle: 'ไวที่สุด — ลูกค้ายังจำบทสนทนาได้' },
-  { id: '30-60', label: '30–60 นาที', subtitle: 'แนะนำ' },
-  { id: '60-180', label: '1–3 ชั่วโมง', subtitle: 'ห่างขึ้น เหมาะกับร้านที่ลูกค้าคิดนาน' },
-];
+import { readOptinConfig, OPTIN_TRIGGERS, type OptinTrigger } from '@/lib/broadcast/optin';
 
 interface PageAccount {
   id: string;
@@ -72,30 +34,13 @@ interface PageAccount {
   credentials?: Record<string, unknown>;
 }
 
-interface AdAccountOption {
-  id: string;
-  external_id: string;
-  name: string | null;
-  status: string;
-}
-
-interface SubscriberInfo {
-  total: number;
-  eligible_now: number;
-  next_eligible_at: string | null;
-}
-
 export default function BroadcastSettingsPage() {
   const { allowed, loading: permLoading } = useAuthGuard('chat.broadcast', { noRedirect: true });
   const { showToast } = useToast();
 
   const [pages, setPages] = useState<PageAccount[]>([]);
-  const [adAccounts, setAdAccounts] = useState<AdAccountOption[]>([]);
+  const [hasAdAccount, setHasAdAccount] = useState(true);
   const [loading, setLoading] = useState(true);
-  /** ค่าที่ผู้ใช้กำลังแก้ต่อเพจ (ยังไม่บันทึก) */
-  const [draft, setDraft] = useState<Record<string, PageDraft>>({});
-  const [saving, setSaving] = useState<string | null>(null);
-  const [subs, setSubs] = useState<Record<string, SubscriberInfo | 'loading' | 'error'>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -105,30 +50,10 @@ export default function BroadcastSettingsPage() {
         apiFetch('/api/ads/accounts?lite=1'),
       ]);
       const chatData = chatRes.ok ? await chatRes.json() : { accounts: [] };
-      const fbPages: PageAccount[] = (chatData.accounts || []).filter(
-        (a: PageAccount) => a.platform === 'facebook' && a.is_active,
-      );
-      setPages(fbPages);
+      setPages((chatData.accounts || []).filter((a: PageAccount) => a.platform === 'facebook' && a.is_active));
 
       const adData = adRes.ok ? await adRes.json() : null;
-      const list: AdAccountOption[] = (adData?.accounts || adData || [])
-        .filter((a: AdAccountOption) => a.external_id)
-        .map((a: AdAccountOption) => ({ id: a.id, external_id: a.external_id, name: a.name, status: a.status }));
-      setAdAccounts(list);
-
-      // ตั้งค่าเดิมของแต่ละเพจเป็นค่าเริ่มต้นของฟอร์ม
-      const next: Record<string, PageDraft> = {};
-      for (const p of fbPages) {
-        const c = p.credentials || {};
-        const satang = Number(c[BROADCAST_SETUP_KEYS.dailyBudget] ?? 0);
-        next[p.id] = {
-          adAccountId: String(c[BROADCAST_SETUP_KEYS.adAccountId] ?? ''),
-          budgetBaht: satang > 0 ? satang / 100 : DEFAULT_BUDGET_BAHT,
-          // เติม default ให้ครบเสมอ + อ่านค่ารุ่นแรก (ชุดเดียว) เป็น fallback ของ manual
-          optin: readOptinConfig(c, p.account_name),
-        };
-      }
-      setDraft(next);
+      setHasAdAccount(((adData?.accounts || adData || []) as { external_id?: string }[]).some(a => a.external_id));
     } catch {
       showToast('โหลดข้อมูลไม่สำเร็จ', 'error');
     } finally {
@@ -137,74 +62,6 @@ export default function BroadcastSettingsPage() {
   }, [showToast]);
 
   useFetchOnce(load, allowed && !permLoading);
-
-  /** ถาม Meta สดว่าเพจนี้มีผู้สมัครกี่คน — ไม่โหลดล่วงหน้าทุกเพจ เพราะยิง Graph ทีละใบ */
-  const loadSubscribers = async (pageId: string) => {
-    setSubs(s => ({ ...s, [pageId]: 'loading' }));
-    try {
-      const res = await apiFetch(`/api/broadcasts/messenger-subscribers?account_id=${pageId}`);
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setSubs(s => ({ ...s, [pageId]: 'error' }));
-        showToast(typeof data.error === 'string' ? data.error : 'ถามรายชื่อผู้สมัครไม่สำเร็จ', 'error');
-        return;
-      }
-      setSubs(s => ({ ...s, [pageId]: data as SubscriberInfo }));
-    } catch {
-      setSubs(s => ({ ...s, [pageId]: 'error' }));
-    }
-  };
-
-  const save = async (page: PageAccount) => {
-    const d = draft[page.id];
-    if (!d?.adAccountId) { showToast('เลือกบัญชีโฆษณาก่อน', 'error'); return; }
-    if (d.budgetBaht < MIN_BUDGET_BAHT) {
-      showToast(`งบต่อวันต้องไม่ต่ำกว่า ${MIN_BUDGET_BAHT} บาท (Meta ปฏิเสธงบที่ต่ำกว่านี้)`, 'error');
-      return;
-    }
-    const optinError = validateOptinConfig(d.optin);
-    if (optinError) { showToast(optinError, 'error'); return; }
-    setSaving(page.id);
-    try {
-      const res = await apiFetch('/api/chat-accounts', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: page.id,
-          // PUT merge กับ credentials เดิมให้อยู่แล้ว — ส่งเฉพาะคีย์ที่เปลี่ยน token ของเพจไม่หาย
-          credentials: {
-            [BROADCAST_SETUP_KEYS.adAccountId]: d.adAccountId,
-            [BROADCAST_SETUP_KEYS.dailyBudget]: Math.round(d.budgetBaht * 100),
-            // ⚠️ ส่ง**ก้อนเต็ม**เสมอ — PUT merge แบบ shallow ต่อ top-level key
-            // ส่งไม่ครบ = ค่าที่เหลือหายทั้งชุด (ไม่ใช่คงของเดิมไว้)
-            [BROADCAST_SETUP_KEYS.optin]: d.optin,
-          },
-        }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        showToast(typeof data.error === 'string' ? data.error : 'บันทึกไม่สำเร็จ', 'error');
-        return;
-      }
-      invalidateApiCache('/api/chat-accounts');
-      showToast(`ตั้งค่า ${page.account_name} แล้ว — เลือกเพจนี้ในหน้าสร้างบรอดแคสต์ได้เลย`, 'success');
-      await load();
-    } catch {
-      showToast('บันทึกไม่สำเร็จ', 'error');
-    } finally {
-      setSaving(null);
-    }
-  };
-
-  /** แก้ค่าร่วมของการ์ดชวน (ถามซ้ำทุกกี่วัน · กี่ครั้ง · ช่วงเงียบ) */
-  const updateOptin = (pageId: string, patch: Partial<OptinConfig>) =>
-    setDraft(s => (s[pageId] ? { ...s, [pageId]: { ...s[pageId], optin: { ...s[pageId].optin, ...patch } } } : s));
-
-  /** แก้ข้อความของสถานการณ์เดียว */
-  const updateScenario = (pageId: string, trigger: OptinTrigger, patch: Partial<OptinScenario>) =>
-    setDraft(s => (s[pageId]
-      ? { ...s, [pageId]: { ...s[pageId], optin: { ...s[pageId].optin, [trigger]: { ...s[pageId].optin[trigger], ...patch } } } }
-      : s));
 
   if (permLoading || loading) {
     return <Layout><Container size="4xl"><LoadingCard /></Container></Layout>;
@@ -231,7 +88,7 @@ export default function BroadcastSettingsPage() {
           จึงต้องตั้งงบเป็นเพดานไว้ก่อน · ส่งได้ 1 ข้อความ ต่อคน ต่อ 12 ชั่วโมง
         </Alert>
 
-        {adAccounts.length === 0 && (
+        {!hasAdAccount && (
           <Alert tone="warning" title="ยังไม่มีบัญชีโฆษณา">
             ต้องเชื่อมบัญชีโฆษณาที่ผูกบัตรแล้วก่อน — ไปที่ ตั้งค่า › บัญชีโฆษณา
           </Alert>
@@ -243,221 +100,44 @@ export default function BroadcastSettingsPage() {
             subtitle="เชื่อมเพจที่ ตั้งค่า › ช่องทาง Chat ก่อน แล้วกลับมาตั้งค่าบรอดแคสต์ที่นี่"
           />
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {pages.map(page => {
-              const d = draft[page.id] || EMPTY_DRAFT;
-              const sub = subs[page.id];
-              const subInfo = typeof sub === 'object' ? sub : null;
-              // งบที่ "ควรตั้ง" คิดจากคนที่ส่งถึงได้จริง — ร้านคิดเป็นจำนวนคน ไม่ใช่ยอดเงิน
-              const suggested = subInfo
-                ? Math.max(MIN_BUDGET_BAHT, Math.ceil(subInfo.eligible_now * ASSUMED_COST_PER_MESSAGE * 1.5))
-                : null;
+              const c = page.credentials || {};
+              const satang = Number(c[BROADCAST_SETUP_KEYS.dailyBudget] ?? 0);
+              const optin = readOptinConfig(c, page.account_name);
+              const autoOn = (['after_sale', 'quiet'] as OptinTrigger[]).filter(t => optin[t].enabled);
 
               return (
                 <Card key={page.id} padding="md">
-                  <div className="flex items-start justify-between gap-3 mb-4">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <ChannelBadge channel={{ platform: 'facebook', picture_url: page.picture_url }} size="md" />
-                      <div className="min-w-0">
-                        <p className="heading-4 truncate">{page.account_name}</p>
-                        <p className="subtitle-text">เพจ Facebook</p>
-                      </div>
-                    </div>
-                    {page.broadcast_ready
-                      ? <Badge tone="emerald" size="sm">พร้อมบรอดแคสต์</Badge>
-                      : <Badge tone="amber" size="sm">ยังตั้งค่าไม่ครบ</Badge>}
-                  </div>
-
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="field-label block mb-1">บัญชีโฆษณาที่ใช้ส่ง</label>
-                      <FormSelect
-                        value={d.adAccountId}
-                        onChange={v => setDraft(s => ({ ...s, [page.id]: { ...d, adAccountId: v } }))}
-                        options={adAccounts.map(a => ({
-                          id: a.external_id,
-                          label: a.name || a.external_id,
-                          subtitle: a.status === 'active' ? undefined : 'บัญชีมีปัญหา',
-                          disabled: a.status !== 'active',
-                        }))}
-                        placeholder={adAccounts.length ? '-- เลือกบัญชีโฆษณา --' : 'ยังไม่มีบัญชีโฆษณา'}
-                        disabled={adAccounts.length === 0}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="field-label flex items-center gap-1 mb-1">
-                        งบต่อวัน (บาท)
-                        <HelpHint>
-                          เป็น<strong>เพดาน</strong> ไม่ใช่ยอดที่ถูกหัก — Meta คิดเงินตามข้อความที่ส่งถึงจริงเท่านั้น
-                          ตั้งสูงกว่าที่ใช้จริงไม่ได้เสียเงินเพิ่ม แต่ตั้งต่ำกว่า {MIN_BUDGET_BAHT} บาท Meta จะปฏิเสธ
-                        </HelpHint>
-                      </label>
-                      <NumberInput
-                        value={d.budgetBaht}
-                        onChange={n => setDraft(s => ({ ...s, [page.id]: { ...d, budgetBaht: n } }))}
-                        min={String(MIN_BUDGET_BAHT)}
-                      />
-                      {suggested != null && (
-                        <button
-                          type="button"
-                          className="mt-1 subtitle-text text-primary hover:underline"
-                          onClick={() => setDraft(s => ({ ...s, [page.id]: { ...d, budgetBaht: suggested } }))}
-                        >
-                          ใช้ {formatPrice(suggested)} บาท (พอสำหรับ {subInfo?.eligible_now} คนที่ส่งได้ตอนนี้)
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* การ์ดชวนรับข่าวสาร — ตั้งข้อความแยกตาม "จังหวะที่ส่ง"
-                      ⚠️ Meta ให้ส่งได้เฉพาะในกรอบ 24 ชม. นับจากลูกค้าทักล่าสุด · 1 ครั้ง/สัปดาห์/คน */}
-                  <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700">
-                    <p className="field-label flex items-center gap-1 mb-2">
-                      การ์ดชวนรับข่าวสาร
-                      <HelpHint>
-                        ลูกค้าที่กดรับข่าวสารคือกลุ่มเดียวที่ส่งบรอดแคสต์ถึงได้แม้พ้นกรอบ 24 ชั่วโมง ·
-                        Facebook ให้ส่งคำชวนเฉพาะตอนที่ลูกค้าทักมาภายใน 24 ชั่วโมง และขอซ้ำได้สัปดาห์ละครั้ง
-                      </HelpHint>
-                    </p>
-
-                    <Alert tone="warning" title="ข้อความของแต่ละจังหวะต้องไม่เหมือนกัน">
-                      คนที่เพิ่งจ่ายเงินไปแล้วมาเจอ &quot;ลด 5%&quot; จะรู้สึกว่าเมื่อกี้ซื้อแพงไป —
-                      หลังปิดการขายให้ใช้แนว &quot;ติดตามของใหม่&quot; ส่วนคนที่ยังไม่ซื้อค่อยใช้ส่วนลดดึงกลับ
-                    </Alert>
-
-                    {(['manual', 'after_sale', 'quiet'] as OptinTrigger[]).map(trigger => {
-                      const sc = d.optin[trigger];
-                      const info = OPTIN_TRIGGERS[trigger];
-                      return (
-                        <div key={trigger} className="inner-panel mt-3">
-                          <div className="inner-panel-head flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <p className="body-text font-medium">{info.label}</p>
-                              <p className="subtitle-text">{info.description}</p>
-                            </div>
-                            {trigger === 'manual' ? (
-                              <Badge tone="gray" size="sm">เปิดอยู่เสมอ</Badge>
-                            ) : (
-                              <Toggle
-                                checked={sc.enabled}
-                                onChange={v => updateScenario(page.id, trigger, { enabled: v })}
-                                aria-label={`เปิดการชวน${info.label}`}
-                              />
-                            )}
-                          </div>
-                          <div className="inner-panel-body grid sm:grid-cols-2 gap-3">
-                            <FormInput
-                              label="หัวข้อบนการ์ด"
-                              value={sc.title}
-                              maxLength={OPTIN_TITLE_MAX}
-                              onChange={e => updateScenario(page.id, trigger, { title: e.target.value })}
-                              placeholder={info.defaultTitle(page.account_name || 'ร้าน')}
-                            />
-                            <div>
-                              <label className="field-label block mb-1">ความถี่ที่ขอจากลูกค้า</label>
-                              <FormSelect
-                                value={sc.frequency}
-                                onChange={v => updateScenario(page.id, trigger, { frequency: v as OptinScenario['frequency'] })}
-                                options={[
-                                  { id: 'DAILY', label: 'ทุกวัน', subtitle: 'ถี่ที่สุด — ลูกค้าอาจรู้สึกถูกรบกวน' },
-                                  { id: 'WEEKLY', label: 'ทุกสัปดาห์', subtitle: 'แนะนำ' },
-                                  { id: 'MONTHLY', label: 'ทุกเดือน', subtitle: 'ห่างจนลูกค้าอาจลืมว่าสมัครไว้' },
-                                ]}
-                              />
-                            </div>
-                            <div className="sm:col-span-2">
-                              <FormInput
-                                label="ลิงก์รูปบนการ์ด (จัตุรัส)"
-                                value={sc.image_url}
-                                onChange={e => updateScenario(page.id, trigger, { image_url: e.target.value })}
-                                placeholder="ไม่ใส่ = การ์ดข้อความล้วน"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    {/* กติการ่วมของทั้ง 3 สถานการณ์ */}
-                    <div className="grid sm:grid-cols-3 gap-3 mt-3">
-                      <div>
-                        <label className="field-label flex items-center gap-1 mb-1">
-                          ถามซ้ำได้ทุก
-                          <HelpHint>Facebook ให้ขอซ้ำได้สัปดาห์ละครั้ง — ตั้งถี่กว่านี้ไม่ได้</HelpHint>
-                        </label>
-                        <FormSelect
-                          value={String(d.optin.reask_days)}
-                          onChange={v => updateOptin(page.id, { reask_days: Number(v) })}
-                          options={[7, 14, 30, 60, 90].map(n => ({ id: String(n), label: `${n} วัน` }))}
-                        />
-                      </div>
-                      <div>
-                        <label className="field-label block mb-1">ถามคนเดิมได้ไม่เกิน</label>
-                        <FormSelect
-                          value={String(d.optin.max_asks)}
-                          onChange={v => updateOptin(page.id, { max_asks: Number(v) })}
-                          options={[1, 2, 3, 5].map(n => ({ id: String(n), label: `${n} ครั้ง` }))}
-                        />
-                      </div>
-                      <div>
-                        <label className="field-label flex items-center gap-1 mb-1">
-                          ช่วงที่ถือว่าคุยจบ
-                          <HelpHint>
-                            นับจากข้อความล่าสุดของลูกค้า และส่งเฉพาะห้องที่แอดมินตอบไปแล้ว —
-                            ห้องที่ลูกค้ายังถามค้างอยู่จะไม่ถูกขัดจังหวะ
-                          </HelpHint>
-                        </label>
-                        <FormSelect
-                          value={`${d.optin.quiet_min_minutes}-${d.optin.quiet_max_minutes}`}
-                          onChange={v => {
-                            const [min, max] = v.split('-').map(Number);
-                            updateOptin(page.id, { quiet_min_minutes: min, quiet_max_minutes: max });
-                          }}
-                          options={QUIET_WINDOWS}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* ผู้สมัคร — ถามสดจาก Meta เพราะรายชื่ออยู่ที่เขา ไม่ใช่ของเรา */}
-                  <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700">
-                    {subInfo ? (
+                  <div className="flex items-center gap-3">
+                    <ChannelBadge channel={{ platform: 'facebook', picture_url: page.picture_url }} size="md" />
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <Users className="w-4 h-4 text-gray-400" />
-                        <span className="body-text">
-                          ผู้สมัครรับข่าวสาร <strong>{subInfo.total}</strong> คน ·
-                          ส่งได้ตอนนี้ <strong>{subInfo.eligible_now}</strong> คน
-                        </span>
-                        {subInfo.eligible_now === 0 && subInfo.next_eligible_at && (
-                          <span className="subtitle-text">
-                            (ส่งได้อีกครั้ง {formatThaiDateTime(subInfo.next_eligible_at)})
-                          </span>
-                        )}
-                        <Button variant="ghost" size="sm" onClick={() => loadSubscribers(page.id)}>ดูใหม่</Button>
+                        <p className="heading-4 truncate">{page.account_name}</p>
+                        {page.broadcast_ready
+                          ? <Badge tone="emerald" size="sm">พร้อมบรอดแคสต์</Badge>
+                          : <Badge tone="amber" size="sm">ยังตั้งค่าไม่ครบ</Badge>}
                       </div>
-                    ) : (
+                      {/* สรุปว่าตั้งอะไรไว้แล้วบ้าง — จะได้ไม่ต้องกดเข้าไปดูทีละเพจ */}
+                      <p className="subtitle-text mt-0.5">
+                        {page.broadcast_ready
+                          ? `งบ ${formatPrice(satang / 100)} บาท/วัน`
+                          : 'ยังไม่ได้ผูกบัญชีโฆษณาหรือยังไม่ได้ตั้งงบ'}
+                        {' · '}
+                        {autoOn.length
+                          ? `ชวนรับข่าวสารอัตโนมัติ: ${autoOn.map(t => OPTIN_TRIGGERS[t].label).join(' · ')}`
+                          : 'ชวนรับข่าวสารเฉพาะตอนแอดมินกดเอง'}
+                      </p>
+                    </div>
+                    <Link href={`/marketing/broadcast/settings/${page.id}`} className="flex-shrink-0">
                       <Button
-                        variant="secondary"
+                        variant={page.broadcast_ready ? 'secondary' : 'primary'}
                         size="sm"
-                        icon={<Users className="w-4 h-4" />}
-                        loading={sub === 'loading'}
-                        onClick={() => loadSubscribers(page.id)}
+                        icon={page.broadcast_ready ? <Check className="w-4 h-4" /> : <Settings className="w-4 h-4" />}
                       >
-                        ดูจำนวนผู้สมัคร
+                        {page.broadcast_ready ? 'แก้ไข' : 'ตั้งค่า'}
                       </Button>
-                    )}
-                  </div>
-
-                  <div className="flex justify-end gap-3 mt-4">
-                    <Button
-                      variant="primary"
-                      loading={saving === page.id}
-                      disabled={!d.adAccountId || adAccounts.length === 0}
-                      onClick={() => save(page)}
-                    >
-                      บันทึก
-                    </Button>
+                    </Link>
                   </div>
                 </Card>
               );
@@ -467,10 +147,7 @@ export default function BroadcastSettingsPage() {
 
         <p className="helper-text flex items-start gap-1.5 mt-4">
           <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
-          <span>
-            {info.setupHint} · แคมเปญที่สร้างใหม่ต้องรอ Meta เตรียมก่อนส่งได้
-            (วัดจริงประมาณ 2 ชั่วโมง) ระบบจะลองส่งให้เองจนกว่าจะสำเร็จ
-          </span>
+          <span>{info.setupHint}</span>
         </p>
       </Container>
     </Layout>
