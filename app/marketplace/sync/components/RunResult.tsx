@@ -93,7 +93,7 @@ export default function RunResult({ runId, onBack, onOpenRun, onRecheck }: Props
         icon={<Package className="w-10 h-10 text-gray-300 dark:text-slate-600" />}
         title="ไม่พบรอบนี้"
         subtitle="รายการก่อน 16 ก.ย. 2569 ไม่ได้บันทึกเป็นรอบ จึงเปิดดูย้อนหลังไม่ได้"
-        actions={<Button variant="primary" onClick={onBack}>กลับไปเลือกงาน</Button>}
+        actions={<Button variant="primary" onClick={onBack}>เสร็จเรียบร้อย</Button>}
       />
     );
   }
@@ -303,53 +303,6 @@ export default function RunResult({ runId, onBack, onOpenRun, onRecheck }: Props
         </Alert>
       )}
 
-      {/* กล่องปุ่มย้อน */}
-      {isStockJob && run.status !== 'previewed' && (
-        <Card>
-          <h2 className="heading-3 mb-2">ย้อนรอบนี้</h2>
-          {revertability.can_revert ? (
-            <>
-              <p className="body-text">
-                คืนยอดกลับเป็นค่าก่อนรอบนี้ — ระบบจะสร้าง &quot;รอบย้อน&quot; ใหม่ ไม่ได้ลบประวัติรอบเดิม
-              </p>
-              {revertability.warnings.map(w => (
-                <div className="mt-3" key={w}>
-                  <Alert tone="warning">
-                    <p>{REVERT_WARNING_LABELS[w]}</p>
-                    {w === 'auto_sync_on' && (
-                      <div className="flex justify-end mt-3">
-                        <Button variant="secondary" size="sm" loading={savingAutoSync} onClick={turnOffAutoSync}>
-                          ปิดซิงค์อัตโนมัติของร้านนี้ก่อน
-                        </Button>
-                      </div>
-                    )}
-                  </Alert>
-                </div>
-              ))}
-              <div className="flex justify-end gap-3 mt-4">
-                <Button variant="danger" icon={<Undo2 className="w-4 h-4" />} onClick={doRevert}>
-                  ย้อนรอบนี้
-                </Button>
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="body-text">
-                {revertability.reason ? REVERT_REASON_LABELS[revertability.reason] : 'ย้อนรอบนี้ไม่ได้'}
-              </p>
-              <div className="flex flex-wrap justify-end gap-3 mt-4">
-                {revertability.newer_run_id && (
-                  <Button variant="secondary" onClick={() => onOpenRun(revertability.newer_run_id!)}>
-                    เปิดรอบที่ใหม่กว่า
-                  </Button>
-                )}
-                <Button variant="danger" disabled icon={<Undo2 className="w-4 h-4" />}>ย้อนรอบนี้</Button>
-              </div>
-            </>
-          )}
-        </Card>
-      )}
-
       {/* ผลของการย้อนที่เพิ่งกดไป */}
       {revertResult && (
         <Card>
@@ -433,8 +386,56 @@ export default function RunResult({ runId, onBack, onOpenRun, onRecheck }: Props
         </Card>
       )}
 
+      {/* กล่องปุ่มย้อนอยู่ล่างสุด — ให้อ่านผลที่เกิดขึ้นจริงให้จบก่อนค่อยตัดสินใจย้อน */}
+      {isStockJob && run.status !== 'previewed' && (
+        <Card>
+          <h2 className="heading-3 mb-2">ย้อนรอบนี้</h2>
+          {revertability.can_revert ? (
+            <>
+              <p className="body-text">
+                คืนยอดกลับเป็นค่าก่อนรอบนี้ — ระบบจะสร้าง &quot;รอบย้อน&quot; ใหม่ ไม่ได้ลบประวัติรอบเดิม
+              </p>
+              {revertability.warnings.map(w => (
+                <div className="mt-3" key={w}>
+                  <Alert tone="warning">
+                    <p>{REVERT_WARNING_LABELS[w]}</p>
+                    {w === 'auto_sync_on' && (
+                      <div className="flex justify-end mt-3">
+                        <Button variant="secondary" size="sm" loading={savingAutoSync} onClick={turnOffAutoSync}>
+                          ปิดซิงค์อัตโนมัติของร้านนี้ก่อน
+                        </Button>
+                      </div>
+                    )}
+                  </Alert>
+                </div>
+              ))}
+              <div className="flex justify-end gap-3 mt-4">
+                <Button variant="danger" icon={<Undo2 className="w-4 h-4" />} onClick={doRevert}>
+                  ย้อนรอบนี้
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="body-text">
+                {revertability.reason ? REVERT_REASON_LABELS[revertability.reason] : 'ย้อนรอบนี้ไม่ได้'}
+              </p>
+              <div className="flex flex-wrap justify-end gap-3 mt-4">
+                {revertability.newer_run_id && (
+                  <Button variant="secondary" onClick={() => onOpenRun(revertability.newer_run_id!)}>
+                    เปิดรอบที่ใหม่กว่า
+                  </Button>
+                )}
+                <Button variant="danger" disabled icon={<Undo2 className="w-4 h-4" />}>ย้อนรอบนี้</Button>
+              </div>
+            </>
+          )}
+        </Card>
+      )}
+
+
       <div className="flex justify-end gap-3">
-        <Button variant="secondary" onClick={onBack}>กลับไปเลือกงาน</Button>
+        <Button variant="primary" onClick={onBack}>เสร็จเรียบร้อย</Button>
       </div>
     </div>
   );
