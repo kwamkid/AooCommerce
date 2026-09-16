@@ -12,11 +12,18 @@ export interface FeatureFlags {
   delivery_slot: { enabled: boolean; required: boolean };
   marketplace_sync: boolean;
   pos: boolean;
+  /** หน้าร้านออนไลน์ (storefront) — ลิงก์ร้าน + ตะกร้า + checkout */
+  storefront: boolean;
+  /** หน้าขาย PC ประจำเคาน์เตอร์ห้าง — บันทึกยอดขายหน้างาน */
+  counter_sales: boolean;
   consignment: boolean;
-  product_brand: boolean;
-  parcel_splitting: boolean;
-  supplier: boolean;
   department_store: boolean;
+  product_brand: boolean;
+  supplier: boolean;
+  /** บรอดแคสต์ — ส่งข้อความการตลาดเข้าห้องแชท */
+  broadcast: boolean;
+  /** กลุ่มเป้าหมาย + ส่ง Audience ขึ้นแพลตฟอร์มโฆษณา */
+  audience: boolean;
   // Inventory / warehouse system. Gated by package — when the active package
   // has stock_enabled=false (e.g. Free) the toggle is locked off.
   stock: boolean;
@@ -51,9 +58,12 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
     delivery_slot: { enabled: true, required: false },
     marketplace_sync: false,
     pos: false,
+    storefront: true,
+    counter_sales: false,
+    broadcast: false,
+    audience: false,
     consignment: false,
     product_brand: false,
-    parcel_splitting: false,
     supplier: false,
     department_store: false,
     stock: true,
@@ -64,9 +74,12 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
     delivery_slot: { enabled: false, required: false },
     marketplace_sync: true,
     pos: false,
+    storefront: true,
+    counter_sales: false,
+    broadcast: false,
+    audience: false,
     consignment: false,
     product_brand: false,
-    parcel_splitting: false,
     supplier: false,
     department_store: false,
     stock: true,
@@ -77,9 +90,12 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
     delivery_slot: { enabled: false, required: false },
     marketplace_sync: true,
     pos: false,
+    storefront: true,
+    counter_sales: false,
+    broadcast: false,
+    audience: false,
     consignment: false,
     product_brand: true,
-    parcel_splitting: false,
     supplier: false,
     department_store: false,
     stock: true,
@@ -90,9 +106,12 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
     delivery_slot: { enabled: false, required: false },
     marketplace_sync: true,
     pos: true,
+    storefront: true,
+    counter_sales: false,
+    broadcast: true,
+    audience: false,
     consignment: true,
     product_brand: false,
-    parcel_splitting: false,
     supplier: true,
     department_store: false,
     stock: true,
@@ -103,9 +122,12 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
     delivery_slot: { enabled: false, required: false },
     marketplace_sync: true,
     pos: true,
+    storefront: true,
+    counter_sales: true,
+    broadcast: true,
+    audience: false,
     consignment: true,
     product_brand: true,
-    parcel_splitting: false,
     supplier: true,
     department_store: true,
     stock: true,
@@ -116,9 +138,12 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
     delivery_slot: { enabled: false, required: false },
     marketplace_sync: false,
     pos: false,
+    storefront: true,
+    counter_sales: true,
+    broadcast: false,
+    audience: false,
     consignment: false,
     product_brand: false,
-    parcel_splitting: false,
     supplier: true,
     department_store: true,
     stock: true,
@@ -129,9 +154,12 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
     delivery_slot: { enabled: false, required: false },
     marketplace_sync: false,
     pos: false,
+    storefront: true,
+    counter_sales: false,
+    broadcast: false,
+    audience: false,
     consignment: true,
     product_brand: false,
-    parcel_splitting: false,
     supplier: true,
     department_store: false,
     stock: true,
@@ -150,9 +178,12 @@ export const DEFAULT_FEATURES: FeatureFlags = {
   delivery_slot: { enabled: false, required: false },
   marketplace_sync: false,
   pos: false,
+  storefront: false,
+  counter_sales: false,
+  broadcast: false,
+  audience: false,
   consignment: false,
   product_brand: false,
-  parcel_splitting: false,
   supplier: false,
   department_store: false,
   stock: false,
@@ -170,9 +201,12 @@ export function detectPreset(f: FeatureFlags): BusinessPreset | null {
       f.delivery_slot.required === defaults.delivery_slot.required &&
       f.marketplace_sync === defaults.marketplace_sync &&
       f.pos === defaults.pos &&
+      f.storefront === defaults.storefront &&
+      f.counter_sales === defaults.counter_sales &&
+      f.broadcast === defaults.broadcast &&
+      f.audience === defaults.audience &&
       f.consignment === defaults.consignment &&
       f.product_brand === defaults.product_brand &&
-      f.parcel_splitting === defaults.parcel_splitting &&
       f.supplier === defaults.supplier &&
       f.department_store === defaults.department_store &&
       f.stock === defaults.stock;
@@ -215,9 +249,12 @@ export function parseFeatures(settings: Record<string, unknown> | null | undefin
         },
     marketplace_sync: stored.marketplace_sync ?? DEFAULT_FEATURES.marketplace_sync,
     pos: stored.pos ?? DEFAULT_FEATURES.pos,
+    storefront: stored.storefront ?? DEFAULT_FEATURES.storefront,
+    counter_sales: stored.counter_sales ?? DEFAULT_FEATURES.counter_sales,
+    broadcast: stored.broadcast ?? DEFAULT_FEATURES.broadcast,
+    audience: stored.audience ?? DEFAULT_FEATURES.audience,
     consignment: stored.consignment ?? DEFAULT_FEATURES.consignment,
     product_brand: stored.product_brand ?? DEFAULT_FEATURES.product_brand,
-    parcel_splitting: stored.parcel_splitting ?? DEFAULT_FEATURES.parcel_splitting,
     supplier: stored.supplier ?? DEFAULT_FEATURES.supplier,
     department_store: stored.department_store ?? DEFAULT_FEATURES.department_store,
     stock: stored.stock ?? DEFAULT_FEATURES.stock,

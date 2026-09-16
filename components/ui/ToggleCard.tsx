@@ -48,12 +48,18 @@ interface ToggleCardProps {
   className?: string;
   /** ช่องกรอกที่จะโผล่เมื่อเปิด */
   children?: ReactNode;
+  /**
+   * ปุ่มข้างสวิตช์ เช่น "ตั้งค่า" ที่พาไปหน้าตั้งค่าของฟีเจอร์นั้น
+   * — ใช้แทนการยัดฟอร์มตั้งค่าทั้งก้อนมาไว้ในการ์ด (หน้ารวมฟีเจอร์จะได้ไม่บวม)
+   * แสดงเฉพาะตอนสวิตช์เปิดอยู่ เพราะปิดอยู่ก็ไม่มีอะไรให้ตั้ง
+   */
+  action?: ReactNode;
 }
 
 export default function ToggleCard({
   icon, iconClass, title, description, badge, checked, onChange,
   disabled, toggling, loading, offHint, highlight,
-  open, onOpenChange, className = '', children,
+  open, onOpenChange, className = '', children, action,
 }: ToggleCardProps) {
   // ผู้เรียกคุมการกางเอง = มีปุ่มกาง · ไม่คุม = เปิดสวิตช์แล้วคลี่เลย
   const collapsible = onOpenChange !== undefined;
@@ -77,6 +83,10 @@ export default function ToggleCard({
           </div>
           {description && <p className="section-desc">{description}</p>}
         </div>
+
+        {action && checked && (
+          <div className="flex-shrink-0">{action}</div>
+        )}
 
         {collapsible && checked && children && (
           <button

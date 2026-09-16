@@ -233,6 +233,11 @@ export default function Sidebar() {
         if (item.href === '/settings/suppliers' && !features.supplier) return false;
         // Hide inventory when stock is disabled
         if (item.href === '/inventory' && !features.stock) return false;
+        // การตลาด — แต่ละตัวมีสวิตช์ของตัวเองแล้ว
+        if (item.href === '/marketing/broadcast' && !features.broadcast) return false;
+        if (item.href === '/marketing/audiences' && !features.audience) return false;
+        // หน้าขาย PC ประจำห้าง + รายงานของมัน
+        if ((item.href === '/pc' || item.href === '/counter-sales') && !features.counter_sales) return false;
         return true;
       })
     }))
@@ -293,17 +298,17 @@ export default function Sidebar() {
 
   // เมนูในชุด "ตั้งค่าระบบ" — gate ตาม feature flag เหมือนเดิม
   const settingsItems: { href: string; label: string; icon: React.ReactNode; isActive: boolean }[] = [
-    { href: '/settings/company', label: 'ทั่วไป', icon: <Settings className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings' || pathname === '/settings/company' || pathname === '/settings/tags' },
+    { href: '/settings/company', label: 'ทั่วไป', icon: <Settings className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings' || pathname === '/settings/company' || pathname === '/settings/tags' || pathname === '/settings/consignment' || pathname === '/settings/department-store' },
     ...(can(subject, 'members.view') ? [{ href: '/settings/members', label: 'จัดการสมาชิก', icon: <UserCog className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/members' }] : []),
     { href: '/settings/payment-channels', label: 'ช่องทางชำระเงิน', icon: <CreditCard className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/payment-channels' },
     { href: '/settings/chat-channels', label: 'ช่องทาง Chat', icon: <MessageCircle className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/chat-channels' },
-    ...(can(subject, 'masterdata.ad_accounts') ? [{ href: '/settings/ad-accounts', label: 'บัญชีโฆษณา', icon: <Megaphone className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/ad-accounts' }] : []),
+    ...(features.audience && can(subject, 'masterdata.ad_accounts') ? [{ href: '/settings/ad-accounts', label: 'บัญชีโฆษณา', icon: <Megaphone className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/ad-accounts' }] : []),
     ...(can(subject, 'chat.reply') ? [{ href: '/settings/saved-replies', label: 'Saved Reply', icon: <MessageSquareText className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/saved-replies' }] : []),
     { href: '/settings/sales-channels', label: 'ช่องทางการขาย', icon: <Store className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/sales-channels' },
     ...(features.stock ? [{ href: '/settings/warehouses', label: 'คลังสินค้า', icon: <Warehouse className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/warehouses' }] : []),
     { href: '/settings/carriers', label: 'ขนส่ง', icon: <Truck className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/carriers' },
     ...(features.delivery_zone || features.delivery_slot.enabled ? [{ href: '/settings/delivery', label: 'การจัดส่ง', icon: <MapPin className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/delivery' }] : []),
-    { href: '/settings/storefront', label: 'หน้าร้านออนไลน์', icon: <Store className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/storefront' },
+    ...(features.storefront ? [{ href: '/settings/storefront', label: 'หน้าร้านออนไลน์', icon: <Store className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/storefront' }] : []),
     // สาขาฝากขาย (PC) ย้ายไปจัดการในหน้าลูกค้าฝากขายแต่ละราย (การ์ดในหน้า /customers/[id]) แล้ว
     ...(features.pos ? [{ href: '/settings/pos-terminals', label: 'Cashier (POS)', icon: <Monitor className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/pos-terminals' }] : []),
     // เมนู Marketplace เดิมย้ายไปรวมใน "ช่องทางการขาย" (แท็บ เชื่อมต่อ Marketplace) แล้ว

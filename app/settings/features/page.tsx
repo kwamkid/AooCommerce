@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
@@ -14,15 +15,12 @@ import {
   type FeatureFlags,
   type DeliveryFieldMode, DELIVERY_FIELD_MODE_LABELS, DELIVERY_FIELD_MODE_HINTS, deliveryFieldMode, deliveryFieldFromMode,
 } from '@/lib/features';
-import { CalendarDays, ShoppingCart, Monitor, Handshake, Tag, Factory, PackageCheck, Loader2, Truck, Warehouse, Lock, MapPin, Clock } from 'lucide-react';
+import { CalendarDays, ShoppingCart, Monitor, Handshake, Tag, Factory, PackageCheck, Loader2, Truck, Warehouse, Lock, MapPin, Clock, Store, Megaphone, Target, Settings } from 'lucide-react';
 import { featureLockReason, type PackageGates } from '@/lib/package-features';
 import FilterChips, { FILTER_CHIP_PRIMARY_ACTIVE, type FilterChip } from '@/components/ui/FilterChips';
-import { type BrandGpRow } from '@/components/customers/BrandGpCommissions';
-import GpOverridePanel from '@/components/customers/GpOverridePanel';
-import Toggle from '@/components/ui/Toggle';
 import Card from '@/components/ui/Card';
+import Button from '@/components/ui/Button';
 import ToggleCard from '@/components/ui/ToggleCard';
-import UnitNumberField from '@/components/ui/UnitNumberField';
 import { NoPermissionCard } from '@/components/ui/StateCard';
 import StickyActionBar from '@/components/ui/StickyActionBar';
 import { InfoChip } from '@/components/ui/StatusBadge';
@@ -36,39 +34,13 @@ interface FeatureSection {
   icon: React.ReactNode;
   color: string; // tailwind text color when active
   comingSoon?: boolean;
-  settings?: React.ReactNode; // rendered when feature is enabled
-}
-
-// ค่าตั้งต้นของฝากขาย — ตอนโหลดและตอนบันทึกต้องประกอบ snapshot ด้วยสูตรเดียวกัน
-// ไม่งั้นตัวเทียบ dirty เห็นว่าต่างกันทั้งที่ผู้ใช้ไม่ได้แตะอะไร
-const CONSIGNMENT_DEFAULTS: ConsignmentSettingsData = {
-  default_gp_rate: 30,
-  default_gp_base_price: 'retail',
-  default_report_due_days: 15,
-  default_payment_terms: 30,
-  vat_included: true,
-};
-
-/** แปลง response ของ /api/settings/features เป็น state ของหน้า + snapshot สำหรับเช็ค dirty (ที่เดียว) */
-function snapshotFromApi(
-  data: {
-    features?: FeatureFlags;
-    consignment_settings?: Partial<ConsignmentSettingsData> | null;
-    brand_gp_overrides?: { brand_id: string; gp_rate: number; gp_base_price: string }[] | null;
-  },
-  fallbackFlags: FeatureFlags,
-) {
-  const flags = data.features ?? fallbackFlags;
-  const cs: ConsignmentSettingsData = { ...CONSIGNMENT_DEFAULTS, ...(data.consignment_settings || {}) };
-  const bgr: BrandGpRow[] = (data.brand_gp_overrides || []).map(r => ({
-    brand_id: r.brand_id,
-    gp_rate: String(r.gp_rate),
-    gp_base_price: (r.gp_base_price || 'retail') as 'retail' | 'discounted',
-  }));
-  return { flags, cs, bgr, saved: { featureFlags: flags, consignmentSettings: cs, brandGpRows: JSON.stringify(bgr) } };
+  /** หน้าตั้งค่าของฟีเจอร์นี้ — มีแล้วจะมีปุ่ม "ตั้งค่า" ข้างสวิตช์ (เปิดอยู่เท่านั้น)
+   *  ⛔ ห้ามเอาฟอร์มตั้งค่ามาฝังในการ์ด — หน้ารวมฟีเจอร์จะบวมจนหาอะไรไม่เจอ */
+  settingsHref?: string;
 }
 
 export default function FeaturesPage() {
+  const router = useRouter();
   const { currentCompany, companyRoles, permissions } = useCompany();
   const { features: currentFeatures, gates, fetched: featuresFetched, refreshFeatures } = useFeatures();
   const { showToast } = useToast();
@@ -76,26 +48,21 @@ export default function FeaturesPage() {
   const [featureFlags, setFeatureFlags] = useState<FeatureFlags>(currentFeatures);
   const [featuresLoaded, setFeaturesLoaded] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [openSection, setOpenSection] = useState<string | null>(null);
 
-  // Consignment settings
-  const [consignmentSettings, setConsignmentSettings] = useState<ConsignmentSettingsData>(CONSIGNMENT_DEFAULTS);
-  const [brandGpRows, setBrandGpRows] = useState<BrandGpRow[]>([]);
+  /**
+   * หน้านี้ถือแค่ "เปิด/ปิดฟีเจอร์" — ค่าตั้งต้นทางธุรกิจ (GP% · เงื่อนไขชำระ)
+   * ย้ายไปแท็บของตัวเองที่ ตั้งค่า > ทั่วไป > ลูกค้าตัวแทน / ลูกค้าห้าง แล้ว
+   */
+  const savedRef = useRef<FeatureFlags | null>(null);
 
-  // Track saved state to detect changes — null until first API load completes
-  const savedRef = useRef<{ featureFlags: FeatureFlags; consignmentSettings: ConsignmentSettingsData; brandGpRows: string } | null>(null);
-
-  // Sync from context
   useEffect(() => {
     if (featuresFetched && !featuresLoaded) {
       setFeatureFlags(currentFeatures);
       setFeaturesLoaded(true);
       apiFetch('/api/settings/features').then(r => r.json()).then(data => {
-        const snap = snapshotFromApi(data, currentFeatures);
-        setFeatureFlags(snap.flags);
-        setConsignmentSettings(snap.cs);
-        setBrandGpRows(snap.bgr);
-        savedRef.current = snap.saved;
+        const flags = (data.features ?? currentFeatures) as FeatureFlags;
+        setFeatureFlags(flags);
+        savedRef.current = flags;
       }).catch(() => {});
     }
   }, [featuresFetched, currentFeatures, featuresLoaded]);
@@ -114,11 +81,9 @@ export default function FeaturesPage() {
       const cur = prev[key];
       const newValue = !(typeof cur === 'object' && cur !== null ? (cur as { enabled: boolean }).enabled : Boolean(cur));
       const next = { ...prev, [key]: newValue };
+      // ตัวแทนฝากขายต้องมีซัพพลายเออร์ (ใบสั่งซื้อ/รายงานฝั่งซื้อใช้ร่วมกัน)
       if (key === 'consignment' && newValue) next.supplier = true;
       if (key === 'supplier' && !newValue) next.consignment = false;
-      // Auto-expand when enabling a feature that has expandable settings
-      if (newValue) setOpenSection(key);
-      else setOpenSection(s => s === key ? null : s);
       return next;
     });
   };
@@ -130,32 +95,19 @@ export default function FeaturesPage() {
       const res = await apiFetch('/api/settings/features', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          features: featureFlags,
-          consignment_settings: featureFlags.consignment ? consignmentSettings : null,
-          brand_gp_overrides: featureFlags.consignment
-            ? brandGpRows.filter(r => r.brand_id && r.gp_rate !== '').map(r => ({
-                brand_id: r.brand_id,
-                gp_rate: parseFloat(r.gp_rate),
-                gp_base_price: r.gp_base_price,
-              }))
-            : null,
-        }),
+        body: JSON.stringify({ features: featureFlags }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'บันทึกไม่สำเร็จ');
+
       showToast('บันทึก Feature เสริมสำเร็จ', 'success');
       await refreshFeatures();
+
+      // state ของหน้า = ความจริงจากเซิร์ฟเวอร์หลังบันทึก (รวมที่ API clamp ตามแพ็กเกจให้)
       const fresh = await apiFetch('/api/settings/features').then(r => r.json()).catch(() => null);
-      if (fresh) {
-        // state ของหน้า = ความจริงจากเซิร์ฟเวอร์หลังบันทึก (รวมที่ API clamp ให้) และ snapshot ต้อง
-        // ประกอบด้วยสูตรเดียวกับตอนโหลด — เดิมเก็บ consignment ดิบ ({} เมื่อปิดฝากขาย) ทั้งที่ state
-        // ถือค่าตั้งต้น 5 ช่องอยู่ แถบ "ยังไม่ได้บันทึก" จึงค้างทันทีหลังกดบันทึก (เจ้าของทัก 9 ก.ย. 2026)
-        const snap = snapshotFromApi(fresh, featureFlags);
-        setFeatureFlags(snap.flags);
-        setConsignmentSettings(snap.cs);
-        setBrandGpRows(snap.bgr);
-        savedRef.current = snap.saved;
+      if (fresh?.features) {
+        setFeatureFlags(fresh.features as FeatureFlags);
+        savedRef.current = fresh.features as FeatureFlags;
       }
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
@@ -166,62 +118,120 @@ export default function FeaturesPage() {
 
   const isOwnerOrAdmin = can({ roles: companyRoles, permissions }, 'settings.access');
 
-  const isDirty = featuresLoaded && savedRef.current !== null && (
-    JSON.stringify(featureFlags) !== JSON.stringify(savedRef.current.featureFlags) ||
-    JSON.stringify(consignmentSettings) !== JSON.stringify(savedRef.current.consignmentSettings) ||
-    JSON.stringify(brandGpRows) !== savedRef.current.brandGpRows
-  );
+  const isDirty = featuresLoaded
+    && savedRef.current !== null
+    && JSON.stringify(featureFlags) !== JSON.stringify(savedRef.current);
 
   // ---- Feature list ----
-  const FEATURES: FeatureSection[] = [
+  // จัดกลุ่มเพราะรายการยาวขึ้นเรื่อย ๆ — เรียงเป็นแถวเดียว 14 ใบหาไม่เจอ
+  // ⛔ ฟีเจอร์ที่ติดมาเป็น default เสมอ (คูปอง · แยกพัสดุ · Beam · Shippop · PWA)
+  //    ห้ามเอามาใส่ที่นี่ — มันไม่ใช่ของที่เลือกเปิด/ปิด
+  const FEATURE_GROUPS: { title: string; items: FeatureSection[] }[] = [
     {
-      key: 'stock',
-      label: 'ระบบคลังสินค้า',
-      description: 'ติดตามสต็อก, รับเข้า, ย้ายคลัง, แยกตามสาขา',
-      icon: <Warehouse className="w-5 h-5" />,
-      color: 'text-emerald-600',
+      title: 'ช่องทางขาย',
+      items: [
+        {
+          key: 'marketplace_sync',
+          label: 'ซิงค์ Marketplace',
+          description: 'เชื่อม Shopee · Lazada · TikTok Shop — ดึงออเดอร์และส่งสต็อกขึ้นร้าน',
+          icon: <ShoppingCart className="w-5 h-5" />,
+          color: 'text-orange-500',
+          settingsHref: '/settings/sales-channels',
+        },
+        {
+          key: 'pos',
+          label: 'Cashier (POS)',
+          description: 'ขายหน้าร้านผ่านเครื่องแคชเชียร์ ตัดสต็อกทันทีที่จ่ายเงิน',
+          icon: <Monitor className="w-5 h-5" />,
+          color: 'text-teal-600',
+          settingsHref: '/settings/pos-terminals',
+        },
+        {
+          key: 'storefront',
+          label: 'หน้าร้านออนไลน์',
+          description: 'ลิงก์ร้านของตัวเอง ลูกค้าสั่งเองได้ พร้อมตะกร้าและชำระเงิน',
+          icon: <Store className="w-5 h-5" />,
+          color: 'text-sky-600',
+          settingsHref: '/settings/storefront',
+        },
+        {
+          key: 'counter_sales',
+          label: 'หน้าขาย PC ประจำห้าง',
+          description: 'ให้ PC ที่เคาน์เตอร์บันทึกยอดขายหน้างานเข้าระบบเอง',
+          icon: <Store className="w-5 h-5" />,
+          color: 'text-indigo-600',
+        },
+      ],
     },
     {
-      key: 'product_brand',
-      label: 'แบรนด์สินค้า',
-      description: 'จัดกลุ่มสินค้าตามแบรนด์',
-      icon: <Tag className="w-5 h-5" />,
-      color: 'text-pink-600',
+      title: 'ลูกค้าธุรกิจ',
+      items: [
+        {
+          key: 'consignment',
+          label: 'ลูกค้าตัวแทน',
+          description: 'ฝากขาย (ม.78(3)) · ขายขาดเงินสด · ขายขาดเครดิต — วางบิลรอบเดือน',
+          icon: <Handshake className="w-5 h-5" />,
+          color: 'text-amber-600',
+          settingsHref: '/settings/consignment',
+        },
+        {
+          key: 'department_store',
+          label: 'ลูกค้าห้าง',
+          description: 'ห้างฝากขาย · ขายขาดเงินสด · ขายขาดเครดิต — วางบิลรอบเดือน',
+          icon: <PackageCheck className="w-5 h-5" />,
+          color: 'text-purple-600',
+          settingsHref: '/settings/department-store',
+        },
+      ],
     },
     {
-      key: 'marketplace_sync',
-      label: 'Marketplace',
-      description: 'เชื่อมต่อ Shopee, Lazada, TikTok Shop ฯลฯ',
-      icon: <ShoppingCart className="w-5 h-5" />,
-      color: 'text-orange-500',
+      title: 'สินค้า & คลัง',
+      items: [
+        {
+          key: 'stock',
+          label: 'ระบบคลังสินค้า',
+          description: 'ติดตามสต็อก รับเข้า ย้ายคลัง แยกตามสาขา',
+          icon: <Warehouse className="w-5 h-5" />,
+          color: 'text-emerald-600',
+          settingsHref: '/settings/warehouses',
+        },
+        {
+          key: 'product_brand',
+          label: 'แบรนด์สินค้า',
+          description: 'จัดกลุ่มสินค้าตามแบรนด์ และตั้ง GP% รายแบรนด์ได้',
+          icon: <Tag className="w-5 h-5" />,
+          color: 'text-pink-600',
+          settingsHref: '/settings/brands',
+        },
+        {
+          key: 'supplier',
+          label: 'ซัพพลายเออร์ / ใบสั่งซื้อ',
+          description: 'ผู้ผลิต ใบสั่งซื้อ (PO) และรายงานฝั่งซื้อ',
+          icon: <Factory className="w-5 h-5" />,
+          color: 'text-slate-600',
+          settingsHref: '/settings/suppliers',
+        },
+      ],
     },
     {
-      key: 'pos',
-      label: 'ระบบแคชเชียร์ - ขายหน้าร้าน',
-      description: 'ระบบขายหน้าร้านสำหรับแคชเชียร์ (Point of Sale)',
-      icon: <Monitor className="w-5 h-5" />,
-      color: 'text-teal-600',
-    },
-    {
-      key: 'supplier',
-      label: 'ซัพพลายเออร์',
-      description: 'จัดการ Supplier, ใบสั่งซื้อ (PO), รายงานฝากขาย',
-      icon: <Factory className="w-5 h-5" />,
-      color: 'text-slate-600',
-    },
-    {
-      key: 'consignment',
-      label: 'ลูกค้าตัวแทน',
-      description: 'ฝากขาย (ม.78(3)) · ขายขาดเงินสด · ขายขาดเครดิต — วางบิลรอบเดือน',
-      icon: <Handshake className="w-5 h-5" />,
-      color: 'text-amber-600',
-    },
-    {
-      key: 'department_store',
-      label: 'ลูกค้าห้าง',
-      description: 'ห้างฝากขาย · ขายขาดเงินสด · ขายขาดเครดิต — วางบิลรอบเดือน',
-      icon: <PackageCheck className="w-5 h-5" />,
-      color: 'text-purple-600',
+      title: 'การตลาด',
+      items: [
+        {
+          key: 'broadcast',
+          label: 'บรอดแคสต์',
+          description: 'ส่งข้อความการตลาดเข้าห้องแชท LINE · Facebook',
+          icon: <Megaphone className="w-5 h-5" />,
+          color: 'text-rose-600',
+        },
+        {
+          key: 'audience',
+          label: 'กลุ่มเป้าหมาย + Audience Sync',
+          description: 'สร้างกลุ่มลูกค้าแล้วส่งขึ้นแพลตฟอร์มโฆษณาเพื่อยิงแอด',
+          icon: <Target className="w-5 h-5" />,
+          color: 'text-fuchsia-600',
+          settingsHref: '/settings/ad-accounts',
+        },
+      ],
     },
   ];
 
@@ -246,47 +256,48 @@ export default function FeaturesPage() {
           <>
             <div className="flex flex-col gap-3">
               <div className="flex flex-col gap-3">
-            {FEATURES.map((feat) => {
-              const isEnabled = getFeatureValue(feat.key);
-              const isOpen = openSection === feat.key;
-              const lockReason = featureLockReason(feat.key, gates);
-              const isLocked = lockReason !== null;
+            {FEATURE_GROUPS.map(group => (
+              <div key={group.title} className="flex flex-col gap-3">
+                <h3 className="nav-section-title text-[11px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-[0.08em] mt-2 px-1">
+                  {group.title}
+                </h3>
 
-              // Consignment settings inline
-              const hasInlineSettings = feat.key === 'consignment' && isEnabled;
-              const hasExpandable = hasInlineSettings;
+                {group.items.map((feat) => {
+                  const isEnabled = getFeatureValue(feat.key);
+                  const lockReason = featureLockReason(feat.key, gates);
+                  const isLocked = lockReason !== null;
 
-              // สวิตช์เปลี่ยนแค่ state ในหน้า — บันทึกจริงที่ปุ่มด้านล่าง
-              return (
-                <ToggleCard
-                  key={feat.key}
-                  icon={feat.icon}
-                  iconClass={isEnabled ? feat.color : 'text-gray-400 dark:text-slate-500'}
-                  title={feat.label}
-                  description={isLocked ? lockReason : feat.description}
-                  badge={isLocked ? (
-                    <InfoChip className="border" colors="bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-900/50" icon={<Lock className="w-3 h-3" />}>ต้องอัปเกรด</InfoChip>
-                  ) : undefined}
-                  checked={isEnabled}
-                  onChange={() => toggleFeature(feat.key)}
-                  disabled={!isOwnerOrAdmin || isLocked}
-                  highlight
-                  className={isLocked ? 'opacity-70' : ''}
-                  open={hasExpandable ? isOpen : undefined}
-                  onOpenChange={hasExpandable ? (v) => setOpenSection(v ? feat.key : null) : undefined}
-                >
-                  {hasInlineSettings ? (
-                    <ConsignmentSettingsPanel
-                      settings={consignmentSettings}
-                      onChange={(patch) => setConsignmentSettings(prev => ({ ...prev, ...patch }))}
-                      brandGpRows={brandGpRows}
-                      onBrandGpRowsChange={setBrandGpRows}
-                      isOwnerOrAdmin={isOwnerOrAdmin}
+                  // สวิตช์เปลี่ยนแค่ state ในหน้า — บันทึกจริงที่ปุ่มด้านล่าง
+                  return (
+                    <ToggleCard
+                      key={feat.key}
+                      icon={feat.icon}
+                      iconClass={isEnabled ? feat.color : 'text-gray-400 dark:text-slate-500'}
+                      title={feat.label}
+                      description={isLocked ? lockReason : feat.description}
+                      badge={isLocked ? (
+                        <InfoChip className="border" colors="bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-900/50" icon={<Lock className="w-3 h-3" />}>ต้องอัปเกรด</InfoChip>
+                      ) : undefined}
+                      checked={isEnabled}
+                      onChange={() => toggleFeature(feat.key)}
+                      disabled={!isOwnerOrAdmin || isLocked}
+                      highlight
+                      className={isLocked ? 'opacity-70' : ''}
+                      action={feat.settingsHref ? (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          icon={<Settings className="w-4 h-4" />}
+                          onClick={() => router.push(feat.settingsHref!)}
+                        >
+                          ตั้งค่า
+                        </Button>
+                      ) : undefined}
                     />
-                  ) : undefined}
-                </ToggleCard>
-              );
-            })}
+                  );
+                })}
+              </div>
+            ))}
 
             {/* ช่องในการ์ด "จัดส่ง" ของฟอร์มเปิดบิล — สามแถว สามชิป ไม่มีพับเก็บ
                 (เดิมเป็นสองการ์ด + ตัวเลือกย่อยที่ซ่อนอยู่ในปุ่มกาง ผู้ใช้หาไม่เจอ) */}
@@ -305,98 +316,14 @@ export default function FeaturesPage() {
                 saving={isSaving}
                 dirty={isDirty}
                 onSave={handleSave}
-                onCancel={() => {
-                  // ย้อนกลับไปค่าที่บันทึกล่าสุดทั้งชุด (flags + ฝากขาย) ไม่ใช่แค่ flags จาก context
-                  const saved = savedRef.current;
-                  if (saved) {
-                    setFeatureFlags(saved.featureFlags);
-                    setConsignmentSettings(saved.consignmentSettings);
-                    setBrandGpRows(JSON.parse(saved.brandGpRows) as BrandGpRow[]);
-                  } else {
-                    setFeatureFlags(currentFeatures);
-                  }
-                  setOpenSection(null);
-                }}
+                // ย้อนกลับไปค่าที่บันทึกล่าสุด ไม่ใช่ค่าจาก context (อาจเก่ากว่า)
+                onCancel={() => setFeatureFlags(savedRef.current ?? currentFeatures)}
               />
             )}
           </>
         )}
       </Container>
     </Layout>
-  );
-}
-
-// ── Consignment settings sub-panel ────────────────────────────────────────
-
-type ConsignmentSettingsData = {
-  default_gp_rate: number;
-  default_gp_base_price: 'retail' | 'discounted';
-  default_report_due_days: number;
-  default_payment_terms: number;
-  vat_included: boolean;
-};
-
-function ConsignmentSettingsPanel({
-  settings,
-  onChange,
-  brandGpRows,
-  onBrandGpRowsChange,
-  isOwnerOrAdmin,
-}: {
-  settings: ConsignmentSettingsData;
-  onChange: (patch: Partial<ConsignmentSettingsData>) => void;
-  brandGpRows: BrandGpRow[];
-  onBrandGpRowsChange: (rows: BrandGpRow[]) => void;
-  isOwnerOrAdmin: boolean;
-}) {
-  return (
-    // เส้นคั่น + ระยะห่างจากหัวการ์ด เป็นของ ToggleCard แล้ว ที่นี่เหลือแค่ระยะระหว่างบล็อก
-    <div className="space-y-4">
-
-      {/* GP% section — default + brand breakdown together */}
-      <GpOverridePanel
-        mode="global"
-        gpRate={settings.default_gp_rate}
-        gpBasePrice={settings.default_gp_base_price}
-        onGpRateChange={(v) => onChange({ default_gp_rate: v })}
-        onGpBasePriceChange={(v) => onChange({ default_gp_base_price: v })}
-        brandGpRows={brandGpRows}
-        onBrandGpRowsChange={onBrandGpRowsChange}
-        canEdit={isOwnerOrAdmin}
-      />
-
-      {/* เงื่อนไขของสายฝากขายโดยเฉพาะ — วันวางบิลอยู่ที่ ตั้งค่า > ทั่วไป > บิล และสินค้า
-          เพราะใช้ร่วมกับลูกค้าห้างด้วย ไม่ใช่เรื่องของฝากขายอย่างเดียว */}
-      <div className="grid grid-cols-2 gap-3">
-        <UnitNumberField
-          label="ส่งยอดภายใน"
-          value={settings.default_report_due_days}
-          onChange={(n) => onChange({ default_report_due_days: n || 15 })}
-          unit="วัน" hint="หลังสิ้นเดือน"
-          min={1} max={90}
-        />
-        <UnitNumberField
-          label="ชำระภายใน"
-          value={settings.default_payment_terms}
-          onChange={(n) => onChange({ default_payment_terms: n })}
-          unit="วัน" hint="หลังวางบิล"
-          min={0} max={180}
-        />
-      </div>
-
-      {/* VAT included */}
-      <div className="flex items-center justify-between bg-amber-50/60 dark:bg-amber-900/10 rounded-lg px-4 py-3">
-        <div>
-          <p className="text-base font-medium text-gray-900 dark:text-white">ราคาตัวแทนรวม VAT แล้ว</p>
-          <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">ถ้าปิด = ราคาที่ตกลงยังไม่รวม VAT</p>
-        </div>
-        <Toggle
-          checked={settings.vat_included}
-          onChange={() => onChange({ vat_included: !settings.vat_included })}
-        />
-      </div>
-
-    </div>
   );
 }
 
