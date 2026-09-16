@@ -527,44 +527,27 @@
    และเป็นพื้นให้ตัวเลือกฟ้า/ชมพูข้างในเด่นขึ้น ไม่แย่งสีกัน */
 .sf-fieldset-ship { background: #f4f6fa; border-color: #dbe1ea; }
 
-/* ── ส่งให้ตัวเอง / ส่งให้คนอื่น ─────────────────────────────────── */
-.sf-who { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
-/* จอแคบไม่ยุบเป็นแถวเดียว — สองตัวเลือกเทียบกันได้ในสายตาเดียว
-   แค่ลดระยะ/ขนาดให้พอดีครึ่งจอ */
-@container (max-width: 560px) {
-  .sf-who { gap: 8px; }
-  .sf-who-btn { padding: 10px; gap: 8px; }
-  .sf-who-btn b { font-size: 14px; }
-  .sf-who-btn small { font-size: 12px; }
+/* ── ปุ่มสลับแบบกลุ่ม (segmented) ────────────────────────────────────
+   ใช้กับตัวเลือกที่ "ค่าตั้งต้นถูกเกือบทุกครั้ง" — ผู้รับของ (สั่งเอง/ส่งให้คนอื่น)
+   และประเภทผู้เสียภาษี · ของเดิมเป็นการ์ดใหญ่สองใบเท่ากัน ทำให้ทุกคนต้องหยุดอ่าน
+   และตัดสินใจ ทั้งที่ 80% ตอบเหมือนกัน — ปุ่มเล็กบนบรรทัดหัวข้อไม่เรียกร้องความสนใจ */
+.sf-seg {
+  display: inline-flex; flex-shrink: 0; gap: 2px;
+  padding: 3px; border-radius: 999px;
+  border: 1px solid var(--sf-border); background: var(--sf-surface);
 }
-.sf-who-btn {
-  display: flex; gap: 11px; align-items: flex-start; text-align: left;
-  padding: 13px 14px; border-radius: calc(var(--sf-radius) / 1.5);
-  border: 1px solid var(--sf-border); background: var(--sf-bg); color: var(--sf-text);
-  font: inherit; cursor: pointer; transition: border-color .15s, background .15s;
+.sf-seg-btn {
+  padding: 8px 14px; border: none; border-radius: 999px;
+  background: transparent; color: var(--sf-muted);
+  font-size: 14px; font-family: inherit; cursor: pointer; white-space: nowrap;
 }
-/* สองตัวเลือกใช้คนละสี — จะได้อ่านสถานะจากสีได้ทันทีว่าโหมดไหนทำงานอยู่
-   ตั้งใจไม่ใช้สีแบรนด์: แบรนด์ส่วนใหญ่เป็นแดง/ส้ม การ์ดที่เลือกจะดูเหมือน error
-   · ส่งให้ตัวเอง = ฟ้า (เรื่องของฉัน) · ส่งให้คนอื่น = ชมพู (ของขวัญ) */
-.sf-who-self { --who: #2563eb; --who-bg: #eff6ff; }
-.sf-who-other { --who: #db2777; --who-bg: #fdf2f8; }
-.sf-who-btn:hover { border-color: var(--who); }
-.sf-who-on {
-  border-color: var(--who);
-  box-shadow: inset 0 0 0 1px var(--who);
-  background: var(--who-bg);
+.sf-seg-btn:hover { color: var(--sf-text); }
+.sf-seg-on, .sf-seg-on:hover {
+  background: var(--sf-bg); color: var(--sf-text); font-weight: 600;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, .14);
 }
-.sf-who-tick {
-  width: 18px; height: 18px; border-radius: 999px; flex-shrink: 0; margin-top: 2px;
-  border: 2px solid var(--sf-border);
-  display: grid; place-items: center;
-}
-.sf-who-on .sf-who-tick { border-color: var(--who); }
-.sf-who-on .sf-who-tick::after {
-  content: ''; width: 9px; height: 9px; border-radius: 999px; background: var(--who);
-}
-.sf-who-btn b { display: block; font-weight: 600; font-size: 15px; }
-.sf-who-btn small { color: var(--sf-muted); font-size: 13px; }
+/* ตัวที่ไม่ได้อยู่บนบรรทัดหัวข้อ (ประเภทผู้เสียภาษี) ต้องเว้นระยะใต้ตัวเองเอง */
+.sf-opt-body > .sf-seg, .sf-fieldset > .sf-seg { margin-bottom: 14px; }
 
 /* ── สวิตช์ติ๊ก (ไม่แนบราคา / ขอใบกำกับภาษี) ─────────────────────── */
 .sf-switch { display: flex; gap: 11px; align-items: flex-start; cursor: pointer; }
@@ -1440,3 +1423,14 @@
 }
 /* เดสก์ท็อป: ปุ่มใส่ตะกร้ามีราคาต่อท้าย จึงกว้างกว่า — ซื้อเลยไม่ต้องยืดตาม */
 .sf-cta-buy { min-height: 46px; padding-left: 26px; padding-right: 26px; }
+
+/* ── แถวกรอกโค้ดส่วนลด ───────────────────────────────────────────────
+   align-items: stretch ทำให้ปุ่มสูงเท่าช่องกรอกเองโดยไม่ต้องไล่ตั้งความสูงให้ตรงกัน
+   ⚠️ .sf-input มี margin-top: 6px ไว้สำหรับตอนอยู่ใน <label> — ในแถวนี้ไม่มีป้าย
+   ต้องล้างทิ้ง ไม่งั้นช่องกรอกจะต่ำกว่าปุ่มอยู่ 6px */
+.sf-coupon-row { display: flex; gap: 8px; align-items: stretch; }
+.sf-coupon-row .sf-input { margin-top: 0; flex: 1; min-width: 0; }
+.sf-coupon-row .sf-btn-ghost {
+  flex-shrink: 0; padding: 0 18px; font-size: 15px; justify-content: center;
+}
+.sf-coupon-row .sf-btn-ghost:disabled { opacity: .5; cursor: default; }

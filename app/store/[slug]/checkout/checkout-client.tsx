@@ -114,6 +114,8 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
   const [taxName, setTaxName] = useState('');
   const [taxId, setTaxId] = useState('');
   const [taxBranch, setTaxBranch] = useState('');
+  /** บุคคลธรรมดา = ไม่มีสาขา · ไม่ได้ส่งขึ้น API (ออเดอร์เก็บแค่ชื่อ/เลข/สาขา/ที่อยู่) ใช้คุมหน้าจออย่างเดียว */
+  const [taxType, setTaxType] = useState<'personal' | 'corporate'>('corporate');
   const [taxAddress, setTaxAddress] = useState('');
   const rcpNameRef = useRef<HTMLInputElement>(null);
   const taxNameRef = useRef<HTMLInputElement>(null);
@@ -209,10 +211,12 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
       const line = [address.trim(), district, amphoe, province, postal].filter(Boolean).join(' ');
       setTaxAddress(line);
     }
+    // พาไปช่องภาษีที่ยังว่าง — ต้องเช็คช่อง "ของใบกำกับภาษี" ไม่ใช่ช่องของผู้สั่ง
+    // (ของเดิมเช็ค name/address ของผู้สั่ง จึงพาไปผิดช่องเมื่อผู้สั่งกรอกครบแล้ว)
+    // เรียงตามลำดับช่องบนจอ: ชื่อ → ที่อยู่ → เลขประจำตัว
     const nextEmpty =
-      !name.trim() ? taxNameRef
-      : !taxId.replace(/\D/g, '') ? taxIdRef
-      : !address.trim() ? taxAddrRef
+      !taxName.trim() && !name.trim() ? taxNameRef
+      : !taxAddress.trim() && !address.trim() ? taxAddrRef
       : taxIdRef;
     window.setTimeout(() => {
       nextEmpty.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
@@ -409,8 +413,16 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
     if (shipToOther && !rcpName.trim()) { setError('กรุณากรอกชื่อผู้รับ'); focusField(rcpNameRef); return; }
     if (shipToOther && !rcpPhone.trim()) { setError('กรุณากรอกเบอร์ผู้รับ'); focusField(rcpNameRef); return; }
     if (!address.trim()) { setError('กรุณากรอกที่อยู่จัดส่ง'); focusField(addressRef); return; }
-    if (taxInvoice && !taxName.trim()) { setError('กรุณากรอกชื่อผู้เสียภาษี'); return; }
-    if (taxInvoice && taxId.replace(/\D/g, '').length !== 13) { setError('เลขประจำตัวผู้เสียภาษีต้องมี 13 หลัก'); return; }
+    // ข้อความต้องเรียกชื่อช่องให้ตรงกับป้ายที่ลูกค้าเห็น (เปลี่ยนตามประเภทผู้เสียภาษี)
+    if (taxInvoice && !taxName.trim()) {
+      setError(taxType === 'personal' ? 'กรุณากรอกชื่อ-นามสกุลผู้ขอใบกำกับภาษี' : 'กรุณากรอกชื่อบริษัท');
+      focusField(taxNameRef); return;
+    }
+    if (taxInvoice && !taxAddress.trim()) { setError('กรุณากรอกที่อยู่ออกใบกำกับภาษี'); return; }
+    if (taxInvoice && taxId.replace(/\D/g, '').length !== 13) {
+      setError(taxType === 'personal' ? 'เลขประจำตัวประชาชนต้องมี 13 หลัก' : 'เลขประจำตัวผู้เสียภาษีต้องมี 13 หลัก');
+      focusField(taxIdRef); return;
+    }
     if (outOfArea) { setError('ที่อยู่นี้อยู่นอกพื้นที่จัดส่งของร้าน'); return; }
     if (dateEnabled && dateRequired && !deliveryDate) { setError('กรุณาเลือกวันที่จัดส่ง'); return; }
     if (slotEnabled && slotRequired && !slotId) { setError('กรุณาเลือกช่วงเวลาจัดส่ง'); return; }
@@ -534,30 +546,33 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
           </section>
 
           <section className="sf-fieldset sf-fieldset-ship">
-            <h2>จัดส่งถึง</h2>
-
-            {/* สั่งไปกินเอง กับ สั่งไปให้คนอื่น เป็นคนละงานกัน — แยกให้ชัดตั้งแต่ต้น
-                ไม่งั้นลูกค้าจะกรอกชื่อตัวเองแล้วคนส่งของโทรผิดคน */}
-            <div className="sf-who">
-              {([
-                { key: false, cls: 'sf-who-self', title: 'สั่งเอง', desc: 'ใช้ชื่อและเบอร์ของผู้สั่ง' },
-                { key: true, cls: 'sf-who-other', title: 'ส่งให้คนอื่น', desc: 'เป็นของขวัญ แนบการ์ดได้' },
-              ] as const).map(o => (
-                <button
-                  key={String(o.key)}
-                  type="button"
-                  className={`sf-who-btn ${o.cls}${shipToOther === o.key ? ' sf-who-on' : ''}`}
-                  aria-pressed={shipToOther === o.key}
-                  onClick={() => setShipToOther(o.key)}
-                >
-                  <span className="sf-who-tick" aria-hidden="true" />
-                  <span>
-                    <b>{o.title}</b>
-                    <small>{o.desc}</small>
-                  </span>
-                </button>
-              ))}
+            {/* ~80% สั่งให้ตัวเอง — เดิมเป็นการ์ดใหญ่สองใบเท่ากัน ทำให้ทุกคนต้องหยุดอ่าน
+                และเลือกทั้งที่คำตอบเกือบทุกครั้งคือค่าตั้งต้น · ย้ายมาเป็นปุ่มสลับเล็ก ๆ
+                บรรทัดเดียวกับหัวข้อ คนที่จะส่งให้คนอื่นค่อยกด (เจ้าของสั่ง 2026-09-16) */}
+            <div className="sf-fieldset-head">
+              <h2>จัดส่งถึง</h2>
+              <div className="sf-seg" role="group" aria-label="ผู้รับของ">
+                {([
+                  { key: false, label: 'สั่งเอง' },
+                  { key: true, label: 'ส่งให้คนอื่น' },
+                ] as const).map(o => (
+                  <button
+                    key={String(o.key)}
+                    type="button"
+                    className={`sf-seg-btn${shipToOther === o.key ? ' sf-seg-on' : ''}`}
+                    aria-pressed={shipToOther === o.key}
+                    onClick={() => setShipToOther(o.key)}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
             </div>
+            {shipToOther && (
+              <p className="sf-hint" style={{ marginTop: -4, marginBottom: 12 }}>
+                กรอกชื่อและเบอร์ของผู้รับ — เป็นของขวัญ แนบการ์ดได้
+              </p>
+            )}
 
             {shipToOther && (
               <>
@@ -763,20 +778,58 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
                       <Copy strokeWidth={1.75} aria-hidden="true" />ใช้ที่อยู่ผู้สั่ง
                     </button>
                   </div>
-                  <label className="sf-label">ชื่อผู้เสียภาษี / ชื่อบริษัท *
-                    <input ref={taxNameRef} className="sf-input" value={taxName} onChange={e => setTaxName(e.target.value)} placeholder="บริษัท ตัวอย่าง จำกัด" />
+                  {/* บุคคลธรรมดา / นิติบุคคล — ช่อง "สาขา" มีเฉพาะนิติบุคคล บุคคลธรรมดา
+                      ไม่มีสาขาให้กรอก โชว์ไว้มีแต่ทำให้ลังเล (ชุดคำเดียวกับ TaxInfoForm ของหลังบ้าน) */}
+                  <div className="sf-seg" role="group" aria-label="ประเภทผู้เสียภาษี">
+                    {([
+                      { id: 'personal', label: 'บุคคลธรรมดา' },
+                      { id: 'corporate', label: 'นิติบุคคล' },
+                    ] as const).map(t => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        className={`sf-seg-btn${taxType === t.id ? ' sf-seg-on' : ''}`}
+                        aria-pressed={taxType === t.id}
+                        onClick={() => { setTaxType(t.id); if (t.id === 'personal') setTaxBranch(''); }}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                  {/* เรียงตามที่คนกรอกจริง: ใคร → อยู่ไหน → เลขอ้างอิง (เจ้าของสั่ง 2026-09-16) */}
+                  <label className="sf-label">{taxType === 'personal' ? 'ชื่อ-นามสกุล *' : 'ชื่อบริษัท / ห้างหุ้นส่วน *'}
+                    <input
+                      ref={taxNameRef}
+                      className="sf-input"
+                      value={taxName}
+                      onChange={e => setTaxName(e.target.value)}
+                      placeholder={taxType === 'personal' ? 'ชื่อตามบัตรประชาชน' : 'บริษัท ตัวอย่าง จำกัด'}
+                    />
                   </label>
-                  <div className="sf-field-row">
-                    <label className="sf-label">เลขประจำตัวผู้เสียภาษี *
+                  <label className="sf-label">ที่อยู่ออกใบกำกับภาษี *
+                    <textarea
+                      ref={taxAddrRef}
+                      className="sf-input"
+                      rows={3}
+                      value={taxAddress}
+                      onChange={e => setTaxAddress(e.target.value)}
+                      placeholder={taxType === 'personal' ? 'ที่อยู่ตามบัตรประชาชน — คนละที่กับที่อยู่จัดส่งได้' : 'ที่อยู่ตามหนังสือรับรอง — คนละที่กับที่อยู่จัดส่งได้'}
+                    />
+                  </label>
+                  {taxType === 'personal' ? (
+                    <label className="sf-label">เลขประจำตัวประชาชน *
                       <input ref={taxIdRef} className="sf-input" value={taxId} onChange={e => setTaxId(e.target.value)} inputMode="numeric" placeholder="13 หลัก" />
                     </label>
-                    <label className="sf-label">สาขา
-                      <input className="sf-input" value={taxBranch} onChange={e => setTaxBranch(e.target.value)} placeholder="สำนักงานใหญ่" />
-                    </label>
-                  </div>
-                  <label className="sf-label">ที่อยู่ออกใบกำกับภาษี *
-                    <textarea ref={taxAddrRef} className="sf-input" rows={3} value={taxAddress} onChange={e => setTaxAddress(e.target.value)} placeholder="ที่อยู่ตามหนังสือรับรอง — คนละที่กับที่อยู่จัดส่งได้" />
-                  </label>
+                  ) : (
+                    <div className="sf-field-row">
+                      <label className="sf-label">เลขประจำตัวผู้เสียภาษี *
+                        <input ref={taxIdRef} className="sf-input" value={taxId} onChange={e => setTaxId(e.target.value)} inputMode="numeric" placeholder="13 หลัก" />
+                      </label>
+                      <label className="sf-label">สาขา
+                        <input className="sf-input" value={taxBranch} onChange={e => setTaxBranch(e.target.value)} placeholder="สำนักงานใหญ่" />
+                      </label>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -864,7 +917,7 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
                 </button>
               </div>
             ) : (
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div className="sf-coupon-row">
                 <input
                   className="sf-input"
                   value={couponInput}
@@ -872,14 +925,12 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); applyCoupon(); } }}
                   placeholder={couponStale ? couponApplied!.code : 'โค้ดส่วนลด (ถ้ามี)'}
                   aria-label="โค้ดส่วนลด"
-                  style={{ flex: 1, minWidth: 0 }}
                 />
                 <button
                   type="button"
                   className="sf-btn-ghost"
                   onClick={applyCoupon}
                   disabled={couponChecking || (!couponInput.trim() && !couponStale)}
-                  style={{ flexShrink: 0, opacity: couponChecking || (!couponInput.trim() && !couponStale) ? 0.5 : 1 }}
                 >
                   {couponChecking ? 'กำลังตรวจ…' : 'ใช้โค้ด'}
                 </button>
