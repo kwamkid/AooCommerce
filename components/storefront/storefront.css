@@ -182,7 +182,7 @@
 
 .sf-card-body { padding: 12px 14px 16px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .sf-card-cat { font-size: 12px; color: var(--sf-muted); }
-.sf-card-name { font-size: 15px; font-weight: 400; line-height: 1.4; }   /* regular — เจ้าของไม่เอาตัวหนา (2026-09-14) */
+.sf-card-name { font-size: 15px; font-weight: 400; line-height: 1.4; margin: 0; }   /* regular — เจ้าของไม่เอาตัวหนา (2026-09-14) · เป็น <h2> จึงต้องล้าง margin ของเบราว์เซอร์ */
 .sf-card-price { margin-top: auto; padding-top: 8px; font-size: 16px; font-weight: 700; }
 .sf-card-compare { font-size: 13px; font-weight: 400; color: var(--sf-muted); text-decoration: line-through; margin-left: 6px; }
 .sf-oos { font-size: 13px; color: var(--sf-muted); font-weight: 500; }

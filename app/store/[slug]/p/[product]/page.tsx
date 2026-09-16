@@ -151,6 +151,46 @@ export default async function StorefrontProductPage({ params }: PageProps) {
     : 'https://schema.org/OutOfStock';
   const firstSku = product.variations.find(v => v.sku)?.sku || null;
 
+  /**
+   * ค่าจัดส่งในภาษาที่ Google Merchant อ่านออก — ประกอบจาก**โซนจริงที่ร้านตั้งไว้**
+   * ⛔ เอาเฉพาะโซนที่คิดค่าส่งแบบคงที่ · โซน Lalamove คิดตามระยะทางจริง ประกาศเป็นตัวเลขไม่ได้
+   *    (ประกาศผิดแล้วลูกค้าเห็นค่าส่งใน Google ไม่ตรงกับตอนเช็คเอาต์)
+   */
+  const shippingDetails = zones
+    .filter(z => z.fee_type !== 'lalamove' && (z.provinces?.length || 0) > 0)
+    .map(z => ({
+      '@type': 'OfferShippingDetails',
+      shippingRate: {
+        '@type': 'MonetaryAmount',
+        value: Number(z.fee) || 0,
+        currency: 'THB',
+      },
+      shippingDestination: {
+        '@type': 'DefinedRegion',
+        addressCountry: 'TH',
+        addressRegion: z.provinces,
+      },
+      ...(z.lead_minutes > 0
+        ? {
+            deliveryTime: {
+              '@type': 'ShippingDeliveryTime',
+              transitTime: {
+                '@type': 'QuantitativeValue',
+                minValue: 0,
+                maxValue: Math.ceil(z.lead_minutes / 1440),
+                unitCode: 'DAY',
+              },
+            },
+          }
+        : {}),
+    }));
+
+  /** ฟิลด์ที่ Google เตือนเมื่อขาด — ใส่ได้เฉพาะที่รู้จริง ไม่เดา */
+  const offerExtras = {
+    itemCondition: 'https://schema.org/NewCondition',
+    ...(shippingDetails.length ? { shippingDetails } : {}),
+  };
+
   const productLd = {
     '@context': 'https://schema.org',
     '@type': 'Product',
@@ -176,6 +216,7 @@ export default async function StorefrontProductPage({ params }: PageProps) {
           availability: v.in_stock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
           url: productUrl,
           seller: { '@type': 'Organization', name: shopName },
+          ...offerExtras,
         }))
       : {
           '@type': 'Offer',
@@ -184,6 +225,7 @@ export default async function StorefrontProductPage({ params }: PageProps) {
           availability,
           url: productUrl,
           seller: { '@type': 'Organization', name: shopName },
+          ...offerExtras,
         },
   };
 

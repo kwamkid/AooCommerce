@@ -22,7 +22,9 @@ export default function StoreProductCard({ product, slug }: { product: Storefron
   const body = (
     <div className="sf-card-body">
       {product.category && <span className="sf-card-cat">{product.category}</span>}
-      <span className="sf-card-name">{product.name}</span>
+      {/* ชื่อสินค้าเป็น heading จริง ไม่ใช่ <span> — หน้ารายการไม่มี h1 (เจ้าของกำหนด)
+          จึงเริ่มที่ h2 ได้ตามสเปก HTML5 · ทำให้ Google/LLM รู้ว่าอันไหนคือหัวข้อของรายการ */}
+      <h2 className="sf-card-name">{product.name}</h2>
       <span className="sf-card-price">
         {product.in_stock ? (
           <>
