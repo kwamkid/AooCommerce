@@ -14,6 +14,7 @@ import { getChatAccount } from '@/lib/chat-config';
 import { logIntegrationNow } from '@/lib/integration-logger';
 import { graphPost } from '@/lib/meta/graph';
 import { loadOrderForConversion } from '@/lib/ads/subject';
+import { applySavedReplyVars } from '@/lib/chat/saved-reply-vars';
 import {
   readOptinConfig,
   optinRefPayload,
@@ -204,7 +205,11 @@ export async function sendOptinInvite(input: SendOptinInput): Promise<SendOptinR
   //   • `notification_messages_timezone` ไม่จำเป็น (ตัวที่ยิงผ่านไม่มี)
   // ข้อความนำ (ถ้าตั้งไว้) — การ์ดของ Meta ใส่ได้แค่หัวข้อเดียว อยากอธิบายยาวกว่านั้นต้องส่งก่อน
   // อยู่ในกรอบ 24 ชม. อยู่แล้วจึงส่งฟรี · ส่งไม่ผ่านก็ไม่ล้มทั้งงาน การ์ดสำคัญกว่า
-  const intro = scenario.intro?.trim();
+  // ⚠️ ต้องแทนค่า {{ตัวแปร}} ก่อนส่งเสมอ — ไม่งั้นลูกค้าเห็นโทเคนดิบ (ชุดเดียวกับข้อความสำเร็จรูป)
+  const intro = applySavedReplyVars(scenario.intro || '', {
+    customerName: contact.display_name,
+    shopName: account.account_name,
+  }).trim();
   if (intro) {
     const introRes = await graphPost<{ message_id?: string }>(`/${pageId}/messages`, pageToken, {
       recipient: { id: contact.fb_psid },

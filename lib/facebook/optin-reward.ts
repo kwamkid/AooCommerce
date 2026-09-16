@@ -14,12 +14,14 @@ import { getChatAccount } from '@/lib/chat-config';
 import { graphPost } from '@/lib/meta/graph';
 import { logIntegrationNow } from '@/lib/integration-logger';
 import { readOptinConfig, type OptinTrigger } from '@/lib/broadcast/optin';
+import { applySavedReplyVars } from '@/lib/chat/saved-reply-vars';
 
 interface ContactRow {
   id: string;
   company_id: string;
   fb_psid: string;
   chat_account_id: string | null;
+  display_name: string | null;
 }
 
 interface CouponRow {
@@ -47,7 +49,7 @@ export async function grantOptinReward(
   try {
     const { data: contact } = await supabaseAdmin
       .from('fb_contacts')
-      .select('id, company_id, fb_psid, chat_account_id')
+      .select('id, company_id, fb_psid, chat_account_id, display_name')
       .eq('id', contactId)
       .maybeSingle<ContactRow>();
     if (!contact || contact.company_id !== companyId || !contact.chat_account_id) return;
@@ -88,9 +90,14 @@ export async function grantOptinReward(
       .contains('raw_message', { optin_reward: true, coupon_id: coupon!.id });
     if (alreadySent) return;
 
-    const text = scenario.reward_message.includes('{code}')
-      ? scenario.reward_message.replace('{code}', coupon!.code)
-      : `${scenario.reward_message} ${coupon!.code}`;
+    // ⚠️ แทนค่า {{ตัวแปร}} ก่อนเสมอ (ชุดเดียวกับข้อความสำเร็จรูปในหน้าแชท)
+    const message = applySavedReplyVars(scenario.reward_message, {
+      customerName: contact.display_name,
+      shopName: account.account_name,
+    });
+    const text = message.includes('{code}')
+      ? message.replace('{code}', coupon!.code)
+      : `${message} ${coupon!.code}`;
 
     const res = await graphPost<{ message_id?: string }>(`/${pageId}/messages`, pageToken, {
       recipient: { id: contact.fb_psid },

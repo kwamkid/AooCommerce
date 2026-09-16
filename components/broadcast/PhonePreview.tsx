@@ -29,6 +29,8 @@ export interface PhoneChatMessage {
   key: string;
   /** true = การ์ด/รูปเต็มจอ — ตกบรรทัดใต้รูปโปรไฟล์ กว้างเกือบชนขอบจอ · ไม่ส่ง = อยู่ข้างรูปโปรไฟล์ */
   wide?: boolean;
+  /** ไม่ต้องมีรูปโปรไฟล์ร้าน — ก้อนที่ไม่ใช่คำพูดของร้าน (ฟองของลูกค้า · ประกาศของระบบ) */
+  hideAvatar?: boolean;
   node: ReactNode;
 }
 
@@ -127,10 +129,21 @@ export default function PhonePreview({
               const newGroup = i === 0 || !!messages[i - 1].wide;
               const gap = i === 0 ? '' : newGroup ? 'mt-3' : 'mt-1.5';
               if (m.wide) {
+                const showAvatar = newGroup && !m.hideAvatar;
+                // Messenger วางรูปโปรไฟล์ไว้**ข้างซ้ายของการ์ด ระดับล่างสุด** (เทียบกับรูปแคปจริง
+                // ของเจ้าของ 16 ก.ย. 2026) ต่างจาก LINE ที่วางไว้บนแล้วการ์ดตกบรรทัดลงมา
+                if (isMessenger) {
+                  return (
+                    <div key={m.key} className={`flex gap-1.5 items-end ${gap}`}>
+                      {showAvatar ? avatar : <span className="w-8 flex-shrink-0" />}
+                      <div className="flex-1 min-w-0">{m.node}</div>
+                    </div>
+                  );
+                }
                 return (
                   <div key={m.key} className={gap}>
-                    {newGroup && avatar}
-                    <div className={`-mx-1 ${newGroup ? 'mt-1.5' : ''}`}>{m.node}</div>
+                    {showAvatar && avatar}
+                    <div className={`-mx-1 ${showAvatar ? 'mt-1.5' : ''}`}>{m.node}</div>
                   </div>
                 );
               }

@@ -8,7 +8,7 @@
 // ⛔ **คูปองต้องมาจากโมดูลคูปอง** — ที่นี่แค่ "เลือกใบไหน" ไม่ตั้งเงื่อนไขซ้ำ
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Users, Info, ChevronDown, Image as ImageIcon, Ticket, Search } from 'lucide-react';
@@ -30,7 +30,8 @@ import ChannelBadge from '@/components/ui/ChannelBadge';
 import HelpHint from '@/components/ui/HelpHint';
 import ImageDropzone from '@/components/ui/ImageDropzone';
 import StickyActionBar from '@/components/ui/StickyActionBar';
-import PhonePreview from '@/components/broadcast/PhonePreview';
+import VarChips from '@/components/ui/VarChips';
+import PhonePreview, { type PhoneChatMessage } from '@/components/broadcast/PhonePreview';
 import { LoadingCard, NoPermissionCard, EmptyCard } from '@/components/ui/StateCard';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import { useToast } from '@/lib/toast-context';
@@ -116,32 +117,52 @@ function TextBubble({ children }: { children: React.ReactNode }) {
  * ⚠️ บรรทัดบนกับข้อความรองเป็นของ **Meta เขียนเอง** เราแก้ไม่ได้ — วาดไว้ให้ร้านเห็นว่า
  * ข้อความที่ตัวเองตั้งจะไปอยู่ตรงไหน จะได้ไม่เขียนซ้ำกับสิ่งที่ Meta พูดให้อยู่แล้ว
  */
-function OptinCardBubble({ pageName, title, imageUrl }: { pageName: string; title: string; imageUrl: string | null }) {
+/** บรรทัดคำขอของ Meta — อยู่**นอกการ์ด เต็มความกว้าง จัดกลาง** ไม่มีรูปโปรไฟล์ */
+function OptinNotice({ pageName }: { pageName: string }) {
   return (
+    <p className="text-[11px] leading-[1.45] text-gray-500 text-center px-2">
+      {pageName} would like to send you messages, which may be promotional.{' '}
+      <span className="text-[#0084FF] font-semibold">Learn More</span>
+    </p>
+  );
+}
+
+function OptinCardBubble({ title, imageUrl }: { title: string; imageUrl: string | null }) {
+  return (
+    // วางตามหน้าจอจริงที่เจ้าของแคปมา (16 ก.ย. 2026): การ์ดอยู่**ข้างขวาของรูปโปรไฟล์**
+    // (ตัวแม่จัดให้) · พื้นการ์ดเทา ปุ่มขาว (ไม่ใช่กลับกัน)
     <div className="w-full">
-      <p className="text-[11px] leading-snug text-gray-500 dark:text-slate-400 text-center px-2 pb-1.5">
-        {pageName} would like to send you messages, which may be promotional.
-      </p>
-      <div className="rounded-xl overflow-hidden bg-white dark:bg-slate-700 shadow-sm">
+      <div className="rounded-2xl overflow-hidden bg-[#F0F0F0]">
         {imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={imageUrl} alt="" className="w-full aspect-square object-cover" />
         ) : (
-          <div className="w-full aspect-square flex flex-col items-center justify-center gap-1 bg-gray-100 dark:bg-slate-600 text-gray-400">
+          <div className="w-full aspect-square flex flex-col items-center justify-center gap-1 bg-gray-200 text-gray-400">
             <ImageIcon className="w-5 h-5" strokeWidth={1.5} />
             <span className="text-[11px]">โลโก้เพจ</span>
           </div>
         )}
-        <div className="p-2.5">
-          <p className="text-[13px] font-medium leading-snug">{title || 'หัวข้อบนการ์ด'}</p>
-          <p className="text-[11px] leading-snug text-gray-500 dark:text-slate-400 mt-0.5">
+        <div className="px-3 pt-2.5 pb-2">
+          <p className="text-[13px] font-semibold leading-snug text-gray-900">{title || 'หัวข้อบนการ์ด'}</p>
+          <p className="text-[12px] leading-[1.4] text-gray-500 mt-1">
             Don&apos;t want to miss out on the latest sales? You can stop these messages at any time.
           </p>
         </div>
-        <div className="border-t border-gray-200 dark:border-slate-600 py-1.5 text-center text-[13px] font-medium text-gray-600 dark:text-slate-300">
-          Get updates
+        <div className="px-2 pb-2">
+          <div className="rounded-lg bg-white py-2 text-center text-[13px] font-semibold text-gray-900">
+            Get updates
+          </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** ฟองของลูกค้า (ฝั่งขวา สีฟ้า) — ใช้แสดงว่าเขากดปุ่มบนการ์ดแล้ว */
+function CustomerBubble({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex justify-end">
+      <span className="rounded-2xl bg-[#0084FF] text-white px-3 py-1.5 text-[13px] font-medium">{children}</span>
     </div>
   );
 }
@@ -175,6 +196,9 @@ export default function BroadcastPageSettings() {
   /** เปิดโมดัลเลือกคูปองให้จังหวะไหน */
   const [couponPickerFor, setCouponPickerFor] = useState<OptinTrigger | null>(null);
   const [couponSearch, setCouponSearch] = useState('');
+  /** ช่องข้อความของจังหวะที่กางอยู่ — ชิปตัวแปรแทรกตรงตำแหน่งเคอร์เซอร์ */
+  const introRef = useRef<HTMLTextAreaElement>(null);
+  const rewardRef = useRef<HTMLTextAreaElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -317,15 +341,20 @@ export default function BroadcastPageSettings() {
   // ลำดับที่ลูกค้าเห็นจริง: ข้อความนำ → การ์ด → (คูปองหลังกดรับ)
   const previewMessages = useMemo(() => {
     if (!page || !previewScenario) return [];
-    const list: { key: string; wide?: boolean; node: React.ReactNode }[] = [];
+    const list: PhoneChatMessage[] = [];
     if (previewScenario.intro.trim()) {
       list.push({ key: 'intro', node: <TextBubble>{previewScenario.intro}</TextBubble> });
     }
+    // บรรทัดคำขอเต็มกว้าง (ไม่มีรูปโปรไฟล์) แล้วการ์ดอยู่ข้างขวาของรูปโปรไฟล์
+    list.push({ key: 'notice', wide: true, hideAvatar: true, node: <OptinNotice pageName={page.account_name} /> });
     list.push({
       key: 'card',
       wide: true,
-      node: <OptinCardBubble pageName={page.account_name} title={previewScenario.title} imageUrl={previewImage} />,
+      node: <OptinCardBubble title={previewScenario.title} imageUrl={previewImage} />,
     });
+    // ลูกค้ากดปุ่มบนการ์ด → ขึ้นเป็นฟองของเขาเอง (ไม่มีรูปโปรไฟล์ร้าน เพราะไม่ใช่คำพูดของร้าน)
+    // ⛔ บรรทัดยืนยันของ Meta ("You've chosen to receive…") ไม่ต้องวาด — เจ้าของให้เอาออก
+    list.push({ key: 'tap', wide: true, hideAvatar: true, node: <CustomerBubble>Get updates</CustomerBubble> });
     if (previewCoupon) {
       const msg = previewScenario.reward_message.includes('{code}')
         ? previewScenario.reward_message.replace('{code}', previewCoupon.code)
@@ -518,20 +547,33 @@ export default function BroadcastPageSettings() {
                             placeholder={info.defaultTitle(page.account_name)}
                             hint={`สูงสุด ${OPTIN_TITLE_MAX} ตัวอักษร · การ์ดของ Facebook มีแค่หัวข้อเดียว`}
                           />
-                          <FormTextarea
-                            label="ข้อความนำก่อนการ์ด (ไม่บังคับ)"
-                            value={sc.intro}
-                            maxLength={OPTIN_INTRO_MAX}
-                            rows={2}
-                            onChange={e => updateScenario(trigger, { intro: e.target.value })}
-                            placeholder="เช่น ขอบคุณที่อุดหนุนนะคะ 💛 กดรับข่าวสารไว้ จะได้ไม่พลาดของใหม่และโปรพิเศษค่ะ"
-                            hint="ส่งเป็นข้อความธรรมดาก่อนการ์ด — ฟรี ไม่คิดเงินเหมือนข้อความการตลาด"
-                          />
+                          <div>
+                            <FormTextarea
+                              ref={introRef}
+                              label="ข้อความนำก่อนการ์ด (ไม่บังคับ)"
+                              value={sc.intro}
+                              maxLength={OPTIN_INTRO_MAX}
+                              rows={2}
+                              onChange={e => updateScenario(trigger, { intro: e.target.value })}
+                              placeholder="เช่น ขอบคุณที่อุดหนุนนะคะ 💛 กดรับข่าวสารไว้ จะได้ไม่พลาดของใหม่และโปรพิเศษค่ะ"
+                              hint="ส่งเป็นข้อความธรรมดาก่อนการ์ด — ฟรี ไม่คิดเงินเหมือนข้อความการตลาด"
+                            />
+                            {/* ชุดตัวแปรเดียวกับข้อความสำเร็จรูปในหน้าแชท — ไม่มี "ชื่อผู้ตอบ"
+                                เพราะงานอัตโนมัติไม่มีคนตอบ */}
+                            <VarChips
+                              targetRef={introRef}
+                              value={sc.intro}
+                              onChange={v => updateScenario(trigger, { intro: v })}
+                              only={['{{ชื่อลูกค้า}}', '{{ชื่อร้าน}}']}
+                              className="mt-1.5"
+                            />
+                          </div>
 
                           {/* คูปองของจังหวะนี้ — เปิดสวิตช์แล้วเลือกใบจากโมดูลคูปอง */}
                           <div>
                             <div className="flex items-center justify-between gap-3">
-                              <label className="field-label flex items-center gap-1">
+                              <label className="field-label flex items-center gap-1.5">
+                                <Ticket className="w-4 h-4 text-gray-400" />
                                 ส่งคูปองเมื่อกดรับ
                                 <HelpHint>
                                   ใส่คูปองในการ์ดไม่ได้ (Facebook ให้แค่รูป หัวข้อ ปุ่ม) — ระบบส่งโค้ดตามเข้าแชท
@@ -567,13 +609,23 @@ export default function BroadcastPageSettings() {
                                   </span>
                                   <span className="subtitle-text text-primary flex-shrink-0">เปลี่ยน</span>
                                 </button>
-                                <FormTextarea
-                                  label="ข้อความที่ส่งพร้อมโค้ด"
-                                  value={sc.reward_message}
-                                  rows={2}
-                                  onChange={e => updateScenario(trigger, { reward_message: e.target.value })}
-                                  hint="ใส่ {code} ตรงที่อยากให้โค้ดไปอยู่ — ไม่ใส่ ระบบจะต่อโค้ดไว้ท้ายข้อความให้"
-                                />
+                                <div>
+                                  <FormTextarea
+                                    ref={rewardRef}
+                                    label="ข้อความที่ส่งพร้อมโค้ด"
+                                    value={sc.reward_message}
+                                    rows={2}
+                                    onChange={e => updateScenario(trigger, { reward_message: e.target.value })}
+                                    hint="ใส่ {code} ตรงที่อยากให้โค้ดไปอยู่ — ไม่ใส่ ระบบจะต่อโค้ดไว้ท้ายข้อความให้"
+                                  />
+                                  <VarChips
+                                    targetRef={rewardRef}
+                                    value={sc.reward_message}
+                                    onChange={v => updateScenario(trigger, { reward_message: v })}
+                                    only={['{{ชื่อลูกค้า}}', '{{ชื่อร้าน}}']}
+                                    className="mt-1.5"
+                                  />
+                                </div>
                               </div>
                             )}
                           </div>

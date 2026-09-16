@@ -5,7 +5,7 @@
 // เดิมทุกหน้าพิมพ์ `<textarea className="w-full px-4 py-2.5 border …">` กันเอง
 // (บรอดแคสต์ · ที่อยู่ · หมายเหตุ) แก้สีโฟกัสทีหนึ่งต้องไล่แก้ทุกหน้า
 // ตัวนี้มีป้าย · คำอธิบาย · ตัวนับอักขระ (เมื่อส่ง maxLength) · ข้อความผิดพลาด ให้ครบในตัว
-import { useId, type TextareaHTMLAttributes } from 'react';
+import { forwardRef, useId, type TextareaHTMLAttributes } from 'react';
 
 interface FormTextareaProps extends Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'className'> {
   label?: string;
@@ -17,10 +17,14 @@ interface FormTextareaProps extends Omit<TextareaHTMLAttributes<HTMLTextAreaElem
   containerClassName?: string;
 }
 
-export default function FormTextarea({
+/**
+ * ส่ง ref ถึง `<textarea>` จริงได้ — ที่ที่ต้องแทรกข้อความตรงตำแหน่งเคอร์เซอร์ (ชิป `VarChips`)
+ * ต้องเข้าถึง selectionStart/selectionEnd ของช่องจริง
+ */
+const FormTextarea = forwardRef<HTMLTextAreaElement, FormTextareaProps>(function FormTextarea({
   label, hint, error, showCount, className = '', containerClassName = '',
   id, required, maxLength, value, rows = 4, ...rest
-}: FormTextareaProps) {
+}, ref) {
   const autoId = useId();
   const textareaId = id ?? autoId;
   const hasError = !!error;
@@ -36,6 +40,7 @@ export default function FormTextarea({
         </label>
       )}
       <textarea
+        ref={ref}
         id={textareaId}
         required={required}
         maxLength={maxLength}
@@ -66,4 +71,6 @@ export default function FormTextarea({
       )}
     </div>
   );
-}
+});
+
+export default FormTextarea;
