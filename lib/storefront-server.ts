@@ -22,6 +22,7 @@ import {
   type StorefrontVariation, type StorefrontOptionGroup, type StorefrontSwatch,
 } from '@/lib/storefront';
 import { parseFeatures, type FeatureFlags } from '@/lib/features';
+import { cleanVariationLabel } from '@/lib/product-display';
 
 export interface StorefrontLineOa {
   /** ชื่อ OA ที่แสดงกับลูกค้า */
@@ -287,7 +288,15 @@ function toPublicVariation(
   const { price, compare_at } = effectivePrice(v.default_price, v.discount_price);
   return {
     id: v.id,
-    label: v.variation_label,
+    // ⚠️ ผ่าน `cleanVariationLabel` เสมอ — ร้านใช้ช่องนี้เก็บอะไรก็ได้ ของจริง **42%**
+    // ตั้งเป็นตัวเลขล้วนและอีก 498 ตัวตั้งเท่ากับ sku (= บาร์โค้ด) ⇒ ปล่อยดิบแล้วลูกค้า
+    // เห็นบาร์โค้ดเป็นชื่อตัวเลือกบนหน้าร้านและในฟีด Merchant
+    label: cleanVariationLabel({
+      variation_label: v.variation_label,
+      sku: v.sku,
+      barcode: v.barcode ?? null,
+      attributes: v.attributes as Record<string, string> | null | undefined,
+    }) || null,
     sku: v.sku,
     barcode: v.barcode ?? null,
     price,
