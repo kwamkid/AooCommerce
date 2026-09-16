@@ -16,6 +16,7 @@ import Checkbox from '@/components/ui/Checkbox';
 import Alert from '@/components/ui/Alert';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 import { useToast } from '@/lib/toast-context';
+import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useDebouncedCallback } from '@/lib/useDebounce';
@@ -257,6 +258,7 @@ const PREVIEW_SEED = [
 export default function StorefrontSettingsPage() {
   const { allowed, loading: guardLoading } = useAuthGuard('settings.access', { noRedirect: true });
   const { showToast } = useToast();
+  const { confirmDialog, confirm } = useConfirmDialog();
   const { currentCompany } = useCompany();
 
   const [cfg, setCfg] = useState<StorefrontConfig>(DEFAULT_STOREFRONT);
@@ -443,6 +445,7 @@ export default function StorefrontSettingsPage() {
 
   return (
     <Layout>
+      {confirmDialog}
       <Container size="2xl">
         <PageHeader
           title="หน้าร้านออนไลน์"
@@ -493,10 +496,42 @@ export default function StorefrontSettingsPage() {
                   checked={cfg.enabled}
                   // เปิดร้านโดยไม่มีชื่อลิงก์ = ร้านที่ไม่มีใครเข้าถึงได้ (API ก็ปฏิเสธ) —
                   // บอกตั้งแต่ตรงนี้ดีกว่าให้กดแล้วไปเจอ error ตอนบันทึก
-                  onChange={(v) => {
+                  //
+                  // ⚠️ **การปิดต้องยืนยันก่อนเสมอ** — สวิตช์ธรรมดาที่กดพลาดทีเดียวแล้วถอน
+                  // ทั้งร้านออกจาก Google นั้นเงียบเกินไปสำหรับผลที่ตามมา (กู้คืนกินเวลา
+                  // เป็นสัปดาห์ และเป็นงานของ Google ไม่ใช่ของเรา) · การเปิดไม่ต้องถาม
+                  onChange={async (v) => {
                     if (v && !storefrontSlug.trim()) {
                       showToast('ตั้งชื่อลิงก์ของร้านก่อนถึงจะเปิดหน้าร้านได้', 'error');
                       return;
+                    }
+                    if (!v) {
+                      const ok = await confirm({
+                        title: 'ปิดหน้าร้านออนไลน์?',
+                        variant: 'danger',
+                        confirmLabel: 'ปิดร้านและถอนจาก Google',
+                        cancelLabel: 'ไม่ปิด',
+                        children: (
+                          <div className="space-y-3">
+                            <p className="body-text">เมื่อบันทึกแล้วจะเกิดสิ่งเหล่านี้</p>
+                            <ul className="space-y-1.5 body-text list-disc pl-5">
+                              <li>ทุกหน้าของร้านแสดงว่าปิดอยู่ ลูกค้าดูสินค้าไม่ได้</li>
+                              <li><strong>ทุกหน้าถูกถอนออกจากผลค้นหา Google</strong> รวมหน้าสินค้าทุกตัว</li>
+                              <li>เปิดกลับมาแล้ว Google ต้องเก็บข้อมูลใหม่ — กินเวลาหลายวันถึงหลายสัปดาห์ และเราเร่งไม่ได้</li>
+                            </ul>
+                            <div className="inner-panel">
+                              <div className="inner-panel-body">
+                                <p className="body-text">
+                                  ถ้าแค่<strong>หยุดรับออร์เดอร์ชั่วคราว</strong> (ของขาด · หยุดยาว · ไปเที่ยว)
+                                  ให้กด &quot;ไม่ปิด&quot; แล้วใช้สวิตช์ <strong>พักรับออร์เดอร์ชั่วคราว</strong> ข้างล่างแทน
+                                  — ลูกค้ายังดูสินค้าได้ทุกหน้า และ<strong>อันดับใน Google ไม่หาย</strong>
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ),
+                      });
+                      if (!ok) return;
                     }
                     patch({ enabled: v });
                   }}
