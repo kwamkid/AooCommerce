@@ -535,19 +535,13 @@ export default function BroadcastPageSettings() {
                           />
                         </div>
 
+                        {/* เรียงตามลำดับที่ลูกค้าได้รับจริง: ข้อความนำ → การ์ด → คูปองหลังกดรับ
+                            (เจ้าของขอ 16 ก.ย. 2026 — ฟอร์มกับพรีวิวต้องไล่ทางเดียวกัน) */}
                         <div className="grid gap-3 min-w-0">
-                          <FormInput
-                            label="หัวข้อบนการ์ด"
-                            value={sc.title}
-                            maxLength={OPTIN_TITLE_MAX}
-                            onChange={e => updateScenario(trigger, { title: e.target.value })}
-                            placeholder={info.defaultTitle(page.account_name)}
-                            hint={`สูงสุด ${OPTIN_TITLE_MAX} ตัวอักษร · การ์ดของ Facebook มีแค่หัวข้อเดียว`}
-                          />
                           <div>
                             <FormTextarea
                               ref={introRef}
-                              label="ข้อความนำก่อนการ์ด (ไม่บังคับ)"
+                              label="ข้อความนำ (ไม่บังคับ)"
                               value={sc.intro}
                               maxLength={OPTIN_INTRO_MAX}
                               rows={2}
@@ -565,6 +559,14 @@ export default function BroadcastPageSettings() {
                               className="mt-1.5"
                             />
                           </div>
+                          <FormInput
+                            label="หัวข้อบนการ์ด"
+                            value={sc.title}
+                            maxLength={OPTIN_TITLE_MAX}
+                            onChange={e => updateScenario(trigger, { title: e.target.value })}
+                            placeholder={info.defaultTitle(page.account_name)}
+                            hint={`สูงสุด ${OPTIN_TITLE_MAX} ตัวอักษร · การ์ดของ Facebook มีแค่หัวข้อเดียว`}
+                          />
 
                           {/* คูปองของจังหวะนี้ — เปิดสวิตช์แล้วเลือกใบจากโมดูลคูปอง */}
                           <div>
