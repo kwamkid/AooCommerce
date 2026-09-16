@@ -817,6 +817,24 @@ export const getDiscontinuedProduct = cache(async (
  *
  * หา slug ไม่เจอ = คืนค่าเดิมให้ RPC ไปกรองตามชื่อเหมือนเดิม (ค่ามั่ว = ไม่เจอสินค้า เท่าเดิม)
  */
+/**
+ * metadata ของหน้า "ธุรกรรม" ในร้าน (ตะกร้า · checkout · คำสั่งซื้อ · บัญชี)
+ *
+ * หน้าพวกนี้ `noindex` เสมอ แต่ **ต้องมีชื่อร้านใน `<title>`** — ไม่ใช่เพื่ออันดับ
+ * แต่เพราะระบบเป็น multi-tenant: ตั้งเป็นสตริงตายตัวแล้วทุกร้านจะมี `<title>ตะกร้าสินค้า</title>`
+ * เหมือนกันหมด ลูกค้าเปิดหลายแท็บ/ดูประวัติ/แชร์ลิงก์แล้วไม่รู้ว่าร้านไหน
+ *
+ * `getStorefrontCompany` ห่อ cache() แล้วและตัวหน้าเรียกอยู่แล้วในคำขอเดียวกัน — ไม่ยิง query เพิ่ม
+ */
+export async function storeUtilityMetadata(slug: string, pageTitle: string) {
+  const company = await getStorefrontCompany(slug);
+  const shopName = company ? (company.config.display_name || company.name) : '';
+  return {
+    title: shopName ? `${pageTitle} | ${shopName}` : pageTitle,
+    robots: { index: false, follow: false },
+  };
+}
+
 export interface ResolvedCategory {
   /** ค่าที่ส่งให้ RPC กรอง — หาไม่เจอก็ส่งค่าดิบต่อ (ผลลัพธ์ = ไม่เจอสินค้า เท่าเดิม) */
   filter: string;

@@ -5,13 +5,16 @@
 // ปุ่ม LINE จะโผล่เฉพาะร้านที่ตั้งค่า LINE OA ไว้แล้ว — ร้านที่ไม่มี OA
 // ให้ login LINE ไปก็ส่งแจ้งเตือนไม่ได้ กลายเป็นปุ่มที่ให้ความคาดหวังผิด
 import type { Metadata } from 'next';
-import { getStorefrontCompany } from '@/lib/storefront-server';
+import { getStorefrontCompany, storeUtilityMetadata } from '@/lib/storefront-server';
 import AccountClient from './account-client';
 
-export const metadata: Metadata = {
-  title: 'บัญชีของฉัน',
-  robots: { index: false, follow: false },
-};
+// ชื่อหน้า + **ชื่อร้าน** — ระบบเป็น multi-tenant ตั้งเป็นสตริงตายตัวแล้วทุกร้าน title ซ้ำกันหมด
+export async function generateMetadata(
+  { params }: { params: Promise<{ slug: string }> },
+): Promise<Metadata> {
+  const { slug } = await params;
+  return storeUtilityMetadata(slug, 'บัญชีของฉัน');
+}
 
 export default async function StorefrontAccountPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;

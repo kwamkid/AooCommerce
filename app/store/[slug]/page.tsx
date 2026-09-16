@@ -6,7 +6,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import {
   getStorefrontCompany, getStorefrontCatalog, getClosedStorefront, catalogOptionsFor,
-  resolveCategoryParam,
+  getStorefrontDelivery, resolveCategoryParam,
   type StorefrontCompany,
 } from '@/lib/storefront-server';
 import {
@@ -22,6 +22,16 @@ export const revalidate = 300;
 interface PageProps {
   params: Promise<{ slug: string }>;
   searchParams: Promise<{ cat?: string; q?: string; page?: string }>;
+}
+
+/**
+ * คำค้นมาจากผู้ใช้ ไม่จำกัดความยาว — ยัดลง `<title>`/`<h1>` ดิบ ๆ ไม่ได้
+ * (ใครก็ทำ URL ที่ทำให้หน้าบนโดเมนของร้านมีข้อความของตัวเองได้)
+ */
+const QUERY_DISPLAY_MAX = 50;
+function clampQuery(raw: string): string {
+  const q = raw.replace(/\s+/g, ' ').trim();
+  return q.length <= QUERY_DISPLAY_MAX ? q : `${q.slice(0, QUERY_DISPLAY_MAX)}…`;
 }
 
 /** เลขหน้าจาก URL — ค่าเพี้ยน (0 · ติดลบ · ไม่ใช่ตัวเลข) = หน้า 1 */
@@ -48,7 +58,14 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
   // ชื่อหมวดใน <title> ต้องเป็น**ชื่อจริง** ไม่ใช่ค่าดิบใน URL — ลิงก์แบบ slug จะโชว์
   // "easier-beginnings" และค่ามั่วจะกลายเป็นหัวข้อหน้าบนโดเมนของร้าน
   const catName = (await resolveCategoryParam(company.id, cat))?.name || null;
-  const baseTitle = q ? `ค้นหา "${q}" | ${shopName}` : catName ? `${catName} | ${shopName}` : shopName;
+  // ⚠️ หน้าแรกคือหน้าที่มีน้ำหนักที่สุดของร้าน แต่ `<title>` เคยเป็น**ชื่อร้านเปล่า ๆ**
+  // ไม่มีคำค้นสักคำ ("ร้านเบบี้เลิฟ" ไม่มีคำว่า สั่งออนไลน์/จัดส่ง/จังหวัดที่ส่งถึง)
+  // ⇒ ต่อท้ายด้วยคำโปรยของร้าน ถ้าไม่ได้ตั้งก็ประกอบจากพื้นที่จัดส่งจริง
+  const homeSuffix = cfg.tagline || (await homeTitleSuffix(company));
+  const baseTitle = q
+    ? `ค้นหา "${clampQuery(q)}" | ${shopName}`
+    : catName ? `${catName} | ${shopName}`
+    : homeSuffix ? `${shopName} — ${homeSuffix}` : shopName;
   // หน้า 2 ขึ้นไปต้องมีชื่อของตัวเอง ไม่งั้น Google เห็นเป็นหน้าซ้ำกันทั้งชุด
   const title = page > 1 ? `${baseTitle} — หน้า ${page}` : baseTitle;
   const description = cfg.tagline || company.description || `สั่งซื้อสินค้าออนไลน์จาก ${shopName}`;
@@ -93,6 +110,20 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
  * navigate แล้ว stream ผลจริงตามมา (ก่อนหน้านี้หน้าค้างนิ่งจนผลมาถึง
  * เพราะ loading.tsx ไม่ทำงานเมื่อเปลี่ยนแค่ searchParams ใน segment เดิม)
  */
+/**
+ * ท้าย `<title>` ของหน้าแรกเมื่อร้านไม่ได้ตั้งคำโปรย — ประกอบจาก **โซนจัดส่งจริง**
+ * ไม่ได้เดา · `getStorefrontDelivery` ห่อ cache() แล้วและ layout เรียกอยู่แล้วในคำขอเดียวกัน
+ * จึงไม่ได้ยิง query เพิ่ม
+ */
+async function homeTitleSuffix(company: StorefrontCompany): Promise<string> {
+  if (!company.features.delivery_zone) return 'สั่งซื้อออนไลน์ จัดส่งถึงบ้าน';
+  const { zones } = await getStorefrontDelivery(company.id);
+  const provinces = Array.from(new Set(zones.flatMap(z => z.provinces || []))).slice(0, 2);
+  return provinces.length
+    ? `สั่งซื้อออนไลน์ ส่ง${provinces.join(' ')} ถึงบ้าน`
+    : 'สั่งซื้อออนไลน์ จัดส่งถึงบ้าน';
+}
+
 async function CatalogResults({
   company, slug, cat, q, page,
 }: {
@@ -143,7 +174,7 @@ async function CatalogResults({
           (หน้าหมวดไม่ต้องรอ จึงวาดไว้นอก Suspense แล้ว) */}
       {q && (
         <div className="sf-hero">
-          <h1>{`ผลการค้นหา "${q}"`}</h1>
+          <h1>{`ผลการค้นหา "${clampQuery(q)}"`}</h1>
           <p>
             พบ {total.toLocaleString('th-TH')} รายการ{' '}
             <Link href={storefrontHref(slug)} className="sf-footer-link">ล้างคำค้นหา</Link>

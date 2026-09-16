@@ -10,13 +10,16 @@ import { PackageX } from 'lucide-react';
 import { storefrontHref } from '@/lib/storefront';
 import { NextRequest } from 'next/server';
 import { GET as billsGET } from '@/app/api/bills/route';
-import { getStorefrontCompany } from '@/lib/storefront-server';
+import { getStorefrontCompany, storeUtilityMetadata } from '@/lib/storefront-server';
 import OrderClient, { type StoreOrder } from './order-client';
 
-export const metadata: Metadata = {
-  title: 'คำสั่งซื้อ',
-  robots: { index: false, follow: false },
-};
+// ชื่อหน้า + **ชื่อร้าน** — ระบบเป็น multi-tenant ตั้งเป็นสตริงตายตัวแล้วทุกร้าน title ซ้ำกันหมด
+export async function generateMetadata(
+  { params }: { params: Promise<{ slug: string; id: string }> },
+): Promise<Metadata> {
+  const { slug } = await params;
+  return storeUtilityMetadata(slug, 'คำสั่งซื้อ');
+}
 
 async function fetchOrder(id: string): Promise<StoreOrder | null> {
   try {

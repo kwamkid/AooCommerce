@@ -2,13 +2,16 @@
 // Checkout อยู่บน aoo เต็มหน้าเสมอ (ทั้งทาง standalone และทาง WordPress embed)
 // — noindex เพราะเป็นหน้าธุรกรรม ไม่ใช่หน้าที่ต้องติดอันดับ
 import type { Metadata } from 'next';
-import { getStorefrontCompany } from '@/lib/storefront-server';
+import { getStorefrontCompany, storeUtilityMetadata } from '@/lib/storefront-server';
 import CheckoutClient from './checkout-client';
 
-export const metadata: Metadata = {
-  title: 'ข้อมูลจัดส่ง',
-  robots: { index: false, follow: false },
-};
+// ชื่อหน้า + **ชื่อร้าน** — ระบบเป็น multi-tenant ตั้งเป็นสตริงตายตัวแล้วทุกร้าน title ซ้ำกันหมด
+export async function generateMetadata(
+  { params }: { params: Promise<{ slug: string }> },
+): Promise<Metadata> {
+  const { slug } = await params;
+  return storeUtilityMetadata(slug, 'ข้อมูลจัดส่ง');
+}
 
 export default async function CheckoutPage({
   params,
