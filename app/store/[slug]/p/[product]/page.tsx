@@ -23,6 +23,19 @@ import UnavailableProduct from '@/components/storefront/UnavailableProduct';
 
 export const revalidate = 300;
 
+/** เพดานที่ Google แสดงจริงก่อนตัด — เผื่อที่ให้ " | ชื่อร้าน" ต่อท้ายเสมอ */
+const TITLE_PRODUCT_MAX = 45;
+const DESCRIPTION_MAX = 160;
+
+/** ตัดที่ช่องว่างคำสุดท้าย ไม่ตัดกลางคำ · ไทยไม่มีช่องว่างระหว่างคำจึงตกไปตัดตรง ๆ */
+function clampForTitle(text: string, max: number): string {
+  const t = text.replace(/\s+/g, ' ').trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max);
+  const lastSpace = cut.lastIndexOf(' ');
+  return (lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut).trimEnd() + '…';
+}
+
 interface PageProps {
   params: Promise<{ slug: string; product: string }>;
 }
@@ -56,19 +69,27 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   const cfg = company.config;
   const shopName = cfg.display_name || company.name;
-  const description = (product.description || `${product.name} จาก ${shopName} สั่งซื้อออนไลน์ จัดส่งถึงบ้าน`)
-    .replace(/\s+/g, ' ')
-    .slice(0, 300);
+  // ⚠️ ชื่อสินค้ายาวได้ถึง 120 ตัว — ต่อชื่อร้านดิบ ๆ แล้ว Google ตัดชื่อร้านทิ้งทุกหน้า
+  // ตัดชื่อสินค้าก่อน เหลือที่ให้ชื่อร้านเสมอ (แบรนด์ต้องอยู่ใน SERP)
+  const title = `${clampForTitle(product.name, TITLE_PRODUCT_MAX)} | ${shopName}`;
+  // 300 ตัวถูก Google ตัดที่ ~160 อยู่ดี และ 160 ตัวแรกของคำอธิบายที่ร้านพิมพ์มักเป็นสเปก
+  // ⇒ นำด้วยข้อเท็จจริงที่ทำให้คนกด (ราคา + ร้าน) แล้วค่อยต่อด้วยคำอธิบายเท่าที่เหลือ
+  const priceText = product.price_max > product.price_min
+    ? `${formatStorePrice(product.price_min)}–${formatStorePrice(product.price_max)} บาท`
+    : `${formatStorePrice(product.price_min)} บาท`;
+  const lead = `${product.name} ราคา ${priceText} จาก ${shopName}`;
+  const rest = (product.description || 'สั่งซื้อออนไลน์ จัดส่งถึงบ้าน').replace(/\s+/g, ' ').trim();
+  const description = clampForTitle(`${lead} — ${rest}`, DESCRIPTION_MAX);
 
   return {
-    title: `${product.name} | ${shopName}`,
+    title,
     description,
     robots: cfg.public_base_url ? undefined : { index: false, follow: true },
     alternates: cfg.public_base_url
       ? { canonical: storefrontUrl(cfg, slug, `/p/${product.slug}`) }
       : undefined,
     openGraph: {
-      title: product.name,
+      title,
       description,
       type: 'website',
       ...(cfg.public_base_url ? { url: storefrontUrl(cfg, slug, `/p/${product.slug}`) } : {}),
