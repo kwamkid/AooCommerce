@@ -712,11 +712,16 @@ export const getStorefrontCatalog = cache(async (
 ): Promise<CatalogPage> => {
   const pageSize = Math.max(1, Math.floor(options.pageSize ?? STOREFRONT_PAGE_SIZE));
   const page = Math.max(1, Math.floor(options.page ?? 1));
+  // ⚠️ **คลังเดียวกับ `fetchAvailability()`** — ไม่ส่งไปแล้ว RPC จะบวกทุกคลัง รวมของที่ฝากขาย
+  // อยู่ในห้าง/ตัวแทน ⇒ สินค้าที่คลังขายจริงหมดแล้วจะไม่ถูกกรองออก แล้วไปโผล่เป็นการ์ด
+  // "สินค้าหมดชั่วคราว" ทั้งที่ร้านสั่งให้ซ่อน (เจอจริง 16 ก.ย. 2026)
+  const warehouseId = stockEnabled ? await resolveStorefrontWarehouse(companyId) : null;
 
   const { data, error } = await supabaseAdmin.rpc('get_storefront_catalog', {
     p_company_id: companyId,
     p_category: options.category || null,
     p_brand: options.brand || null,
+    p_warehouse_id: warehouseId,
     p_search: options.search || null,
     p_sort: options.sort || 'name',
     p_stock_enabled: stockEnabled,
