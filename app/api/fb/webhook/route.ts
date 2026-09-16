@@ -143,7 +143,16 @@ export async function POST(request: NextRequest) {
           if (!isInstagram && senderId === pageId) continue;
 
           const contact = await fbService.getOrCreateContact(senderId, pageId, pageAccessToken, companyId, chatAccountId, isInstagram);
-          if (contact) await fbService.saveOptinEvent(contact, event, companyId);
+          if (contact) {
+            await fbService.saveOptinEvent(contact, event, companyId);
+            // กดรับ (ไม่ใช่กดเลิกรับ) → ออกคูปองให้ถ้าเพจตั้งไว้ · ตัวมันเองกันออกซ้ำและไม่ throw
+            // ⚠️ ต้องอยู่ใน after() — ปล่อยลอยแล้ว Vercel freeze ทิ้งทันทีที่ตอบ Facebook ไป
+            if (event.optin.notification_messages_status !== 'STOP_NOTIFICATIONS') {
+              after(() => import('@/lib/facebook/optin-reward')
+                .then(m => m.grantOptinReward(companyId, contact.id))
+                .catch(() => null));
+            }
+          }
           continue;
         }
 

@@ -14,11 +14,11 @@ import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
 import Card from '@/components/ui/Card';
-import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import Alert from '@/components/ui/Alert';
 import FormSelect from '@/components/ui/FormSelect';
 import FormInput from '@/components/ui/FormInput';
+import FormTextarea from '@/components/ui/FormTextarea';
 import Toggle from '@/components/ui/Toggle';
 import NumberInput from '@/components/ui/NumberInput';
 import ChannelBadge from '@/components/ui/ChannelBadge';
@@ -34,8 +34,8 @@ import { supabase } from '@/lib/supabase';
 import { formatPrice, formatThaiDateTime } from '@/lib/utils/format';
 import { BROADCAST_SETUP_KEYS } from '@/lib/broadcast/platforms';
 import {
-  readOptinConfig, validateOptinConfig, OPTIN_TRIGGERS, OPTIN_TITLE_MAX,
-  type OptinConfig, type OptinScenario, type OptinTrigger,
+  readOptinConfig, validateOptinConfig, OPTIN_TRIGGERS, OPTIN_TITLE_MAX, OPTIN_INTRO_MAX,
+  type OptinConfig, type OptinScenario, type OptinTrigger, type OptinReward,
 } from '@/lib/broadcast/optin';
 
 /** งบที่ Meta ยอมรับต่ำสุดเท่าที่ยิงจริงแล้วผ่าน — 1 บาทถูกปฏิเสธ */
@@ -206,6 +206,8 @@ export default function BroadcastPageSettings() {
     });
   };
   const updateOptin = (patch: Partial<OptinConfig>) => setOptin(s => ({ ...s, ...patch }));
+  const updateReward = (patch: Partial<OptinReward>) =>
+    setOptin(s => ({ ...s, reward: { ...s.reward, ...patch } }));
 
   /** รูปขึ้น storage ตอนกดบันทึกเท่านั้น — เลือกแล้วเปลี่ยนใจไม่ทิ้งไฟล์ขยะไว้ */
   const uploadImage = async (file: File): Promise<string> => {
@@ -437,14 +439,23 @@ export default function BroadcastPageSettings() {
                         />
                       </div>
 
-                      <div>
+                      <div className="grid gap-3">
                         <FormInput
                           label="หัวข้อบนการ์ด"
                           value={sc.title}
                           maxLength={OPTIN_TITLE_MAX}
                           onChange={e => updateScenario(trigger, { title: e.target.value })}
                           placeholder={info.defaultTitle(page.account_name)}
-                          hint={`สูงสุด ${OPTIN_TITLE_MAX} ตัวอักษร · การ์ดของ Facebook มีแค่หัวข้อเดียว ใส่รายละเอียดเพิ่มไม่ได้`}
+                          hint={`สูงสุด ${OPTIN_TITLE_MAX} ตัวอักษร · การ์ดของ Facebook มีแค่หัวข้อเดียว`}
+                        />
+                        <FormTextarea
+                          label="ข้อความนำก่อนการ์ด (ไม่บังคับ)"
+                          value={sc.intro}
+                          maxLength={OPTIN_INTRO_MAX}
+                          rows={3}
+                          onChange={e => updateScenario(trigger, { intro: e.target.value })}
+                          placeholder="เช่น ขอบคุณที่อุดหนุนนะคะ 💛 กดรับข่าวสารไว้ จะได้ไม่พลาดของใหม่และโปรพิเศษค่ะ"
+                          hint="ส่งเป็นข้อความธรรมดาก่อนการ์ด — ฟรี ไม่คิดเงินเหมือนข้อความการตลาด"
                         />
                       </div>
 
@@ -454,6 +465,71 @@ export default function BroadcastPageSettings() {
                 </div>
               );
             })}
+          </div>
+
+          {/* คูปองเมื่อกดรับ — ใส่ในการ์ดไม่ได้ ต้องส่งตามหลังจากที่เขากดแล้ว */}
+          <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="body-text font-medium flex items-center gap-1">
+                  ส่งคูปองให้ทันทีที่กดรับ
+                  <HelpHint>
+                    ใส่คูปองในการ์ดชวนสมัครไม่ได้ (Facebook ให้แค่รูป หัวข้อ และปุ่ม) —
+                    ระบบจะรอจนลูกค้ากดรับ แล้วออกโค้ด<strong>เฉพาะคนนั้น</strong>ส่งเข้าแชทให้เอง ·
+                    โค้ดผูกกับตัวคน ไม่ใช่โค้ดกลางที่หลุดไปให้คนอื่นใช้ได้
+                  </HelpHint>
+                </p>
+                <p className="subtitle-text">ออกโค้ดเฉพาะคน ใช้ได้ครั้งเดียว · คนเดิมกดรับซ้ำจะไม่ได้โค้ดใหม่</p>
+              </div>
+              <Toggle
+                checked={optin.reward.enabled}
+                onChange={v => updateReward({ enabled: v })}
+                aria-label="ส่งคูปองเมื่อกดรับ"
+              />
+            </div>
+
+            {optin.reward.enabled && (
+              <div className="grid sm:grid-cols-2 gap-3 mt-3">
+                <div>
+                  <label className="field-label block mb-1">ชนิดส่วนลด</label>
+                  <FormSelect
+                    value={optin.reward.discount_type}
+                    onChange={v => updateReward({ discount_type: v as OptinReward['discount_type'] })}
+                    options={[
+                      { id: 'percent', label: 'ลดเป็นเปอร์เซ็นต์' },
+                      { id: 'amount', label: 'ลดเป็นจำนวนเงิน' },
+                    ]}
+                  />
+                </div>
+                <div>
+                  <label className="field-label block mb-1">
+                    {optin.reward.discount_type === 'percent' ? 'ลดกี่เปอร์เซ็นต์' : 'ลดกี่บาท'}
+                  </label>
+                  <NumberInput
+                    value={optin.reward.discount_value}
+                    onChange={n => updateReward({ discount_value: n })}
+                    min="1"
+                  />
+                </div>
+                <div>
+                  <label className="field-label block mb-1">ซื้อขั้นต่ำ (บาท)</label>
+                  <NumberInput value={optin.reward.min_spend} onChange={n => updateReward({ min_spend: n })} min="0" />
+                </div>
+                <div>
+                  <label className="field-label block mb-1">โค้ดใช้ได้กี่วัน</label>
+                  <NumberInput value={optin.reward.valid_days} onChange={n => updateReward({ valid_days: n })} min="1" />
+                </div>
+                <div className="sm:col-span-2">
+                  <FormTextarea
+                    label="ข้อความที่ส่งพร้อมโค้ด"
+                    value={optin.reward.message}
+                    rows={2}
+                    onChange={e => updateReward({ message: e.target.value })}
+                    hint="ใส่ {code} ตรงที่อยากให้โค้ดไปอยู่ — ไม่ใส่ ระบบจะต่อโค้ดไว้ท้ายข้อความให้"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* กติการ่วมของทั้ง 3 จังหวะ */}

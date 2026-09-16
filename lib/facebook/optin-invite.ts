@@ -201,6 +201,31 @@ export async function sendOptinInvite(input: SendOptinInput): Promise<SendOptinR
   //   • `notification_messages_frequency` ใส่ไม่ได้ → `(#100) Invalid keys … in param "name_placeholder"`
   //     (ความถี่เป็นสิ่งที่ลูกค้าเลือกเองตอนกดรับ แล้วส่งกลับมาทาง webhook)
   //   • `notification_messages_timezone` ไม่จำเป็น (ตัวที่ยิงผ่านไม่มี)
+  // ข้อความนำ (ถ้าตั้งไว้) — การ์ดของ Meta ใส่ได้แค่หัวข้อเดียว อยากอธิบายยาวกว่านั้นต้องส่งก่อน
+  // อยู่ในกรอบ 24 ชม. อยู่แล้วจึงส่งฟรี · ส่งไม่ผ่านก็ไม่ล้มทั้งงาน การ์ดสำคัญกว่า
+  const intro = scenario.intro?.trim();
+  if (intro) {
+    const introRes = await graphPost<{ message_id?: string }>(`/${pageId}/messages`, pageToken, {
+      recipient: { id: contact.fb_psid },
+      message: { text: intro },
+    });
+    if (introRes.ok) {
+      const at = new Date().toISOString();
+      await supabaseAdmin.from('fb_messages').insert({
+        company_id: companyId,
+        fb_contact_id: contact.id,
+        fb_message_id: introRes.body?.message_id || null,
+        direction: 'outgoing',
+        message_type: 'text',
+        content: intro,
+        raw_message: { optin_intro: true, trigger },
+        sent_by: input.requestedBy ?? null,
+        sent_at: at,
+        created_at: at,
+      });
+    }
+  }
+
   const res = await graphPost<{ message_id?: string }>(`/${pageId}/messages`, pageToken, {
     recipient: { id: contact.fb_psid },
     message: {

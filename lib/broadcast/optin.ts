@@ -11,6 +11,8 @@
 //   • ส่งคำชวนได้เฉพาะใน 24 ชม. นับจาก **ลูกค้าทักล่าสุด** — พ้นกรอบได้ code 10/2018278
 //   • ขอซ้ำได้ 1 ครั้ง/สัปดาห์/หัวข้อ/คน ⇒ reask_days ต่ำกว่า 7 ไม่มีประโยชน์ Meta ปฏิเสธเอง
 
+import type { CouponDiscountType } from '@/lib/coupons';
+
 export type OptinTrigger = 'manual' | 'after_sale' | 'quiet';
 
 // ⛔ **ความถี่ไม่ใช่ของที่ร้านตั้ง** — ยิงจริงแล้ว Meta ปฏิเสธ
@@ -30,13 +32,53 @@ export interface OptinScenario {
   enabled: boolean;
   title: string;
   image_url: string;
+  /**
+   * ข้อความธรรมดาที่ส่งนำก่อนการ์ด (ไม่บังคับ)
+   * การ์ดของ Meta ใส่ได้แค่หัวข้อเดียว — อยากอธิบายยาวกว่านั้นต้องส่งเป็นข้อความก่อน
+   * อยู่ในกรอบ 24 ชม. อยู่แล้วจึงส่งฟรี ไม่คิดเงินเหมือนข้อความการตลาด
+   */
+  intro: string;
 }
+
+/** ข้อความนำยาวเกินนี้ในแชทอ่านไม่ไหว (ของ Messenger จริง ๆ ได้ 2,000) */
+export const OPTIN_INTRO_MAX = 300;
+
+/**
+ * คูปองที่ส่งให้ทันทีเมื่อลูกค้ากดรับข่าวสาร
+ * ⚠️ **ใส่คูปองในการ์ดชวนสมัครไม่ได้** (การ์ดของ Meta มีแค่รูป/หัวข้อ/ปุ่ม) — ทางเดียวคือ
+ * รอ webhook บอกว่าเขากดรับ แล้วออกโค้ดเฉพาะคนนั้นส่งตามเข้าไปในแชท
+ */
+export interface OptinReward {
+  enabled: boolean;
+  /** ชนิดเดียวกับคูปองปกติ (lib/coupons.ts) */
+  discount_type: CouponDiscountType;
+  discount_value: number;
+  min_spend: number;
+  /** เพดานส่วนลดเมื่อคิดเป็น % (null = ไม่จำกัด) */
+  max_discount: number | null;
+  /** โค้ดใช้ได้กี่วันนับจากวันที่กดรับ */
+  valid_days: number;
+  /** ข้อความที่ส่งพร้อมโค้ด — `{code}` จะถูกแทนที่ด้วยโค้ดจริง */
+  message: string;
+}
+
+export const OPTIN_REWARD_DEFAULT: OptinReward = {
+  enabled: false,
+  discount_type: 'percent',
+  discount_value: 5,
+  min_spend: 0,
+  max_discount: null,
+  valid_days: 30,
+  message: 'ขอบคุณที่กดรับข่าวสาร 🎁 นี่คือโค้ดส่วนลดของคุณ: {code}',
+};
 
 export interface OptinConfig {
   version: 1;
   manual: OptinScenario;
   after_sale: OptinScenario;
   quiet: OptinScenario;
+  /** คูปองที่ส่งให้ทันทีที่ลูกค้ากดรับ */
+  reward: OptinReward;
   /** ถามคนเดิมซ้ำได้เมื่อผ่านไปกี่วัน (บังคับ ≥ OPTIN_MIN_REASK_DAYS) */
   reask_days: number;
   /** ถามคนเดิมได้กี่ครั้งแล้วเลิกถาม — ถามไม่หยุด = โดนบล็อก */
@@ -91,6 +133,7 @@ function scenarioDefaults(trigger: OptinTrigger, shopName: string): OptinScenari
     enabled: info.defaultEnabled,
     title: info.defaultTitle(shopName),
     image_url: '',
+    intro: '',
   };
 }
 
@@ -102,6 +145,23 @@ function readScenario(raw: unknown, trigger: OptinTrigger, shopName: string): Op
     enabled: typeof o.enabled === 'boolean' ? o.enabled : base.enabled,
     title: typeof o.title === 'string' && o.title.trim() ? trimTitle(o.title) : base.title,
     image_url: typeof o.image_url === 'string' ? o.image_url.trim() : '',
+    intro: typeof o.intro === 'string' ? o.intro.trim().slice(0, OPTIN_INTRO_MAX) : '',
+  };
+}
+
+function readReward(raw: unknown): OptinReward {
+  if (!raw || typeof raw !== 'object') return { ...OPTIN_REWARD_DEFAULT };
+  const o = raw as Record<string, unknown>;
+  const type = o.discount_type === 'amount' ? 'amount' : 'percent';
+  const maxDiscount = Number(o.max_discount);
+  return {
+    enabled: typeof o.enabled === 'boolean' ? o.enabled : false,
+    discount_type: type as CouponDiscountType,
+    discount_value: num(o.discount_value, OPTIN_REWARD_DEFAULT.discount_value, 1, type === 'percent' ? 100 : 100000),
+    min_spend: num(o.min_spend, 0, 0, 1000000),
+    max_discount: Number.isFinite(maxDiscount) && maxDiscount > 0 ? maxDiscount : null,
+    valid_days: num(o.valid_days, OPTIN_REWARD_DEFAULT.valid_days, 1, 365),
+    message: typeof o.message === 'string' && o.message.trim() ? o.message.trim() : OPTIN_REWARD_DEFAULT.message,
   };
 }
 
@@ -144,6 +204,7 @@ export function readOptinConfig(
     manual,
     after_sale: readScenario(bag.after_sale, 'after_sale', shopName),
     quiet: readScenario(bag.quiet, 'quiet', shopName),
+    reward: readReward(bag.reward),
     reask_days: num(bag.reask_days, 30, OPTIN_MIN_REASK_DAYS, 365),
     max_asks: num(bag.max_asks, 3, 1, 10),
     quiet_min_minutes: num(bag.quiet_min_minutes, 30, 1, 23 * 60),
