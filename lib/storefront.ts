@@ -267,6 +267,17 @@ export function storefrontAbsoluteUrl(cfg: StorefrontConfig, slug: string, path 
   return url.startsWith('/') ? `${PUBLIC_APP_BASE_URL}${url}` : url;
 }
 
+/**
+ * แปลง JSON-LD เป็นสตริงที่ใส่ใน `<script>` ได้อย่างปลอดภัย
+ *
+ * ⚠️ **`JSON.stringify` ไม่ escape `<`** — ชื่อสินค้าหรือคำอธิบายที่ร้านพิมพ์คำว่า `</script>`
+ * ลงไปจะปิดแท็กก่อนกำหนด ⇒ structured data พังเงียบ ๆ + เป็นช่องให้ยัด HTML เข้าหน้า
+ * ทุกที่ที่วาง JSON-LD ต้องผ่านตัวนี้ ห้ามเรียก `JSON.stringify` ตรง ๆ
+ */
+export function jsonLdScript(data: unknown): string {
+  return JSON.stringify(data).replace(/</g, '\\u003c');
+}
+
 /** ลิงก์หน้าสินค้า — `slug` ของสินค้า ไม่ใช่ id (id ในลิงก์อ่านไม่รู้เรื่องและเสีย SEO) */
 export function storefrontProductUrl(cfg: StorefrontConfig, shopSlug: string, productSlug: string): string {
   return storefrontAbsoluteUrl(cfg, shopSlug, `/p/${productSlug}`);

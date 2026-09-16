@@ -12,7 +12,8 @@ import {
   getDiscontinuedProduct, getStorefrontCatalog, catalogOptionsFor,
 } from '@/lib/storefront-server';
 import {
-  storefrontUrl, storefrontHref, formatStorePrice, storefrontCssVars, storefrontRootClasses,
+  storefrontUrl, storefrontHref, storefrontAbsoluteUrl, jsonLdScript,
+  formatStorePrice, storefrontCssVars, storefrontRootClasses,
 } from '@/lib/storefront';
 import { formatSlotTime } from '@/lib/delivery';
 import AddToCartButton from '@/components/storefront/AddToCartButton';
@@ -112,10 +113,12 @@ export default async function StorefrontProductPage({ params }: PageProps) {
     ? await getStorefrontDelivery(company.id)
     : { zones: [], slots: [] };
 
-  const productUrl = storefrontUrl(cfg, slug, `/p/${product.slug}`);
+  // ⚠️ URL ใน JSON-LD ต้องเป็น absolute เสมอ (schema.org บังคับ · Rich Results Test จับ)
+  const productUrl = storefrontAbsoluteUrl(cfg, slug, `/p/${product.slug}`);
   const availability = product.in_stock
     ? 'https://schema.org/InStock'
     : 'https://schema.org/OutOfStock';
+  const firstSku = product.variations.find(v => v.sku)?.sku || null;
 
   const productLd = {
     '@context': 'https://schema.org',
@@ -125,20 +128,24 @@ export default async function StorefrontProductPage({ params }: PageProps) {
     ...(product.images.length ? { image: product.images } : {}),
     ...(product.brand ? { brand: { '@type': 'Brand', name: product.brand } } : {}),
     ...(product.category ? { category: product.category } : {}),
-    ...(product.variations.length === 1 && product.variations[0].sku
-      ? { sku: product.variations[0].sku }
-      : {}),
+    // ⚠️ ต้องมี identifier เสมอ ไม่ใช่เฉพาะสินค้าที่มีตัวเลือกเดียว — สินค้าที่มีหลายตัวเลือก
+    // เคยไม่มี `sku` เลย ซึ่ง Google Merchant ปฏิเสธ · หลายตัวเลือกใช้ sku ของตัวแรกที่มี
+    // (ตัวจริงแยกอยู่ใน `offers[]` ของแต่ละตัวแล้ว)
+    ...(firstSku ? { sku: firstSku } : {}),
+    // สินค้าหลายตัวเลือก = `offers[]` ตัวละใบ (มี sku/ราคา/สถานะของจริงต่อตัว) ไม่ใช่
+    // `AggregateOffer` ใบเดียวที่บอกแค่ช่วงราคา — แบบเดิม Google ไม่รู้ว่าตัวไหนมีของ
+    // ตัวไหนหมด และไม่มี identifier ให้สักตัว
     offers: hasRange
-      ? {
-          '@type': 'AggregateOffer',
+      ? product.variations.map(v => ({
+          '@type': 'Offer',
           priceCurrency: 'THB',
-          lowPrice: product.price_min,
-          highPrice: product.price_max,
-          offerCount: product.variations.length,
-          availability,
+          price: v.price,
+          ...(v.sku ? { sku: v.sku } : {}),
+          ...(v.label ? { name: v.label } : {}),
+          availability: v.in_stock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
           url: productUrl,
           seller: { '@type': 'Organization', name: shopName },
-        }
+        }))
       : {
           '@type': 'Offer',
           priceCurrency: 'THB',
@@ -153,13 +160,13 @@ export default async function StorefrontProductPage({ params }: PageProps) {
     '@context': 'https://schema.org',
     '@type': 'BreadcrumbList',
     itemListElement: [
-      { '@type': 'ListItem', position: 1, name: shopName, item: storefrontUrl(cfg, slug) },
+      { '@type': 'ListItem', position: 1, name: shopName, item: storefrontAbsoluteUrl(cfg, slug) },
       ...(product.category
         ? [{
             '@type': 'ListItem',
             position: 2,
             name: product.category,
-            item: `${storefrontUrl(cfg, slug)}?cat=${encodeURIComponent(product.category_slug || product.category)}`,
+            item: `${storefrontAbsoluteUrl(cfg, slug)}?cat=${encodeURIComponent(product.category_slug || product.category)}`,
           }]
         : []),
       { '@type': 'ListItem', position: product.category ? 3 : 2, name: product.name, item: productUrl },
@@ -185,8 +192,8 @@ export default async function StorefrontProductPage({ params }: PageProps) {
 
   return (
     <div className="sf-container">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productLd) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(productLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(breadcrumbLd) }} />
 
       <nav className="sf-detail-meta" aria-label="เส้นทาง">
         <Link href={storefrontHref(slug)} className="sf-footer-link">{shopName}</Link>

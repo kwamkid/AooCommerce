@@ -6,7 +6,7 @@
 // → ทุกอย่างเป็นประโยคเต็มใน server HTML + FAQPage schema
 import type { Metadata } from 'next';
 import { getStorefrontCompany, getStorefrontDelivery } from '@/lib/storefront-server';
-import { storefrontUrl, formatStorePrice } from '@/lib/storefront';
+import { storefrontUrl, jsonLdScript, formatStorePrice } from '@/lib/storefront';
 import { formatSlotTime, formatDays } from '@/lib/delivery';
 
 export const revalidate = 600;
@@ -107,7 +107,7 @@ export default async function StorefrontDeliveryPage({ params }: PageProps) {
   return (
     <div className="sf-container">
       {faqLd && (
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(faqLd) }} />
       )}
 
       <div className="sf-hero">
@@ -187,10 +187,12 @@ export default async function StorefrontDeliveryPage({ params }: PageProps) {
       {faq.length > 0 && (
         <section className="sf-section">
           <h2>คำถามที่พบบ่อย</h2>
-          <div className="sf-facts">
+          {/* ⚠️ คำถามต้องเป็น <h3> จริง ไม่ใช่ <p> ตัวหนา — Google ต้องรู้ว่าอันไหนคือหัวข้อคำถาม
+              ถึงจะยกไปทำ featured snippet ได้ และนี่คือหน้าที่ AEO อ้างมากที่สุดของร้าน */}
+          <div className="sf-facts sf-faq">
             {faq.map(f => (
-              <div key={f.q} style={{ marginBottom: 12 }}>
-                <p style={{ fontWeight: 600 }}>{f.q}</p>
+              <div key={f.q}>
+                <h3>{f.q}</h3>
                 <p>{f.a}</p>
               </div>
             ))}

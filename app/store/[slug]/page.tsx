@@ -10,7 +10,7 @@ import {
   type StorefrontCompany,
 } from '@/lib/storefront-server';
 import {
-  storefrontUrl, storefrontHref, STOREFRONT_PAGE_SIZE,
+  storefrontUrl, storefrontHref, storefrontAbsoluteUrl, jsonLdScript, STOREFRONT_PAGE_SIZE,
   type StorefrontProduct,
 } from '@/lib/storefront';
 import StoreProductCard from '@/components/storefront/StoreProductCard';
@@ -54,7 +54,13 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
   const description = cfg.tagline || company.description || `สั่งซื้อสินค้าออนไลน์จาก ${shopName}`;
   // canonical ของหน้า 2 ขึ้นไป = ตัวมันเอง (?page=N) ไม่ใช่หน้าแรก — ไม่งั้นสินค้า
   // ที่อยู่หน้าหลัง ๆ ไม่มีทางถูกเก็บ index
-  const canonical = cfg.public_base_url
+  //
+  // ⛔ **หน้ากรอง/ค้นหาห้ามมี canonical** — หน้าพวกนั้นเป็น noindex อยู่แล้ว (ดู `robots` ข้างล่าง)
+  // การจับคู่ noindex กับ canonical ที่ชี้ไป **URL อื่น** เป็นสิ่งที่ Google บอกห้ามชัด ๆ เพราะ
+  // สัญญาณ noindex อาจถูกโอนไปติดหน้าเป้าหมาย — ของเดิมชี้ไปหน้าแรกของร้าน แปลว่าเสี่ยง
+  // ทำให้หน้าแรกหลุด index ทั้งร้าน · ไม่ใส่ canonical เลย = Google ใช้ URL ของหน้านั้นเอง
+  const indexable = !cat && !q;
+  const canonical = cfg.public_base_url && indexable
     ? `${storefrontUrl(cfg, slug)}${page > 1 ? `?page=${page}` : ''}`
     : null;
 
@@ -64,7 +70,7 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
     // ไม่มีโดเมนของร้าน = ยังไม่ควรถูก index (SEO บนโดเมน aoo ไม่มีค่ากับลูกค้า
     // และหลายร้านอยู่โดเมนเดียวกัน) · หน้า filter ก็ noindex กัน facet ระเบิด
     // หน้ากรอง/ค้นหา = noindex เสมอ (facet + คำค้นไม่จำกัด จะระเบิดเป็นหน้าขยะ)
-    robots: (!cfg.public_base_url || !!cat || !!q) ? { index: false, follow: true } : undefined,
+    robots: (!cfg.public_base_url || !indexable) ? { index: false, follow: true } : undefined,
     alternates: canonical ? { canonical } : undefined,
     openGraph: {
       title,
@@ -111,12 +117,14 @@ async function CatalogResults({
     '@context': 'https://schema.org',
     '@type': 'ItemList',
     name: resolved?.name ? `${resolved.name} — ${shopName}` : shopName,
-    numberOfItems: products.length,
+    // จำนวนของ "รายการนี้" คือทั้งหมดหลังกรอง ไม่ใช่เท่าที่อยู่ในหน้านี้
+    numberOfItems: total,
     itemListElement: products.slice(0, 50).map((p: StorefrontProduct, i: number) => ({
       '@type': 'ListItem',
       position: firstOnPage + i,
       name: p.name,
-      url: storefrontUrl(cfg, slug, `/p/${p.slug}`),
+      // schema.org บังคับ URL เต็ม — ร้านที่ยังไม่มีโดเมนตัวเอง storefrontUrl() คืน path ภายใน
+      url: storefrontAbsoluteUrl(cfg, slug, `/p/${p.slug}`),
     })),
   };
 
@@ -124,7 +132,7 @@ async function CatalogResults({
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(itemListLd) }}
       />
 
       {/* หัวข้อของหน้าค้นหาอยู่ตรงนี้เพราะบรรทัด "พบ N รายการ" ต้องรอยอดรวมจริง

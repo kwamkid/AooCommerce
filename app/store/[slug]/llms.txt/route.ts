@@ -43,11 +43,18 @@ export async function GET(
   L.push(`# ${shopName}`, '');
   if (cfg.tagline || company.description) L.push(`> ${cfg.tagline || company.description}`, '');
 
+  // ⛔ ช่องทางติดต่อของ **ร้าน** ก่อนเสมอ ตกไปใช้ของบริษัทเมื่อร้านไม่ได้ตั้ง — กติกาเดียวกับ
+  // ท้ายหน้าร้าน (`layout.tsx`) · อ่าน `company.*` ตรง ๆ = ประกาศเบอร์/ที่อยู่ที่จดทะเบียนบน
+  // ใบกำกับภาษีให้ AI เอาไปตอบลูกค้า ซึ่งมักไม่ใช่เบอร์ที่ร้านอยากให้ติดต่อ
+  const contactPhone = cfg.contact_phone || company.phone;
+  const contactEmail = cfg.contact_email || company.email;
+  const contactAddress = cfg.contact_address || company.address;
+
   L.push('## เกี่ยวกับร้าน', '');
   L.push(`- ชื่อร้าน: ${shopName}`);
-  if (company.phone) L.push(`- โทรศัพท์: ${company.phone}`);
-  if (company.email) L.push(`- อีเมล: ${company.email}`);
-  if (company.address) L.push(`- ที่อยู่: ${company.address}`);
+  if (contactPhone) L.push(`- โทรศัพท์: ${contactPhone}`);
+  if (contactEmail) L.push(`- อีเมล: ${contactEmail}`);
+  if (contactAddress) L.push(`- ที่อยู่: ${contactAddress}`);
   L.push(`- เว็บไซต์: ${storefrontUrl(cfg, slug)}`);
   L.push('');
 

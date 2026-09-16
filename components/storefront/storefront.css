@@ -278,6 +278,9 @@
 
 .sf-section { margin-top: 32px; }
 .sf-section h2 { font-size: 18px; font-weight: 700; margin: 0 0 10px; }
+/* คำถามใน FAQ — เป็น <h3> จริงเพื่อให้ Google/LLM รู้ว่าเป็นหัวข้อคำถาม หน้าตาเท่าเดิม */
+.sf-faq > div { margin-bottom: 12px; }
+.sf-faq h3 { font-size: inherit; font-weight: 600; margin: 0 0 2px; }
 .sf-prose { color: var(--sf-text); white-space: pre-wrap; }
 
 /* Facts block — plain sentences on purpose: AI answer engines quote passages,
