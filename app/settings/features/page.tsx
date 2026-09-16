@@ -11,10 +11,10 @@ import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import {
-  type FeatureFlags, PRESET_DEFAULTS, PRESET_LABELS, PRESET_DESCRIPTIONS, detectPreset, type BusinessPreset,
+  type FeatureFlags,
   type DeliveryFieldMode, DELIVERY_FIELD_MODE_LABELS, DELIVERY_FIELD_MODE_HINTS, deliveryFieldMode, deliveryFieldFromMode,
 } from '@/lib/features';
-import { CalendarDays, ShoppingCart, Monitor, Handshake, Tag, Factory, PackageCheck, Loader2, Truck, Store, Layers, Users, Warehouse, Building, Lock, MapPin, Clock } from 'lucide-react';
+import { CalendarDays, ShoppingCart, Monitor, Handshake, Tag, Factory, PackageCheck, Loader2, Truck, Warehouse, Lock, MapPin, Clock } from 'lucide-react';
 import { featureLockReason, type PackageGates } from '@/lib/package-features';
 import FilterChips, { FILTER_CHIP_PRIMARY_ACTIVE, type FilterChip } from '@/components/ui/FilterChips';
 import { type BrandGpRow } from '@/components/customers/BrandGpCommissions';
@@ -26,41 +26,6 @@ import UnitNumberField from '@/components/ui/UnitNumberField';
 import { NoPermissionCard } from '@/components/ui/StateCard';
 import StickyActionBar from '@/components/ui/StickyActionBar';
 import { InfoChip } from '@/components/ui/StatusBadge';
-
-// Feature icons for showing inside preset chips
-const FEATURE_ICONS: Partial<Record<keyof FeatureFlags, React.ReactNode>> = {
-  delivery_date: <CalendarDays className="w-3 h-3" />,
-  delivery_zone: <MapPin className="w-3 h-3" />,
-  delivery_slot: <Clock className="w-3 h-3" />,
-  marketplace_sync: <ShoppingCart className="w-3 h-3" />,
-  pos: <Monitor className="w-3 h-3" />,
-  consignment: <Handshake className="w-3 h-3" />,
-  product_brand: <Tag className="w-3 h-3" />,
-  supplier: <Factory className="w-3 h-3" />,
-  department_store: <PackageCheck className="w-3 h-3" />,
-};
-
-const FEATURE_SHORT: Partial<Record<keyof FeatureFlags, string>> = {
-  delivery_date: 'วันส่ง',
-  delivery_zone: 'พื้นที่ส่ง',
-  delivery_slot: 'รอบส่ง',
-  marketplace_sync: 'Marketplace',
-  pos: 'POS',
-  consignment: 'ฝากขาย',
-  product_brand: 'Brand',
-  supplier: 'Supplier',
-  department_store: 'ห้าง',
-};
-
-const PRESETS: { key: BusinessPreset; icon: React.ReactNode; label: string; desc: string }[] = [
-  { key: 'delivery',          icon: <Truck className="w-5 h-5" />,      label: PRESET_LABELS.delivery,          desc: PRESET_DESCRIPTIONS.delivery },
-  { key: 'ecommerce',         icon: <ShoppingCart className="w-5 h-5" />, label: PRESET_LABELS.ecommerce,       desc: PRESET_DESCRIPTIONS.ecommerce },
-  { key: 'ecommerce_brand',   icon: <Layers className="w-5 h-5" />,     label: PRESET_LABELS.ecommerce_brand,   desc: PRESET_DESCRIPTIONS.ecommerce_brand },
-  { key: 'omnichannel',       icon: <Store className="w-5 h-5" />,      label: PRESET_LABELS.omnichannel,       desc: PRESET_DESCRIPTIONS.omnichannel },
-  { key: 'omnichannel_brand', icon: <Building className="w-5 h-5" />,   label: PRESET_LABELS.omnichannel_brand, desc: PRESET_DESCRIPTIONS.omnichannel_brand },
-  { key: 'wholesale',         icon: <Warehouse className="w-5 h-5" />,  label: PRESET_LABELS.wholesale,         desc: PRESET_DESCRIPTIONS.wholesale },
-  { key: 'distribution',      icon: <Users className="w-5 h-5" />,      label: PRESET_LABELS.distribution,      desc: PRESET_DESCRIPTIONS.distribution },
-];
 
 // ---- Feature definitions ----
 
@@ -279,10 +244,8 @@ export default function FeaturesPage() {
           </div>
         ) : (
           <>
-            <div className="flex gap-6 items-start">
-
-              {/* LEFT: Feature list — 60% */}
-              <div className="flex-1 flex flex-col gap-3">
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-3">
             {FEATURES.map((feat) => {
               const isEnabled = getFeatureValue(feat.key);
               const isOpen = openSection === feat.key;
@@ -335,64 +298,7 @@ export default function FeaturesPage() {
             />
               </div>{/* end feature list */}
 
-              {/* RIGHT: Preset selector — 40% */}
-              <div className="sticky top-4 flex flex-col gap-3" style={{ width: '40%', flexShrink: 0 }}>
-                <Card>
-                  <p className="text-base font-semibold text-gray-900 dark:text-white mb-0.5">รูปแบบธุรกิจ</p>
-                  <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">เลือก preset เพื่อตั้งค่า features ทีเดียว หรือปรับแต่งเองทางซ้าย</p>
-                  <div className="flex flex-col gap-2">
-                    {PRESETS.map(({ key, icon, label, desc }) => {
-                      const isSelected = detectPreset(featureFlags) === key;
-                      // features that are ON in this preset
-                      const presetFeatures = Object.entries(PRESET_DEFAULTS[key])
-                        .filter(([, v]) => typeof v === 'object' && v !== null ? (v as { enabled: boolean }).enabled === true : v === true)
-                        .map(([k]) => k as keyof FeatureFlags);
-                      return (
-                        <button
-                          key={key}
-                          type="button"
-                          onClick={() => setFeatureFlags(PRESET_DEFAULTS[key])}
-                          disabled={!isOwnerOrAdmin}
-                          className={`w-full flex flex-col gap-2 px-3 py-3 rounded-xl border-2 transition-all text-left outline-none focus:outline-none ${
-                            isSelected
-                              ? 'border-primary bg-orange-50 dark:bg-orange-900/20'
-                              : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
-                          } ${!isOwnerOrAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <div className={`flex-shrink-0 ${isSelected ? 'text-primary' : 'text-gray-400 dark:text-slate-500'}`}>{icon}</div>
-                            <span className={`text-base font-semibold flex-1 ${isSelected ? 'text-primary' : 'text-gray-800 dark:text-slate-200'}`}>{label}</span>
-                            {isSelected && (
-                              <div className="w-4 h-4 bg-primary rounded-full flex items-center justify-center flex-shrink-0">
-                                <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                              </div>
-                            )}
-                          </div>
-                          <p className={`text-sm leading-snug ${isSelected ? 'text-orange-700 dark:text-orange-300' : 'text-gray-500 dark:text-slate-400'}`}>{desc}</p>
-                          {presetFeatures.length > 0 && (
-                            <div className="flex flex-wrap gap-1">
-                              {presetFeatures.map(fk => (
-                                <InfoChip key={fk} colors={
-                                  isSelected ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300' : 'bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-300'
-                                } icon={FEATURE_ICONS[fk]}>
-                                  {FEATURE_SHORT[fk]}
-                                </InfoChip>
-                              ))}
-                            </div>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {detectPreset(featureFlags) === null && (
-                    <p className="mt-3 text-xs text-amber-600 dark:text-amber-400">* ปรับแต่งเอง — ไม่ตรงกับ preset ใดๆ</p>
-                  )}
-                </Card>
-              </div>
-
-            </div>{/* end flex */}
+            </div>
 
             {isOwnerOrAdmin && (
               <StickyActionBar
