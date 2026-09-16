@@ -38,6 +38,7 @@ paths:
     "payload": "AOO_OPTIN_<trigger>" }     // กลับมาทาง webhook ตอนลูกค้ากดรับ
   ```
   - **ไม่มี `image_url` = Meta ตอบ `-1/2018012 (#-1) Unexpected internal error`** ซึ่งอ่านไม่ออกเลยว่าขาดอะไร (ไล่ผิดทางทั้งวัน เคยสรุปผิดว่า "API ถูกปิดแล้ว")
+  - ร้านที่ยังไม่ได้อัปรูป → ใช้ **`https://graph.facebook.com/{page_id}/picture?type=large`** (ยิงผ่านแล้ว) ⛔ ห้ามใช้ `chat_accounts.picture_url` ที่เก็บไว้ — ลิงก์ fbcdn หมดอายุราว 4 วัน แล้วการ์ดจะกลายเป็น "ไม่มีรูป" = ส่งไม่ออกเงียบ ๆ
   - `notification_messages_frequency` **ใส่ไม่ได้** → `(#100) Invalid keys … in param "name_placeholder"` (ความถี่ลูกค้าเลือกเองตอนกดรับ แล้วส่งกลับทาง webhook) · `notification_messages_timezone` ไม่จำเป็น · `elements[]` (carousel) รูปแบบยังไม่ถูก → `100/2018374`
   - ส่งได้เฉพาะในกรอบ 24 ชม. · คนที่**สมัครแล้วชวนซ้ำไม่ได้** (เช็ค `GET /{page_id}/notification_message_tokens` ก่อนเสมอ — ของเราเก็บสถานะที่ `fb_contacts.optin_status`)
 - ⛔ **ห้ามหาทางอ้อมกรอบข้างบน** (แพลตฟอร์มวัดสแปมจาก block/report ของผู้รับ ไม่ใช่วิธีกดส่ง) · เปลี่ยน `status` เป็น `'ready'` เมื่อต่อ API เสร็จและส่งได้จริงเท่านั้น

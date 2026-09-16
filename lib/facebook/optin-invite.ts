@@ -169,15 +169,10 @@ export async function sendOptinInvite(input: SendOptinInput): Promise<SendOptinR
     };
   }
 
-  // รูปเป็นฟิลด์บังคับจริง (ดูคอมเมนต์ที่ payload ข้างล่าง) — เช็คก่อนจองสิทธิ์
-  // ไม่งั้นใบนั้นถูกปิดตายทั้งที่ยิงไม่ออกตั้งแต่แรก
-  if (!scenario.image_url.trim()) {
-    return {
-      status: 'skipped',
-      code: 'no_image',
-      reason: 'ยังไม่ได้ใส่รูปบนการ์ด — Facebook ไม่รับการ์ดชวนสมัครที่ไม่มีรูป (ตั้งที่ การตลาด › บรอดแคสต์ › ตั้งค่า)',
-    };
-  }
+  // รูปเป็นฟิลด์บังคับจริง (ดูคอมเมนต์ที่ payload ข้างล่าง) — ร้านที่ยังไม่ได้อัปรูปใช้โลโก้เพจแทน
+  // ⚠️ ใช้ endpoint รูปโปรไฟล์ของ Graph ไม่ใช่ `picture_url` ที่เก็บใน DB — ลิงก์ fbcdn หมดอายุ
+  // ราว 4 วัน (กฎเดียวกับ AdMediaThumb ใน domains/chat.md) ส่วนลิงก์นี้ redirect ไปรูปล่าสุดเสมอ
+  const imageUrl = scenario.image_url.trim() || `https://graph.facebook.com/${pageId}/picture?type=large`;
 
   const dedupeKey = dedupeKeyFor(input);
   if (!dedupeKey) {
@@ -215,7 +210,7 @@ export async function sendOptinInvite(input: SendOptinInput): Promise<SendOptinR
         payload: {
           template_type: 'notification_messages',
           title,
-          image_url: scenario.image_url,
+          image_url: imageUrl,
           image_aspect_ratio: 'SQUARE',
           notification_messages_cta_text: 'GET_UPDATES',
           // กลับมาทาง webhook ตอนลูกค้ากดรับ — บอกว่าเขาสมัครจากจังหวะไหน
