@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { reserveStock } from '@/lib/stock-service';
+import { pushStockAfter } from '@/lib/marketplace/push-after';
 
 // GET /api/replenishments
 export async function GET(request: NextRequest) {
@@ -240,12 +241,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Reserve stock on source warehouse (if warehouse_id provided)
+    const reservedVarIds: string[] = [];
     if (warehouse_id) {
       for (const item of items as { variation_id?: string; quantity: number }[]) {
         if (!item.variation_id) continue;
         const qty = item.quantity || 0;
         if (qty <= 0) continue;
 
+        reservedVarIds.push(item.variation_id);
         await reserveStock({
           supabase: supabaseAdmin,
           companyId: auth.companyId!,
@@ -259,6 +262,9 @@ export async function POST(request: NextRequest) {
         });
       }
     }
+
+    // กันของไว้ให้ตัวแทนแล้ว = ยอดพร้อมขายลดทันที ร้านต้องเห็นเลย ไม่งั้นขายซ้ำของชิ้นเดียวกัน
+    pushStockAfter(reservedVarIds, [warehouse_id]);
 
     return NextResponse.json({
       success: true,

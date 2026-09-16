@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { reserveStock } from '@/lib/stock-service';
+import { pushStockAfter } from '@/lib/marketplace/push-after';
 import { fetchCostMap } from '@/lib/cost-utils';
 
 // GET /api/department-orders
@@ -217,11 +218,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Reserve stock on source warehouse (ship later = shipToTransit)
+    const reservedVarIds: string[] = [];
     if (warehouse_id) {
       try {
         for (const item of items) {
           const varId = item.variation_id || null;
           if (!varId || !item.quantity || item.quantity <= 0) continue;
+          reservedVarIds.push(varId);
           await reserveStock({
             supabase: supabaseAdmin,
             companyId: auth.companyId!,
@@ -238,6 +241,9 @@ export async function POST(request: NextRequest) {
         console.error('Department order stock reserve error:', stockErr);
       }
     }
+
+    // กันของไว้ให้ห้างแล้ว = ยอดพร้อมขายลดทันที ร้านต้องเห็นเลย ไม่งั้นขายซ้ำของชิ้นเดียวกัน
+    pushStockAfter(reservedVarIds, [warehouse_id]);
 
     // TAX + DN will be auto-issued when shipping (not on create)
 

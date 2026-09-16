@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { getStockConfig, parseStockDocLines, checkStockAvailability } from '@/lib/stock-utils';
 import { deductStock, InsufficientStockError } from '@/lib/stock-service';
+import { pushStockAfter } from '@/lib/marketplace/push-after';
 
 /** วันเปล่า `YYYY-MM-DD` → ขอบเขตตามเวลาไทย (ปลายทางเป็น timestamptz) */
 function toBoundary(value: string | null, end: boolean): string | null {
@@ -288,6 +289,9 @@ export async function POST(request: NextRequest) {
       await supabaseAdmin.from('inventory_issues').delete().eq('id', issue.id);
       return NextResponse.json({ error: errors[0].error, errors }, { status: 400 });
     }
+
+    // ของออกจากคลังจริงแล้ว (เบิกใช้ · ตัดของเสีย) → ไม่กระจาย = ร้านโชว์เกินจริง ขายเกิน
+    pushStockAfter(results.map(r => r.variation_id), [warehouse_id]);
 
     return NextResponse.json({ success: true, issue_id: issue.id, issue_number: issueNumber, results, errors });
   } catch (error) {

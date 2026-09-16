@@ -3,6 +3,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { transferIn, returnStock } from '@/lib/stock-service';
+import { pushStockAfter } from '@/lib/marketplace/push-after';
 import { isAllowedImageUpload } from '@/lib/upload-validation';
 
 const supabaseAdmin = createClient(
@@ -202,6 +203,12 @@ export async function POST(request: NextRequest) {
         receive_notes: receiveNotes?.trim() || null,
       })
       .eq('id', transfer.id);
+
+    // รับเข้าปลายทาง + ส่วนที่รับไม่ครบคืนต้นทาง → ยอดเปลี่ยนสองคลัง ต้องดันทั้งคู่
+    pushStockAfter(
+      (transfer.items as { variation_id: string }[]).map(i => i.variation_id),
+      [transfer.to_warehouse_id, transfer.from_warehouse_id],
+    );
 
     return NextResponse.json({ success: true, status: newStatus });
   } catch (error) {

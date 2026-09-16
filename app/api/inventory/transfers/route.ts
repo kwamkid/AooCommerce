@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, isAdminRole, can } from '@/lib/supabase-admin';
 import { getStockConfig, parseStockDocLines, checkStockAvailability } from '@/lib/stock-utils';
 import { reserveStock, deductAndUnreserve, transferIn, returnStock, unreserveStock } from '@/lib/stock-service';
+import { pushStockAfter } from '@/lib/marketplace/push-after';
 
 /** แถว `inventory_transfer_items` เท่าที่ route นี้ใช้ */
 interface TransferItemRow {
@@ -314,6 +315,9 @@ export async function POST(request: NextRequest) {
       results.push({ variation_id: item.variation_id, qty_sent: item.quantity });
     }
 
+    // จองที่ต้นทางแล้ว = ยอดพร้อมขายลดทันที ร้านต้องเห็นเลย ไม่ต้องรอส่งจริง
+    pushStockAfter(results.map(r => r.variation_id), [from_warehouse_id]);
+
     return NextResponse.json({
       success: true,
       transfer_id: transfer.id,
@@ -397,6 +401,8 @@ export async function PUT(request: NextRequest) {
         })
         .eq('id', transfer_id);
 
+      // ไม่ต้องกระจายขึ้นร้าน: deductAndUnreserve ลดทั้ง quantity และ reserved เท่ากัน
+      // → ยอดพร้อมขายเท่าเดิม (ของถูกกันไว้ตั้งแต่ตอนสร้างใบแล้ว) ยิงไปก็เปลืองโควตาเปล่า
       return NextResponse.json({ success: true, status: 'shipping' });
     }
 
@@ -475,6 +481,12 @@ export async function PUT(request: NextRequest) {
           receive_notes: receive_notes || null,
         })
         .eq('id', transfer_id);
+
+      // รับเข้าปลายทาง + ส่วนที่รับไม่ครบคืนต้นทาง → ยอดเปลี่ยนสองคลัง ต้องดันทั้งคู่
+      pushStockAfter(
+        (transfer.items as TransferItemRow[]).map(i => i.variation_id),
+        [transfer.to_warehouse_id, transfer.from_warehouse_id],
+      );
 
       return NextResponse.json({ success: true, status: 'received' });
     }
@@ -566,6 +578,9 @@ export async function PUT(request: NextRequest) {
           updated_at: new Date().toISOString(),
         })
         .eq('id', transfer_id);
+
+      // ปลดจอง (pending) หรือคืนของเข้าคลัง (shipping) — ทั้งสองแบบยอดพร้อมขายต้นทางเพิ่ม
+      pushStockAfter((transfer.items as TransferItemRow[]).map(i => i.variation_id), [transfer.from_warehouse_id]);
 
       return NextResponse.json({ success: true, status: 'cancelled' });
     }

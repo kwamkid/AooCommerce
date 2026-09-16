@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { getStockConfig, parseStockDocLines } from '@/lib/stock-utils';
 import { addStock, updateWeightedAverageCost } from '@/lib/stock-service';
+import { pushStockAfter } from '@/lib/marketplace/push-after';
 
 /** วันเปล่า `YYYY-MM-DD` → ขอบเขตตามเวลาไทย (ปลายทางเป็น timestamptz) */
 function toBoundary(value: string | null, end: boolean): string | null {
@@ -385,6 +386,9 @@ export async function POST(request: NextRequest) {
         }
       }
     }
+
+    // ของเข้าคลังจริงแล้ว → ร้านที่ผูกไว้ต้องเห็นยอดใหม่ ไม่งั้นรับเข้า 200 ชิ้นแต่ร้านยังโชว์ 0
+    pushStockAfter(results.map(r => r.variation_id), [warehouse_id]);
 
     return NextResponse.json({ success: true, receive_id: receive.id, receive_number: receiveNumber, results });
   } catch (error) {

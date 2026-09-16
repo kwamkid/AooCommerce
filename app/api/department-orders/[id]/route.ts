@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { shipToTransit, receiveFromTransit, cancelFromShipped, deductStock, unreserveStock, reserveStock } from '@/lib/stock-service';
+import { pushStockAfter } from '@/lib/marketplace/push-after';
 import { getConsignmentDestinationWarehouse } from '@/lib/consignment-warehouse';
 
 // GET /api/department-orders/[id]
@@ -179,6 +180,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         }
       }
 
+      // ไม่กระจายขึ้นร้านตอนส่ง: shipToTransit ลด quantity และ reserved เท่ากัน
+      // → ยอดพร้อมขายเท่าเดิม (ของถูกกันไว้ตั้งแต่ตอนสร้างใบส่งแล้ว)
+
       // Auto issue DN (ใบส่งสินค้า) on ship
       let dnNumber: string | null = null;
       let taxNumber: string | null = null;
@@ -297,6 +301,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         supabaseAdmin, existing.company_id, existing.customer_id, existing.counter_id
       );
 
+      // คลังที่ "ยอดพร้อมขาย" เปลี่ยนจริงในรอบนี้ — receiveFromTransit ย้าย in_transit ออกจาก
+      // ต้นทางเฉย ๆ ยอดพร้อมขายเท่าเดิม จะเปลี่ยนก็ต่อเมื่อรับขาด (คืนเข้าคลัง) หรือรับเกิน (หักเพิ่ม)
+      const confirmTouched: string[] = [];
+      let sourceChanged = false;
+
       if (consignWarehouse && existing.warehouse_id) {
         for (const item of (allItems || []) as {
           id: string; variation_id: string | null;
@@ -321,7 +330,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           });
 
           // Handle stock mismatch
+          confirmTouched.push(item.variation_id);
+
           const delta = item.quantity - confirmed;
+          if (delta !== 0) sourceChanged = true;
           if (delta > 0) {
             // รับขาด: คืน delta กลับคลังต้นทาง
             await cancelFromShipped({
@@ -411,6 +423,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         }
       }
 
+      pushStockAfter(confirmTouched, [
+        consignWarehouse?.id,
+        ...(sourceChanged ? [existing.warehouse_id] : []),
+      ]);
+
       return NextResponse.json({ success: true, status: newStatus, new_tax_number: newTaxNumber });
     }
 
@@ -445,6 +462,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         .eq('id', id);
 
       // Unreserve stock
+      const cancelTouched: string[] = [];
       if (existing.warehouse_id) {
         const { data: cancelItems } = await supabaseAdmin
           .from('department_order_items')
@@ -456,6 +474,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           const qty = item.quantity || 0;
           if (qty <= 0) continue;
 
+          cancelTouched.push(item.variation_id);
           await unreserveStock({
             supabase: supabaseAdmin,
             companyId: auth.companyId!,
@@ -469,6 +488,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           });
         }
       }
+
+      pushStockAfter(cancelTouched, [existing.warehouse_id]);
 
       return NextResponse.json({ success: true, status: 'cancelled' });
     }
@@ -519,6 +540,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           });
         }
       }
+
+      // ไม่กระจายขึ้นร้าน: cancelFromShipped คืนของเข้า quantity แล้ว reserveStock จองกลับ
+      // จำนวนเท่ากันทันที → ยอดพร้อมขายสุทธิเท่าเดิม (ใบกลับไปสถานะรอจัดส่ง)
 
       // 2. Void TAX invoices
       await supabaseAdmin.from('tax_invoices')

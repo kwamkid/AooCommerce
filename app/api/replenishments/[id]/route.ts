@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { shipToTransit, receiveFromTransit, unreserveStock, cancelFromShipped, reserveStock, deductStock } from '@/lib/stock-service';
+import { pushStockAfter } from '@/lib/marketplace/push-after';
 import { getConsignmentDestinationWarehouse } from '@/lib/consignment-warehouse';
 
 // GET /api/replenishments/[id]
@@ -177,6 +178,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         }
       }
 
+      // ไม่กระจายขึ้นร้านตอนส่ง: shipToTransit ลด quantity และ reserved เท่ากัน
+      // → ยอดพร้อมขายเท่าเดิม (ของถูกกันไว้ตั้งแต่ตอนสร้างใบเติมสินค้าแล้ว)
+
       // Auto issue DN (ใบส่งสินค้า) on ship
       let docResult = null;
       let taxResult: { invoiceNumber?: string } | null = null;
@@ -298,6 +302,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           supabaseAdmin, replenishment.company_id, replenishment.customer_id, replenishment.counter_id
         );
 
+        // receiveFromTransit ย้าย in_transit ออกจากต้นทางเฉย ๆ ยอดพร้อมขายต้นทางเท่าเดิม
+        // จะเปลี่ยนก็ต่อเมื่อรับขาด (คืนเข้าคลัง) หรือรับเกิน (หักเพิ่ม) เท่านั้น
+        const confirmTouched: string[] = [];
+        let sourceChanged = false;
+
         if (consignWarehouse) {
           for (const item of (allItems || []) as {
             id: string; variation_id: string | null;
@@ -321,8 +330,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
               createdBy: auth.userId,
             });
 
+            confirmTouched.push(item.variation_id);
+
             // Handle stock mismatch
             const delta = item.quantity - confirmed; // positive = ขาด, negative = เกิน
+            if (delta !== 0) sourceChanged = true;
             if (delta > 0) {
               // รับขาด: คืน delta กลับคลังต้นทาง (in_transit -= delta, quantity += delta)
               await cancelFromShipped({
@@ -353,6 +365,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
             }
           }
         }
+
+        pushStockAfter(confirmTouched, [
+          consignWarehouse?.id,
+          ...(sourceChanged ? [replenishment.warehouse_id] : []),
+        ]);
 
         // DN mode: ไม่ต้องออกเอกสารเพิ่มเมื่อรับไม่ครบ — DN PDF แสดง confirmed_quantity เอง
       }
@@ -396,6 +413,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         .eq('id', id);
 
       // Reverse stock operations
+      const cancelTouched: string[] = [];
       if (existing.warehouse_id) {
         const { data: cancelItems } = await supabaseAdmin
           .from('replenishment_items')
@@ -412,6 +430,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           if (!item.variation_id) continue;
           const qty = item.quantity || 0;
           if (qty <= 0) continue;
+
+          cancelTouched.push(item.variation_id);
 
           if (existing.status === 'pending') {
             await unreserveStock({
@@ -440,6 +460,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           }
         }
       }
+
+      // ปลดจอง (pending) หรือคืนของเข้าคลัง (shipped) — ทั้งสองแบบยอดพร้อมขายเพิ่ม
+      pushStockAfter(cancelTouched, [existing.warehouse_id]);
 
       return NextResponse.json({ success: true, status: 'cancelled' });
     }
@@ -478,6 +501,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         .eq('id', id);
 
       // Update items if provided
+      const updateReleasedVarIds: string[] = [];
       if (items && Array.isArray(items)) {
         // Unreserve old items first
         if (existing.warehouse_id) {
@@ -491,6 +515,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
             const qty = oldItem.quantity || 0;
             if (qty <= 0) continue;
 
+            updateReleasedVarIds.push(oldItem.variation_id);
             await unreserveStock({
               supabase: supabaseAdmin,
               companyId: auth.companyId!,
@@ -552,6 +577,18 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
             });
           }
         }
+      }
+
+      // แก้รายการ = ปล่อยจองเก่าทั้งชุดแล้วจองใหม่ จำนวนไม่จำเป็นต้องเท่าเดิม
+      // → ยอดพร้อมขายขยับทั้งตัวที่ถูกถอดออกและตัวที่เพิ่มเข้ามา ดันทั้งสองชุด
+      if (items && Array.isArray(items) && existing.warehouse_id) {
+        pushStockAfter(
+          [
+            ...updateReleasedVarIds,
+            ...(items as { variation_id?: string }[]).map(i => i.variation_id),
+          ],
+          [existing.warehouse_id],
+        );
       }
 
       return NextResponse.json({ success: true });

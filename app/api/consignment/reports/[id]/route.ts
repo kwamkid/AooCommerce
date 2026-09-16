@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { deductStock, addStock } from '@/lib/stock-service';
+import { pushStockAfter } from '@/lib/marketplace/push-after';
 import { getCustomerConsignmentWarehouse } from '@/lib/consignment-warehouse';
 
 // GET — Fetch single report detail with items, customer, batch info
@@ -138,9 +139,11 @@ export async function PUT(
         .eq('report_id', reportId);
 
       // 3. Deduct stock for each item
+      const confirmTouched: string[] = [];
       for (const item of reportItems || []) {
         if (!item.variation_id || item.qty_sold <= 0) continue;
 
+        confirmTouched.push(item.variation_id);
         await deductStock({
           supabase: supabaseAdmin,
           companyId,
@@ -194,6 +197,9 @@ export async function PUT(
         return NextResponse.json({ error: 'ไม่สามารถยืนยันรายงานได้' }, { status: 500 });
       }
 
+      // คลังฝากขายของตัวแทนอาจถูกผูกกับร้านออนไลน์ไว้ — ไม่ได้ผูก syncStockNow จะเงียบไปเอง
+      pushStockAfter(confirmTouched, [warehouse.id]);
+
       return NextResponse.json({
         success: true,
         status: 'billed',
@@ -217,6 +223,7 @@ export async function PUT(
         supabaseAdmin, companyId, report.customer_id
       );
 
+      const voidTouched: string[] = [];
       if (warehouse) {
         const { data: reportItems } = await supabaseAdmin
           .from('consignment_report_items')
@@ -225,6 +232,7 @@ export async function PUT(
 
         for (const item of reportItems || []) {
           if (!item.variation_id || item.qty_sold <= 0) continue;
+          voidTouched.push(item.variation_id);
           await addStock({
             supabase: supabaseAdmin,
             companyId,
@@ -268,6 +276,8 @@ export async function PUT(
           updated_at: now,
         })
         .eq('id', reportId);
+
+      pushStockAfter(voidTouched, [warehouse?.id]);
 
       return NextResponse.json({ success: true, status: 'draft' });
     }

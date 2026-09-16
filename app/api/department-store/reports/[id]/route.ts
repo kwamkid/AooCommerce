@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { addStock, deductStock } from '@/lib/stock-service';
+import { pushStockAfter } from '@/lib/marketplace/push-after';
 import { getConsignmentDestinationWarehouse } from '@/lib/consignment-warehouse';
 import { createOrAttachStatementForDeptReport } from '@/lib/statement-service';
 
@@ -98,6 +99,7 @@ export async function PUT(
       );
 
       // 2. Deduct stock from consignment warehouse
+      const confirmTouched: string[] = [];
       if (warehouse) {
         const { data: reportItems } = await supabaseAdmin
           .from('department_store_report_items')
@@ -106,6 +108,7 @@ export async function PUT(
 
         for (const item of reportItems || []) {
           if (!item.variation_id || item.qty_sold <= 0) continue;
+          confirmTouched.push(item.variation_id);
           await deductStock({
             supabase: supabaseAdmin,
             companyId,
@@ -170,6 +173,9 @@ export async function PUT(
           updated_at: now,
         })
         .eq('id', reportId);
+
+      // คลังห้างอาจถูกผูกกับร้านออนไลน์ไว้ — ถ้าไม่ได้ผูก syncStockNow จะเงียบไปเอง
+      pushStockAfter(confirmTouched, [warehouse?.id]);
 
       return NextResponse.json({
         success: true,
@@ -288,6 +294,7 @@ export async function PUT(
         supabaseAdmin, companyId, report.customer_id, report.counter_id
       );
 
+      const voidTouched: string[] = [];
       if (warehouse) {
         const { data: reportItems } = await supabaseAdmin
           .from('department_store_report_items')
@@ -296,6 +303,7 @@ export async function PUT(
 
         for (const item of reportItems || []) {
           if (!item.variation_id || item.qty_sold <= 0) continue;
+          voidTouched.push(item.variation_id);
           await addStock({
             supabase: supabaseAdmin,
             companyId,
@@ -361,6 +369,8 @@ export async function PUT(
           updated_at: now,
         })
         .eq('id', reportId);
+
+      pushStockAfter(voidTouched, [warehouse?.id]);
 
       return NextResponse.json({ success: true, status: 'draft' });
     }
