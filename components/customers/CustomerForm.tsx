@@ -142,7 +142,7 @@ const defaultFormData: CustomerFormData = {
   tax_company_name: '', tax_id: '', tax_branch: 'สำนักงานใหญ่',
   billing_address: '',
   consignment_mode: '', consignment_gp_rate: '', consignment_gp_base_price: null,
-  consignment_report_due_days: '', consignment_payment_terms: '',
+  consignment_report_due_days: '', consignment_payment_terms: '', statement_day: '',
   contract_number: '', contract_date: '', rd_submitted_at: '',
 };
 
@@ -549,7 +549,7 @@ export default function CustomerForm({
           {formData.sale_type && (formData.customer_type === 'dealer' || formData.customer_type === 'department_store' || formData.customer_type === 'corporate') && (
             <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
               <ConsignmentSettings
-                data={{ consignment_gp_rate: formData.consignment_gp_rate, consignment_gp_base_price: formData.consignment_gp_base_price, consignment_report_due_days: formData.consignment_report_due_days, consignment_payment_terms: formData.consignment_payment_terms, contract_number: formData.contract_number, contract_date: formData.contract_date, rd_submitted_at: formData.rd_submitted_at }}
+                data={{ consignment_gp_rate: formData.consignment_gp_rate, consignment_gp_base_price: formData.consignment_gp_base_price, consignment_report_due_days: formData.consignment_report_due_days, consignment_payment_terms: formData.consignment_payment_terms, statement_day: formData.statement_day, contract_number: formData.contract_number, contract_date: formData.contract_date, rd_submitted_at: formData.rd_submitted_at }}
                 onChange={(patch) => setFormData(prev => ({ ...prev, ...patch }))}
                 inputClassName={inputFull} labelClassName={labelFull}
                 brandGpRows={brandGpRows} onBrandGpRowsChange={setBrandGpRows}

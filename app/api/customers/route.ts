@@ -31,6 +31,7 @@ interface CustomerData {
   consignment_gp_rate?: number | null;
   consignment_report_due_days?: number | null;
   consignment_payment_terms?: number | null;
+  statement_day?: number | null;
   contract_number?: string | null;
   contract_date?: string | null;
   rd_submitted_at?: string | null;
@@ -93,6 +94,7 @@ export async function POST(request: NextRequest) {
         consignment_gp_rate: customerData.consignment_gp_rate ?? null,
         consignment_report_due_days: customerData.consignment_report_due_days ?? null,
         consignment_payment_terms: customerData.consignment_payment_terms ?? null,
+        statement_day: customerData.statement_day ?? null,
         contract_number: customerData.contract_number || null,
         contract_date: customerData.contract_date || null,
         rd_submitted_at: customerData.rd_submitted_at || null,

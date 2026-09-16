@@ -7,11 +7,18 @@ import { NUMERIC_TEXT_INPUT_PROPS, onNumericChange } from '@/lib/numeric-input';
 
 export { type BrandGpRow };
 
+/** 31 ในเดือนที่สั้นกว่าจะร่นเป็นวันสุดท้าย — บอกผู้ใช้ตรง ๆ ว่าหมายถึงสิ้นเดือน */
+function statementDayLabel(day: number): string {
+  return day >= 29 ? `${day} (สิ้นเดือน)` : String(day);
+}
+
 interface ConsignmentSettingsData {
   consignment_gp_rate?: number | '';
   consignment_gp_base_price?: 'retail' | 'discounted' | null;
   consignment_report_due_days?: number | '';
   consignment_payment_terms?: number | '';
+  /** วันวางบิลประจำเดือนของลูกค้ารายนี้ — ว่าง = ใช้ค่าตั้งต้นของบริษัท */
+  statement_day?: number | '';
   contract_number?: string;
   contract_date?: string;
   rd_submitted_at?: string;
@@ -22,6 +29,7 @@ interface CompanyDefaults {
   default_gp_base_price: 'retail' | 'discounted';
   default_report_due_days: number;
   default_payment_terms: number;
+  default_statement_day?: number;
 }
 
 interface Props {
@@ -79,14 +87,14 @@ export default function ConsignmentSettings({ data, onChange, inputClassName, la
   useEffect(() => {
     apiFetch('/api/settings/features').then(r => r.json()).then(d => {
       const cs = d.consignment_settings;
-      if (cs) {
-        setDefaults({
-          default_gp_rate: cs.default_gp_rate ?? 30,
-          default_gp_base_price: cs.default_gp_base_price || 'retail',
-          default_report_due_days: cs.default_report_due_days ?? 15,
-          default_payment_terms: cs.default_payment_terms ?? 30,
-        });
-      }
+      // ไม่มีค่าที่ตั้งไว้ก็ยังต้องมี defaults เพื่อโชว์ "ตามระบบ" ให้ถูก
+      setDefaults({
+        default_gp_rate: cs?.default_gp_rate ?? 30,
+        default_gp_base_price: cs?.default_gp_base_price || 'retail',
+        default_report_due_days: cs?.default_report_due_days ?? 15,
+        default_payment_terms: cs?.default_payment_terms ?? 30,
+        default_statement_day: cs?.default_statement_day ?? 31,
+      });
     }).catch(() => {});
   }, []);
 
@@ -96,6 +104,8 @@ export default function ConsignmentSettings({ data, onChange, inputClassName, la
     || (data.consignment_payment_terms !== '' && data.consignment_payment_terms != null);
 
   const gpRate = isCustomGp ? Number(data.consignment_gp_rate) : null;
+
+  const isCustomStatementDay = data.statement_day !== '' && data.statement_day != null;
 
   return (
     <div className="space-y-4">
@@ -135,6 +145,36 @@ export default function ConsignmentSettings({ data, onChange, inputClassName, la
               defaultGpBasePrice={defaults?.default_gp_base_price}
               wholesale={wholesale}
             />
+          </div>
+        )}
+      </div>
+
+      {/* ─── 2. รอบวางบิล (ใช้ได้ทั้งฝากขายและขายขาดเครดิต) ─── */}
+      <div>
+        <p className="text-base font-medium text-gray-600 dark:text-slate-400 mb-2">รอบวางบิล</p>
+        <DefaultOrCustomTab
+          isCustom={isCustomStatementDay}
+          onToggle={(custom) => onChange({
+            statement_day: custom ? (defaults?.default_statement_day ?? 31) : '',
+          })}
+          defaultDesc={`วางบิลทุกวันที่ ${statementDayLabel(defaults?.default_statement_day ?? 31)}`}
+        />
+
+        {isCustomStatementDay && (
+          <div className="grid grid-cols-2 gap-3 mt-1">
+            <div>
+              <label className={labelClassName}>วางบิลทุกวันที่</label>
+              <input
+                {...NUMERIC_TEXT_INPUT_PROPS}
+                value={data.statement_day ?? ''}
+                onChange={onNumericChange(v => onChange({ statement_day: v === '' ? '' : parseInt(v) }))}
+                className={inputClassName}
+                placeholder={String(defaults?.default_statement_day ?? 31)}
+              />
+              <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
+                31 = สิ้นเดือน · เดือนที่สั้นกว่าจะร่นมาเป็นวันสุดท้ายให้เอง
+              </p>
+            </div>
           </div>
         )}
       </div>

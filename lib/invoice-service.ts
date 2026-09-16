@@ -1168,18 +1168,18 @@ export async function autoIssueDocument(
       }
     }
 
-    // ─── Flow W-Credit: Auto create statement (ใบวางบิล) on shipping ───
+    // ─── Flow W-Credit: รวบเข้าใบวางบิลของรอบ (ฉบับร่าง) ตอนจัดส่ง ───
     if ((order.flow_type === 'w_credit')
         && ['shipping', 'completed'].includes(order.order_status)) {
       try {
-        const { createStatementForOrder } = await import('@/lib/statement-service');
+        const { attachOrderToCycleStatement } = await import('@/lib/statement-service');
         const { data: oi } = await supabaseAdmin
-          .from('orders').select('customer_id, total_amount').eq('id', orderId).single();
+          .from('orders').select('customer_id').eq('id', orderId).single();
         if (oi?.customer_id) {
-          await createStatementForOrder(orderId, oi.customer_id, companyId, null, oi.total_amount ?? 0);
+          await attachOrderToCycleStatement(orderId, oi.customer_id, companyId, null);
         }
       } catch (err) {
-        console.error('[autoIssueDocs] Auto create statement for W-Credit error:', err);
+        console.error('[autoIssueDocs] รวบออเดอร์เครดิตเข้าใบวางบิลไม่สำเร็จ:', err);
       }
     }
 

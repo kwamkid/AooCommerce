@@ -23,6 +23,7 @@ import Toggle from '@/components/ui/Toggle';
 import Card from '@/components/ui/Card';
 import ToggleCard from '@/components/ui/ToggleCard';
 import NumberInput from '@/components/ui/NumberInput';
+import UnitNumberField from '@/components/ui/UnitNumberField';
 import { NoPermissionCard } from '@/components/ui/StateCard';
 import StickyActionBar from '@/components/ui/StickyActionBar';
 import { InfoChip } from '@/components/ui/StatusBadge';
@@ -83,6 +84,7 @@ const CONSIGNMENT_DEFAULTS: ConsignmentSettingsData = {
   default_gp_base_price: 'retail',
   default_report_due_days: 15,
   default_payment_terms: 30,
+  default_statement_day: 31,
   vat_included: true,
 };
 
@@ -436,6 +438,8 @@ type ConsignmentSettingsData = {
   default_gp_base_price: 'retail' | 'discounted';
   default_report_due_days: number;
   default_payment_terms: number;
+  /** วันวางบิลประจำเดือน (1-31) — ค่าตั้งต้นของทุกลูกค้าที่ไม่ได้ตั้งเอง */
+  default_statement_day: number;
   vat_included: boolean;
 };
 
@@ -468,34 +472,29 @@ function ConsignmentSettingsPanel({
         canEdit={isOwnerOrAdmin}
       />
 
-      {/* Payment terms — separate group */}
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-sm font-medium text-gray-600 dark:text-slate-400 mb-1">ส่งยอดภายใน</label>
-          <div className="relative">
-            <NumberInput
-              value={settings.default_report_due_days}
-              onChange={(n) => onChange({ default_report_due_days: n || 15 })}
-              className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-base focus:outline-none focus:ring-2 focus:ring-amber-400"
-              min="1" max="90"
-            />
-            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-gray-400">วัน</span>
-          </div>
-          <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">หลังสิ้นเดือน</p>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-600 dark:text-slate-400 mb-1">ชำระภายใน</label>
-          <div className="relative">
-            <NumberInput
-              value={settings.default_payment_terms}
-              onChange={(n) => onChange({ default_payment_terms: n })}
-              className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-base focus:outline-none focus:ring-2 focus:ring-amber-400"
-              min="0" max="180"
-            />
-            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-gray-400">วัน</span>
-          </div>
-          <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">หลังวางบิล</p>
-        </div>
+      {/* รอบวางบิล + เครดิต */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <UnitNumberField
+          label="วางบิลทุกวันที่"
+          value={settings.default_statement_day}
+          onChange={(n) => onChange({ default_statement_day: Math.min(Math.max(n || 31, 1), 31) })}
+          hint="31 = สิ้นเดือน"
+          min={1} max={31}
+        />
+        <UnitNumberField
+          label="ส่งยอดภายใน"
+          value={settings.default_report_due_days}
+          onChange={(n) => onChange({ default_report_due_days: n || 15 })}
+          unit="วัน" hint="หลังสิ้นเดือน"
+          min={1} max={90}
+        />
+        <UnitNumberField
+          label="ชำระภายใน"
+          value={settings.default_payment_terms}
+          onChange={(n) => onChange({ default_payment_terms: n })}
+          unit="วัน" hint="หลังวางบิล"
+          min={0} max={180}
+        />
       </div>
 
       {/* VAT included */}

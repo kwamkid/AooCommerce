@@ -46,6 +46,15 @@ interface StatementDetail {
   } | null;
 }
 
+/** ออเดอร์ขายขาดเครดิตที่ถูกรวบเข้าใบวางบิลของรอบ */
+interface LinkedOrder {
+  id: string;
+  order_number: string | null;
+  order_status: string;
+  total_amount: number;
+  created_at: string;
+}
+
 interface ConsignmentReport {
   id: string;
   report_number: string;
@@ -93,6 +102,8 @@ export default function StatementDetailPage() {
 
   const [statement, setStatement] = useState<StatementDetail | null>(null);
   const [reports, setReports] = useState<ConsignmentReport[]>([]);
+  const [orders, setOrders] = useState<LinkedOrder[]>([]);
+  const [confirming, setConfirming] = useState(false);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -116,6 +127,7 @@ export default function StatementDetailPage() {
       const data = await res.json();
       setStatement(data.statement);
       setReports(data.reports || []);
+      setOrders(data.orders || []);
       setPayments(data.payments || []);
     } catch {
       setStatement(null);
@@ -125,6 +137,29 @@ export default function StatementDetailPage() {
   }, [stId]);
 
   useEffect(() => { fetchDetail(); }, [fetchDetail]);
+
+  /** ฉบับร่าง → รอชำระ — ยอดถูกคิดใหม่ที่ฝั่งเซิร์ฟเวอร์ก่อนปิดใบเสมอ */
+  const handleConfirm = async () => {
+    setConfirming(true);
+    try {
+      const res = await apiFetch(`/api/statements/${stId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'confirm' }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || 'ยืนยันวางบิลไม่สำเร็จ', 'error');
+        return;
+      }
+      showToast('ยืนยันวางบิลแล้ว', 'success');
+      fetchDetail();
+    } catch {
+      showToast('ยืนยันวางบิลไม่สำเร็จ', 'error');
+    } finally {
+      setConfirming(false);
+    }
+  };
 
   const handleRecordPayment = async () => {
     const amount = parseFloat(payAmount);
@@ -250,6 +285,8 @@ export default function StatementDetailPage() {
     );
   }
 
+  const isDraft = statement.status === 'draft';
+  // ฉบับร่างยังไม่ได้วางบิล จึงยังรับชำระไม่ได้ — ต้องยืนยันก่อน
   const canRecordPayment = ['sent', 'partially_paid', 'overdue'].includes(statement.status);
   const canIssueInvoices = statement.status === 'paid' && !statement.tax_invoice_number && !statement.receipt_number;
 
@@ -277,34 +314,40 @@ export default function StatementDetailPage() {
             </div>
           </div>
           <div className="flex gap-2">
-            <button
-              onClick={handlePrint}
-              className="border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 px-4 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors flex items-center gap-1.5 text-sm"
-            >
-              <Printer className="w-4 h-4" />
+            <Button variant="secondary" icon={<Printer className="w-4 h-4" />} onClick={handlePrint}>
               พิมพ์ใบวางบิล
-            </button>
+            </Button>
+            {isDraft && (
+              <Button
+                variant="primary"
+                icon={confirming ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                onClick={handleConfirm}
+                disabled={confirming}
+              >
+                ยืนยันวางบิล
+              </Button>
+            )}
             {canRecordPayment && (
-              <button
+              <Button
+                variant="primary"
+                icon={<CreditCard className="w-4 h-4" />}
                 onClick={() => {
                   setPayAmount(String(statement.outstanding_amount));
                   setShowPayModal(true);
                 }}
-                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1.5 text-sm"
               >
-                <CreditCard className="w-4 h-4" />
                 บันทึกการชำระเงิน
-              </button>
+              </Button>
             )}
             {canIssueInvoices && (
-              <button
+              <Button
+                variant="secondary"
+                icon={issuingInvoices ? <Loader2 className="w-4 h-4 animate-spin" /> : <Receipt className="w-4 h-4" />}
                 onClick={handleIssueInvoices}
                 disabled={issuingInvoices}
-                className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-1.5 text-sm disabled:opacity-50"
               >
-                {issuingInvoices ? <Loader2 className="w-4 h-4 animate-spin" /> : <Receipt className="w-4 h-4" />}
                 ออกใบกำกับภาษี + ใบเสร็จ
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -312,7 +355,7 @@ export default function StatementDetailPage() {
         {/* Info cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Statement info */}
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5 space-y-3">
+          <div className="card p-5 space-y-3">
             <div className="text-sm font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide">ข้อมูลใบวางบิล</div>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
@@ -346,7 +389,7 @@ export default function StatementDetailPage() {
           </div>
 
           {/* Customer info */}
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5 space-y-3">
+          <div className="card p-5 space-y-3">
             <div className="text-sm font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide">ตัวแทนจำหน่าย</div>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
@@ -382,7 +425,7 @@ export default function StatementDetailPage() {
         </div>
 
         {/* Amount summary */}
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
+        <div className="card p-5">
           <div className="max-w-xs ml-auto space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-gray-500 dark:text-slate-400">ยอดรวม</span>
@@ -401,8 +444,38 @@ export default function StatementDetailPage() {
           </div>
         </div>
 
+        {/* ออเดอร์ที่ถูกรวบเข้าใบนี้ (สายขายขาดเครดิต) */}
+        {orders.length > 0 && (
+          <div className="card overflow-hidden">
+            <div className="px-5 py-3 border-b border-gray-200 dark:border-slate-700">
+              <div className="text-sm font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide">
+                ออเดอร์ในรอบนี้ ({orders.length} ใบ)
+              </div>
+            </div>
+            <div className="divide-y divide-gray-200 dark:divide-slate-700">
+              {orders.map(order => (
+                <button
+                  key={order.id}
+                  type="button"
+                  onClick={() => router.push(`/dealer-orders/${order.id}`)}
+                  className="w-full px-5 py-3 flex items-center justify-between gap-3 text-left hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
+                >
+                  <div className="min-w-0">
+                    <div className="font-mono text-gray-900 dark:text-white truncate">{order.order_number || order.id.slice(0, 8)}</div>
+                    <div className="text-sm text-gray-500 dark:text-slate-400">{formatDate(order.created_at)}</div>
+                  </div>
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    <StatusBadge domain="order" status={order.order_status} />
+                    <span className="text-gray-900 dark:text-white font-medium">฿{formatPrice(order.total_amount)}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Linked reports */}
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
+        <div className="card overflow-hidden">
           <div className="px-5 py-3 border-b border-gray-200 dark:border-slate-700">
             <div className="text-sm font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide">รายงานฝากขาย ({reports.length} รายงาน)</div>
           </div>
@@ -441,7 +514,7 @@ export default function StatementDetailPage() {
         </div>
 
         {/* Payments history */}
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
+        <div className="card overflow-hidden">
           <div className="px-5 py-3 border-b border-gray-200 dark:border-slate-700">
             <div className="text-sm font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide">ประวัติการชำระเงิน ({payments.length} รายการ)</div>
           </div>

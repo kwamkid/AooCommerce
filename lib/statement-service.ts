@@ -4,6 +4,7 @@
  */
 
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { billingTermsFor, billingPeriodFor, openBillingPeriodFor } from '@/lib/statements/billing-cycle';
 
 interface CreateStatementResult {
   statementId?: string;
@@ -33,19 +34,13 @@ export async function createStatementForReport(
   reportTable: 'consignment_reports' | 'department_store_reports' = 'consignment_reports',
 ): Promise<CreateStatementResult> {
   try {
-    // 1. Get customer payment terms
-    const { data: customer } = await supabaseAdmin
-      .from('customers')
-      .select('consignment_payment_terms, credit_days')
-      .eq('id', customerId)
-      .single();
-
-    // Use credit_days for department_store, consignment_payment_terms for consignment
-    const paymentTerms = reportTable === 'department_store_reports'
-      ? (customer?.credit_days ?? 30)
-      : (customer?.consignment_payment_terms ?? 30);
-    const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + paymentTerms);
+    /**
+     * วันที่บนใบวางบิล + วันครบกำหนด มาจาก **รอบวางบิลของลูกค้ารายนั้น** ไม่ใช่
+     * "วันที่กดยืนยัน + จำนวนวัน" แบบเดิม — กดช้าไปวันเดียววันครบกำหนดเคยเลื่อนตาม
+     * ทั้งที่ห้างกำหนดไว้ตายตัวว่าวางบิลวันที่เท่าไร
+     */
+    const terms = await billingTermsFor(companyId, customerId, reportTable === 'consignment_reports');
+    const period = billingPeriodFor(terms.statementDay, terms.creditDays);
 
     // 2. Generate statement number
     const { data: statementNumber, error: rpcErr } = await supabaseAdmin
@@ -64,8 +59,8 @@ export async function createStatementForReport(
         customer_id: customerId,
         statement_number: statementNumber,
         status: 'sent',
-        statement_date: new Date().toISOString().split('T')[0],
-        due_date: dueDate.toISOString().split('T')[0],
+        statement_date: period.end,
+        due_date: period.dueDate,
         period_year: periodYear,
         period_month: periodMonth,
         total_amount: ourAmount,
@@ -175,79 +170,116 @@ export async function createOrAttachStatementForDeptReport(
 }
 
 /**
- * Auto-create a statement (ใบวางบิล) for a W-Credit order on shipping.
- * 1:1 — one order = one statement.
+ * ออเดอร์ขายขาดเครดิตพร้อมวางบิล → **รวบเข้าใบวางบิลของรอบ** ไม่ใช่ออกใบใหม่ทุกใบ
+ *
+ * เดิมเป็น 1 ออเดอร์ = 1 ใบวางบิล ผูกกันด้วยการยัดข้อความ `order:<uuid>` ไว้ในช่อง
+ * notes — ตัวแทนสั่ง 20 ครั้งจึงได้ใบวางบิล 20 ใบ ทั้งที่ควรได้ใบเดียวต่อรอบ
+ * ตอนนี้ผูกผ่าน `orders.statement_id` แล้ว จึงรวบได้จริง
+ *
+ * ใบที่สร้างเป็น **ฉบับร่าง** — ยอดยังวิ่งได้จนกว่ารอบจะปิด คนกดยืนยันเองเมื่อพร้อม
+ * วางบิล (ไม่ออกเอกสารการเงินให้อัตโนมัติโดยไม่มีใครดู)
  */
-export async function createStatementForOrder(
+export async function attachOrderToCycleStatement(
   orderId: string,
   customerId: string,
   companyId: string,
   userId: string | null,
-  totalAmount: number,
 ): Promise<CreateStatementResult> {
   try {
-    // Check if statement already exists for this order
+    // ผูกไปแล้วไม่ต้องทำซ้ำ (autoIssueDocument ถูกเรียกได้หลายรอบต่อใบ)
+    const { data: order } = await supabaseAdmin
+      .from('orders').select('statement_id').eq('id', orderId).single();
+    if (order?.statement_id) {
+      const { data: st } = await supabaseAdmin
+        .from('statements').select('id, statement_number').eq('id', order.statement_id).single();
+      return { statementId: st?.id, statementNumber: st?.statement_number };
+    }
+
+    const terms = await billingTermsFor(companyId, customerId);
+    const period = openBillingPeriodFor(terms.statementDay, terms.creditDays);
+
+    // ใบของรอบนี้ที่ยังรวบยอดเพิ่มได้ = ฉบับร่าง หรือใบที่ส่งไปแล้วแต่ยังจ่ายไม่ครบ
     const { data: existing } = await supabaseAdmin
       .from('statements')
       .select('id, statement_number')
       .eq('company_id', companyId)
-      .eq('notes', `order:${orderId}`)
+      .eq('customer_id', customerId)
+      .eq('period_year', period.periodYear)
+      .eq('period_month', period.periodMonth)
+      .in('status', ['draft', ...OPEN_STATEMENT_STATUSES])
+      .order('created_at', { ascending: true })
+      .limit(1)
       .maybeSingle();
-    if (existing) return { statementId: existing.id, statementNumber: existing.statement_number };
 
-    // Get customer credit_days
-    const { data: customer } = await supabaseAdmin
-      .from('customers')
-      .select('credit_days')
-      .eq('id', customerId)
-      .single();
+    let statementId = existing?.id;
+    let statementNumber = existing?.statement_number;
 
-    const creditDays = customer?.credit_days ?? 30;
-    const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + creditDays);
+    if (!statementId) {
+      const { data: generated, error: rpcErr } = await supabaseAdmin
+        .rpc('generate_statement_number', { p_company_id: companyId });
+      if (rpcErr || !generated) {
+        console.error('[attachOrderToCycleStatement] RPC error:', rpcErr);
+        return { error: 'ไม่สามารถสร้างเลขที่ใบวางบิลได้' };
+      }
 
-    const now = new Date();
-    const periodYear = now.getFullYear();
-    const periodMonth = now.getMonth() + 1;
+      const { data: created, error: insertErr } = await supabaseAdmin
+        .from('statements')
+        .insert({
+          company_id: companyId,
+          customer_id: customerId,
+          statement_number: generated,
+          status: 'draft',
+          statement_date: period.end,
+          due_date: period.dueDate,
+          period_year: period.periodYear,
+          period_month: period.periodMonth,
+          total_amount: 0,
+          paid_amount: 0,
+          created_by: userId ?? null,
+        })
+        .select('id, statement_number')
+        .single();
 
-    // Generate statement number
-    const { data: statementNumber, error: rpcErr } = await supabaseAdmin
-      .rpc('generate_statement_number', { p_company_id: companyId });
-
-    if (rpcErr || !statementNumber) {
-      return { error: 'ไม่สามารถสร้างเลขที่ใบวางบิลได้' };
+      if (insertErr || !created) {
+        console.error('[attachOrderToCycleStatement] Insert error:', insertErr);
+        return { error: 'ไม่สามารถสร้างใบวางบิลได้' };
+      }
+      statementId = created.id;
+      statementNumber = created.statement_number;
     }
 
-    // Insert statement
-    const { data: statement, error: insertErr } = await supabaseAdmin
-      .from('statements')
-      .insert({
-        company_id: companyId,
-        customer_id: customerId,
-        statement_number: statementNumber,
-        status: 'sent',
-        statement_date: now.toISOString().split('T')[0],
-        due_date: dueDate.toISOString().split('T')[0],
-        period_year: periodYear,
-        period_month: periodMonth,
-        total_amount: totalAmount,
-        paid_amount: 0,
-        notes: `order:${orderId}`,
-        created_by: userId ?? null,
-      })
-      .select('id, statement_number')
-      .single();
+    await supabaseAdmin.from('orders')
+      .update({ statement_id: statementId })
+      .eq('id', orderId)
+      .eq('company_id', companyId);
 
-    if (insertErr || !statement) {
-      return { error: 'ไม่สามารถสร้างใบวางบิลได้' };
-    }
+    await recalcStatementTotal(statementId!);
 
-    return {
-      statementId: statement.id,
-      statementNumber: statement.statement_number,
-    };
+    return { statementId, statementNumber };
   } catch (err) {
-    console.error('[createStatementForOrder] Error:', err);
+    console.error('[attachOrderToCycleStatement] Error:', err);
     return { error: err instanceof Error ? err.message : 'Unknown error' };
   }
+}
+
+/**
+ * คิดยอดรวมของใบวางบิลใหม่จากออเดอร์ที่ผูกอยู่จริง
+ *
+ * บวกสะสมทีละใบไม่ได้ เพราะออเดอร์ถูกถอดออก/ยกเลิก/แก้ยอดทีหลังได้ — ยอดบนใบวางบิล
+ * ต้องสะท้อนสิ่งที่ผูกอยู่ ณ ตอนนี้เสมอ
+ */
+export async function recalcStatementTotal(statementId: string): Promise<number> {
+  const { data: orders } = await supabaseAdmin
+    .from('orders')
+    .select('total_amount')
+    .eq('statement_id', statementId)
+    .neq('order_status', 'cancelled');
+
+  const total = (orders || []).reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
+
+  await supabaseAdmin.from('statements')
+    .update({ total_amount: total, updated_at: new Date().toISOString() })
+    .eq('id', statementId);
+
+  return total;
 }

@@ -72,6 +72,17 @@ export async function GET(
       }
     }
 
+    /**
+     * ออเดอร์ขายขาดเครดิตที่ถูกรวบเข้าใบนี้ — ผูกผ่าน `orders.statement_id`
+     * (เดิมผูกด้วยการยัด `order:<uuid>` ไว้ในช่อง notes จึงรวบได้ใบเดียว)
+     */
+    const { data: linkedOrders } = await supabaseAdmin
+      .from('orders')
+      .select('id, order_number, order_status, total_amount, created_at')
+      .eq('statement_id', id)
+      .eq('company_id', companyId)
+      .order('created_at', { ascending: true });
+
     // Fetch payments
     const { data: payments } = await supabaseAdmin
       .from('statement_payments')
@@ -139,6 +150,7 @@ export async function GET(
     return NextResponse.json({
       statement: enrichedStatement,
       reports: reports || [],
+      orders: linkedOrders || [],
       payments: payments || [],
     });
   } catch (error) {
@@ -174,6 +186,41 @@ export async function PUT(
 
     if (fetchErr || !statement) {
       return NextResponse.json({ error: 'ไม่พบใบวางบิล' }, { status: 404 });
+    }
+
+    /**
+     * ยืนยันวางบิล — ใบวางบิลของรอบถูกตั้งเป็น "ฉบับร่าง" ไว้ให้ ยอดยังวิ่งได้จนกว่า
+     * คนจะตรวจแล้วกดยืนยัน ไม่ออกเอกสารการเงินให้เองโดยไม่มีใครดู
+     */
+    if (action === 'confirm') {
+      if (statement.status !== 'draft') {
+        return NextResponse.json({ error: 'ใบวางบิลนี้ยืนยันไปแล้ว' }, { status: 400 });
+      }
+
+      // คิดยอดใหม่จากออเดอร์ที่ผูกอยู่ ณ ตอนนี้ — ระหว่างเป็นร่างอาจมีใบถูกยกเลิกไป
+      const { recalcStatementTotal } = await import('@/lib/statement-service');
+      const total = await recalcStatementTotal(id);
+
+      if (total <= 0) {
+        return NextResponse.json(
+          { error: 'ใบวางบิลนี้ไม่มียอดให้วางบิล (ออเดอร์ที่ผูกไว้ถูกยกเลิกหมดแล้ว)' },
+          { status: 400 },
+        );
+      }
+
+      const { data: confirmed } = await supabaseAdmin
+        .from('statements')
+        .update({ status: 'sent', updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('company_id', companyId)
+        .eq('status', 'draft')
+        .select('id, statement_number, total_amount');
+
+      if (!confirmed || confirmed.length === 0) {
+        return NextResponse.json({ error: 'ใบวางบิลนี้ยืนยันไปแล้ว' }, { status: 409 });
+      }
+
+      return NextResponse.json({ success: true, status: 'sent', statement: confirmed[0] });
     }
 
     if (action === 'record_payment') {

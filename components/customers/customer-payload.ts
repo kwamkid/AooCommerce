@@ -44,6 +44,8 @@ export interface CustomerFormData {
   consignment_gp_base_price?: 'retail' | 'discounted' | null;
   consignment_report_due_days?: number | '';
   consignment_payment_terms?: number | '';
+  /** วันวางบิลประจำเดือน (1-31) · ว่าง = ใช้ค่าตั้งต้นของบริษัท */
+  statement_day?: number | '';
   contract_number?: string;
   contract_date?: string;
   rd_submitted_at?: string;
@@ -70,6 +72,7 @@ export function buildCustomerPayload(data: CustomerFormData, customerId?: string
       consignment_gp_rate: data.consignment_gp_rate !== '' ? data.consignment_gp_rate : null,
       consignment_report_due_days: data.consignment_report_due_days !== '' ? data.consignment_report_due_days : null,
       consignment_payment_terms: data.consignment_payment_terms !== '' ? data.consignment_payment_terms : null,
+      statement_day: data.statement_day !== '' ? data.statement_day : null,
       contract_number: data.contract_number || null, contract_date: data.contract_date || null,
       rd_submitted_at: data.rd_submitted_at || null,
     } : {}),
