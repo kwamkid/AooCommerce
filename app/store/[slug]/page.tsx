@@ -6,6 +6,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import {
   getStorefrontCompany, getStorefrontCatalog, getClosedStorefront, catalogOptionsFor,
+  resolveCategoryParam,
   type StorefrontCompany,
 } from '@/lib/storefront-server';
 import {
@@ -44,7 +45,9 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
 
   const cfg = company.config;
   const shopName = cfg.display_name || company.name;
-  const baseTitle = q ? `ค้นหา "${q}" | ${shopName}` : cat ? `${cat} | ${shopName}` : shopName;
+  // ชื่อหมวดใน <title> ต้องเป็น**ชื่อจริง** ไม่ใช่ค่าดิบใน URL — ลิงก์แบบ slug จะโชว์ "easier-beginnings"
+  const catName = await resolveCategoryParam(company.id, cat);
+  const baseTitle = q ? `ค้นหา "${q}" | ${shopName}` : catName ? `${catName} | ${shopName}` : shopName;
   // หน้า 2 ขึ้นไปต้องมีชื่อของตัวเอง ไม่งั้น Google เห็นเป็นหน้าซ้ำกันทั้งชุด
   const title = page > 1 ? `${baseTitle} — หน้า ${page}` : baseTitle;
   const description = cfg.tagline || company.description || `สั่งซื้อสินค้าออนไลน์จาก ${shopName}`;
@@ -88,9 +91,11 @@ async function CatalogResults({
   q?: string;
   page: number;
 }) {
+  // `?cat=` มาได้ทั้ง slug (ลิงก์ที่ระบบสร้าง) และชื่อหมวด (ลิงก์เก่า) — แปลงเป็นชื่อก่อนกรอง
+  const categoryName = await resolveCategoryParam(company.id, cat);
   const { products, total, pageSize } = await getStorefrontCatalog(
     company.id,
-    { ...catalogOptionsFor(company), category: cat, search: q, page, pageSize: STOREFRONT_PAGE_SIZE },
+    { ...catalogOptionsFor(company), category: categoryName ?? undefined, search: q, page, pageSize: STOREFRONT_PAGE_SIZE },
     company.features.stock,
   );
   const cfg = company.config;
@@ -103,7 +108,7 @@ async function CatalogResults({
   const itemListLd = {
     '@context': 'https://schema.org',
     '@type': 'ItemList',
-    name: cat ? `${cat} — ${shopName}` : shopName,
+    name: categoryName ? `${categoryName} — ${shopName}` : shopName,
     numberOfItems: products.length,
     itemListElement: products.slice(0, 50).map((p: StorefrontProduct, i: number) => ({
       '@type': 'ListItem',
@@ -165,15 +170,18 @@ export default async function StorefrontCatalogPage({ params, searchParams }: Pa
   if (!company) return null;   // layout แสดงหน้า 'ไม่พบร้านนี้' ให้แล้ว
 
   const page = parsePage(pageParam);
+  // แปลง slug → ชื่อหมวดก่อนวาดหัวข้อ · ยังอยู่นอก Suspense ได้เพราะเป็นการอ่านแถวเดียวผ่าน index
+  // (ที่จงใจไม่รอคือ**รายการสินค้า** ไม่ใช่ทุก query — และ cache() ใช้ผลร่วมกับ CatalogResults)
+  const catName = await resolveCategoryParam(company.id, cat);
 
   return (
     <div className="sf-container">
       {/* หน้าแรกไม่มีหัวข้อ/คำโปรย — ชื่อร้านอยู่ที่หัวร้านแล้ว คำโปรยอยู่ใน <title>/description
           ให้ Google (เจ้าของสั่ง 2026-09-14) · หน้าหมวดมีหัวข้อไว้บอกว่ากำลังดูอะไร และ
           ไม่ต้องรอข้อมูล จึงอยู่นอก Suspense (เห็นทันทีที่กด) · หน้าค้นหาอยู่ใน CatalogResults */}
-      {cat && !q && (
+      {catName && !q && (
         <div className="sf-hero">
-          <h1>{cat}</h1>
+          <h1>{catName}</h1>
         </div>
       )}
 

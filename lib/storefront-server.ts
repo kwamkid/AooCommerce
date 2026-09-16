@@ -799,6 +799,30 @@ export const getDiscontinuedProduct = cache(async (
   return { name: row.name, image: row.image || null, category: row.category?.name ?? null };
 });
 
+/**
+ * แปลงค่า `?cat=` ให้เป็น **ชื่อหมวด** ที่ RPC ใช้กรอง
+ *
+ * รับได้สองแบบ: **slug** (ลิงก์ที่ระบบสร้างให้ร้านส่งหาลูกค้า — ไม่ตายเมื่อเปลี่ยนชื่อหมวด)
+ * และ **ชื่อหมวดตรง ๆ** (ลิงก์ที่ส่งออกไปแล้วก่อนจะมี slug + ลิงก์ในแถบหมวดของหน้าร้านเอง)
+ * ⛔ ห้ามตัดขาชื่อทิ้ง — ลิงก์เก่าอยู่ในมือลูกค้าและใน index ของ Google แล้ว
+ *
+ * หา slug ไม่เจอ = คืนค่าเดิมให้ RPC ไปกรองตามชื่อเหมือนเดิม (ค่ามั่ว = ไม่เจอสินค้า เท่าเดิม)
+ */
+export const resolveCategoryParam = cache(async (
+  companyId: string,
+  cat: string | undefined | null,
+): Promise<string | null> => {
+  const value = (cat || '').trim();
+  if (!value) return null;
+  const { data } = await supabaseAdmin
+    .from('product_categories')
+    .select('name')
+    .eq('company_id', companyId)
+    .eq('slug', value)
+    .maybeSingle();
+  return data?.name || value;
+});
+
 /** Distinct category names that actually have visible products (for nav). */
 export const getStorefrontCategories = cache(async (companyId: string): Promise<string[]> => {
   const { data } = await supabaseAdmin
