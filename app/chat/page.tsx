@@ -59,6 +59,7 @@ import {
   MessageSquareText,
   Pencil,
   Megaphone,
+  Link2,
 } from 'lucide-react';
 import Image from 'next/image';
 import type { CustomerFormData } from '@/components/customers/customer-payload';
@@ -67,6 +68,8 @@ import TagBadge, { Tag } from '@/components/ui/TagBadge';
 import TagInput from '@/components/ui/TagInput';
 import { diffTagIds, patchCustomerTags, patchContactTags } from '@/lib/tag-links';
 import Tooltip from '@/components/ui/Tooltip';
+import { useStorefrontLinks } from '@/lib/useStorefrontLinks';
+import { insertAtCursor } from '@/lib/insert-at-cursor';
 import Badge from '@/components/ui/Badge';
 import type { AdEventRow } from '@/lib/ads/meta-ui';
 import type { UnifiedContact, ChatMessage, Customer, DayRange, ChatAccountInfo, LinkedContact, ContactReferral } from './lib/chatTypes';
@@ -94,6 +97,7 @@ import SavedReplyPicker from './components/SavedReplyPicker';
 // Dynamic imports for components that are not needed on initial load
 const EmojiStickerPicker = dynamic(() => import('./components/EmojiStickerPicker'), { ssr: false });
 const SavedReplyModal = dynamic(() => import('@/components/chat/SavedReplyModal'), { ssr: false });
+const StorefrontLinkModal = dynamic(() => import('@/components/storefront/StorefrontLinkModal'), { ssr: false });
 const LinkCustomerModal = dynamic(() => import('./components/LinkCustomerModal'), { ssr: false });
 const LightboxViewer = dynamic(() => import('./components/LightboxViewer'), { ssr: false });
 // ฟอร์มสองตัวนี้ใหญ่มาก (OrderForm ~3,300 บรรทัด · CustomerForm ~700) แต่ใช้แค่ตอนเปิด
@@ -183,6 +187,9 @@ function UnifiedChatPageContent() {
 
   // Message input
   const [newMessage, setNewMessage] = useState('');
+  /** แทรกลิงก์หน้าร้าน — ปุ่มขึ้นเฉพาะร้านที่เปิดหน้าร้านออนไลน์แล้ว (ไม่เปิด = ไม่มีหน้าให้ลิงก์ไป) */
+  const [storeLinkOpen, setStoreLinkOpen] = useState(false);
+  const storefrontLinks = useStorefrontLinks();
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
 
@@ -3277,6 +3284,16 @@ function UnifiedChatPageContent() {
                       />
                     )}
                   </div>
+                  {/* แทรกลิงก์หน้าร้าน — ขึ้นเฉพาะร้านที่เปิดหน้าร้านออนไลน์แล้ว
+                      (ยังไม่เปิด = ไม่มีหน้าให้ลิงก์ไป จึงไม่วาดปุ่มเลย ไม่ใช่วาดแล้วกดไม่ได้) */}
+                  {storefrontLinks.enabled && (
+                    <Tooltip text="แทรกลิงก์สินค้า/หมวดหมู่/หน้าร้าน">
+                      <button onClick={() => setStoreLinkOpen(true)} aria-label="แทรกลิงก์หน้าร้าน"
+                        className="p-2 rounded-full text-gray-500 hover:text-primary hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+                        <Link2 className="w-5 h-5" />
+                      </button>
+                    </Tooltip>
+                  )}
                   {/* ชวนรับข่าวสาร — ขึ้นเฉพาะ Facebook · Meta ให้ส่งได้เฉพาะตอนที่ลูกค้าเพิ่งทักมา
                       (API ตอบเหตุผลกลับมาเองเมื่อพ้นกรอบ — ปุ่มจึงไม่เดาสถานะให้ผิด) */}
                   {selectedContact?.platform === 'facebook' && (
@@ -3493,6 +3510,20 @@ function UnifiedChatPageContent() {
           reply={savedReplyEditing}
           initialContent={savedReplyEditing ? undefined : newMessage.trim()}
           onSaved={onSavedReplySaved}
+        />
+      )}
+
+      {/* แทรกลิงก์ตรงตำแหน่งเคอร์เซอร์ พร้อมเว้นวรรคคั่นให้ — ลิงก์ที่ติดตัวอักษรกดไม่ขึ้นในแอปแชท */}
+      {storeLinkOpen && (
+        <StorefrontLinkModal
+          open={storeLinkOpen}
+          onClose={() => setStoreLinkOpen(false)}
+          onPick={url => {
+            const el = inputRef.current;
+            const at = el?.selectionStart ?? newMessage.length;
+            const lead = at > 0 && !/\s$/.test(newMessage.slice(0, at)) ? ' ' : '';
+            setNewMessage(insertAtCursor(el, newMessage, `${lead}${url} `));
+          }}
         />
       )}
 
