@@ -46,16 +46,31 @@ export function isActionablePlan(plan: StockPlan): boolean {
 
 /** แผนรายตัวเลือก (`marketplace_sync_run_items.plan`) */
 export const STOCK_PLAN_LABELS: Record<StockPlan, string> = {
-  fill: 'เติมยอด (ช่องว่าง)',
-  overwrite: 'ทับยอดเดิม',
-  increase: 'ยอดเพิ่มขึ้น',
-  decrease: 'ยอดลดลง',
-  to_zero: 'กลายเป็น 0',
-  unchanged: 'เท่ากันอยู่แล้ว',
-  skip_nonzero: 'ข้าม — คลังเรามียอดอยู่แล้ว',
-  skip_zero: 'ข้าม — ยอดบนร้านเป็น 0',
-  sync_disabled: 'ปิดซิงค์ไว้',
-  no_link: 'ร้านไม่คืนยอดของตัวนี้',
+  // คำสั้น — อยู่ในคอลัมน์แคบของตารางพรีวิว (ความหมายเต็มอยู่ใน STOCK_PLAN_HINTS)
+  fill: 'เติม',
+  overwrite: 'ทับ',
+  increase: 'เพิ่ม',
+  decrease: 'ลด',
+  to_zero: 'เป็น 0',
+  unchanged: 'เท่ากัน',
+  skip_nonzero: 'ข้าม · มียอดแล้ว',
+  skip_zero: 'ข้าม · ร้านเป็น 0',
+  sync_disabled: 'ปิดซิงค์',
+  no_link: 'ร้านไม่คืนยอด',
+};
+
+/** คำอธิบายเต็มของแต่ละแผน — ใช้เป็น tooltip/คำอธิบายเมื่อมีที่พอ */
+export const STOCK_PLAN_HINTS: Record<StockPlan, string> = {
+  fill: 'คลังเราว่าง เติมยอดจากร้าน',
+  overwrite: 'ทับยอดเดิมในคลังด้วยยอดของร้าน',
+  increase: 'ยอดปลายทางจะเพิ่มขึ้น',
+  decrease: 'ยอดปลายทางจะลดลง',
+  to_zero: 'ยอดปลายทางจะกลายเป็น 0',
+  unchanged: 'สองฝั่งเท่ากันอยู่แล้ว ไม่ต้องทำอะไร',
+  skip_nonzero: 'ข้าม — คลังเรามียอดอยู่แล้ว (โหมดเติมช่องว่างไม่ทับ)',
+  skip_zero: 'ข้าม — ยอดบนร้านเป็น 0 ไม่มีอะไรให้เติม',
+  sync_disabled: 'link นี้ปิดซิงค์ไว้ — โชว์ให้เห็นแต่ไม่ทำ',
+  no_link: 'ร้านไม่คืนยอดของตัวเลือกนี้มา (อาจถูกลบ/ซ่อนบนร้าน)',
 };
 
 // ── ฝั่ง "ย้อนรอบ" ───────────────────────────────────────────────────────────

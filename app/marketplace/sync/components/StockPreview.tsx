@@ -9,13 +9,14 @@
 // ⛔ ห้ามเขียนเงื่อนไขแยกตาม platform — ป้ายชื่อมาจาก MARKETPLACE_PLATFORMS เท่านั้น
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, Package, RefreshCw } from 'lucide-react';
+import { Package, RefreshCw } from 'lucide-react';
 import Alert from '@/components/ui/Alert';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import Radio from '@/components/ui/Radio';
 import Tooltip from '@/components/ui/Tooltip';
 import HelpHint from '@/components/ui/HelpHint';
+import PlatformIcon from '@/components/ui/PlatformIcon';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import FilterChips, { FILTER_CHIP_PRIMARY_ACTIVE } from '@/components/ui/FilterChips';
 import DataTable, { type DataTableColumn, type SortDir } from '@/components/ui/DataTable';
@@ -34,7 +35,7 @@ import {
   type StockPreviewData,
   type StockPreviewRow,
 } from '@/lib/marketplace/stock-actions';
-import { ACTIONABLE_STOCK_PLANS, STOCK_PLAN_LABELS } from '@/lib/marketplace/sync-run-labels';
+import { ACTIONABLE_STOCK_PLANS, STOCK_PLAN_HINTS, STOCK_PLAN_LABELS } from '@/lib/marketplace/sync-run-labels';
 import type { StockPlan } from '@/lib/marketplace/sync-runs';
 import type { MarketplaceAccount } from '@/app/settings/sales-channels/useMarketplaceAccounts';
 import { platformLabelOf, shopNameOf } from './ShopPicker';
@@ -104,6 +105,7 @@ export default function StockPreview({ account, direction, onApplied, onBack, on
 
   const accountId = account.id;
   const shopLabel = platformLabelOf(account);
+  const platform = account.platform || 'shopee';
   const shopName = shopNameOf(account);
 
   // ── โหลดตาราง ─────────────────────────────────────────────────────────────
@@ -307,12 +309,16 @@ export default function StockPreview({ account, direction, onApplied, onBack, on
     },
     {
       key: 'shop',
-      label: `ยอดบนร้าน`,
+      label: 'ยอดบนร้าน',
       align: 'right',
       sortable: true,
-      defaultWidth: 110,
+      defaultWidth: 100,
+      // โลโก้แพลตฟอร์มกำกับตัวเลข — อ่านปราดเดียวรู้ว่าเลขไหนคือ "ของร้าน" เลขไหน "ของเรา"
       render: (row) => (
-        <span className="body-text">{row.shop === null ? '—' : formatNumber(row.shop)}</span>
+        <span className="inline-flex items-center justify-end gap-1.5 body-text">
+          <PlatformIcon id={platform} size={14} />
+          <span>{row.shop === null ? '—' : formatNumber(row.shop)}</span>
+        </span>
       ),
     },
     {
@@ -320,7 +326,7 @@ export default function StockPreview({ account, direction, onApplied, onBack, on
       label: 'ยอดในระบบ',
       align: 'right',
       sortable: true,
-      defaultWidth: 130,
+      defaultWidth: 110,
       render: (row) => (
         <span className="inline-flex items-center justify-end gap-1">
           <span className="body-text">{formatNumber(row.ours_available)}</span>
@@ -337,20 +343,19 @@ export default function StockPreview({ account, direction, onApplied, onBack, on
       label: 'จะกลายเป็น',
       align: 'right',
       sortable: true,
-      defaultWidth: 150,
+      defaultWidth: 120,
+      // เลขปลายทางเสมอ + ส่วนต่างในวงเล็บเมื่อเปลี่ยน — เจ้าของขอให้เห็นเลขจริง ไม่ใช่คำว่า "เท่าเดิม"
       render: (row) => {
         const from = fromValue(row, direction);
-        if (!isActionable(row.plan)) return <span className="body-text text-gray-400">เท่าเดิม</span>;
-        const tone = row.target > (from ?? 0)
-          ? 'text-red-600 dark:text-red-400'
-          : row.target < (from ?? 0)
-            ? 'text-amber-600 dark:text-amber-400'
-            : 'text-gray-500 dark:text-slate-400';
+        const changed = isActionable(row.plan) && from !== null && row.target !== from;
+        if (!changed) {
+          return <span className="body-text text-gray-400">{from === null ? '—' : formatNumber(row.target)}</span>;
+        }
+        const delta = row.target - (from ?? 0);
         return (
-          <span className={`inline-flex items-center justify-end gap-1.5 body-text ${tone}`}>
-            <span>{from === null ? '—' : formatNumber(from)}</span>
-            <ArrowRight className="w-3.5 h-3.5" aria-hidden />
+          <span className="inline-flex items-baseline justify-end gap-1 body-text text-red-600 dark:text-red-400">
             <span className="font-medium">{formatNumber(row.target)}</span>
+            <span className="text-xs">({delta > 0 ? '+' : '−'}{formatNumber(Math.abs(delta))})</span>
           </span>
         );
       },
@@ -358,10 +363,12 @@ export default function StockPreview({ account, direction, onApplied, onBack, on
     {
       key: 'plan',
       label: 'สถานะ',
-      defaultWidth: 190,
+      defaultWidth: 140,
       render: (row) => (
         <span className="inline-flex items-center gap-1.5">
-          <InfoChip colors={planChipColors(row.plan)}>{STOCK_PLAN_LABELS[row.plan]}</InfoChip>
+          <Tooltip text={STOCK_PLAN_HINTS[row.plan]} box="inline-flex">
+            <InfoChip colors={planChipColors(row.plan)}>{STOCK_PLAN_LABELS[row.plan]}</InfoChip>
+          </Tooltip>
           {row.risky && (
             <Tooltip text="ระบบยังไม่เคยตั้งยอดของตัวนี้ — ส่ง 0 ขึ้นไปคือปิดการขายทั้งที่ของอาจยังอยู่" box="inline-flex">
               <InfoChip colors="bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">เสี่ยง</InfoChip>
