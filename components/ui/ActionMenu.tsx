@@ -131,7 +131,14 @@ export default function ActionMenu({ items, trigger, triggerClassName, placement
                 {item.icon}
                 <span className="flex flex-col flex-1">
                   <span>{item.label}</span>
-                  {item.description && <span className="action-menu-item-desc">{item.description}</span>}
+                  {/* แม่เป็น whitespace-nowrap (กันชื่อเมนูตกบรรทัด) — คำอธิบายต้องปลดเอง
+                      ไม่งั้นเมนูยืดตามประโยคยาวจนล้นจอ · จำกัดความกว้างไว้ ~2 บรรทัด
+                      (คลาสอยู่ตรงนี้แทน globals.css เพราะไฟล์นั้น session อื่นแก้ค้างอยู่) */}
+                  {item.description && (
+                    <span className="action-menu-item-desc whitespace-normal max-w-[16rem] leading-snug">
+                      {item.description}
+                    </span>
+                  )}
                 </span>
                 {item.suffix}
               </button>
