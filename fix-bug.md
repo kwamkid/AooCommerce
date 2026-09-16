@@ -16,6 +16,42 @@
 
 ---
 
+## 2026-09-17 — หน้าร้านโชว์สินค้าที่ซื้อไม่ได้ 62 ตัว: ตัวกรองกับตัวแสดงผลนับคนละคลัง
+
+**ที่เกิด**: RPC `get_storefront_catalog` vs `fetchAvailability()` ใน [lib/storefront-server.ts](lib/storefront-server.ts)
+**อาการ**: เจ้าของติ๊ก "ซ่อนสินค้าที่สต็อกหมด" ไว้ แต่หน้าร้านยังขึ้นการ์ดที่เขียนว่า "สินค้าหมดชั่วคราว" — แปลว่าระบบ**รู้**ว่าหมด แต่ไม่กรองออก
+**Root cause**: ฟีเจอร์ "เลือกคลังที่ใช้ขาย" (`sell_warehouse_id`) แก้ **ตัวแสดงผล** กับ **ตัวจอง** ให้กรองตามคลังที่ขาย แต่ **ตกหล่นที่ RPC ของหน้ารายการ** ซึ่งยัง `sum(quantity - reserved)` ของ **ทุกคลัง** ⇒ ของที่ฝากขายอยู่ในห้าง/ตัวแทนถูกนับว่า "ยังมีของ" สินค้าจึงรอดการกรอง แล้วไปโดนตีตราว่าหมดตอนวาดการ์ด · ของจริง: "GB Cruiser รถเข็นเด็ก" มี 11 ชิ้นแต่อยู่ที่ Dept Paragon/Central World/Emporium/Chidlom ทั้งหมด คลังหลัก RAMA2 มี 0
+**วิธีแก้**: เพิ่ม `p_warehouse_id` ให้ RPC (drop+create เพราะเปลี่ยน signature · มี DEFAULT จึงไม่พังกับโค้ดที่ deploy อยู่) แล้วส่งคลังเดียวกับ `fetchAvailability` · ส่งให้ `get_composite_availability` ด้วย · ทั้งร้าน **562 → 500 รายการ**
+**ป้องกัน regression**: ⛔ กฎ "เงื่อนไขขึ้นหน้าร้านได้ใน RPC ต้องตรงกับ `getStorefrontProduct()` เป๊ะ" เขียนไว้ใน rules อยู่แล้วแต่ยังหลุด — **เพิ่มมิติใหม่ให้สต็อก (คลัง/ล็อต/สาขา) ต้องไล่ทั้งสามชั้นเสมอ: RPC กรอง · ตัวแสดงผล · ตัวจองตอน checkout**
+
+## 2026-09-17 — `products.slug` ไม่ถูกเติมมาตั้งแต่ 18 ส.ค. ลิงก์สินค้ากลายเป็น UUID
+
+**ที่เกิด**: [lib/storefront-server.ts](lib/storefront-server.ts) `row.slug || row.id` · sitemap · [lib/broadcast/product-links.ts](lib/broadcast/product-links.ts)
+**อาการ**: ไม่มีอาการให้เห็นเลย — หน้าร้านเปิดได้ปกติ แค่ URL เป็น `/p/9c2f3a1e-…` แทนชื่อสินค้า และปุ่ม "สั่งเลย" ในบรอดแคสต์เงียบ ๆ กลายเป็น "สนใจสินค้านี้"
+**Root cause**: migration `20260818_storefront_product_slug` เติม slug **ครั้งเดียวตอนรัน** แล้วจบ — **ไม่มี trigger และโค้ดแอปไม่เคยเขียนคอลัมน์นี้เลยสักจุด** ⇒ สินค้าทุกตัวที่สร้างหลังจากนั้น `slug = NULL` (65 ตัว · 63 ตัวขึ้นหน้าร้านจริง · ตัวล่าสุดสร้างก่อนเจอ 1 วัน = รั่วอยู่ทุกวัน) · UUID หลุดเข้า canonical, OG url และ **sitemap ที่ส่งให้ Google**
+**วิธีแก้**: `fill_product_slug()` BEFORE INSERT trigger ใช้ `slugify_th` ตัวเดียวกับหมวด/แบรนด์ + backfill 65 แถว
+**ป้องกัน regression**: ⛔ **คอลัมน์ที่ backfill ครั้งเดียวใน migration ต้องมี trigger คู่เสมอ** ไม่งั้นรั่วตั้งแต่แถวถัดไปโดยไม่มีใครรู้ · ตั้งค่าที่ **DB ไม่ใช่ที่ API** เมื่อแถวถูกสร้างได้จากหลายทาง (ฟอร์ม · bulk import · import จาก marketplace) · เขียนที่ API จะมีเส้นทางที่หลุดเสมอ
+
+## 2026-09-17 — บาร์โค้ดโผล่เป็นชื่อตัวเลือกถึงมือลูกค้า (42% ของตัวเลือกทั้งหมด)
+
+**ที่เกิด**: [app/marketing/broadcast/new/components/product-search.ts](app/marketing/broadcast/new/components/product-search.ts) (การ์ดบรอดแคสต์) · ฟีด Merchant · swatch หน้าร้าน
+**อาการ**: ชื่อสินค้าในการ์ดที่ส่งหาลูกค้าลงท้ายด้วยตัวเลขยาว ๆ เช่น "Astro กระเป๋าใส่รถเข็นเด็ก gb รุ่น Pockit Travel Bag - 4891188016268"
+**Root cause**: โค้ดเขียนว่า "ต่อชื่อตัวเลือก" ซึ่งถูกสำหรับตัวเลือกจริง (สี/ขนาด) แต่ **ร้านใช้ `variation_label` เก็บอะไรก็ได้** — ของจริง **490 จาก 1,157 ตัวเลือก (42%) ตั้งเป็นตัวเลขล้วน** และอีก 498 ตัวตั้งเท่ากับ sku · โปรเจกต์**มี `cleanVariationLabel()` ที่เขียนมาแก้เคสนี้อยู่แล้ว** แต่สองทางที่ส่งถึงลูกค้าไม่ได้เรียกมัน
+**วิธีแก้**: ล้างที่ชั้นข้อมูล (`assembleVariation` ใน storefront-server) ที่เดียว ⇒ swatch · ปุ่มสั่งซื้อ · ฟีด ได้ของสะอาดพร้อมกัน · บรอดแคสต์แก้แยกที่ `product-search.ts`
+**ป้องกัน regression**: ⛔ **`variation_label` ไม่ใช่ "ชื่อที่ลูกค้าอ่าน"** — ทุกที่ที่เอาไปแสดงต้องผ่าน `cleanVariationLabel()` · ก่อนเขียนตัวจัดรูปแบบชื่อสินค้าใหม่ ให้เช็ค `lib/product-display.ts` ก่อนเสมอ
+
+## 2026-09-17 — หน้าร้าน: canonical ขัดกับ noindex · llms.txt ประกาศที่อยู่ผิด · `cache()` แตก
+
+**ที่เกิด**: [app/store/[slug]/page.tsx](app/store/[slug]/page.tsx) · [llms.txt/route.ts](app/store/[slug]/llms.txt/route.ts) · [p/[product]/page.tsx](app/store/[slug]/p/[product]/page.tsx)
+
+**1) canonical ขัดกับ noindex (เสี่ยงสุด)** — หน้า `?cat=`/`?q=` สั่ง `noindex` แต่ `canonical` ชี้ไป**หน้าแรกของร้าน** · Google บอกห้ามจับคู่สองอย่างนี้ชัดเจน เพราะสัญญาณ noindex อาจถูกโอนไปติดหน้าเป้าหมาย = **เสี่ยงหน้าแรกหลุด index ทั้งร้าน** → ตัด canonical ออกจากหน้ากรอง/ค้นหา แล้วรวมเงื่อนไขเป็นตัวแปร `indexable` ตัวเดียว ไม่ให้ robots กับ canonical แยกกันคิด
+
+**2) llms.txt ยื่นที่อยู่จดทะเบียนบริษัทให้ AI** — อ่าน `company.phone/email/address` ตรง ๆ ขณะที่ท้ายหน้าร้านใช้ `cfg.contact_* || company.*` ⇒ AI เอาเบอร์/ที่อยู่บนใบกำกับภาษีไปตอบลูกค้า (ผิดตารางใน `rules/domains/storefront.md` ตรง ๆ) → ใช้ลำดับเดียวกับท้ายหน้าร้าน
+
+**3) `cache()` แตก ยิง query ชุดเต็ม 2 รอบต่อการเปิดหน้า 1 ครั้ง** — `generateMetadata` เรียก `getStorefrontProduct(id, slug)` ส่วนตัวหน้าเรียก `(id, slug, features.stock)` · **อาร์กิวเมนต์ไม่เท่ากัน React `cache()` จึงถือเป็นคนละคีย์** → ส่งชุดเดียวกัน
+
+**ป้องกัน regression**: ⛔ **`noindex` + `canonical` ที่ชี้ไป URL อื่น = ห้ามจับคู่กัน** · ⛔ ช่องทางติดต่อของ**ร้าน**มาก่อน `company.*` เสมอทุกจุดที่ออกสู่สาธารณะ · ⛔ ฟังก์ชันที่ห่อ `cache()` ต้องเรียกด้วย**อาร์กิวเมนต์ชุดเดียวกันทุกที่** ไม่งั้นแคชไม่ทำงานโดยไม่มีอาการ
+
 ## 2026-09-17 — เอกสารภาษีอัตโนมัติอาจไม่ออกเลย เพราะปล่อย promise ลอยทั้ง 11 จุด
 
 **ที่เกิด**: ทุกจุดที่เรียก `autoIssueDocument` — `/api/orders` (3) · POS · Shopee webhook · Shopee bulk-ship · `lib/{shopee,tiktok,lazada}/sync.ts`
