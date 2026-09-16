@@ -25,10 +25,12 @@ interface Props {
   contactAddress: string | null;
   /** รับแค่ `provinces` พอ — ไม่ผูกกับ `DeliveryZone` เต็ม ๆ เพราะหน้าร้าน select มาไม่ครบทุกคอลัมน์ */
   zones: { provinces?: string[] | null }[];
+  /** วิธีชำระเงินที่ลูกค้าออนไลน์ใช้ได้ — ชื่อวิธีเท่านั้น ไม่มีเลขบัญชี/คีย์ */
+  payments: string[];
 }
 
 export default function ShopJsonLd({
-  cfg, slug, shopName, logoUrl, contactPhone, contactEmail, contactAddress, zones,
+  cfg, slug, shopName, logoUrl, contactPhone, contactEmail, contactAddress, zones, payments,
 }: Props) {
   if (!cfg.public_base_url) return null;
 
@@ -53,6 +55,7 @@ export default function ShopJsonLd({
       : {}),
     ...(areaServed.length ? { areaServed: areaServed.map(name => ({ '@type': 'Place', name })) } : {}),
     currenciesAccepted: 'THB',
+    ...(payments.length ? { paymentAccepted: payments.join(', ') } : {}),
   };
 
   // ช่องค้นหาของหน้าร้านใช้ `?q=` อยู่แล้ว — ประกาศไว้ถึงจะมีสิทธิ์ได้ sitelinks searchbox

@@ -895,6 +895,57 @@ export const resolveCategoryParam = cache(async (
   return { filter: value, name: byName.data?.name ?? null };
 });
 
+/**
+ * วิธีชำระเงินที่ลูกค้าหน้าร้านใช้ได้จริง — ประกอบจาก `payment_channels` ที่ร้านตั้งไว้แล้ว
+ * ไม่ให้ร้านมานั่งเขียนซ้ำ (เขียนเองแล้วจะไม่ตรงกับที่ระบบรับจริงในวันที่ร้านเปลี่ยนช่องทาง)
+ *
+ * ⛔ **กรอง `channel_group = 'bill_online'` เท่านั้น** — ช่องทางของ POS (เงินสดหน้าเคาน์เตอร์ ·
+ *    เครื่องรูดบัตร) ลูกค้าที่สั่งออนไลน์ใช้ไม่ได้ ประกาศไปคือโกหก
+ *
+ * ⛔⛔ **ห้าม select `config` ทั้งก้อนเด็ดขาด** — ในนั้นมี `api_key`, `webhook_secret`,
+ *    `merchant_id` และ `account_number` · ฟังก์ชันนี้อยู่บนเส้นทางที่ส่งออกสู่สาธารณะ
+ *    (หน้าร้าน · llms.txt · JSON-LD) หลุดเมื่อไหร่คือคีย์ของ payment gateway หลุด
+ *    ⇒ เลข/ชื่อบัญชีไม่อยู่ในนี้โดยตั้งใจ ให้ลูกค้าเห็นตอน checkout เท่านั้น
+ */
+export const getStorefrontPayments = cache(async (companyId: string): Promise<string[]> => {
+  const { data } = await supabaseAdmin
+    .from('payment_channels')
+    .select('type, name, gateway_channels:config->channels')
+    .eq('company_id', companyId)
+    .eq('channel_group', 'bill_online')
+    .eq('is_active', true)
+    .order('sort_order', { ascending: true });
+
+  const out: string[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const row of (data as any[] | null) || []) {
+    const name = String(row.name || '').trim();
+    switch (row.type) {
+      case 'payment_gateway': {
+        const ch: string[] = Array.isArray(row.gateway_channels) ? row.gateway_channels.map(String) : [];
+        const parts: string[] = [];
+        if (ch.length === 0 || ch.some(c => /card/i.test(c))) parts.push('บัตรเครดิต/เดบิต');
+        if (ch.length === 0 || ch.some(c => /qr|promptpay/i.test(c))) parts.push('QR พร้อมเพย์');
+        out.push(`ชำระออนไลน์ด้วย${parts.join(' หรือ ')}`);
+        break;
+      }
+      case 'promptpay':
+        out.push('โอนผ่าน QR พร้อมเพย์');
+        break;
+      case 'bank_transfer':
+        // ชื่อช่องทาง = ชื่อธนาคารที่ร้านตั้งไว้ · **เลขบัญชีไม่เอามา** (ดูคำเตือนข้างบน)
+        out.push(name ? `โอนเงินเข้าบัญชีธนาคาร${name}` : 'โอนเงินเข้าบัญชีธนาคาร');
+        break;
+      case 'cash':
+        out.push('เงินสด');
+        break;
+      default:
+        if (name) out.push(name);
+    }
+  }
+  return Array.from(new Set(out));
+});
+
 export interface StorefrontBrand {
   name: string;
   slug: string;

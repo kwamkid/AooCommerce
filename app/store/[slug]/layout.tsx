@@ -4,7 +4,10 @@
 // reuse the same page bodies without this chrome.
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { getStorefrontCompany, getStorefrontCategories, getClosedStorefront, getStorefrontDelivery } from '@/lib/storefront-server';
+import {
+  getStorefrontCompany, getStorefrontCategories, getClosedStorefront, getStorefrontDelivery,
+  getStorefrontPayments,
+} from '@/lib/storefront-server';
 import { storefrontCssVars, storefrontRootClasses, storefrontHref } from '@/lib/storefront';
 import StoreHeader from '@/components/storefront/StoreHeader';
 import type { NavLink } from '@/components/storefront/MobileNav';
@@ -27,9 +30,10 @@ export default async function StoreLayout({
     return <ShopUnavailable closed={await getClosedStorefront(slug)} />;
   }
 
-  const [categories, delivery] = await Promise.all([
+  const [categories, delivery, payments] = await Promise.all([
     getStorefrontCategories(company.id),
     getStorefrontDelivery(company.id),
+    getStorefrontPayments(company.id),
   ]);
   const cfg = company.config;
   const shopName = cfg.display_name || company.name;
@@ -74,6 +78,7 @@ export default async function StoreLayout({
         contactEmail={contactEmail}
         contactAddress={contactAddress}
         zones={delivery.zones}
+        payments={payments}
       />
 
       {cfg.announcement && (

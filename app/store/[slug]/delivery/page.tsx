@@ -5,7 +5,7 @@
 // นี่คือหน้าที่ AEO จะอ้างถึงมากที่สุด (เช่นคำถาม "ร้านผักสดส่งกรุงเทพวันไหนได้บ้าง")
 // → ทุกอย่างเป็นประโยคเต็มใน server HTML + FAQPage schema
 import type { Metadata } from 'next';
-import { getStorefrontCompany, getStorefrontDelivery } from '@/lib/storefront-server';
+import { getStorefrontCompany, getStorefrontDelivery, getStorefrontPayments } from '@/lib/storefront-server';
 import { storefrontUrl, jsonLdScript, formatStorePrice } from '@/lib/storefront';
 import { formatSlotTime, formatDays } from '@/lib/delivery';
 
@@ -45,6 +45,7 @@ export default async function StorefrontDeliveryPage({ params }: PageProps) {
   if (!company) return null;   // layout แสดงหน้า 'ไม่พบร้านนี้' ให้แล้ว
 
   const { zones, slots } = await getStorefrontDelivery(company.id);
+  const payments = await getStorefrontPayments(company.id);
   const shopName = company.config.display_name || company.name;
 
   const areaSummary = (z: typeof zones[number]) => {
@@ -81,6 +82,13 @@ export default async function StorefrontDeliveryPage({ params }: PageProps) {
       a: zones.map(z => `${z.name} ${feeSummary(z)}`
         + (z.free_over != null ? ` และส่งฟรีเมื่อสั่งครบ ${formatStorePrice(Number(z.free_over))}` : ''),
       ).join('; '),
+    });
+  }
+  if (payments.length > 0) {
+    faq.push({
+      q: `${shopName} รับชำระเงินด้วยวิธีไหนบ้าง`,
+      a: `รับชำระเงิน ${payments.length} วิธี ได้แก่ ${payments.join(', ')}. `
+        + 'ระบบจะแสดงรายละเอียดการชำระเงินหลังยืนยันคำสั่งซื้อ',
     });
   }
   if (slots.length > 0) {
@@ -125,7 +133,9 @@ export default async function StorefrontDeliveryPage({ params }: PageProps) {
     'กรอกชื่อ เบอร์โทร และที่อยู่จัดส่ง',
     ...(zones.length > 0 ? ['ระบบจะจับคู่พื้นที่จัดส่งและคำนวณค่าจัดส่งให้อัตโนมัติ'] : []),
     ...(slots.length > 0 ? ['เลือกวันและรอบเวลาที่ต้องการให้จัดส่ง'] : []),
-    'ยืนยันคำสั่งซื้อและชำระเงิน แล้วติดตามสถานะได้จากลิงก์ที่ได้รับ',
+    payments.length > 0
+      ? `ยืนยันคำสั่งซื้อแล้วชำระเงินด้วย${payments.join(' หรือ ')} และติดตามสถานะได้จากลิงก์ที่ได้รับ`
+      : 'ยืนยันคำสั่งซื้อและชำระเงิน แล้วติดตามสถานะได้จากลิงก์ที่ได้รับ',
   ];
   const howToLd = {
     '@context': 'https://schema.org',
@@ -170,7 +180,21 @@ export default async function StorefrontDeliveryPage({ params }: PageProps) {
         </ol>
       </section>
 
-      {zones.length === 0 && slots.length === 0 && (
+      {/* วิธีชำระเงิน — ประกอบจากช่องทางที่ร้านเปิดใช้จริง ไม่ให้ร้านมานั่งเขียนเอง
+          เดิมข้อมูลนี้อยู่**หลัง checkout เท่านั้น** ⇒ ทั้ง Google และ AI ไม่มีทางรู้ */}
+      {payments.length > 0 && (
+        <section className="sf-section">
+          <h2>วิธีชำระเงิน</h2>
+          <p className="sf-facts">
+            {shopName} รับชำระเงิน {payments.length} วิธี ได้แก่ {payments.join(', ')}
+          </p>
+          <ul className="sf-steps">
+            {payments.map(m => <li key={m}>{m}</li>)}
+          </ul>
+        </section>
+      )}
+
+      {zones.length === 0 && slots.length === 0 && payments.length === 0 && (
         <p className="sf-empty">ยังไม่ได้ประกาศข้อมูลการจัดส่ง</p>
       )}
 

@@ -6,7 +6,7 @@
 import { NextResponse } from 'next/server';
 import {
   getStorefrontCompany, getStorefrontCatalog, catalogOptionsFor,
-  getStorefrontCategories, getStorefrontBrands, getStorefrontDelivery,
+  getStorefrontCategories, getStorefrontBrands, getStorefrontDelivery, getStorefrontPayments,
 } from '@/lib/storefront-server';
 import { storefrontUrl, formatStorePrice } from '@/lib/storefront';
 import { formatSlotTime, formatDays, formatLeadTime } from '@/lib/delivery';
@@ -27,7 +27,7 @@ export async function GET(
   }
 
   const shopName = cfg.display_name || company.name;
-  const [catalog, categories, brands, { zones, slots }] = await Promise.all([
+  const [catalog, categories, brands, payments, { zones, slots }] = await Promise.all([
     // ซ่อนตาม config เดียวกับหน้ารายการ (สินค้าหมด/ไม่มีรูป) — AI ไม่ควรอ้างของที่ลูกค้าหาไม่เจอ
     getStorefrontCatalog(
       company.id,
@@ -36,6 +36,7 @@ export async function GET(
     ),
     getStorefrontCategories(company.id),
     getStorefrontBrands(company.id),
+    getStorefrontPayments(company.id),
     getStorefrontDelivery(company.id),
   ]);
   const products = catalog.products;
@@ -103,6 +104,12 @@ export async function GET(
       );
     }
     L.push('', 'รอบจัดส่งเลือกได้เป็นช่วงเวลา ไม่ใช่เวลานัดที่แน่นอน ระบบเปิดให้เลือกเฉพาะรอบที่จัดส่งทัน', '');
+  }
+
+  if (payments.length > 0) {
+    L.push('## วิธีชำระเงิน', '');
+    for (const m of payments) L.push(`- ${m}`);
+    L.push('', 'รายละเอียดการชำระเงินแสดงหลังยืนยันคำสั่งซื้อ', '');
   }
 
   if (products.length > 0) {
