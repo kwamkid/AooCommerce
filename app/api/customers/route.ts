@@ -160,6 +160,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search');
     const customerType = searchParams.get('type');
+    const saleType = searchParams.get('sale_type');
     const isActive = searchParams.get('active');
     const withStats = searchParams.get('with_stats') === 'true';
     const page = searchParams.get('page') ? parseInt(searchParams.get('page')!, 10) : null;
@@ -197,6 +198,11 @@ export async function GET(request: NextRequest) {
       } else if (types.length > 1) {
         query = query.in('customer_type', types);
       }
+    }
+
+    // แยกสายขายขาดเป็นเงินสด/เครดิต — ใช้โดยหน้ารายชื่อตัวแทนและห้าง
+    if (saleType) {
+      query = query.eq('sale_type', saleType);
     }
 
     if (isActive !== null && isActive !== undefined && isActive !== 'all') {

@@ -678,6 +678,20 @@ input.line-btn-field-secondary::placeholder,
     @apply bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4;
   }
 
+  /* แถวแท็บกรอง (ประเภทลูกค้า · สถานะเอกสาร ฯลฯ) — ใช้คู่กับ <FilterTabs>
+     เดิมสไตล์ชุดนี้ถูกพิมพ์ inline ซ้ำในหลายหน้า แล้วเพี้ยนกันเองทีละหน้า */
+  .filter-tabs {
+    @apply flex items-center gap-1.5 flex-wrap;
+  }
+  .filter-tab {
+    @apply px-3 py-1.5 rounded-lg text-sm font-medium transition-all
+           bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300
+           hover:bg-gray-200 dark:hover:bg-slate-600;
+  }
+  .filter-tab-active {
+    @apply bg-primary text-white shadow-sm hover:bg-primary;
+  }
+
   /* Table wrappers */
   /* ขอบ 1px เท่ากับ `.card` — ตารางกับการ์ดวางอยู่บนพื้นเดียวกัน ถ้าใส่ขอบให้อย่างเดียว
      หน้า list จะเห็นเป็นสองมาตรฐานทันที */

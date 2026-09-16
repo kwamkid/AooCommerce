@@ -193,7 +193,7 @@ export default function Sidebar() {
       setProductsOpen(true);
     }
     if (pathname?.startsWith('/invoices') || pathname?.startsWith('/credit-notes') || pathname?.startsWith('/statements')) setAccountingOpen(true);
-    if (pathname?.startsWith('/replenishments') || pathname?.startsWith('/consignment')) setConsignmentOpen(true);
+    if (pathname?.startsWith('/replenishments') || pathname?.startsWith('/consignment/reports')) setConsignmentOpen(true);
     if (pathname?.startsWith('/department-store/reports') || pathname?.startsWith('/department-orders')) setDeptStoreOpen(true);
   }, [pathname]);
 
@@ -550,10 +550,23 @@ export default function Sidebar() {
                     <h3 className="nav-section-title text-[11px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-[0.08em] mt-5 mb-1.5 px-3">
                       ตัวแทนจำหน่าย
                     </h3>
+                    {can(subject, 'customer.view') && (
+                      <Link
+                        href="/consignment/customers"
+                        className={`flex items-center w-full px-3 py-2 rounded-lg mb-1 transition-colors ${
+                          pathname?.startsWith('/consignment/customers')
+                            ? 'text-[#C2410C] dark:text-orange-300 font-semibold'
+                            : 'text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-white'
+                        }`}
+                      >
+                        <UserCircle className="w-[18px] h-[18px] flex-shrink-0" />
+                        <span className="nav-label text-sm font-medium ml-3">ลูกค้าตัวแทน</span>
+                      </Link>
+                    )}
                     <button
                       onClick={() => setConsignmentOpen(!consignmentOpen)}
                       className={`flex items-center w-full px-3 py-2 rounded-lg mb-1 transition-colors ${
-                        pathname?.startsWith('/replenishments') || pathname?.startsWith('/consignment')
+                        pathname?.startsWith('/replenishments') || pathname?.startsWith('/consignment/reports')
                           ? 'text-[#C2410C] dark:text-orange-300 font-semibold'
                           : 'text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-white'
                       }`}
@@ -594,6 +607,19 @@ export default function Sidebar() {
                     <h3 className="nav-section-title text-[11px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-[0.08em] mt-5 mb-1.5 px-3">
                       ห้างสรรพสินค้า
                     </h3>
+                    {can(subject, 'customer.view') && (
+                      <Link
+                        href="/department-store/customers"
+                        className={`flex items-center w-full px-3 py-2 rounded-lg mb-1 transition-colors ${
+                          pathname?.startsWith('/department-store/customers')
+                            ? 'text-[#C2410C] dark:text-orange-300 font-semibold'
+                            : 'text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-white'
+                        }`}
+                      >
+                        <UserCircle className="w-[18px] h-[18px] flex-shrink-0" />
+                        <span className="nav-label text-sm font-medium ml-3">ลูกค้าห้าง</span>
+                      </Link>
+                    )}
                     <button
                       onClick={() => setDeptStoreOpen(!deptStoreOpen)}
                       className={`flex items-center w-full px-3 py-2 rounded-lg mb-1 transition-colors ${
