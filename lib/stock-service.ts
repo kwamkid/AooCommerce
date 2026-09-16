@@ -272,13 +272,21 @@ async function deductOne(
  * reserved_quantity ↑
  * balance_after = quantity (existing convention)
  */
-export async function reserveStock(params: StockOpParams): Promise<StockOpResult> {
-  return (await forEachComponent(params, reserveOne)) ?? reserveOne(params);
+export async function reserveStock(
+  params: StockOpParams & { checkAvailable?: boolean },
+): Promise<StockOpResult> {
+  return (await forEachComponent(params, reserveOne, { checkAvailable: params.checkAvailable }))
+    ?? reserveOne(params);
 }
 
-async function reserveOne(params: StockOpParams): Promise<StockOpResult> {
+async function reserveOne(params: StockOpParams & { checkAvailable?: boolean }): Promise<StockOpResult> {
   const inv = await getOrCreateInventory(params.supabase, params.companyId, params.warehouseId, params.variationId);
-  const levels = await applyDelta(params.supabase, inv.id, { reserved: params.qty });
+  // `checkAvailable` = ให้ DB เช็ค "พร้อมขาย ≥ ที่จะจอง" ตอนล็อกแถว — กันสองคำขอที่เข้ามา
+  // พร้อมกันจองของชิ้นเดียวกันจนติดลบ (บริษัทที่ปิด "ยอมให้ขายเกิน" ใน ตั้งค่า > คลังสินค้า)
+  const levels = await applyDelta(params.supabase, inv.id, {
+    reserved: params.qty,
+    requireAvailable: params.checkAvailable ? params.qty : undefined,
+  });
   const quantityNow = levels?.quantity ?? inv.quantity;
 
   await logTransaction(params.supabase, {
