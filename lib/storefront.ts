@@ -385,7 +385,16 @@ export interface StorefrontOptionGroup {
  * หน้าสินค้ายิง event นี้ตอนลูกค้าเลือกตัวเลือก → รูปหลักเปลี่ยนตาม
  * (detail = `{ image, label }` · image null = กลับไปรูปแรกของสินค้า)
  */
-export const SF_VARIATION_IMAGE_EVENT = 'sf:variation-image';
+export const SF_VARIATION_PICK_EVENT = 'sf:variation-pick';
+
+/** สิ่งที่ส่งไปกับ SF_VARIATION_PICK_EVENT ตอนลูกค้าเลือกตัวเลือกบนหน้าสินค้า */
+export interface StorefrontVariationPick {
+  image: string | null;
+  label: string | null;
+  price: number;
+  /** ราคาก่อนลดของตัวเลือกนี้ (null = ไม่ได้ลด) */
+  compare_at: number | null;
+}
 
 export interface StorefrontProduct {
   id: string;

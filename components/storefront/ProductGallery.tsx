@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { thumbUrl } from '@/lib/image-thumb';
-import { SF_VARIATION_IMAGE_EVENT } from '@/lib/storefront';
+import { SF_VARIATION_PICK_EVENT } from '@/lib/storefront';
 
 interface Picked { image: string | null; label: string | null }
 
@@ -43,8 +43,8 @@ export default function ProductGallery({ images, alt }: { images: string[]; alt:
       const i = images.indexOf(d.image);
       scrollToIndex(i >= 0 ? i : 0);
     };
-    window.addEventListener(SF_VARIATION_IMAGE_EVENT, onPick);
-    return () => window.removeEventListener(SF_VARIATION_IMAGE_EVENT, onPick);
+    window.addEventListener(SF_VARIATION_PICK_EVENT, onPick);
+    return () => window.removeEventListener(SF_VARIATION_PICK_EVENT, onPick);
   }, [images, scrollToIndex]);
 
   useEffect(() => () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); }, []);

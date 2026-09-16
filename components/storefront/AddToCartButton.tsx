@@ -11,7 +11,7 @@ import { flyToCart, findProductImage, FLY_DURATION } from '@/lib/storefront-fly-
 import StoreBuyBar from './StoreBuyBar';
 import CartBadge from './CartBadge';
 import {
-  formatStorePrice, storefrontHref, SF_VARIATION_IMAGE_EVENT,
+  formatStorePrice, storefrontHref, SF_VARIATION_PICK_EVENT,
   type StorefrontVariation, type StorefrontOptionGroup,
 } from '@/lib/storefront';
 
@@ -37,9 +37,11 @@ interface Props {
   themeVars: Record<string, string>;
 }
 
-/** รูปหลักของหน้าเปลี่ยนตามตัวเลือก (ProductGallery ฟังอยู่ แล้วเลื่อนไปใบนั้น) */
+/** บอกทั้งหน้าว่าลูกค้าเลือกตัวเลือกไหน — ProductGallery เลื่อนไปรูปนั้น · DetailPrice เปลี่ยนราคา */
 function announceImage(v: StorefrontVariation) {
-  window.dispatchEvent(new CustomEvent(SF_VARIATION_IMAGE_EVENT, { detail: { image: v.image, label: v.label } }));
+  window.dispatchEvent(new CustomEvent(SF_VARIATION_PICK_EVENT, {
+    detail: { image: v.image, label: v.label, price: v.price, compare_at: v.compare_at },
+  }));
 }
 
 export default function AddToCartButton({
@@ -71,8 +73,6 @@ export default function AddToCartButton({
   }
 
   const selected = sellable.find(v => v.id === selectedId) || sellable[0];
-  /** ตัวเลือกมีราคาไม่เท่ากันไหม — ใช้ตัดสินว่าต้องโชว์ราคาบนปุ่มแต่ละอันหรือไม่ */
-  const mixedPrices = variations.some(v => v.price !== variations[0].price);
   const groups = optionGroups && optionGroups.length > 0 ? optionGroups : null;
 
   const choose = (v: StorefrontVariation) => {
@@ -200,11 +200,9 @@ export default function AddToCartButton({
                 <img className="sf-variation-thumb" src={thumbUrl(v.image, 96)} alt="" loading="lazy" />
               )}
               <span>
-                {/* ราคาต่อตัวเลือกโชว์เฉพาะตอนแต่ละแบบราคาไม่เท่ากัน — ราคาเท่ากันหมด
-                    คือเลขเดียวกับที่อยู่เหนือปุ่มอยู่แล้ว ซ้ำเปล่า ๆ และทำให้ปุ่มยาว
-                    จนตกบรรทัดบนมือถือ (เจ้าของแจ้ง 2026-09-16) */}
+                {/* ไม่มีราคาบนปุ่ม — กดเลือกแล้วราคาด้านบนเปลี่ยนเป็นของตัวเลือกนั้นให้เอง
+                    (DetailPrice ฟัง SF_VARIATION_PICK_EVENT อยู่) ปุ่มจึงสั้นและกวาดตาอ่านง่าย */}
                 {v.label || 'ตัวเลือก'}
-                {mixedPrices && ` · ${formatStorePrice(v.price)}`}
                 {!v.in_stock && ' (หมด)'}
               </span>
             </button>

@@ -16,6 +16,7 @@ import {
 } from '@/lib/storefront';
 import { formatSlotTime } from '@/lib/delivery';
 import AddToCartButton from '@/components/storefront/AddToCartButton';
+import DetailPrice from '@/components/storefront/DetailPrice';
 import ProductGallery from '@/components/storefront/ProductGallery';
 import UnavailableProduct from '@/components/storefront/UnavailableProduct';
 
@@ -213,11 +214,8 @@ export default async function StorefrontProductPage({ params }: PageProps) {
             {[product.brand, product.category].filter(Boolean).join(' · ') || shopName}
           </p>
 
-          <div className="sf-detail-price">
-            {hasRange
-              ? `${formatStorePrice(product.price_min)}–${formatStorePrice(product.price_max)}`
-              : formatStorePrice(product.price_min)}
-          </div>
+          {/* ช่วงราคาใน HTML แรก (SEO) แล้วเปลี่ยนเป็นราคาของแบบที่ลูกค้ากดเลือก */}
+          <DetailPrice priceMin={product.price_min} priceMax={product.price_max} />
 
           <AddToCartButton
             shop={slug}
