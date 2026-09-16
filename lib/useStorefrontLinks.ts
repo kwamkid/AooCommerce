@@ -13,7 +13,7 @@ import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api-client';
 import {
   parseStorefront, storefrontAbsoluteUrl, storefrontProductUrl, storefrontCategoryUrl,
-  type StorefrontConfig,
+  storefrontBrandUrl, type StorefrontConfig,
 } from '@/lib/storefront';
 
 export interface StorefrontLinks {
@@ -24,6 +24,7 @@ export interface StorefrontLinks {
   home: string;
   product: (productSlug: string) => string;
   category: (categorySlug: string) => string;
+  brand: (brandSlug: string) => string;
 }
 
 const NO_LINK = () => '';
@@ -66,5 +67,6 @@ export function useStorefrontLinks(enabledWhen = true): StorefrontLinks {
     home: ready ? storefrontAbsoluteUrl(cfg, slug) : '',
     product: ready ? (s: string) => storefrontProductUrl(cfg, slug, s) : NO_LINK,
     category: ready ? (s: string) => storefrontCategoryUrl(cfg, slug, s) : NO_LINK,
+    brand: ready ? (s: string) => storefrontBrandUrl(cfg, slug, s) : NO_LINK,
   };
 }

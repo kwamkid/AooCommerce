@@ -488,7 +488,7 @@ function buildSwatches(
 }
 
 function assembleProduct(
-  row: { id: string; slug: string | null; name: string; description: string | null; image: string | null; updated_at: string; category?: { name: string; slug: string | null } | null; brand?: { name: string } | null },
+  row: { id: string; slug: string | null; name: string; description: string | null; image: string | null; updated_at: string; category?: { name: string; slug: string | null } | null; brand?: { name: string; slug: string | null } | null },
   variations: RawVariation[],
   images: { variation_id: string | null; image_url: string }[],
   stockEnabled: boolean,
@@ -522,6 +522,7 @@ function assembleProduct(
     category: row.category?.name ?? null,
     category_slug: row.category?.slug ?? null,
     brand: row.brand?.name ?? null,
+    brand_slug: row.brand?.slug ?? null,
     images: Array.from(new Set(gallery)),
     variations: publicVariations,
     price_min: prices.length ? Math.min(...prices) : 0,
@@ -541,12 +542,14 @@ function assembleProduct(
 const PRODUCT_SELECT = `
   id, slug, name, description, image, updated_at, is_composite, composite_slots,
   category:product_categories ( name, slug ),
-  brand:product_brands ( name )
+  brand:product_brands ( name, slug )
 `;
 
 export interface CatalogOptions {
   /** ชื่อหมวด (ตรงตัว) — เทียบกับ product_categories.name เหมือนเดิม */
   category?: string;
+  /** **slug ของแบรนด์** — ต่างจากหมวดที่รับชื่อ (ตัวกรองแบรนด์เป็นของใหม่ ไม่มีลิงก์เก่าให้รองรับ) */
+  brand?: string;
   search?: string;
   /** หน้าที่ 1, 2, 3 … (ค่าเพี้ยน = 1) */
   page?: number;
@@ -713,6 +716,7 @@ export const getStorefrontCatalog = cache(async (
   const { data, error } = await supabaseAdmin.rpc('get_storefront_catalog', {
     p_company_id: companyId,
     p_category: options.category || null,
+    p_brand: options.brand || null,
     p_search: options.search || null,
     p_sort: options.sort || 'name',
     p_stock_enabled: stockEnabled,
@@ -889,6 +893,55 @@ export const resolveCategoryParam = cache(async (
     .limit(1)
     .maybeSingle();
   return { filter: value, name: byName.data?.name ?? null };
+});
+
+export interface StorefrontBrand {
+  name: string;
+  slug: string;
+  /** โลโก้แบรนด์ — หน้าร้านเอาไปโชว์บนหน้ากรองแบรนด์ (ว่าง = ไม่โชว์ ไม่ต้องหาอะไรมาแทน) */
+  logo_url: string | null;
+}
+
+/**
+ * แบรนด์ที่ **มีสินค้าขึ้นหน้าร้านจริง** — กติกาเดียวกับ `getStorefrontCategories`
+ * (แบรนด์ที่ไม่มีสินค้าเลย ลิงก์ไปแล้วเจอหน้าเปล่า ⇒ ห้ามยื่นให้ร้านส่งหาลูกค้า)
+ * ยุบตาม **slug** ได้เลย ต่างจากหมวด เพราะ RPC กรองแบรนด์ด้วย slug ตรง ๆ
+ */
+export const getStorefrontBrands = cache(async (companyId: string): Promise<StorefrontBrand[]> => {
+  const { data } = await supabaseAdmin
+    .from('products')
+    .select('brand:product_brands ( name, slug, logo_url )')
+    .eq('company_id', companyId)
+    .eq('is_active', true)
+    .eq('storefront_visible', true);
+  const bySlug = new Map<string, StorefrontBrand>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const row of (data as any[] | null) || []) {
+    const b = row.brand;
+    if (!b?.name || !b?.slug) continue;
+    if (!bySlug.has(b.slug)) bySlug.set(b.slug, { name: b.name, slug: b.slug, logo_url: b.logo_url || null });
+  }
+  return Array.from(bySlug.values()).sort((a, b) => a.name.localeCompare(b.name, 'th'));
+});
+
+/**
+ * `?brand=` → **ชื่อแบรนด์ไว้แสดง** · คืน `null` เมื่อ slug ไม่ตรงแบรนด์ไหนเลย
+ * ⛔ ค่าที่หาไม่เจอห้ามเอาไปวาดเป็น `<h1>`/`<title>` เหตุผลเดียวกับ `resolveCategoryParam`
+ * (ค่ากรองยังส่งดิบให้ RPC ได้ — ผลคือไม่เจอสินค้า ซึ่งถูกแล้ว)
+ */
+export const resolveBrandParam = cache(async (
+  companyId: string,
+  brand: string | undefined | null,
+): Promise<string | null> => {
+  const value = (brand || '').trim();
+  if (!value) return null;
+  const { data } = await supabaseAdmin
+    .from('product_brands')
+    .select('name')
+    .eq('company_id', companyId)
+    .eq('slug', value)
+    .maybeSingle();
+  return data?.name ?? null;
 });
 
 export interface StorefrontCategory {

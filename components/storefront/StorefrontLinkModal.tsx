@@ -12,7 +12,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Home, Package, Tag } from 'lucide-react';
+import { Home, Package, Tag, Bookmark } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
 import SearchInput from '@/components/ui/SearchInput';
 import FilterChips, { FILTER_CHIP_PRIMARY_ACTIVE, type FilterChip } from '@/components/ui/FilterChips';
@@ -22,7 +22,7 @@ import { apiFetch } from '@/lib/api-client';
 import { useDebouncedCallback } from '@/lib/useDebounce';
 import { useStorefrontLinks } from '@/lib/useStorefrontLinks';
 
-type Kind = 'home' | 'product' | 'category';
+type Kind = 'home' | 'product' | 'category' | 'brand';
 
 interface TargetRow {
   id: string;
@@ -41,6 +41,7 @@ interface Props {
 const KIND_CHIPS: FilterChip<Kind>[] = [
   { id: 'product', label: 'สินค้า', icon: <Package className="w-4 h-4" />, activeClass: FILTER_CHIP_PRIMARY_ACTIVE },
   { id: 'category', label: 'หมวดหมู่', icon: <Tag className="w-4 h-4" />, activeClass: FILTER_CHIP_PRIMARY_ACTIVE },
+  { id: 'brand', label: 'แบรนด์', icon: <Bookmark className="w-4 h-4" />, activeClass: FILTER_CHIP_PRIMARY_ACTIVE },
   { id: 'home', label: 'หน้าร้าน', icon: <Home className="w-4 h-4" />, activeClass: FILTER_CHIP_PRIMARY_ACTIVE },
 ];
 
@@ -79,7 +80,8 @@ export default function StorefrontLinkModal({ open, onClose, onPick }: Props) {
   }, [open, kind, load]);
 
   const visible = useMemo(() => {
-    if (kind !== 'category') return rows;
+    // สินค้าค้นที่ server แล้ว — หมวด/แบรนด์โหลดครบรอบเดียว กรองในเครื่องพอ
+    if (kind === 'product') return rows;
     const q = search.trim().toLowerCase();
     return q ? rows.filter(r => r.name.toLowerCase().includes(q)) : rows;
   }, [rows, kind, search]);
@@ -123,14 +125,22 @@ export default function StorefrontLinkModal({ open, onClose, onPick }: Props) {
                     setSearch(v);
                     if (kind === 'product') searchOnServer(v);
                   }}
-                  placeholder={kind === 'product' ? 'ค้นหาสินค้า...' : 'ค้นหาหมวดหมู่...'}
+                  placeholder={
+                    kind === 'product' ? 'ค้นหาสินค้า...'
+                    : kind === 'brand' ? 'ค้นหาแบรนด์...'
+                    : 'ค้นหาหมวดหมู่...'
+                  }
                 />
 
                 {loading ? (
                   <LoadingCard />
                 ) : visible.length === 0 ? (
                   <EmptyCard
-                    title={kind === 'product' ? 'ไม่พบสินค้าที่ขึ้นหน้าร้าน' : 'ไม่พบหมวดหมู่'}
+                    title={
+                      kind === 'product' ? 'ไม่พบสินค้าที่ขึ้นหน้าร้าน'
+                      : kind === 'brand' ? 'ไม่พบแบรนด์ที่มีสินค้าขึ้นหน้าร้าน'
+                      : 'ไม่พบหมวดหมู่'
+                    }
                     subtitle={
                       kind === 'product'
                         ? 'สินค้าจะลิงก์ได้ก็ต่อเมื่อเปิดขายอยู่และตั้งให้แสดงบนหน้าร้าน'
@@ -143,10 +153,14 @@ export default function StorefrontLinkModal({ open, onClose, onPick }: Props) {
                       <button
                         key={row.id}
                         type="button"
-                        onClick={() => pick(kind === 'product' ? links.product(row.slug) : links.category(row.slug))}
+                        onClick={() => pick(
+                          kind === 'product' ? links.product(row.slug)
+                          : kind === 'brand' ? links.brand(row.slug)
+                          : links.category(row.slug),
+                        )}
                         className="w-full flex items-center gap-3 py-2.5 px-1 text-left hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
                       >
-                        {kind === 'product' && (
+                        {(kind === 'product' || kind === 'brand') && (
                           row.image ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img src={thumbUrl(row.image, 96)} alt="" className="w-10 h-10 rounded object-cover flex-shrink-0" />

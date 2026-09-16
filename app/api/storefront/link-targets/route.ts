@@ -8,7 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
-import { getStorefrontCategories } from '@/lib/storefront-server';
+import { getStorefrontCategories, getStorefrontBrands } from '@/lib/storefront-server';
 
 const PRODUCT_LIMIT = 40;
 
@@ -29,6 +29,14 @@ export async function GET(request: NextRequest) {
     const categories = await getStorefrontCategories(auth.companyId);
     return NextResponse.json({
       items: categories.map(c => ({ id: c.slug, name: c.name, slug: c.slug })),
+      complete: true,
+    });
+  }
+
+  if (type === 'brand') {
+    const brands = await getStorefrontBrands(auth.companyId);
+    return NextResponse.json({
+      items: brands.map(b => ({ id: b.slug, name: b.name, slug: b.slug, image: b.logo_url })),
       complete: true,
     });
   }

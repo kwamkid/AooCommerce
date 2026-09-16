@@ -1,7 +1,8 @@
 // Path: components/storefront/StorePagination.tsx
 // แถบแบ่งหน้าใต้ตารางสินค้าของหน้าร้าน — server component ล้วน (ไม่มี state)
 //
-// ทุกลิงก์ต้อง **คงตัวกรองเดิมไว้** (cat / q) ไม่งั้นกดหน้า 2 แล้วหลุดออกจากหมวด
+// ทุกลิงก์ต้อง **คงตัวกรองเดิมไว้** (cat / brand / q) ไม่งั้นกดหน้า 2 แล้วหลุดออกจากตัวกรอง
+// ⚠️ เพิ่มตัวกรองใหม่เมื่อไหร่ **ต้องมาเพิ่มที่นี่ด้วยเสมอ**
 // หน้า 1 ไม่ใส่ `page=` เพื่อให้ URL ของหน้าแรกมีรูปเดียว (canonical ไม่แตก)
 import Link from 'next/link';
 import { storefrontHref } from '@/lib/storefront';
@@ -11,6 +12,7 @@ interface Props {
   page: number;
   totalPages: number;
   cat?: string;
+  brand?: string;
   q?: string;
 }
 
@@ -31,12 +33,13 @@ function pageItems(page: number, totalPages: number): (number | null)[] {
   return out;
 }
 
-export default function StorePagination({ slug, page, totalPages, cat, q }: Props) {
+export default function StorePagination({ slug, page, totalPages, cat, brand, q }: Props) {
   if (totalPages <= 1) return null;
 
   const hrefFor = (p: number) => {
     const params = new URLSearchParams();
     if (cat) params.set('cat', cat);
+    if (brand) params.set('brand', brand);
     if (q) params.set('q', q);
     if (p > 1) params.set('page', String(p));
     const query = params.toString();

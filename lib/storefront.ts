@@ -304,6 +304,11 @@ export function storefrontCategoryUrl(cfg: StorefrontConfig, shopSlug: string, c
   return `${storefrontAbsoluteUrl(cfg, shopSlug)}?cat=${encodeURIComponent(categorySlug)}`;
 }
 
+/** ลิงก์หน้าแบรนด์ — ส่ง **slug ของแบรนด์** (RPC กรองด้วย slug ตรง ๆ ไม่รับชื่อ) */
+export function storefrontBrandUrl(cfg: StorefrontConfig, shopSlug: string, brandSlug: string): string {
+  return `${storefrontAbsoluteUrl(cfg, shopSlug)}?brand=${encodeURIComponent(brandSlug)}`;
+}
+
 // ต่างกันให้พอเห็น — 10px กับ 20px บนการ์ดกว้าง 250px แทบแยกไม่ออก
 const RADIUS_PX: Record<StorefrontConfig['radius'], string> = {
   sharp: '0px',
@@ -457,7 +462,10 @@ export interface StorefrontProduct {
   category: string | null;
   /** slug ของหมวดไว้ **ทำลิงก์** (`?cat=`) — คนละค่ากับที่แสดง อย่าสลับกัน */
   category_slug: string | null;
+  /** ชื่อแบรนด์ไว้ **แสดง** */
   brand: string | null;
+  /** slug ของแบรนด์ไว้ **ทำลิงก์** (`?brand=`) */
+  brand_slug: string | null;
   images: string[];
   variations: StorefrontVariation[];
   price_min: number;

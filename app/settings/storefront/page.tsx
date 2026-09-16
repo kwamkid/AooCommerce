@@ -420,6 +420,7 @@ export default function StorefrontSettingsPage() {
     category: p.cat,
     category_slug: null,
     brand: null,
+    brand_slug: null,
     images: [previewPhoto(p.w, p.h, cfg.primary_color)],
     variations: [{
       id: `preview-v-${i}`, label: null, sku: null, barcode: null,

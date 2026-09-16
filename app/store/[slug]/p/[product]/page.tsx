@@ -307,8 +307,21 @@ export default async function StorefrontProductPage({ params }: PageProps) {
 
         <div>
           <h1>{product.name}</h1>
+          {/* แบรนด์/หมวดเป็น**ลิงก์** ไม่ใช่ข้อความเฉย ๆ — พาลูกค้าไปดูของใกล้เคียงต่อได้
+              และให้ Google เดินต่อจากหน้าสินค้าไปหน้ารวมแบรนด์/หมวดได้ */}
           <p className="sf-detail-meta">
-            {[product.brand, product.category].filter(Boolean).join(' · ') || shopName}
+            {product.brand && product.brand_slug ? (
+              <Link href={`${storefrontHref(slug)}?brand=${encodeURIComponent(product.brand_slug)}`} className="sf-footer-link">
+                {product.brand}
+              </Link>
+            ) : product.brand}
+            {product.brand && product.category ? ' · ' : ''}
+            {product.category ? (
+              <Link href={`${storefrontHref(slug)}?cat=${encodeURIComponent(product.category_slug || product.category)}`} className="sf-footer-link">
+                {product.category}
+              </Link>
+            ) : ''}
+            {!product.brand && !product.category ? shopName : ''}
           </p>
           {/* ประโยคข้อเท็จจริงสำหรับ AI/Google — ไม่ซ้ำกับของที่เห็นอยู่แล้วบนหน้า จึงซ่อนจากสายตา
               แต่**อยู่ใน HTML จริง** (sr-only ไม่ใช่ display:none — crawler อ่านได้ ไม่ถือว่าซ่อนข้อความ) */}

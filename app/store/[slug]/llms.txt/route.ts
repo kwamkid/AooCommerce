@@ -6,7 +6,7 @@
 import { NextResponse } from 'next/server';
 import {
   getStorefrontCompany, getStorefrontCatalog, catalogOptionsFor,
-  getStorefrontCategories, getStorefrontDelivery,
+  getStorefrontCategories, getStorefrontBrands, getStorefrontDelivery,
 } from '@/lib/storefront-server';
 import { storefrontUrl, formatStorePrice } from '@/lib/storefront';
 import { formatSlotTime, formatDays, formatLeadTime } from '@/lib/delivery';
@@ -27,7 +27,7 @@ export async function GET(
   }
 
   const shopName = cfg.display_name || company.name;
-  const [catalog, categories, { zones, slots }] = await Promise.all([
+  const [catalog, categories, brands, { zones, slots }] = await Promise.all([
     // ซ่อนตาม config เดียวกับหน้ารายการ (สินค้าหมด/ไม่มีรูป) — AI ไม่ควรอ้างของที่ลูกค้าหาไม่เจอ
     getStorefrontCatalog(
       company.id,
@@ -35,6 +35,7 @@ export async function GET(
       company.features.stock,
     ),
     getStorefrontCategories(company.id),
+    getStorefrontBrands(company.id),
     getStorefrontDelivery(company.id),
   ]);
   const products = catalog.products;
@@ -63,6 +64,14 @@ export async function GET(
     for (const c of categories) {
       // ลิงก์ใช้ slug ให้เหลือสะกดเดียวทั้งระบบ · ป้ายใช้ชื่อจริง
       L.push(`- [${c.name}](${storefrontUrl(cfg, slug)}?cat=${encodeURIComponent(c.slug)})`);
+    }
+    L.push('');
+  }
+
+  if (brands.length > 0) {
+    L.push('## แบรนด์ที่จำหน่าย', '');
+    for (const b of brands) {
+      L.push(`- [${b.name}](${storefrontUrl(cfg, slug)}?brand=${encodeURIComponent(b.slug)})`);
     }
     L.push('');
   }
