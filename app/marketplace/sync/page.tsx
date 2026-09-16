@@ -131,8 +131,9 @@ function MarketplaceSyncContent() {
     return <LoadingCard />;
   }
 
+  // 4xl พอ — ตารางพรีวิวมีเลข 3 คอลัมน์ + สถานะ ส่วนที่เหลือเป็นชื่อสินค้า กว้างกว่านี้ชื่อยืดเปล่า ๆ
   return (
-    <Container size="5xl">
+    <Container size="4xl">
       <PageHeader
         icon={<RefreshCw />}
         title="ซิงค์สินค้า &amp; สต็อก"
