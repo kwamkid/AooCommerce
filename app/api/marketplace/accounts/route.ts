@@ -48,30 +48,15 @@ export async function GET(request: NextRequest) {
 
     if (error) throw error;
 
-    // Get linked product counts per account
-    const accountIds = (accounts || []).filter(a => a.is_active).map(a => a.id);
-    let linkCounts: Record<string, number> = {};
-    if (accountIds.length > 0) {
-      const { data: countRows } = await supabaseAdmin
-        .from('marketplace_product_links')
-        .select('account_id')
-        .in('account_id', accountIds)
-        .eq('sync_enabled', true);
-
-      if (countRows) {
-        // Count distinct product_id per account
-        const seen = new Map<string, Set<string>>();
-        for (const row of countRows) {
-          if (!seen.has(row.account_id)) seen.set(row.account_id, new Set());
-          seen.get(row.account_id)!.add(row.account_id); // count rows as links
-        }
-        // Simple count per account
-        const countMap: Record<string, number> = {};
-        for (const row of countRows) {
-          countMap[row.account_id] = (countMap[row.account_id] || 0) + 1;
-        }
-        linkCounts = countMap;
-      }
+    // จำนวนสินค้าที่ผูกไว้ต่อร้าน — **นับที่ฐานข้อมูล ห้ามดึงแถวมานับใน JS**
+    // ของเดิม `.select('account_id').in(...)` โดน PostgREST ตัดที่ 1,000 แถวเงียบ ๆ
+    // (บริษัทเดียวมี 1,151 link) การ์ดร้านจึงโชว์เลขขาดไปหลายสิบโดยไม่มีใครรู้
+    const linkCounts: Record<string, number> = {};
+    const { data: countRows, error: countError } = await supabaseAdmin
+      .rpc('marketplace_link_counts', { p_company_id: companyId });
+    if (countError) console.error('marketplace_link_counts failed:', countError.message);
+    for (const row of (countRows || []) as { account_id: string; links: number }[]) {
+      linkCounts[row.account_id] = Number(row.links) || 0;
     }
 
     // Add connection status and linked count to each account

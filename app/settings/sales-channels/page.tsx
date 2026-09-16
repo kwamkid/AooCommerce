@@ -715,6 +715,7 @@ export default function SalesChannelsPage() {
             onPlatformChange={setActiveTab}
             setConnecting={setMpConnecting}
             accounts={mpAccounts}
+            warehouses={warehouses}
           />
         ) : (
           <>

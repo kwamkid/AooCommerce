@@ -35,6 +35,8 @@ import { pushStockAllRequest } from '@/lib/marketplace/stock-actions';
 import type { MarketplaceAccountsState, MarketplaceAccount, MarketplacePlatform } from './useMarketplaceAccounts';
 
 interface MarketplaceConnectionsProps {
+  /** คลังที่ใช้งานได้ของบริษัท — หน้าแม่โหลดครั้งเดียวแล้วส่งต่อ */
+  warehouses: { id: string; name: string; is_default: boolean }[];
   // Badge-tab เลือกดูทีละแพลตฟอร์ม — state อยู่ที่ parent เพราะปุ่ม
   // "เชื่อมต่อร้าน X" อยู่บน PageHeader ของหน้า (ตำแหน่งเดียวกับปุ่ม "+ เพิ่ม")
   activePlatform: 'shopee' | 'tiktok' | 'lazada';
@@ -46,7 +48,7 @@ interface MarketplaceConnectionsProps {
 }
 
 export default function MarketplaceConnections({
-  activePlatform, onPlatformChange, setConnecting, accounts,
+  activePlatform, onPlatformChange, setConnecting, accounts, warehouses,
 }: MarketplaceConnectionsProps) {
   const { userProfile } = useAuth();
   const { showToast } = useToast();
@@ -739,17 +741,9 @@ export default function MarketplaceConnections({
     }
   };
 
-  // คลังของบริษัท — ใช้ทำตัวเลือก "ร้านนี้ตัดสต็อกจากคลังไหน"
-  const [warehouses, setWarehouses] = useState<{ id: string; name: string; is_default: boolean }[]>([]);
-  useEffect(() => {
-    apiFetch('/api/warehouses')
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => {
-        const list = Array.isArray(d) ? d : (d?.warehouses || []);
-        setWarehouses(list.filter((w: { is_active?: boolean }) => w.is_active !== false));
-      })
-      .catch(() => { /* ไม่มีคลัง = ไม่ต้องโชว์ตัวเลือก */ });
-  }, []);
+  // คลังของบริษัท — หน้าแม่โหลดไว้แล้ว รับต่อมาเป็น prop
+  // (เดิมยิง /api/warehouses ซ้ำอีกใบจากตรงนี้ · แคช 60 วิของ apiFetch กันได้เฉพาะตอน
+  //  เปิดใกล้กัน พอกลับมาหน้านี้หลังแคชหมดอายุก็ยิงสองใบเหมือนเดิม)
   const defaultWarehouseName = warehouses.find(w => w.is_default)?.name || '';
 
   /**
