@@ -296,6 +296,8 @@ export default function StockPreview({ account, direction, onApplied, onBack, on
   const columns: DataTableColumn<StockPreviewRow>[] = [
     {
       key: 'product',
+      resizable: true,
+      reorderable: true,
       label: 'สินค้า',
       alwaysVisible: true,
       grow: true,
@@ -309,6 +311,8 @@ export default function StockPreview({ account, direction, onApplied, onBack, on
     },
     {
       key: 'shop',
+      resizable: true,
+      reorderable: true,
       label: 'ยอดบนร้าน',
       align: 'right',
       sortable: true,
@@ -323,6 +327,8 @@ export default function StockPreview({ account, direction, onApplied, onBack, on
     },
     {
       key: 'ours',
+      resizable: true,
+      reorderable: true,
       label: 'ยอดในระบบ',
       align: 'right',
       sortable: true,
@@ -340,6 +346,8 @@ export default function StockPreview({ account, direction, onApplied, onBack, on
     },
     {
       key: 'change',
+      resizable: true,
+      reorderable: true,
       label: 'จะกลายเป็น',
       align: 'right',
       sortable: true,
@@ -362,6 +370,8 @@ export default function StockPreview({ account, direction, onApplied, onBack, on
     },
     {
       key: 'plan',
+      resizable: true,
+      reorderable: true,
       label: 'สถานะ',
       defaultWidth: 140,
       render: (row) => (

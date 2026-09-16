@@ -175,6 +175,8 @@ export default function RunResult({ runId, onBack, onOpenRun, onRecheck }: Props
   const columns: DataTableColumn<SyncRunItem>[] = [
     {
       key: 'product',
+      resizable: true,
+      reorderable: true,
       label: 'สินค้า',
       alwaysVisible: true,
       grow: true,
@@ -187,6 +189,8 @@ export default function RunResult({ runId, onBack, onOpenRun, onRecheck }: Props
     },
     {
       key: 'change',
+      resizable: true,
+      reorderable: true,
       label: 'ก่อน → หลัง',
       align: 'right',
       defaultWidth: 150,
@@ -203,6 +207,8 @@ export default function RunResult({ runId, onBack, onOpenRun, onRecheck }: Props
     },
     {
       key: 'status',
+      resizable: true,
+      reorderable: true,
       label: 'ผล',
       defaultWidth: 230,
       render: (item) => {
