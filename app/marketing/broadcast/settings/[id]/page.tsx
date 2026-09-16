@@ -35,7 +35,7 @@ import { formatPrice, formatThaiDateTime } from '@/lib/utils/format';
 import { BROADCAST_SETUP_KEYS } from '@/lib/broadcast/platforms';
 import {
   readOptinConfig, validateOptinConfig, OPTIN_TRIGGERS, OPTIN_TITLE_MAX, OPTIN_INTRO_MAX,
-  type OptinConfig, type OptinScenario, type OptinTrigger, type OptinReward,
+  type OptinConfig, type OptinScenario, type OptinTrigger,
 } from '@/lib/broadcast/optin';
 
 /** งบที่ Meta ยอมรับต่ำสุดเท่าที่ยิงจริงแล้วผ่าน — 1 บาทถูกปฏิเสธ */
@@ -142,6 +142,10 @@ export default function BroadcastPageSettings() {
   const [imageBusy, setImageBusy] = useState(false);
   /** จังหวะที่กางอยู่ — ทีละอันพอ ไม่งั้นหน้ายาวจนหาไม่เจอ */
   const [expanded, setExpanded] = useState<OptinTrigger | null>('manual');
+  /** คูปองที่ร้านสร้างไว้แล้ว — ดึงจากโมดูลคูปอง ไม่ตั้งเงื่อนไขซ้ำที่นี่ */
+  const [coupons, setCoupons] = useState<{ id: string; code: string; name: string | null }[]>([]);
+  /** ผู้ใช้ไม่มีสิทธิ์ดูคูปอง (API ใช้ marketing.coupons คนละตัวกับหน้านี้) */
+  const [couponsDenied, setCouponsDenied] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -169,6 +173,17 @@ export default function BroadcastPageSettings() {
       // มีบัญชีโฆษณาที่ใช้ได้ใบเดียว = ไม่มีอะไรให้เลือก เลือกให้เลย
       const usable = ads.filter(a => a.status === 'active');
       if (usable.length === 1) setAdAccountId(prev => prev || usable[0].external_id);
+
+      // คูปองที่เลือกได้ — หน้านี้ใช้สิทธิ์ chat.broadcast แต่ API คูปองใช้ marketing.coupons
+      // คนที่ไม่มีสิทธิ์จึงเห็นคำอธิบายแทน dropdown (ไม่ใช่ error)
+      const couponRes = await apiFetch('/api/coupons');
+      if (couponRes.ok) {
+        const data = await couponRes.json().catch(() => null);
+        const list = (data?.coupons || data || []) as { id: string; code: string; name: string | null; is_active?: boolean }[];
+        setCoupons(list.filter(c => c.id && c.is_active !== false).map(c => ({ id: c.id, code: c.code, name: c.name })));
+      } else if (couponRes.status === 403) {
+        setCouponsDenied(true);
+      }
 
       // ถามจำนวนผู้สมัครเองตั้งแต่เปิดหน้า — ร้านจะได้ไม่ต้องกดปุ่มก่อนถึงจะรู้ว่าควรตั้งงบเท่าไหร่
       const subRes = await apiFetch(`/api/broadcasts/messenger-subscribers?account_id=${id}`);
@@ -206,8 +221,6 @@ export default function BroadcastPageSettings() {
     });
   };
   const updateOptin = (patch: Partial<OptinConfig>) => setOptin(s => ({ ...s, ...patch }));
-  const updateReward = (patch: Partial<OptinReward>) =>
-    setOptin(s => ({ ...s, reward: { ...s.reward, ...patch } }));
 
   /** รูปขึ้น storage ตอนกดบันทึกเท่านั้น — เลือกแล้วเปลี่ยนใจไม่ทิ้งไฟล์ขยะไว้ */
   const uploadImage = async (file: File): Promise<string> => {
@@ -457,6 +470,41 @@ export default function BroadcastPageSettings() {
                           placeholder="เช่น ขอบคุณที่อุดหนุนนะคะ 💛 กดรับข่าวสารไว้ จะได้ไม่พลาดของใหม่และโปรพิเศษค่ะ"
                           hint="ส่งเป็นข้อความธรรมดาก่อนการ์ด — ฟรี ไม่คิดเงินเหมือนข้อความการตลาด"
                         />
+
+                        {/* คูปองของจังหวะนี้ — คนซื้อแล้วกับคนยังไม่ซื้อควรได้คนละใบ (หรือไม่ได้เลย) */}
+                        <div>
+                          <label className="field-label flex items-center gap-1 mb-1">
+                            คูปองที่ส่งให้เมื่อกดรับ
+                            <HelpHint>
+                              ใส่คูปองในการ์ดไม่ได้ (Facebook ให้แค่รูป หัวข้อ ปุ่ม) — ระบบจะส่งโค้ดตามเข้าแชท
+                              ทันทีที่ลูกค้ากดรับ · เงื่อนไข/วันหมดอายุ/โควตา ตั้งที่ <strong>การตลาด › คูปอง</strong> ที่เดียว
+                            </HelpHint>
+                          </label>
+                          {couponsDenied ? (
+                            <p className="helper-text">ไม่มีสิทธิ์ดูรายการคูปอง — ให้ผู้ดูแลตั้งให้ที่ การตลาด › คูปอง</p>
+                          ) : (
+                            <FormSelect
+                              value={sc.coupon_id || ''}
+                              onChange={v => updateScenario(trigger, { coupon_id: v || null })}
+                              options={[
+                                { id: '', label: 'ไม่ส่งคูปอง' },
+                                ...coupons.map(c => ({ id: c.id, label: c.code, subtitle: c.name || undefined })),
+                              ]}
+                              placeholder={coupons.length ? 'ไม่ส่งคูปอง' : 'ยังไม่มีคูปองในระบบ'}
+                              disabled={coupons.length === 0}
+                            />
+                          )}
+                        </div>
+
+                        {sc.coupon_id && (
+                          <FormTextarea
+                            label="ข้อความที่ส่งพร้อมโค้ด"
+                            value={sc.reward_message}
+                            rows={2}
+                            onChange={e => updateScenario(trigger, { reward_message: e.target.value })}
+                            hint="ใส่ {code} ตรงที่อยากให้โค้ดไปอยู่ — ไม่ใส่ ระบบจะต่อโค้ดไว้ท้ายข้อความให้"
+                          />
+                        )}
                       </div>
 
                       <CardPreview pageName={page.account_name} title={sc.title} imageUrl={previewUrl} />
@@ -465,71 +513,6 @@ export default function BroadcastPageSettings() {
                 </div>
               );
             })}
-          </div>
-
-          {/* คูปองเมื่อกดรับ — ใส่ในการ์ดไม่ได้ ต้องส่งตามหลังจากที่เขากดแล้ว */}
-          <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="body-text font-medium flex items-center gap-1">
-                  ส่งคูปองให้ทันทีที่กดรับ
-                  <HelpHint>
-                    ใส่คูปองในการ์ดชวนสมัครไม่ได้ (Facebook ให้แค่รูป หัวข้อ และปุ่ม) —
-                    ระบบจะรอจนลูกค้ากดรับ แล้วออกโค้ด<strong>เฉพาะคนนั้น</strong>ส่งเข้าแชทให้เอง ·
-                    โค้ดผูกกับตัวคน ไม่ใช่โค้ดกลางที่หลุดไปให้คนอื่นใช้ได้
-                  </HelpHint>
-                </p>
-                <p className="subtitle-text">ออกโค้ดเฉพาะคน ใช้ได้ครั้งเดียว · คนเดิมกดรับซ้ำจะไม่ได้โค้ดใหม่</p>
-              </div>
-              <Toggle
-                checked={optin.reward.enabled}
-                onChange={v => updateReward({ enabled: v })}
-                aria-label="ส่งคูปองเมื่อกดรับ"
-              />
-            </div>
-
-            {optin.reward.enabled && (
-              <div className="grid sm:grid-cols-2 gap-3 mt-3">
-                <div>
-                  <label className="field-label block mb-1">ชนิดส่วนลด</label>
-                  <FormSelect
-                    value={optin.reward.discount_type}
-                    onChange={v => updateReward({ discount_type: v as OptinReward['discount_type'] })}
-                    options={[
-                      { id: 'percent', label: 'ลดเป็นเปอร์เซ็นต์' },
-                      { id: 'amount', label: 'ลดเป็นจำนวนเงิน' },
-                    ]}
-                  />
-                </div>
-                <div>
-                  <label className="field-label block mb-1">
-                    {optin.reward.discount_type === 'percent' ? 'ลดกี่เปอร์เซ็นต์' : 'ลดกี่บาท'}
-                  </label>
-                  <NumberInput
-                    value={optin.reward.discount_value}
-                    onChange={n => updateReward({ discount_value: n })}
-                    min="1"
-                  />
-                </div>
-                <div>
-                  <label className="field-label block mb-1">ซื้อขั้นต่ำ (บาท)</label>
-                  <NumberInput value={optin.reward.min_spend} onChange={n => updateReward({ min_spend: n })} min="0" />
-                </div>
-                <div>
-                  <label className="field-label block mb-1">โค้ดใช้ได้กี่วัน</label>
-                  <NumberInput value={optin.reward.valid_days} onChange={n => updateReward({ valid_days: n })} min="1" />
-                </div>
-                <div className="sm:col-span-2">
-                  <FormTextarea
-                    label="ข้อความที่ส่งพร้อมโค้ด"
-                    value={optin.reward.message}
-                    rows={2}
-                    onChange={e => updateReward({ message: e.target.value })}
-                    hint="ใส่ {code} ตรงที่อยากให้โค้ดไปอยู่ — ไม่ใส่ ระบบจะต่อโค้ดไว้ท้ายข้อความให้"
-                  />
-                </div>
-              </div>
-            )}
           </div>
 
           {/* กติการ่วมของทั้ง 3 จังหวะ */}

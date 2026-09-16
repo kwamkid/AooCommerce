@@ -16,6 +16,7 @@ import { graphPost } from '@/lib/meta/graph';
 import { loadOrderForConversion } from '@/lib/ads/subject';
 import {
   readOptinConfig,
+  optinRefPayload,
   OPTIN_WINDOW_HOURS,
   OPTIN_MIN_REASK_DAYS,
   type OptinTrigger,
@@ -238,7 +239,8 @@ export async function sendOptinInvite(input: SendOptinInput): Promise<SendOptinR
           image_aspect_ratio: 'SQUARE',
           notification_messages_cta_text: 'GET_UPDATES',
           // กลับมาทาง webhook ตอนลูกค้ากดรับ — บอกว่าเขาสมัครจากจังหวะไหน
-          payload: `AOO_OPTIN_${trigger}`,
+          // (ตัวส่งคูปองใช้ค่านี้เลือกว่าจะให้คูปองใบไหน/ข้อความแบบไหน)
+          payload: optinRefPayload(trigger),
         },
       },
     },

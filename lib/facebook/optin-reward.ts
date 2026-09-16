@@ -1,41 +1,53 @@
 // Path: lib/facebook/optin-reward.ts
 //
-// ออกคูปองให้ลูกค้าที่เพิ่ง "กดรับข่าวสาร" แล้วส่งโค้ดเข้าแชททันที
+// ส่งคูปองให้ลูกค้าที่เพิ่ง "กดรับข่าวสาร"
 //
 // ทำไมต้องรอ webhook: **การ์ดชวนสมัครใส่คูปองไม่ได้** (Meta ให้แค่รูป/หัวข้อ/ปุ่ม) ทางเดียว
-// ที่แจกได้คือรอจังหวะที่เขากดรับ แล้วออกโค้ดเฉพาะคนนั้นส่งตามไป — ได้เปรียบด้วยซ้ำ เพราะ
-// โค้ดผูกกับตัวคน (`coupons.fb_contact_id`) ไม่ใช่โค้ดกลางที่หลุดไปให้คนอื่นใช้ได้
+// ที่แจกได้คือรอจังหวะที่เขากดรับ แล้วส่งโค้ดตามเข้าไปในแชท
 //
-// ⛔ ห้ามตัดสิทธิ์/หัก `used_count` ที่นี่ — คูปองถูกใช้ตอนสร้างบิลเท่านั้น (domains/coupons.md)
+// ⛔ **คูปองต้องมาจากโมดูลคูปองเท่านั้น** (`/marketing/coupons`) — ห้ามสร้างระบบคูปองซ้อนที่นี่
+// เงื่อนไข/โควตา/วันหมดอายุ/ช่องทางที่ใช้ได้ ร้านตั้งที่หน้านั้นที่เดียว
+// ⛔ ห้ามตัดสิทธิ์/บวก `used_count` ที่นี่ — คูปองถูกใช้ตอนสร้างบิลเท่านั้น (domains/coupons.md)
 
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { getChatAccount } from '@/lib/chat-config';
 import { graphPost } from '@/lib/meta/graph';
 import { logIntegrationNow } from '@/lib/integration-logger';
-import { generateCouponCode } from '@/lib/coupons';
-import { readOptinConfig } from '@/lib/broadcast/optin';
-
-/** คูปองที่ออกจากช่องทางนี้ใช้ได้ทุกที่ที่กรอกโค้ดได้ (marketplace กรอกไม่ได้อยู่แล้ว) */
-const REWARD_CHANNELS = ['chat_order', 'bill_online', 'storefront', 'pos'];
-const CODE_PREFIX = 'FB';
+import { readOptinConfig, type OptinTrigger } from '@/lib/broadcast/optin';
 
 interface ContactRow {
   id: string;
   company_id: string;
   fb_psid: string;
   chat_account_id: string | null;
-  customer_id: string | null;
+}
+
+interface CouponRow {
+  id: string;
+  code: string;
+  is_active: boolean;
+  valid_until: string | null;
+  usage_limit_total: number | null;
+  used_count: number;
 }
 
 /**
- * ออกคูปองให้ผู้ติดต่อรายนี้ (ถ้าเพจเปิดใช้ไว้) แล้วส่งโค้ดเข้าแชท
+ * ส่งคูปองของ "จังหวะที่เขากดรับมา" ให้ผู้ติดต่อรายนี้
+ *
+ * @param trigger จังหวะที่ชวน — มาจาก `optin.payload` (`AOO_OPTIN_<trigger>`) ที่เราแนบไปกับการ์ด
+ *   คนที่ซื้อแล้วกับคนที่ยังไม่ซื้อจึงได้คูปองคนละใบและข้อความคนละแบบ
+ *
  * ไม่ throw — เรียกจาก webhook ใน `after()` ล้มแล้วต้องไม่กระทบการบันทึกว่าเขากดรับ
  */
-export async function grantOptinReward(companyId: string, contactId: string): Promise<void> {
+export async function grantOptinReward(
+  companyId: string,
+  contactId: string,
+  trigger: OptinTrigger,
+): Promise<void> {
   try {
     const { data: contact } = await supabaseAdmin
       .from('fb_contacts')
-      .select('id, company_id, fb_psid, chat_account_id, customer_id')
+      .select('id, company_id, fb_psid, chat_account_id')
       .eq('id', contactId)
       .maybeSingle<ContactRow>();
     if (!contact || contact.company_id !== companyId || !contact.chat_account_id) return;
@@ -47,51 +59,38 @@ export async function grantOptinReward(companyId: string, contactId: string): Pr
     const pageToken = typeof creds.page_access_token === 'string' ? creds.page_access_token : '';
     if (!pageId || !pageToken) return;
 
-    const reward = readOptinConfig(creds, account.account_name || 'ร้าน').reward;
-    if (!reward.enabled) return;
+    const scenario = readOptinConfig(creds, account.account_name || 'ร้าน')[trigger];
+    if (!scenario.coupon_id) return; // จังหวะนี้ร้านเลือกไม่ส่งคูปอง
 
-    // กันออกซ้ำ — คนเดิมกดรับ/เลิกรับ/กดรับใหม่ ไม่ใช่เหตุให้ได้คูปองเพิ่มอีกใบ
-    const { count: existing } = await supabaseAdmin
+    // อ่านคูปองจริงจากโมดูลคูปอง — ร้านอาจปิด/ลบ/หมดอายุไปแล้วหลังจากตั้งค่าไว้
+    const { data: coupon } = await supabaseAdmin
       .from('coupons')
-      .select('id', { count: 'exact', head: true })
+      .select('id, code, is_active, valid_until, usage_limit_total, used_count')
+      .eq('id', scenario.coupon_id)
       .eq('company_id', companyId)
-      .eq('fb_contact_id', contact.id)
-      .eq('source', 'fb_optin')
-      .eq('is_active', true);
-    if (existing) return;
+      .maybeSingle<CouponRow>();
 
-    const code = generateCouponCode(CODE_PREFIX);
-    const validUntil = new Date(Date.now() + reward.valid_days * 86_400_000).toISOString();
-
-    const { data: coupon, error } = await supabaseAdmin
-      .from('coupons')
-      .insert({
-        company_id: companyId,
-        code,
-        name: 'ของขวัญสำหรับผู้รับข่าวสาร',
-        discount_type: reward.discount_type,
-        discount_value: reward.discount_value,
-        max_discount: reward.max_discount,
-        min_spend: reward.min_spend,
-        valid_until: validUntil,
-        usage_limit_total: 1,
-        usage_limit_per_customer: 1,
-        // ผูกกับตัวคนในแชท — `customer_id` จะถูกผูกตอนเขาเปิดบิลครั้งแรก
-        fb_contact_id: contact.id,
-        customer_id: contact.customer_id,
-        channels: REWARD_CHANNELS,
-        source: 'fb_optin',
-      })
-      .select('id, code')
-      .maybeSingle<{ id: string; code: string }>();
-    if (error || !coupon) {
-      console.error('[optin/reward] สร้างคูปองไม่สำเร็จ:', error?.message);
+    const unusable = !coupon
+      || !coupon.is_active
+      || (coupon.valid_until != null && new Date(coupon.valid_until).getTime() < Date.now())
+      || (coupon.usage_limit_total != null && coupon.used_count >= coupon.usage_limit_total);
+    if (unusable) {
+      // ส่งโค้ดที่ใช้ไม่ได้ออกไปแย่กว่าไม่ส่ง — ลูกค้าจะไปกรอกแล้วเจอปฏิเสธหน้าเช็คเอาต์
+      console.warn('[optin/reward] คูปองที่ตั้งไว้ใช้ไม่ได้แล้ว:', scenario.coupon_id);
       return;
     }
 
-    const text = reward.message.includes('{code}')
-      ? reward.message.replace('{code}', coupon.code)
-      : `${reward.message} ${coupon.code}`;
+    // กันส่งซ้ำ — คนเดิมกดรับ/เลิกรับ/กดใหม่ ไม่ใช่เหตุให้ได้โค้ดอีกรอบ
+    const { count: alreadySent } = await supabaseAdmin
+      .from('fb_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('fb_contact_id', contact.id)
+      .contains('raw_message', { optin_reward: true, coupon_id: coupon!.id });
+    if (alreadySent) return;
+
+    const text = scenario.reward_message.includes('{code}')
+      ? scenario.reward_message.replace('{code}', coupon!.code)
+      : `${scenario.reward_message} ${coupon!.code}`;
 
     const res = await graphPost<{ message_id?: string }>(`/${pageId}/messages`, pageToken, {
       recipient: { id: contact.fb_psid },
@@ -111,8 +110,8 @@ export async function grantOptinReward(companyId: string, contactId: string): Pr
       status: res.ok ? 'success' : 'error',
       error_message: res.error?.message,
       reference_type: 'coupon',
-      reference_id: coupon.id,
-      reference_label: coupon.code,
+      reference_id: coupon!.id,
+      reference_label: `${coupon!.code} · ${trigger}`,
     });
 
     if (!res.ok) return;
@@ -127,7 +126,7 @@ export async function grantOptinReward(companyId: string, contactId: string): Pr
       direction: 'outgoing',
       message_type: 'text',
       content: text,
-      raw_message: { optin_reward: true, coupon_code: coupon.code, coupon_id: coupon.id },
+      raw_message: { optin_reward: true, trigger, coupon_id: coupon!.id, coupon_code: coupon!.code },
       sent_at: at,
       created_at: at,
     });
