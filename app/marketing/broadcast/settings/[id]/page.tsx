@@ -122,6 +122,18 @@ function TextBubble({ children }: { children: React.ReactNode }) {
  * ⚠️ บรรทัดบนกับข้อความรองเป็นของ **Meta เขียนเอง** เราแก้ไม่ได้ — วาดไว้ให้ร้านเห็นว่า
  * ข้อความที่ตัวเองตั้งจะไปอยู่ตรงไหน จะได้ไม่เขียนซ้ำกับสิ่งที่ Meta พูดให้อยู่แล้ว
  */
+/**
+ * หมายเหตุคั่นในพรีวิว — **ไม่ใช่ข้อความที่ลูกค้าเห็น** เป็นคำอธิบายของหน้าตั้งค่า
+ * จึงทำให้ต่างจากฟองแชทชัด ๆ (เส้นประ + ตัวจาง) ไม่งั้นร้านจะนึกว่าระบบส่งบรรทัดนี้ไปด้วย
+ */
+function PreviewNote({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="pt-2 mt-1 border-t border-dashed border-gray-300">
+      <p className="text-[10px] leading-tight text-gray-400 text-center">{children}</p>
+    </div>
+  );
+}
+
 /** บรรทัดคำขอของ Meta — อยู่**นอกการ์ด เต็มความกว้าง จัดกลาง** ไม่มีรูปโปรไฟล์ */
 function OptinNotice({ pageName }: { pageName: string }) {
   return (
@@ -354,6 +366,13 @@ export default function BroadcastPageSettings() {
     // และบรรทัด "You've chosen to receive…" (เจ้าของให้เอาออกทั้งคู่)
     // พรีวิวมีไว้ดู**ข้อความที่ร้านตั้งเอง** ของที่แก้ไม่ได้ใส่มาแล้วรกเปล่า ๆ
     if (previewCoupon) {
+      // ฟองคูปองไม่ได้ส่งพร้อมการ์ด — เกิดต่อเมื่อลูกค้ากดปุ่มเท่านั้น ต้องบอกให้ชัดตรงจุด
+      list.push({
+        key: 'reward-note',
+        wide: true,
+        hideAvatar: true,
+        node: <PreviewNote>ลูกค้ากด &quot;Get updates&quot; แล้ว ระบบส่งคูปองให้ทันที</PreviewNote>,
+      });
       // แทนค่าผ่านตัวกลางตัวเดียวกับตัวส่งจริง — พรีวิวจะได้ไม่มีทางเพี้ยนจากของที่ลูกค้าได้รับ
       const msg = applyCouponCode(previewScenario.reward_message, previewCoupon.code);
       list.push({ key: 'coupon', node: <TextBubble>{msg}</TextBubble> });
@@ -696,8 +715,8 @@ export default function BroadcastPageSettings() {
                 platform="facebook"
               />
               <p className="helper-text mt-2">
+                {/* ลำดับ "กดแล้วได้คูปอง" ย้ายไปอยู่ในพรีวิวตรงจุดที่เกิดจริงแล้ว ไม่ต้องบอกซ้ำที่นี่ */}
                 จังหวะ &quot;{OPTIN_TRIGGERS[expanded].label}&quot; · ข้อความสีจางกับปุ่มบนการ์ดเป็นของ Facebook แก้ไม่ได้
-                {previewCoupon && ' · ฟองสุดท้ายส่งหลังลูกค้ากดรับ'}
               </p>
             </div>
           </div>
