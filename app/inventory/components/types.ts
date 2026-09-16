@@ -231,6 +231,7 @@ export const REFERENCE_TYPE_LABELS: Record<string, string> = {
   lazada_sync: 'ดึงสต็อกจาก Lazada',
   tiktok_sync: 'ดึงสต็อกจาก TikTok',
   marketplace_sync_revert: 'ย้อนการซิงค์สต็อก',
+  stock_repair: 'ซ่อมยอดจองค้าง',
 };
 
 /** ลิงก์ไปเอกสารต้นทาง — ที่มาที่ไม่มีหน้าให้เปิดคืน null (แสดงเป็นข้อความเฉย ๆ) */

@@ -141,6 +141,13 @@ worker หยิบทั้งใบที่ `failed` (รวม `next_retry_a
 - ⛔ **ห้ามเขียนโค้ดสต็อกเฉพาะ platform นอก adapter ของมัน** · ⛔ **ห้ามเรียก adapter ตรงจาก route/หน้า** — ผ่าน `pushStockForAccount`/`pullStockForAccount` เสมอ
 - ⚠️ **ร้านที่เพิ่งเชื่อม/ยังไม่เคยตั้งยอดในระบบ ต้องปิด `auto_sync_stock` จนกว่าจะตั้งยอดตั้งต้น** (ดึงจากร้าน หรือส่งทั้งร้านขึ้นไป — route ประทับ `metadata.stock_initialized_at` ให้ · อ่านผ่าน `stockInitializedAt()`) — ไม่งั้นส่ง 0 ไปทับร้าน · ตัวเฝ้า `stock_not_initialized` + แถบบนการ์ดร้านเตือนเคสนี้ · backfill ร้าน Shopee เก่า 5 ร้านแล้ว 16 ก.ย. 2569 (GB TH ตั้งใจเว้น)
 
+### ออเดอร์ที่ซิงค์เข้ามา แตะสต็อกเมื่อไหร่ — เกณฑ์กลาง [lib/marketplace/order-stock.ts](../../../lib/marketplace/order-stock.ts)
+
+- **➕ เพิ่ม platform ใหม่ = map สถานะของแพลตฟอร์มให้เป็น `order_status` ภายในให้ถูก แล้วเรียก `holdsStockInWarehouse(order_status)` ก่อนจอง — ห้ามเขียนเงื่อนไขสถานะของตัวเองในไฟล์ `lib/<platform>/sync.ts`**
+- โมเดลสต็อกของระบบ: `คงคลัง` = ของที่ยังอยู่ในร้านจริง **รวมกล่องที่แพ็ครอขนส่งมารับ** · `จอง` = ขายแล้วแต่ยังไม่ออกจากร้าน · ของหายจากคงคลังตอน**ออกจากร้าน** ⇒ เส้นแบ่งของการจองคือ **"ของยังอยู่ในคลังไหม"** ไม่ใช่ "ออเดอร์จบหรือยัง"
+- **ออเดอร์ที่ถูกสร้างใหม่จากการซิงค์**: `new`/`ready_to_ship`/`processing` → จองตามปกติ · `shipping`/`completed`/`cancelled` → **บันทึกเป็นประวัติอย่างเดียว ห้ามแตะคลัง** (ของออกจากร้านไปก่อนที่ระบบจะรู้จักใบนั้น การนับสต็อกล่าสุดของพนักงานจึงไม่ได้รวมอยู่แล้ว) · นับใส่ `orders_stock_skipped` แล้วบอกบนจอ ห้ามข้ามเงียบ
+- ⛔ **ห้ามให้สายสร้างใหม่ตัดสต็อก (`deductAndUnreserve`) เอง** — ขาตัด/คืนอยู่ในสาย "ออเดอร์ที่มีอยู่แล้วเปลี่ยนสถานะ" เท่านั้น · เดิม Shopee/TikTok จองทุกใบไม่ดูสถานะแล้วไม่มีขาตัดตามมา = จองค้างถาวร · Lazada จองแล้วตัดทันที = หักคงคลังซ้ำกับการนับ (แก้ทั้งสามแบบแล้ว 2026-09-16 · ล้างของค้างที่ ABC 573 ตัวเลือก 3,373 ชิ้น ด้วย `reference_type='stock_repair'`)
+
 ### Product import — ชั้นกลาง [lib/marketplace/product-import.ts](../../../lib/marketplace/product-import.ts) + adapter ต่อ platform
 
 - **➕ เพิ่ม platform ใหม่ = สร้าง `lib/<platform>/product-import-adapter.ts` + ลงทะเบียน 1 บรรทัดใน `PRODUCT_IMPORT_ADAPTERS` — ห้าม `switch` ตาม platform ในชั้นกลาง / route / หน้า**
