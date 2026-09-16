@@ -164,15 +164,6 @@ function OptinCardBubble({ title, imageUrl }: { title: string; imageUrl: string 
   );
 }
 
-/** ฟองของลูกค้า (ฝั่งขวา สีฟ้า) — ใช้แสดงว่าเขากดปุ่มบนการ์ดแล้ว */
-function CustomerBubble({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex justify-end">
-      <span className="rounded-2xl bg-[#0084FF] text-white px-3 py-1.5 text-[13px] font-medium">{children}</span>
-    </div>
-  );
-}
-
 export default function BroadcastPageSettings() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -358,9 +349,9 @@ export default function BroadcastPageSettings() {
       wide: true,
       node: <OptinCardBubble title={previewScenario.title} imageUrl={previewImage} />,
     });
-    // ลูกค้ากดปุ่มบนการ์ด → ขึ้นเป็นฟองของเขาเอง (ไม่มีรูปโปรไฟล์ร้าน เพราะไม่ใช่คำพูดของร้าน)
-    // ⛔ บรรทัดยืนยันของ Meta ("You've chosen to receive…") ไม่ต้องวาด — เจ้าของให้เอาออก
-    list.push({ key: 'tap', wide: true, hideAvatar: true, node: <CustomerBubble>Get updates</CustomerBubble> });
+    // ⛔ ไม่วาดสิ่งที่ Meta เขียนเองหลังลูกค้ากดรับ — ทั้งฟอง "Get updates" ฝั่งลูกค้า
+    // และบรรทัด "You've chosen to receive…" (เจ้าของให้เอาออกทั้งคู่)
+    // พรีวิวมีไว้ดู**ข้อความที่ร้านตั้งเอง** ของที่แก้ไม่ได้ใส่มาแล้วรกเปล่า ๆ
     if (previewCoupon) {
       const msg = previewScenario.reward_message.includes('{code}')
         ? previewScenario.reward_message.replace('{code}', previewCoupon.code)
