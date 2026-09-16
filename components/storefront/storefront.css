@@ -292,6 +292,9 @@
 /* ขั้นตอนสั่งซื้อ — ต้องเป็น <ol> จริงถึงจะได้ ordered-list snippet */
 /* แถบพักรับออร์เดอร์ — สีเตือน ไม่ใช่สีแบรนด์ ต้องแยกออกจากแถบประกาศปกติของร้าน */
 .sf-announcement-paused { background: #92400e; color: #fff; }
+/* หัวหน้ากรองแบรนด์ — โลโก้อยู่ข้างชื่อ · ร้านที่ยังไม่อัปโลโก้จะเหลือแค่ชื่อ ไม่มีที่ว่างค้าง */
+.sf-hero-brand { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.sf-brand-logo { height: 44px; width: auto; max-width: 160px; object-fit: contain; }
 .sf-steps { margin: 0; padding-left: 20px; }
 .sf-steps li { margin-bottom: 6px; line-height: 1.55; }
 /* คำถามใน FAQ — เป็น <h3> จริงเพื่อให้ Google/LLM รู้ว่าเป็นหัวข้อคำถาม หน้าตาเท่าเดิม */

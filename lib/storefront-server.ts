@@ -988,16 +988,16 @@ export const getStorefrontBrands = cache(async (companyId: string): Promise<Stor
 export const resolveBrandParam = cache(async (
   companyId: string,
   brand: string | undefined | null,
-): Promise<string | null> => {
+): Promise<StorefrontBrand | null> => {
   const value = (brand || '').trim();
   if (!value) return null;
   const { data } = await supabaseAdmin
     .from('product_brands')
-    .select('name')
+    .select('name, slug, logo_url')
     .eq('company_id', companyId)
     .eq('slug', value)
     .maybeSingle();
-  return data?.name ?? null;
+  return data ? { name: data.name, slug: data.slug, logo_url: data.logo_url || null } : null;
 });
 
 export interface StorefrontCategory {

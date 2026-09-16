@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name } = body;
+    const { name, logo_url } = body;
 
     if (!name?.trim()) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
@@ -60,6 +60,7 @@ export async function POST(request: NextRequest) {
         company_id: auth.companyId,
         name: name.trim(),
         sort_order: nextOrder,
+        logo_url: (logo_url || '').trim() || null,
       })
       .select()
       .single();
@@ -90,7 +91,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, name, sort_order, supplier_id, default_gp_rate, gp_base_price } = body;
+    const { id, name, sort_order, supplier_id, default_gp_rate, gp_base_price, logo_url } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'ID is required' }, { status: 400 });
@@ -102,6 +103,8 @@ export async function PUT(request: NextRequest) {
     if (supplier_id !== undefined) updateData.supplier_id = supplier_id || null;
     if (default_gp_rate !== undefined) updateData.default_gp_rate = default_gp_rate === '' || default_gp_rate === null ? null : Number(default_gp_rate);
     if (gp_base_price !== undefined) updateData.gp_base_price = gp_base_price || 'retail';
+    // โลโก้แบรนด์ — หน้าร้านดึงไปแสดงบนหัวหน้ากรองแบรนด์ · ลบรูปแล้วส่งค่าว่างมาได้ (เก็บเป็น null)
+    if (logo_url !== undefined) updateData.logo_url = (logo_url || '').trim() || null;
 
     const { data, error } = await supabaseAdmin
       .from('product_brands')

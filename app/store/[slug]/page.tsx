@@ -58,7 +58,7 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
   // ชื่อหมวดใน <title> ต้องเป็น**ชื่อจริง** ไม่ใช่ค่าดิบใน URL — ลิงก์แบบ slug จะโชว์
   // "easier-beginnings" และค่ามั่วจะกลายเป็นหัวข้อหน้าบนโดเมนของร้าน
   const catName = (await resolveCategoryParam(company.id, cat))?.name || null;
-  const brandName = await resolveBrandParam(company.id, brand);
+  const brandName = (await resolveBrandParam(company.id, brand))?.name || null;
   // ⚠️ หน้าแรกคือหน้าที่มีน้ำหนักที่สุดของร้าน แต่ `<title>` เคยเป็น**ชื่อร้านเปล่า ๆ**
   // ไม่มีคำค้นสักคำ ("ร้านเบบี้เลิฟ" ไม่มีคำว่า สั่งออนไลน์/จัดส่ง/จังหวัดที่ส่งถึง)
   // ⇒ ต่อท้ายด้วยคำโปรยของร้าน ถ้าไม่ได้ตั้งก็ประกอบจากพื้นที่จัดส่งจริง
@@ -142,7 +142,7 @@ async function CatalogResults({
   // `?cat=` มาได้ทั้ง slug (ลิงก์ที่ระบบสร้าง) และชื่อหมวด (ลิงก์เก่า) — แปลงเป็นชื่อก่อนกรอง
   const resolved = await resolveCategoryParam(company.id, cat);
   const categoryName = resolved?.filter ?? null;
-  const brandName = await resolveBrandParam(company.id, brand);
+  const brandName = (await resolveBrandParam(company.id, brand))?.name || null;
   const { products, total, pageSize } = await getStorefrontCatalog(
     company.id,
     {
@@ -233,9 +233,9 @@ export default async function StorefrontCatalogPage({ params, searchParams }: Pa
   // แปลง slug → ชื่อหมวดก่อนวาดหัวข้อ · ยังอยู่นอก Suspense ได้เพราะเป็นการอ่านแถวเดียวผ่าน index
   // (ที่จงใจไม่รอคือ**รายการสินค้า** ไม่ใช่ทุก query — และ cache() ใช้ผลร่วมกับ CatalogResults)
   const catName = (await resolveCategoryParam(company.id, cat))?.name || null;
-  const brandName = await resolveBrandParam(company.id, brand);
+  const brandInfo = await resolveBrandParam(company.id, brand);
   // หัวข้อหน้า: แบรนด์มาก่อนหมวด (เลือกทั้งคู่ = "Stokke · คาร์ซีท")
-  const heading = [brandName, catName].filter(Boolean).join(' · ');
+  const heading = [brandInfo?.name, catName].filter(Boolean).join(' · ');
 
   return (
     <div className="sf-container">
@@ -243,7 +243,13 @@ export default async function StorefrontCatalogPage({ params, searchParams }: Pa
           ให้ Google (เจ้าของสั่ง 2026-09-14) · หน้าหมวดมีหัวข้อไว้บอกว่ากำลังดูอะไร และ
           ไม่ต้องรอข้อมูล จึงอยู่นอก Suspense (เห็นทันทีที่กด) · หน้าค้นหาอยู่ใน CatalogResults */}
       {heading && !q && (
-        <div className="sf-hero">
+        <div className="sf-hero sf-hero-brand">
+          {/* โลโก้แบรนด์ — ร้านที่ยังไม่อัปก็ไม่ต้องหาอะไรมาแทน ปล่อยให้เหลือแค่ชื่อ
+              ⛔ ไม่ผ่าน thumbUrl() — กติกาโปรเจกต์ห้ามย่อโลโก้ (ตัวอักษรในโลโก้จะแตก) */}
+          {brandInfo?.logo_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={brandInfo.logo_url} alt={brandInfo.name} className="sf-brand-logo" />
+          )}
           <h1>{heading}</h1>
         </div>
       )}
