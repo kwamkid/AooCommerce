@@ -16,6 +16,46 @@
 
 ---
 
+## 2026-09-16 — หน้าสินค้าของหน้าร้านล้นจอมือถือ เพราะรางรูปแนวนอนไม่ยอมยุบ
+
+**ที่เกิด**: [components/storefront/storefront.css](components/storefront/storefront.css) `.sf-detail` · `.sf-gallery-*`
+**อาการ**: หลังเปลี่ยนรูปหลักเป็นแกลเลอรีปัดได้ **ทั้งหน้า**เลื่อนออกนอกจอมือถือ — ชื่อสินค้าโดนตัด ปุ่มตัวเลือกกับท้ายหน้าร้านล้นขวา ไม่ใช่แค่แกลเลอรี
+**Root cause**: 2 ชั้นซ้อนกัน — (1) `.sf-detail` บนมือถือเขียน `grid-template-columns: 1fr` ซึ่งเท่ากับ `minmax(auto, 1fr)` = **ไม่ยอมแคบกว่า min-content ของเนื้อหา** (2) flex item เริ่มต้น `min-width: auto` เหมือนกัน · รางรูปมี 25 ใบ ใบละ 100% → min-content ของรางใหญ่มาก ดันคอลัมน์จนทั้งหน้ากว้างเกิน viewport
+**วิธีแก้**: `minmax(0, 1fr)` + `min-width: 0` ทุกชั้น (`.sf-gallery` > `-frame` > `-track` > `-slide`) · แถวรูปจิ๋วเปลี่ยนจากห่อบรรทัดเป็น `overflow-x: auto` (โชว์ครบทุกใบแล้ว เดิมตัดที่ 5 จึงห่อได้)
+**ป้องกัน regression**: ⛔ วางอะไรที่เลื่อนแนวนอนไว้ใน grid/flex ต้องใส่ `min-width: 0` ให้ทุกชั้นตั้งแต่กล่องนอกสุด และคอลัมน์ต้องเป็น `minmax(0, 1fr)` ไม่ใช่ `1fr` · อาการจะโผล่ที่ **ทั้งหน้า** ไม่ใช่ที่ตัวที่ล้น จึงหลงไปไล่ผิดที่ได้ง่าย
+
+## 2026-09-16 — `container-type: inline-size` ทำให้ `position: fixed` ข้างในยึดผิดที่ + `@container` ไม่เพิ่ม specificity
+
+**ที่เกิด**: [components/storefront/storefront.css](components/storefront/storefront.css) `.sf-root` · [components/storefront/StoreBuyBar.tsx](components/storefront/StoreBuyBar.tsx)
+**อาการ**: แถบซื้อล่างจอที่สั่ง `position: fixed; bottom: 0` ไม่ลอยติดขอบจอ แต่ไปโผล่ท้ายเอกสาร · และกฎย่อขนาดบนมือถือที่เขียนไว้กลางไฟล์ไม่มีผลเลยครึ่งหนึ่ง
+**Root cause**: (1) `container-type: inline-size` **บังคับ layout containment** → element นั้นกลายเป็น containing block ของลูกหลานที่เป็น `fixed`/`absolute` ทั้งหมด · `.sf-root` สูงเท่าทั้งหน้า `bottom: 0` จึงเป็นท้ายเอกสาร (2) `@container` **ไม่เพิ่ม specificity** ลำดับบรรทัดเป็นตัวตัดสิน กฎที่วางไว้ก่อนนิยามตั้งต้นจึงถูกทับ
+**วิธีแก้**: แถบถูก `createPortal` ออกไปที่ `<body>` (หลุด containment) แล้วยกธีมตามไปด้วย — แยก token เป็น `.sf-root, .sf-theme` และส่ง `storefrontRootClasses`/`storefrontCssVars` จาก server ลงไปเป็น prop · สไตล์ของแถบใช้ `@media` เพราะอยู่นอกคอนเทนเนอร์แล้ว · บล็อกทับขนาดบนมือถือย้ายไปท้ายไฟล์
+**ป้องกัน regression**: ⛔ อะไรที่ต้องลอยเทียบ viewport ห้ามวางใต้ `.sf-root` · ⛔ กฎที่ตั้งใจทับของเดิมต้องอยู่**ท้ายไฟล์** · แถวซื้อในเนื้อหน้ากับแถบต้องใช้ตัววัดเดียวกัน (`@media` ทั้งคู่) ถ้าฝั่งหนึ่งเป็น `@container` จะมีช่วงความกว้างที่ซ่อนทั้งคู่ = ไม่เหลือปุ่มซื้อ
+
+## 2026-09-16 — หน้าชำระเงินเด้งปุ่ม "เข้าสู่ระบบด้วย Google" วาบหนึ่งทุกครั้งที่เปิด
+
+**ที่เกิด**: [components/storefront/CheckoutAccountBar.tsx](components/storefront/CheckoutAccountBar.tsx) · [app/store/[slug]/checkout/checkout-client.tsx](app/store/[slug]/checkout/checkout-client.tsx)
+**อาการ**: คนที่ล็อกอินอยู่แล้วเห็นปุ่มชวนล็อกอินโผล่แวบหนึ่งแล้วสลับเป็นชื่อตัวเอง ทุกครั้งที่เปิดหน้า
+**Root cause**: state เริ่มต้น `signedIn: false` เสมอ = **เดาไปทางหนึ่งก่อนรู้คำตอบ** แล้วค่อยแก้เมื่อ `/api/storefront/me` ตอบ · รอบแก้แรกเพิ่มธง `ready` แต่ยัง**ปลดธงก่อน `await res.json()`** จึงเหลือช่วงสั้น ๆ ที่ `ready=true` แต่ `signedIn` ยัง false → อาการเดิมเป๊ะ แค่สั้นลง
+**วิธีแก้**: ก่อนรู้ผลวาดโครงเทาสูงเท่าแถบตอนล็อกอิน (ไม่เดาไปทางไหน) · `setAccountReady(true)` ย้ายไปตั้ง**คู่กับ `setAccount(...)`** (React รวมเป็น render เดียว) · ถามไม่สำเร็จปลดธงใน `finally` ไม่ให้ค้างเป็นโครงเทา
+**ป้องกัน regression**: ⛔ UI ที่ขึ้นกับ "ล็อกอินอยู่ไหม" ต้องมี 3 สถานะ (ยังไม่รู้ / ใช่ / ไม่ใช่) ห้ามมีแค่ 2 · ธง "รู้ผลแล้ว" ต้องเปลี่ยนพร้อมค่าจริงเสมอ ปลดก่อน = ยังเดาอยู่ดี · หน้า `/account` ไม่เป็นเพราะมี loading guard ตั้งแต่แรก
+
+## 2026-09-16 — รูปของตัวเลือกที่ import มาไม่มี `product_id` หน้าร้านจึงมองไม่เห็น (520 แถว)
+
+**ที่เกิด**: [lib/marketplace/product-helpers.ts](lib/marketplace/product-helpers.ts) `upsertProductImage`
+**อาการ**: สินค้า Tripp Trapp มี 16 สีที่ทุกสีมีรูปใน `product_images` แต่หน้าร้านขึ้นรูปจิ๋วแค่ 10 สี
+**Root cause**: ผู้เรียกฝั่ง import ส่ง `productId = null` มาพร้อม `variationId` (เช่น `product-import.ts:221`, `shopee/product-helpers.ts:794`) แถวจึงถูก insert โดยไม่มี `product_id` · แต่ทุก query ของหน้าร้าน/ฟอร์มดึงรูปด้วย `product_id` รูปพวกนั้นจึงหายไปเงียบ ๆ
+**วิธีแก้**: `upsertProductImage` หา `product_id` จาก `variation_id` ให้เองเมื่อผู้เรียกไม่ส่งมา · backfill ของเก่า `update product_images set product_id = pv.product_id from product_variations pv where pv.id = pi.variation_id and pi.product_id is null and pv.company_id = pi.company_id` (520 แถว · เหลือ 0 แล้ว)
+**ป้องกัน regression**: ⛔ `product_images` ต้องมี `product_id` เสมอแม้เป็นรูปของตัวเลือก — `variation_id` อย่างเดียวไม่พอ เพราะไม่มี query ไหนอ่านด้วย variation ล้วน
+
+## 2026-09-16 — ลำดับตัวเลือกสินค้าบนหน้าร้านสลับเองได้ เพราะ query ไม่เคยสั่งเรียง
+
+**ที่เกิด**: [lib/storefront-server.ts](lib/storefront-server.ts) query `product_variations`
+**อาการ**: "ตัวเลือกแรก" ที่ถูกเลือกให้ตอนเปิดหน้าสินค้า และลำดับ swatch เปลี่ยนไปมาเองระหว่างรีเฟรช
+**Root cause**: query ไม่มี `.order()` เลย — Postgres ไม่รับประกันลำดับเมื่อไม่สั่ง และตาราง `product_variations` ไม่มีคอลัมน์ลำดับที่ร้านตั้งเอง
+**วิธีแก้**: `.order('created_at', { ascending: true })` ทั้งสองจุด (catalog + รายตัว) · ต่อมาเพิ่ม `is_default` ให้ร้านตั้งตัวตั้งต้นเองได้ และกติกาเลือก 3 ชั้นอยู่ที่ `pickDefaultVariation()` ที่เดียว
+**ป้องกัน regression**: ⛔ query ที่ผลลัพธ์ถูกเอาไปใช้เป็น "ตัวแรก"/ลำดับที่ผู้ใช้เห็น ต้องมี `order by` เสมอ
+
 ## 2026-09-16 — Modal ชิดขอบและตารางแบรนด์ดันเมนูแถวออกนอกจอ
 
 **ที่เกิด**: [app/settings/categories/page.tsx](app/settings/categories/page.tsx), [app/settings/brands/page.tsx](app/settings/brands/page.tsx)
