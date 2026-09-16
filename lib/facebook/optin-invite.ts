@@ -33,6 +33,7 @@ export type OptinSkipCode =
   | 'unsubscribed'
   | 'max_asks'
   | 'too_soon'
+  | 'no_image'
   | 'outside_window'
   | 'claimed'
   | 'no_token'
@@ -168,6 +169,16 @@ export async function sendOptinInvite(input: SendOptinInput): Promise<SendOptinR
     };
   }
 
+  // รูปเป็นฟิลด์บังคับจริง (ดูคอมเมนต์ที่ payload ข้างล่าง) — เช็คก่อนจองสิทธิ์
+  // ไม่งั้นใบนั้นถูกปิดตายทั้งที่ยิงไม่ออกตั้งแต่แรก
+  if (!scenario.image_url.trim()) {
+    return {
+      status: 'skipped',
+      code: 'no_image',
+      reason: 'ยังไม่ได้ใส่รูปบนการ์ด — Facebook ไม่รับการ์ดชวนสมัครที่ไม่มีรูป (ตั้งที่ การตลาด › บรอดแคสต์ › ตั้งค่า)',
+    };
+  }
+
   const dedupeKey = dedupeKeyFor(input);
   if (!dedupeKey) {
     return { status: 'failed', code: 'send_failed', reason: 'ข้อมูลไม่ครบสำหรับกันส่งซ้ำ' };
@@ -189,11 +200,13 @@ export async function sendOptinInvite(input: SendOptinInput): Promise<SendOptinR
     return { status: 'skipped', code: 'claimed', reason: 'ชวนไปแล้วในรอบนี้' };
   }
 
-  // ⚠️ `notification_messages_frequency` **ห้ามอยู่ระดับ payload** — ยิงจริงแล้ว Meta ตอบ
-  // `(#100) Invalid keys "notification_messages_frequency" were found in param "name_placeholder"`
-  // (ยืนยัน 14 ก.ย. 2026 ตอนที่ลูกค้าเพิ่งทักมา 4.3 ชม. = อยู่ในกรอบ ไม่ใช่ปัญหาเรื่องเวลา)
-  // ความถี่เป็นสิ่งที่ลูกค้าเลือกเองตอนกดรับ แล้วส่งกลับมาทาง webhook — ถ้าจะเสนอตัวเลือก
-  // ต้องทำเป็น `elements[]` (carousel) ซึ่งยังไม่ทำ · ค่าที่ร้านตั้งไว้เก็บลงสมุดบันทึกเฉย ๆ
+  // ⚠️ รูปแบบนี้ผ่านการยิงจริงแล้ว (16 ก.ย. 2026) — **ห้ามแก้ตามเอกสารโดยไม่ยิงทดสอบ** เอกสาร
+  // สาธารณะของ Meta ไม่ตรงกับของจริงหลายจุด:
+  //   • `image_url` **เป็นฟิลด์บังคับ** ถึงเอกสารจะบอกว่า optional — ไม่มีรูป Meta ตอบ
+  //     `-1/2018012 (#-1) Unexpected internal error` ซึ่งอ่านไม่ออกเลยว่าขาดอะไร (เสียเวลาไล่ทั้งวัน)
+  //   • `notification_messages_frequency` ใส่ไม่ได้ → `(#100) Invalid keys … in param "name_placeholder"`
+  //     (ความถี่เป็นสิ่งที่ลูกค้าเลือกเองตอนกดรับ แล้วส่งกลับมาทาง webhook)
+  //   • `notification_messages_timezone` ไม่จำเป็น (ตัวที่ยิงผ่านไม่มี)
   const res = await graphPost<{ message_id?: string }>(`/${pageId}/messages`, pageToken, {
     recipient: { id: contact.fb_psid },
     message: {
@@ -202,10 +215,11 @@ export async function sendOptinInvite(input: SendOptinInput): Promise<SendOptinR
         payload: {
           template_type: 'notification_messages',
           title,
-          // เอกสารระบุเป็นฟิลด์บังคับ — ร้านทั้งหมดในระบบอยู่ไทย
-          notification_messages_timezone: 'Asia/Bangkok',
-          ...(scenario.image_url ? { image_url: scenario.image_url, image_aspect_ratio: 'SQUARE' } : {}),
+          image_url: scenario.image_url,
+          image_aspect_ratio: 'SQUARE',
           notification_messages_cta_text: 'GET_UPDATES',
+          // กลับมาทาง webhook ตอนลูกค้ากดรับ — บอกว่าเขาสมัครจากจังหวะไหน
+          payload: `AOO_OPTIN_${trigger}`,
         },
       },
     },

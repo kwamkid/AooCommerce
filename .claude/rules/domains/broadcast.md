@@ -26,9 +26,20 @@ paths:
 | **TikTok Shop** | ลูกค้าที่สั่งใน 365 วัน | โค้ดพร้อม รอ scope | Customer Engagement: `POST /customer_engagement/202502/engagement_tasks/custom` (หัวข้อ ≤70 · เนื้อ ≤500 · สินค้า ≤4 · คูปอง 1 · วันหมดอายุ) → `POST /202412/messages` (`buyer_emails` อีเมลนิรนามจากออเดอร์) → `POST /202412/performances` |
 | **Lazada** | ออเดอร์ ≤30 วัน / ห้องที่คุยอยู่ | ยังไม่ต่อ | `/im/session/open` บังคับ `order_id` (`-22 order out of day limit: 30`) ส่งทีละห้อง |
 | **Shopee** | ห้องที่ลูกค้าทักมาแล้ว | ยังไม่ต่อ | sellerchat มีแค่ `send_message` · ไม่มี API บรอดแคสต์ (Chat Broadcast อยู่แค่ Seller Center) |
-| **Facebook** | คนที่กดรับข่าวสาร (นอกกรอบ 24 ชม. ได้) | ทะเบียน ready · **ยังไม่มีตัวส่ง** | **Marketing Message API** (ยิงจริงสำเร็จ 14 ก.ย. 2026): รายชื่อ `GET /{page_id}/notification_message_tokens` (อยู่ที่ Meta **ห้ามเก็บสำเนา**) → `POST act_<AD_ID>/message_campaign` `{name, page_id, daily_budget}` → `POST act_<AD_ID>/messages` `{message_id (=id ที่แคมเปญคืน), messenger_delivery_data.subscription_token, message}` ด้วย **system user token** · เพดาน 1 ข้อความ/12 ชม./คน (`next_eligible_time_for_paid_messaging`) · **เสียเงินต่อข้อความที่ส่งถึงจริง** · แคมเปญใหม่ต้องรอเตรียม ~2 ชม. (วัดจริง 139 นาที · error ไล่ขั้น 2300012 → 2300041 → สำเร็จ) · งบ 1 บาทถูกปฏิเสธ 100 บาทผ่าน |
+| **Facebook** | คนที่กดรับข่าวสาร (นอกกรอบ 24 ชม. ได้) | ✅ ส่งได้ · การ์ดชวนสมัครยังยิงไม่สำเร็จ | **Marketing Message API** (ยิงจริงสำเร็จ 14 ก.ย. 2026): รายชื่อ `GET /{page_id}/notification_message_tokens` (อยู่ที่ Meta **ห้ามเก็บสำเนา**) → `POST act_<AD_ID>/message_campaign` `{name, page_id, daily_budget}` → `POST act_<AD_ID>/messages` `{message_id (=id ที่แคมเปญคืน), messenger_delivery_data.subscription_token, message}` ด้วย **system user token** · เพดาน 1 ข้อความ/12 ชม./คน (`next_eligible_time_for_paid_messaging`) · **เสียเงินต่อข้อความที่ส่งถึงจริง** · แคมเปญใหม่ต้องรอเตรียม ~2 ชม. (วัดจริง 139 นาที · error ไล่ขั้น 2300012 → 2300041 → สำเร็จ) · งบ 1 บาทถูกปฏิเสธ 100 บาทผ่าน |
 | **Instagram** | ทักมาภายใน 24 ชม. | ยังไม่ต่อ | นอก 24 ชม. API ปฏิเสธ (message tag ห้ามโปรโมชัน) · ไม่มีส่งเป็นชุด ยิงทีละ PSID |
 
+- **การ์ดชวนสมัคร (`template_type: notification_messages`) — payload ที่ยิงผ่านจริง** (16 ก.ย. 2026 · ส่งถึงจริงทั้งเพจ aDay Fresh และ Joolz) · ⛔ **ห้ามแก้ตามเอกสารของ Meta โดยไม่ยิงทดสอบ — เอกสารสาธารณะไม่ตรงกับของจริงหลายจุด**
+  ```jsonc
+  { "template_type": "notification_messages", "title": "…(≤65)",
+    "image_url": "…",                      // ⚠️ **บังคับ** ถึงเอกสารจะบอก optional
+    "image_aspect_ratio": "SQUARE",
+    "notification_messages_cta_text": "GET_UPDATES",
+    "payload": "AOO_OPTIN_<trigger>" }     // กลับมาทาง webhook ตอนลูกค้ากดรับ
+  ```
+  - **ไม่มี `image_url` = Meta ตอบ `-1/2018012 (#-1) Unexpected internal error`** ซึ่งอ่านไม่ออกเลยว่าขาดอะไร (ไล่ผิดทางทั้งวัน เคยสรุปผิดว่า "API ถูกปิดแล้ว")
+  - `notification_messages_frequency` **ใส่ไม่ได้** → `(#100) Invalid keys … in param "name_placeholder"` (ความถี่ลูกค้าเลือกเองตอนกดรับ แล้วส่งกลับทาง webhook) · `notification_messages_timezone` ไม่จำเป็น · `elements[]` (carousel) รูปแบบยังไม่ถูก → `100/2018374`
+  - ส่งได้เฉพาะในกรอบ 24 ชม. · คนที่**สมัครแล้วชวนซ้ำไม่ได้** (เช็ค `GET /{page_id}/notification_message_tokens` ก่อนเสมอ — ของเราเก็บสถานะที่ `fb_contacts.optin_status`)
 - ⛔ **ห้ามหาทางอ้อมกรอบข้างบน** (แพลตฟอร์มวัดสแปมจาก block/report ของผู้รับ ไม่ใช่วิธีกดส่ง) · เปลี่ยน `status` เป็น `'ready'` เมื่อต่อ API เสร็จและส่งได้จริงเท่านั้น
 
 ## โครง + ตัวส่ง
@@ -99,4 +110,4 @@ paths:
 - ⚠️ ไม่มี idempotency key ระดับข้อความ (มีแค่ระดับ task) → ล็อตเล็ก `TIKTOK_ENGAGEMENT_BATCH_SIZE = 50` (เพดานจริงยืนยันตอนส่งใบแรก) + บันทึกทันทีหลังยิง
 
 ## ยังไม่ทำ
-**ตัวส่งฝั่ง Facebook** (`lib/facebook/broadcast.ts` + case ใน `run.ts` — ทะเบียน/หน้าตั้งค่า/รายชื่อผู้สมัครพร้อมแล้ว เหลือตัวยิงจริง ต้องเผื่อสถานะ "กำลังเตรียม ~2 ชม." แล้วลองส่งเองเป็นระยะ) · เทมเพลตชวนสมัคร (opt-in) · ต่อ Lazada/Shopee/IG · แก้เวลาใบที่ตั้งไว้ (ต้องยกเลิกแล้วสร้างใหม่) · ส่งซ้ำเฉพาะคนไม่ตอบ · บันทึกกลุ่มผู้รับไว้ใช้ซ้ำ · `coupon_ids` ของ TikTok (คูปองของเราทำเป็น action `coupon` แล้ว — ของ TikTok เป็นคนละระบบ) · `GET /202412/performances`
+ต่อ Lazada/Shopee/IG · แก้เวลาใบที่ตั้งไว้ (ต้องยกเลิกแล้วสร้างใหม่) · ส่งซ้ำเฉพาะคนไม่ตอบ · บันทึกกลุ่มผู้รับไว้ใช้ซ้ำ · `coupon_ids` ของ TikTok (คูปองของเราทำเป็น action `coupon` แล้ว — ของ TikTok เป็นคนละระบบ) · `GET /202412/performances`

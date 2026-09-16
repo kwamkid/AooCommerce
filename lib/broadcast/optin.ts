@@ -161,6 +161,11 @@ export function validateOptinConfig(cfg: OptinConfig): string | null {
     const s = cfg[trigger];
     if (s.enabled && !s.title.trim()) return `${OPTIN_TRIGGERS[trigger].label}: ยังไม่ได้ใส่หัวข้อบนการ์ด`;
     if (s.title.length > OPTIN_TITLE_MAX) return `${OPTIN_TRIGGERS[trigger].label}: หัวข้อยาวเกิน ${OPTIN_TITLE_MAX} ตัวอักษร`;
+    // รูปเป็นฟิลด์**บังคับ**ของจริง (ยิงจริงยืนยัน 16 ก.ย. 2026) — ไม่มีรูป Meta ปฏิเสธด้วย
+    // error ที่อ่านไม่ออกเลยว่าขาดอะไร (`-1/2018012 Unexpected internal error`)
+    if (s.enabled && !s.image_url.trim()) {
+      return `${OPTIN_TRIGGERS[trigger].label}: ต้องใส่รูปบนการ์ด — Facebook ไม่รับการ์ดชวนสมัครที่ไม่มีรูป`;
+    }
   }
   if (cfg.reask_days < OPTIN_MIN_REASK_DAYS) {
     return `ถามซ้ำได้อย่างน้อยทุก ${OPTIN_MIN_REASK_DAYS} วัน (Meta ให้ขอซ้ำสัปดาห์ละครั้ง)`;
