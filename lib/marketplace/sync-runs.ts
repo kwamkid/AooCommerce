@@ -186,6 +186,24 @@ function toRun(row: unknown): SyncRun {
   };
 }
 
+/**
+ * ทิ้งรอบ "พรีวิวแล้วไม่ได้ลงมือ" ของร้าน+งานเดียวกันที่ค้างอยู่
+ *
+ * เปิดหน้าพรีวิวหนึ่งครั้ง = หนึ่งรอบ · เจ้าของเปิดดู 7 ครั้งก็ได้ 7 แถวทั้งที่ยังไม่ได้
+ * ทำอะไรสักครั้ง — ประวัติกลายเป็นขยะและอ่านไม่ออกว่าตกลงทำอะไรไปบ้าง
+ * ⇒ ต่อร้าน+งาน เก็บรอบพรีวิวที่ยังไม่ลงมือไว้ได้ใบเดียว (ใบล่าสุดเท่านั้น)
+ * รอบที่ลงมือแล้ว (running/done/partial/…) ไม่ถูกแตะ — เป็นประวัติจริง
+ */
+export async function discardPendingPreviews(accountId: string, job: SyncRunJob): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from('marketplace_sync_runs')
+    .delete()
+    .eq('account_id', accountId)
+    .eq('job', job)
+    .eq('status', 'previewed');
+  if (error) console.error('discardPendingPreviews failed:', error.message);
+}
+
 export async function createRun(input: CreateRunInput): Promise<SyncRun> {
   const { data, error } = await supabaseAdmin
     .from('marketplace_sync_runs')

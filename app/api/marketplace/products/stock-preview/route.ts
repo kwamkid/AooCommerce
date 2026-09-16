@@ -4,7 +4,7 @@ import { previewStockSync, summarizeStockPlans, toRunItemInput } from '@/lib/mar
 import type { StockPreviewRow } from '@/lib/marketplace/stock-push';
 import { getStockAdapter, stockPlatformLabel } from '@/lib/marketplace/stock-adapter';
 import type { PullStockMode, StockSyncAccount } from '@/lib/marketplace/stock-adapter';
-import { createRun, isActionablePlan, replaceRunItems } from '@/lib/marketplace/sync-runs';
+import { createRun, discardPendingPreviews, isActionablePlan, replaceRunItems } from '@/lib/marketplace/sync-runs';
 import { isQuotaBlocked } from '@/lib/marketplace/quota';
 import type { QuotaPlatform } from '@/lib/marketplace/platforms';
 import { logIntegrationNow } from '@/lib/integration-logger';
@@ -105,11 +105,14 @@ export async function POST(request: NextRequest) {
     const planCounts = summarizeStockPlans(preview.rows);
     const selected = preview.rows.filter(pickedFor).length;
 
+    const job = direction === 'pull' ? 'pull_stock' : 'push_stock';
+    // พรีวิวใบเก่าที่ยังไม่ได้ลงมือของร้าน+งานนี้ = ขยะ ทิ้งก่อนสร้างใบใหม่
+    await discardPendingPreviews(account.id, job);
     const run = await createRun({
       company_id: companyId,
       account_id: account.id,
       platform,
-      job: direction === 'pull' ? 'pull_stock' : 'push_stock',
+      job,
       mode: direction === 'pull' ? mode : null,
       status: 'previewed',
       warehouse_id: preview.warehouseId,

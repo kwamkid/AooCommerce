@@ -15,7 +15,6 @@ import { SYNC_RUN_JOB_LABELS } from '@/lib/marketplace/sync-run-labels';
 import type { SyncRun, SyncRunTrigger } from '@/lib/marketplace/sync-runs';
 
 /** รอบที่แค่ "เปิดดูตาราง" แล้วปิดไป — เป็นขยะในประวัติหลังพรีวิวหมดอายุ */
-const PREVIEW_TTL_MS = 15 * 60_000;
 
 /** งานที่ไม่ได้เกิดจากคนกดในหน้านี้ — ต้องบอกที่มา ไม่งั้นเจ้าของงงว่าใครสั่ง */
 const TRIGGER_LABELS: Partial<Record<SyncRunTrigger, string>> = {
@@ -48,12 +47,10 @@ export default function RunHistory({ accountId, onOpenRun }: Props) {
       setRuns(null);
       const result = await fetchRuns(accountId, 10);
       if (!alive) return;
-      const now = Date.now();
       // พรีวิวที่หมดอายุแล้วไม่ใช่ "รอบที่ทำอะไรไป" — ซ่อนไว้ไม่ให้บังของจริง
       setRuns(
-        (result.data || []).filter(
-          run => run.status !== 'previewed' || now - new Date(run.preview_at).getTime() < PREVIEW_TTL_MS,
-        ),
+        // ประวัติ = สิ่งที่ "ทำไปแล้ว" — รอบที่แค่เปิดดูตาราง (previewed) ไม่ใช่ประวัติ
+        (result.data || []).filter(run => run.status !== 'previewed'),
       );
     })();
     return () => { alive = false; };
