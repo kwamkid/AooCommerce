@@ -17,6 +17,9 @@ import FormInput from '@/components/ui/FormInput';
 import FormSelect from '@/components/ui/FormSelect';
 import ListFilterBar from '@/components/ui/ListFilterBar';
 import MasterDataCell from '@/components/ui/MasterDataCell';
+import ImageDropzone from '@/components/ui/ImageDropzone';
+import { supabase } from '@/lib/supabase';
+import { storageKeyFor } from '@/lib/storage-key';
 import Modal, { ModalFormBody, ModalFormFooter } from '@/components/ui/Modal';
 import PageHeader from '@/components/ui/PageHeader';
 import SaveButton from '@/components/ui/SaveButton';
@@ -37,6 +40,7 @@ interface SupplierRef {
 interface BrandItem {
   id: string;
   name: string;
+  logo_url?: string | null;
   sort_order: number;
   supplier_id?: string | null;
   supplier?: SupplierRef | null;
@@ -71,6 +75,12 @@ function BrandsPageInner() {
   const [addName, setAddName] = useState('');
   const [editingBrand, setEditingBrand] = useState<BrandItem | null>(null);
   const [editingName, setEditingName] = useState('');
+  /** ไฟล์โลโก้ที่เพิ่งเลือก (ยังไม่อัป) · `null` = ไม่ได้แตะ หรือกดลบรูปเดิม */
+  const [editingLogo, setEditingLogo] = useState<File | null>(null);
+  /** รูปเดิมของแบรนด์ — แยกจากไฟล์ใหม่ เพื่อให้รู้ว่า "ลบรูปเดิม" ต่างจาก "ไม่ได้แตะ" */
+  const [editingLogoUrl, setEditingLogoUrl] = useState<string | null>(null);
+  /** ImageDropzone กำลังย่อรูปอยู่ — ปิดปุ่มบันทึกไว้ก่อน ไม่งั้นได้แบรนด์ที่ไม่มีรูป */
+  const [logoBusy, setLogoBusy] = useState(false);
   const [editingSupplierId, setEditingSupplierId] = useState('');
   const [editingGpRate, setEditingGpRate] = useState('');
   const [editingGpBase, setEditingGpBase] = useState<'retail' | 'discounted'>('retail');
@@ -158,6 +168,8 @@ function BrandsPageInner() {
     setEditingSupplierId(brand.supplier_id || '');
     setEditingGpRate(brand.default_gp_rate == null ? '' : String(brand.default_gp_rate));
     setEditingGpBase(brand.gp_base_price || 'retail');
+    setEditingLogo(null);
+    setEditingLogoUrl(brand.logo_url || null);
   };
 
   const closeEditModal = () => {
@@ -167,6 +179,8 @@ function BrandsPageInner() {
     setEditingSupplierId('');
     setEditingGpRate('');
     setEditingGpBase('retail');
+    setEditingLogo(null);
+    setEditingLogoUrl(null);
   };
 
   const handleAdd = async () => {
@@ -198,11 +212,23 @@ function BrandsPageInner() {
     }
     setSaving(true);
     try {
+      // อัปโลโก้ก่อน แล้วค่อยบันทึกแบรนด์ — อัปไม่ผ่านต้องไม่บันทึกชื่อไปครึ่ง ๆ
+      // ⚠️ ชื่อไฟล์ต้องผ่าน storageKeyFor — Storage ตอบ 400 InvalidKey กับชื่อไทย/อีโมจิ/#
+      let logoUrl = editingLogoUrl;
+      if (editingLogo) {
+        const path = `brand-logos/${storageKeyFor(editingLogo.name, 'jpg')}`;
+        const { error: uploadError } = await supabase.storage
+          .from('chat-media')
+          .upload(path, editingLogo, { contentType: editingLogo.type || 'image/jpeg' });
+        if (uploadError) throw new Error(`อัปโหลดโลโก้ไม่สำเร็จ: ${uploadError.message}`);
+        logoUrl = supabase.storage.from('chat-media').getPublicUrl(path).data.publicUrl;
+      }
       const res = await apiFetch('/api/brands', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: editingBrand.id,
           name: editingName.trim(),
+          logo_url: logoUrl || '',
           supplier_id: editingSupplierId || null,
           default_gp_rate: parsedGpRate,
           gp_base_price: editingGpBase,
@@ -260,7 +286,17 @@ function BrandsPageInner() {
   const columns: DataTableColumn<BrandItem>[] = [
     {
       key: 'name', label: 'แบรนด์', alwaysVisible: true, grow: true, defaultWidth: 260,
-      render: brand => <MasterDataCell icon={<Award />} title={brand.name} href={`/settings/brands/${brand.id}`} />,
+      // มีโลโก้แล้วใช้โลโก้แทนไอคอนเริ่มต้น — ร้านเห็นได้ทันทีว่าแบรนด์ไหนยังไม่ได้ใส่รูป
+      render: brand => (
+        <MasterDataCell
+          icon={brand.logo_url
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={brand.logo_url} alt="" className="w-full h-full object-contain" />
+            : <Award />}
+          title={brand.name}
+          href={`/settings/brands/${brand.id}`}
+        />
+      ),
     },
     ...(features.supplier ? [{
       key: 'supplier', label: 'Supplier', defaultWidth: 320,
@@ -333,10 +369,26 @@ function BrandsPageInner() {
       </Modal>
 
       <Modal open={Boolean(editingBrand)} onClose={closeEditModal} title="แก้ไขแบรนด์" icon={<Edit2 />} size="lg"
-        footer={<ModalFormFooter><Button variant="secondary" onClick={closeEditModal} disabled={saving}>ยกเลิก</Button><SaveButton onClick={handleSaveEdit} loading={saving} /></ModalFormFooter>}
+        footer={<ModalFormFooter><Button variant="secondary" onClick={closeEditModal} disabled={saving}>ยกเลิก</Button><SaveButton onClick={handleSaveEdit} loading={saving} disabled={logoBusy} /></ModalFormFooter>}
       >
         <ModalFormBody stacked>
           <FormInput label="ชื่อแบรนด์" required value={editingName} onChange={event => setEditingName(event.target.value)} autoFocus />
+          {/* โลโก้แบรนด์ — หน้าร้านออนไลน์ดึงไปแสดงบนหัวหน้ากรองแบรนด์
+              ย่อเหลือ 400px พอสำหรับที่แสดงจริง 44px เผื่อจอ retina แล้ว */}
+          <FormField label="โลโก้แบรนด์" hint="ไม่ใส่ก็ได้ — หน้าร้านจะแสดงแค่ชื่อแบรนด์">
+            <ImageDropzone
+              value={editingLogo}
+              // กดกากบาทลบรูป = `onChange(null)` — ต้องล้างรูปเดิมด้วย ไม่งั้นกดลบแล้วยังบันทึกรูปเก่ากลับไป
+              onChange={file => { setEditingLogo(file); if (!file) setEditingLogoUrl(null); }}
+              initialPreviewUrl={editingLogoUrl}
+              onBusyChange={setLogoBusy}
+              alt={`โลโก้ ${editingName}`}
+              label="เลือกรูปโลโก้"
+              maxWidthOrHeight={400}
+              maxSizeMB={0.15}
+              changeOnClick
+            />
+          </FormField>
           {features.supplier && (
             <FormField label="Supplier">
               <EntitySearchInput value={editingSupplierId} onChange={setEditingSupplierId} onClear={() => setEditingSupplierId('')}
