@@ -21,7 +21,6 @@ import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import FilterChips, { FILTER_CHIP_PRIMARY_ACTIVE } from '@/components/ui/FilterChips';
 import DataTable, { type DataTableColumn, type SortDir } from '@/components/ui/DataTable';
 import { InfoChip } from '@/components/ui/StatusBadge';
-import { Stat } from '@/components/ui/Chart';
 import { LoadingCard } from '@/components/ui/StateCard';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
@@ -290,7 +289,7 @@ export default function StockPreview({ account, direction, onApplied, onBack, on
 
   // ── ปุ่มยืนยันเป็นประโยค ──────────────────────────────────────────────────
   const applyLabel = direction === 'pull'
-    ? `เติม ${fillCount} ตัว · ทับ ${overwriteCount} ตัว · ข้าม ${rows.length - selected.size} ตัว · ไม่ใช้โควตา`
+    ? `เติม ${fillCount} ตัว · ทับ ${overwriteCount} ตัว · ข้าม ${rows.length - selected.size} ตัว`
     : `ส่งขึ้น ${shopLabel} ${applyCalls} สินค้า (เพิ่ม ${upCount} · ลด ${downCount}) · ใช้โควตา ${shopLabel} ${applyCalls} ครั้ง`;
 
   const columns: DataTableColumn<StockPreviewRow>[] = [
@@ -457,24 +456,21 @@ export default function StockPreview({ account, direction, onApplied, onBack, on
         </Alert>
       ) : preview ? (
         <>
-          <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-            <Stat label="ตรวจแล้ว" value={formatNumber(preview.counts.checked ?? rows.length)} subtitle="ตัวเลือก" />
-            <Stat label="จะเปลี่ยน" value={formatNumber(selected.size)} subtitle="ตามที่ติ๊กไว้" />
-            <Stat
-              label="เพิ่มขึ้น"
-              value={<span className={upCount > 0 ? 'text-red-600 dark:text-red-400' : undefined}>{formatNumber(upCount)}</span>}
-              subtitle="ทิศที่ทำให้ขายเกินได้"
-            />
-            <Stat
-              label="ลดลง / เป็น 0"
-              value={<span className={downCount > 0 ? 'text-amber-600 dark:text-amber-400' : undefined}>{formatNumber(downCount)}</span>}
-              subtitle="ขายไม่ได้ชั่วคราว"
-            />
-          </div>
-
-          <p className="helper-text">
-            โควตา {shopLabel}: อ่านไปแล้ว {preview.quota.preview_used} ครั้ง · จะใช้อีก {applyCalls} ครั้ง ·{' '}
-            {expired ? 'ตารางนี้หมดอายุแล้ว — โหลดใหม่ก่อนกด' : `ตารางนี้ใช้ได้อีก ${minutesLeft} นาที`}
+          {/* บรรทัดเดียวพอ — ตัวเลขสรุปทั้งหมดอยู่บนชิปกรองข้างล่างแล้ว (เคยมีการ์ด Stat 4 ใบซ้ำกันเป๊ะ)
+              โควตาพูดถึงเฉพาะตอนที่การกดจะไปใช้จริง (ขา "ส่งขึ้นร้าน") ขา "ดึงลงคลัง" เขียนแต่ฐานข้อมูลเรา */}
+          <p className="helper-text flex flex-wrap items-center gap-x-2">
+            <span>{expired ? 'ตารางนี้หมดอายุแล้ว — โหลดใหม่ก่อนกด' : `ตารางนี้ใช้ได้อีก ${minutesLeft} นาที`}</span>
+            {applyCalls > 0 && (
+              <>
+                <span aria-hidden>·</span>
+                <span>กดยืนยันครั้งนี้ใช้โควตา {shopLabel} {applyCalls} ครั้ง</span>
+                <HelpHint ariaLabel={`โควตา ${shopLabel} คืออะไร`}>
+                  {shopLabel} จำกัดจำนวนครั้งที่ระบบเรียก API ของร้านได้ต่อวัน — ทุกร้าน {shopLabel} ของบริษัทใช้ร่วมกัน
+                  · การอ่านยอดมาทำตารางนี้ใช้ไปแล้ว {preview.quota.preview_used} ครั้ง · ถ้าโควตาเต็ม
+                  ระบบจะพักงานที่ต้องคุยกับร้านไว้ชั่วคราวแล้วบอกเวลาที่กลับมาใช้ได้
+                </HelpHint>
+              </>
+            )}
           </p>
 
           {preview.errors.length > 0 && (
