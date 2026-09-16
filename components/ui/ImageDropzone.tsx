@@ -12,7 +12,7 @@ import dynamic from 'next/dynamic';
 import imageCompression from 'browser-image-compression';
 import { ImagePlus, X, Loader2 } from 'lucide-react';
 import type { ReactNode } from 'react';
-import Modal from './Modal';
+import Modal, { ModalFormBody } from './Modal';
 
 // โหลดเฉพาะตอนที่หน้าไหนขอครอบรูปจริง ๆ — อีกสิบกว่าหน้าที่ใช้ dropzone จะได้ไม่ต้องแบก
 // react-easy-crop + smartcrop ไปด้วย
@@ -203,14 +203,17 @@ const ImageDropzone = forwardRef<ImageDropzoneHandle, Props>(function ImageDropz
   // อยู่ใน return ทั้งสองทาง (ตอนมีรูปแล้ว/ยังว่าง) — เปลี่ยนรูปทีหลังก็ต้องได้ครอบเหมือนกัน
   const cropModal = cropSrc && cropAspect ? (
     <Modal open onClose={closeCrop} title="ปรับรูปให้พอดีกรอบ" size="md">
-      {/* ครอบออกมาเท่าขนาดที่ปลายทางต้องการเลย — ไม่งั้นได้ 1080 แล้วถูกย่อซ้ำอีกรอบ */}
-      <ImageCropper
-        src={cropSrc}
-        aspect={cropAspect}
-        outputSize={maxWidthOrHeight}
-        onConfirm={finishCrop}
-        onCancel={closeCrop}
-      />
+      {/* ⚠️ ต้องห่อ ModalFormBody เสมอ — `.modal-body` ของกลางไม่มี padding (เผื่อเนื้อหาเต็มขอบ) */}
+      <ModalFormBody>
+        {/* ครอบออกมาเท่าขนาดที่ปลายทางต้องการเลย — ไม่งั้นได้ 1080 แล้วถูกย่อซ้ำอีกรอบ */}
+        <ImageCropper
+          src={cropSrc}
+          aspect={cropAspect}
+          outputSize={maxWidthOrHeight}
+          onConfirm={finishCrop}
+          onCancel={closeCrop}
+        />
+      </ModalFormBody>
     </Modal>
   ) : null;
 
