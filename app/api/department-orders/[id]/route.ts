@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { shipToTransit, receiveFromTransit, cancelFromShipped, deductStock, addStock, unreserveStock, reserveStock } from '@/lib/stock-service';
 import { pushStockAfter } from '@/lib/marketplace/push-after';
+import {
+  issueDepartmentOrderShipDocuments,
+  reissueDepartmentOrderTax,
+} from '@/lib/documents/consignment-documents';
 import { getConsignmentDestinationWarehouse } from '@/lib/consignment-warehouse';
 
 // GET /api/department-orders/[id]
@@ -193,68 +197,18 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       // ไม่กระจายขึ้นร้านตอนส่ง: shipToTransit ลด quantity และ reserved เท่ากัน
       // → ยอดพร้อมขายเท่าเดิม (ของถูกกันไว้ตั้งแต่ตอนสร้างใบส่งแล้ว)
 
-      // Auto issue DN (ใบส่งสินค้า) on ship
-      let dnNumber: string | null = null;
-      let taxNumber: string | null = null;
-      try {
-        const { issueOrderDN } = await import('@/lib/invoice-service');
-        const docResult = await issueOrderDN(id, auth.companyId!, 'department_order');
-        dnNumber = docResult?.invoiceNumber || null;
-      } catch (err) {
-        console.error('Auto DN on ship error:', err);
-      }
-
-      // Auto issue TAX (tax_only) — ใบกำกับภาษี เต็มจำนวนที่ส่ง
-      try {
-        const { data: company } = await supabaseAdmin
-          .from('companies').select('vat_registered').eq('id', auth.companyId).single();
-
-        if (company?.vat_registered) {
-          const { insertTaxInvoice } = await import('@/lib/invoice-service');
-          const { data: taxNum } = await supabaseAdmin.rpc('generate_tax_invoice_number', { p_company_id: auth.companyId });
-          if (taxNum) {
-            const now = new Date().toISOString().split('T')[0];
-            // Fetch customer tax info
-            const { data: custInfo } = await supabaseAdmin
-              .from('customers')
-              .select('name, tax_company_name, tax_id, tax_branch, billing_address, billing_district, billing_amphoe, billing_province, billing_postal_code')
-              .eq('id', existing.customer_id)
-              .single();
-            const custAddress = custInfo ? [custInfo.billing_address, custInfo.billing_district, custInfo.billing_amphoe, custInfo.billing_province, custInfo.billing_postal_code].filter(Boolean).join(' ') : null;
-
-            await insertTaxInvoice({
-              company_id: auth.companyId!,
-              invoice_number: taxNum,
-              invoice_date: now,
-              source_type: 'department_order',
-              source_id: id,
-              customer_id: existing.customer_id,
-              customer_name: custInfo?.tax_company_name || custInfo?.name || null,
-              customer_tax_id: custInfo?.tax_id || null,
-              customer_branch: custInfo?.tax_branch || 'สำนักงานใหญ่',
-              customer_address: custAddress,
-              total_amount: existing.total_amount ?? 0,
-              is_receipt: false,
-              document_subtype: 'tax_only',
-            });
-            taxNumber = taxNum;
-
-            // Update order with tax invoice info
-            await supabaseAdmin.from('department_orders').update({
-              tax_invoice_number: taxNum,
-              tax_invoice_date: now,
-            }).eq('id', id);
-          }
-        }
-      } catch (err) {
-        console.error('Auto TAX on ship error:', err);
-      }
+      // ส่งของห้าง = เกิดความรับผิดทางภาษีทันที (ไม่มีสัญญา ม.78(3))
+      // กติกาว่าออกอะไรบ้างอยู่ที่ lib/documents/consignment-documents.ts ไม่ใช่ที่นี่
+      const shipDocs = await issueDepartmentOrderShipDocuments(id, auth.companyId!, {
+        customer_id: existing.customer_id,
+        total_amount: existing.total_amount,
+      });
 
       return NextResponse.json({
         success: true,
         status: 'shipped',
-        dn_number: dnNumber,
-        tax_invoice_number: taxNumber,
+        dn_number: shipDocs.dnNumber,
+        tax_invoice_number: shipDocs.taxNumber,
       });
     }
 
@@ -430,63 +384,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         }
       }
 
-      // Void old TAX + issue new TAX with confirmed total (if amount changed)
-      let newTaxNumber: string | null = null;
-      if (!allMatch && confirmedTotal !== (existing.total_amount ?? 0)) {
-        try {
-          const now = new Date().toISOString();
-
-          // 1. Void old TAX
-          await supabaseAdmin.from('tax_invoices')
-            .update({ voided_at: now, voided_reason: `ยืนยันรับไม่ครบ: ${existing.department_order_number}` })
-            .eq('source_type', 'department_order').eq('source_id', id)
-            .is('voided_at', null);
-
-          // 2. Issue new TAX with confirmed total
-          const { data: company } = await supabaseAdmin
-            .from('companies').select('vat_registered').eq('id', auth.companyId).single();
-
-          if (company?.vat_registered) {
-            const { insertTaxInvoice } = await import('@/lib/invoice-service');
-            const { data: taxNum } = await supabaseAdmin.rpc('generate_tax_invoice_number', { p_company_id: auth.companyId });
-            if (taxNum) {
-              const todayStr = now.split('T')[0];
-              const { data: custInfo } = await supabaseAdmin
-                .from('customers')
-                .select('name, tax_company_name, tax_id, tax_branch, billing_address, billing_district, billing_amphoe, billing_province, billing_postal_code')
-                .eq('id', existing.customer_id).single();
-              const custAddress = custInfo
-                ? [custInfo.billing_address, custInfo.billing_district, custInfo.billing_amphoe, custInfo.billing_province, custInfo.billing_postal_code].filter(Boolean).join(' ')
-                : null;
-
-              await insertTaxInvoice({
-                company_id: auth.companyId!,
-                invoice_number: taxNum,
-                invoice_date: todayStr,
-                source_type: 'department_order',
-                source_id: id,
-                customer_id: existing.customer_id,
-                customer_name: custInfo?.tax_company_name || custInfo?.name || null,
-                customer_tax_id: custInfo?.tax_id || null,
-                customer_branch: custInfo?.tax_branch || 'สำนักงานใหญ่',
-                customer_address: custAddress,
-                total_amount: confirmedTotal,
-                is_receipt: false,
-                document_subtype: 'tax_only',
-              });
-              newTaxNumber = taxNum;
-
-              // Update order with new tax number
-              await supabaseAdmin.from('department_orders').update({
-                tax_invoice_number: taxNum,
-                tax_invoice_date: todayStr,
-              }).eq('id', id);
-            }
-          }
-        } catch (err) {
-          console.error('Re-issue TAX on confirm error:', err);
-        }
-      }
+      // รับไม่ครบ = ใบกำกับใบเดิมแจ้งภาษีเกินจริง ต้องยกเลิกแล้วออกใหม่ตามยอดที่รับ
+      const newTaxNumber = (!allMatch && confirmedTotal !== (existing.total_amount ?? 0))
+        ? await reissueDepartmentOrderTax(id, auth.companyId!, {
+            customer_id: existing.customer_id,
+            department_order_number: existing.department_order_number,
+          }, confirmedTotal)
+        : null;
 
       pushStockAfter(confirmTouched, [
         consignWarehouse.id,

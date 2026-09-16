@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { shipToTransit, receiveFromTransit, unreserveStock, cancelFromShipped, reserveStock, deductStock, addStock } from '@/lib/stock-service';
 import { pushStockAfter } from '@/lib/marketplace/push-after';
+import { issueReplenishmentShipDocuments } from '@/lib/documents/consignment-documents';
 import { getConsignmentDestinationWarehouse } from '@/lib/consignment-warehouse';
 
 // GET /api/replenishments/[id]
@@ -191,63 +192,18 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       // ไม่กระจายขึ้นร้านตอนส่ง: shipToTransit ลด quantity และ reserved เท่ากัน
       // → ยอดพร้อมขายเท่าเดิม (ของถูกกันไว้ตั้งแต่ตอนสร้างใบเติมสินค้าแล้ว)
 
-      // Auto issue DN (ใบส่งสินค้า) on ship
-      let docResult = null;
-      let taxResult: { invoiceNumber?: string } | null = null;
-      try {
-        const { issueReplenishmentDN } = await import('@/lib/invoice-service');
-        docResult = await issueReplenishmentDN(id, auth.companyId);
-      } catch (err) {
-        console.error('Auto DN on ship error:', err);
-      }
-
-      // Flow D (ห้างฝากขาย): ส่งของ → DN + TAX tax_only (ใบกำกับภาษี เต็มจำนวน)
-      try {
-        const { data: customer } = await supabaseAdmin
-          .from('customers')
-          .select('customer_type, sale_type')
-          .eq('id', existing.customer_id)
-          .single();
-
-        const isDeptConsignment = customer?.customer_type === 'department_store'
-          && (customer?.sale_type === 'consignment' || !customer?.sale_type);
-
-        if (isDeptConsignment) {
-          const { data: company } = await supabaseAdmin
-            .from('companies').select('vat_registered').eq('id', auth.companyId).single();
-
-          if (company?.vat_registered) {
-            const { data: rpData } = await supabaseAdmin
-              .from('replenishments').select('total_amount').eq('id', id).single();
-            const { insertTaxInvoice } = await import('@/lib/invoice-service');
-            const { data: taxNum } = await supabaseAdmin.rpc('generate_tax_invoice_number', { p_company_id: auth.companyId });
-            if (taxNum) {
-              const now = new Date().toISOString().split('T')[0];
-              await insertTaxInvoice({
-                company_id: auth.companyId!,
-                invoice_number: taxNum,
-                invoice_date: now,
-                source_type: 'replenishment',
-                source_id: id,
-                customer_id: existing.customer_id,
-                total_amount: rpData?.total_amount ?? 0,
-                is_receipt: false,
-                document_subtype: 'tax_only', // ใบกำกับภาษี (เต็มจำนวนที่ส่ง)
-              });
-              taxResult = { invoiceNumber: taxNum };
-            }
-          }
-        }
-      } catch (err) {
-        console.error('Auto TAX on ship (dept store) error:', err);
-      }
+      // DN เสมอ · ใบกำกับภาษีเฉพาะปลายทางที่เป็นห้างฝากขาย
+      // (ตัวแทนฝากขายมีสัญญา ม.78(3) ใบกำกับไปออกตอนแจ้งยอดขาย)
+      const shipDocs = await issueReplenishmentShipDocuments(id, auth.companyId!, {
+        customer_id: existing.customer_id,
+      });
 
       return NextResponse.json({
         success: true,
         status: 'shipped',
-        dn_number: docResult?.invoiceNumber || null,
-        doc_type: docResult?.docType || null,
-        tax_invoice_number: taxResult?.invoiceNumber || null,
+        dn_number: shipDocs.dnNumber,
+        doc_type: shipDocs.docType,
+        tax_invoice_number: shipDocs.taxNumber,
       });
     }
 
