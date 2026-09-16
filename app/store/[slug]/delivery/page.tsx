@@ -94,6 +94,50 @@ export default async function StorefrontDeliveryPage({ params }: PageProps) {
     });
   }
 
+  // ── ย่อหน้าตอบคำถาม + ขั้นตอนสั่งซื้อ (featured snippet) ───────────────────────
+  // ⚠️ ย่อหน้าใต้ h1 เดิมเป็น**คำบรรยายหน้า** ("ข้อมูลพื้นที่ที่ X จัดส่งถึง ค่าจัดส่ง…")
+  // ไม่ใช่คำตอบ — Google ยกไปทำ paragraph snippet ไม่ได้ เพราะไม่มีข้อเท็จจริงสักตัว
+  // ⇒ เขียนเป็นประโยคตอบที่มีชื่อโซน ค่าส่ง และรอบจริงอยู่ในนั้น
+  const zoneNames = zones.map(z => z.name);
+  const freeZone = zones.find(z => z.free_over != null);
+  const answerParts: string[] = [];
+  if (zoneNames.length > 0) {
+    answerParts.push(
+      `${shopName} จัดส่งใน ${zoneNames.length} พื้นที่ ได้แก่ ${zoneNames.join(', ')}`
+      + (freeZone ? ` โดยส่งฟรีเมื่อสั่งครบ ${formatStorePrice(Number(freeZone.free_over))}` : ''),
+    );
+  }
+  if (slots.length > 0) {
+    answerParts.push(
+      `รอบจัดส่งต่อวันมี ${slots.length} รอบ คือ `
+      + slots.map(s => `${formatSlotTime(s.start_time)}-${formatSlotTime(s.end_time)} น.`).join(' และ ')
+      + ' เลือกได้เป็นช่วงเวลา ไม่ใช่เวลานัดที่แน่นอน',
+    );
+  }
+  const answerParagraph = answerParts.length > 0
+    ? answerParts.join(' ') + '.'
+    : `ข้อมูลพื้นที่ที่ ${shopName} จัดส่งถึง ค่าจัดส่งแต่ละพื้นที่ และรอบเวลาจัดส่งในแต่ละวัน`;
+
+  // ขั้นตอนสั่งซื้อ — ordered-list snippet เป็นชนิดที่ได้ง่ายที่สุดและหน้าร้านยังไม่มี `<ol>` สักอัน
+  const orderSteps = [
+    'เลือกสินค้าที่ต้องการแล้วกดใส่ตะกร้า',
+    'เปิดตะกร้าเพื่อตรวจรายการและจำนวน',
+    'กรอกชื่อ เบอร์โทร และที่อยู่จัดส่ง',
+    ...(zones.length > 0 ? ['ระบบจะจับคู่พื้นที่จัดส่งและคำนวณค่าจัดส่งให้อัตโนมัติ'] : []),
+    ...(slots.length > 0 ? ['เลือกวันและรอบเวลาที่ต้องการให้จัดส่ง'] : []),
+    'ยืนยันคำสั่งซื้อและชำระเงิน แล้วติดตามสถานะได้จากลิงก์ที่ได้รับ',
+  ];
+  const howToLd = {
+    '@context': 'https://schema.org',
+    '@type': 'HowTo',
+    name: `วิธีสั่งซื้อและรับสินค้าจาก ${shopName}`,
+    step: orderSteps.map((text, i) => ({
+      '@type': 'HowToStep',
+      position: i + 1,
+      text,
+    })),
+  };
+
   const faqLd = faq.length > 0 ? {
     '@context': 'https://schema.org',
     '@type': 'FAQPage',
@@ -110,12 +154,21 @@ export default async function StorefrontDeliveryPage({ params }: PageProps) {
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(faqLd) }} />
       )}
 
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(howToLd) }} />
+
       <div className="sf-hero">
         <h1>พื้นที่จัดส่งและรอบส่ง</h1>
-        <p>
-          ข้อมูลพื้นที่ที่ {shopName} จัดส่งถึง ค่าจัดส่งแต่ละพื้นที่ และรอบเวลาจัดส่งในแต่ละวัน
-        </p>
+        {/* ประโยคตอบที่มีชื่อโซน/ค่าส่ง/รอบจริงอยู่ในนั้น — ตัวที่ Google ยกไปทำ paragraph snippet */}
+        <p>{answerParagraph}</p>
       </div>
+
+      {/* ขั้นตอนสั่งซื้อเป็น <ol> จริง — ordered-list snippet ได้ง่ายที่สุดและหน้าร้านยังไม่เคยมี */}
+      <section className="sf-section">
+        <h2>สั่งซื้อและรับของอย่างไร</h2>
+        <ol className="sf-steps">
+          {orderSteps.map(step => <li key={step}>{step}</li>)}
+        </ol>
+      </section>
 
       {zones.length === 0 && slots.length === 0 && (
         <p className="sf-empty">ยังไม่ได้ประกาศข้อมูลการจัดส่ง</p>
