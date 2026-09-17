@@ -1,6 +1,7 @@
 // Path: app/api/settings/features/route.ts
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { NextRequest, NextResponse } from 'next/server';
+import { invalidateCompanyFeatureCache } from '@/lib/package-gates-server';
 import { parseFeatures, clampDeliveryFlags, DEFAULT_PRESET, DEFAULT_FEATURES, type FeatureFlags } from '@/lib/features';
 import { gatesFromPackageFeatures, applyPackageGates, PERMISSIVE_GATES } from '@/lib/package-features';
 import { parseGiftCard } from '@/lib/gift-card';
@@ -131,6 +132,9 @@ export async function PUT(request: NextRequest) {
       .from('companies')
       .update({ settings: newSettings })
       .eq('id', companyId);
+
+    // ด่านฝั่ง API แคชสวิตช์ไว้ 60 วิ — ล้างทันทีไม่งั้นปิดฟีเจอร์แล้ว API ยังผ่านอยู่พักหนึ่ง
+    invalidateCompanyFeatureCache(companyId);
 
     if (updateError) {
       console.error('Error updating features:', updateError);

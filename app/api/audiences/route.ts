@@ -9,6 +9,7 @@
 // สิทธิ์ `marketing.audiences` = ชั้นผู้บริหาร — งานนี้**ส่งข้อมูลลูกค้าออกไปนอกระบบ**
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
+import { guardFeature } from '@/lib/package-gates-server';
 import {
   assertSourcesBelongToCompany,
   loadAudienceViews,
@@ -25,6 +26,9 @@ export async function GET(request: NextRequest) {
     const auth = await checkAuthWithCompany(request);
     if (!auth.isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!auth.companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(auth.companyId, 'audience');
+    if (blocked) return blocked;
     if (!can(auth, 'marketing.audiences')) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
     const audiences = await loadAudienceViews(auth.companyId);
@@ -41,6 +45,9 @@ export async function POST(request: NextRequest) {
     const auth = await checkAuthWithCompany(request);
     if (!auth.isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!auth.companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(auth.companyId, 'audience');
+    if (blocked) return blocked;
     if (!can(auth, 'marketing.audiences')) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
     const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
