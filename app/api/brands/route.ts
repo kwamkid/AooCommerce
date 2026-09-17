@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { guardFeature } from '@/lib/package-gates-server';
+import { masterSlugErrorMessage, validateMasterSlug } from '@/lib/master-slug';
 
 // GET - Fetch all brands (flat list)
 export async function GET(request: NextRequest) {
@@ -110,7 +111,7 @@ export async function PUT(request: NextRequest) {
 
     const body = await request.json();
     // ⛔ ไม่รับ `default_gp_rate`/`gp_base_price` — เหตุผลเดียวกับ POST ข้างบน
-    const { id, name, sort_order, supplier_id, logo_url } = body;
+    const { id, name, sort_order, supplier_id, logo_url, slug } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'ID is required' }, { status: 400 });
@@ -120,6 +121,15 @@ export async function PUT(request: NextRequest) {
     if (name !== undefined) updateData.name = name.trim();
     if (sort_order !== undefined) updateData.sort_order = sort_order;
     if (supplier_id !== undefined) updateData.supplier_id = supplier_id || null;
+    // ลิงก์หน้าร้าน (`?brand=<slug>`) — แก้ได้จากหน้าแบรนด์ แต่ต้องผ่านกติกาชุดเดียวกับหน้าจอ
+    // ⛔ ตอน **สร้าง** ไม่รับค่านี้ ปล่อยให้ trigger `slugify_th` ที่ DB เติมให้เหมือนเดิม
+    if (slug !== undefined) {
+      const slugError = validateMasterSlug(String(slug || ''));
+      if (slugError) {
+        return NextResponse.json({ error: masterSlugErrorMessage(slugError) }, { status: 400 });
+      }
+      updateData.slug = String(slug).trim();
+    }
     // โลโก้แบรนด์ — หน้าร้านดึงไปแสดงบนหัวหน้ากรองแบรนด์ · ลบรูปแล้วส่งค่าว่างมาได้ (เก็บเป็น null)
     if (logo_url !== undefined) updateData.logo_url = (logo_url || '').trim() || null;
 
@@ -132,8 +142,10 @@ export async function PUT(request: NextRequest) {
       .single();
 
     if (error) {
+      // ตารางมี unique ทั้งชื่อและ slug — บอกให้ตรงว่าอันไหนซ้ำ ไม่งั้นผู้ใช้แก้ผิดช่อง
       if (error.code === '23505') {
-        return NextResponse.json({ error: 'แบรนด์นี้มีอยู่แล้ว' }, { status: 400 });
+        const clash = /slug/i.test(error.message) ? 'ลิงก์นี้ถูกใช้ไปแล้วในร้านนี้' : 'แบรนด์นี้มีอยู่แล้ว';
+        return NextResponse.json({ error: clash }, { status: 400 });
       }
       throw error;
     }

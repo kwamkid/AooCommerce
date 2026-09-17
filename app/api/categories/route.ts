@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
+import { masterSlugErrorMessage, validateMasterSlug } from '@/lib/master-slug';
 
 interface CategoryRow {
   id: string;
@@ -116,7 +117,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, name, sort_order, parent_id } = body;
+    const { id, name, sort_order, parent_id, slug } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'ID is required' }, { status: 400 });
@@ -126,6 +127,15 @@ export async function PUT(request: NextRequest) {
     if (name !== undefined) updateData.name = name.trim();
     if (sort_order !== undefined) updateData.sort_order = sort_order;
     if (parent_id !== undefined) updateData.parent_id = parent_id || null;
+    // ลิงก์หน้าร้าน (`?cat=<slug>`) — แก้ได้จากหน้าหมวดหมู่ ผ่านกติกาชุดเดียวกับหน้าจอ
+    // ⛔ ตอน **สร้าง** ไม่รับค่านี้ ปล่อยให้ trigger `slugify_th` ที่ DB เติมให้เหมือนเดิม
+    if (slug !== undefined) {
+      const slugError = validateMasterSlug(String(slug || ''));
+      if (slugError) {
+        return NextResponse.json({ error: masterSlugErrorMessage(slugError) }, { status: 400 });
+      }
+      updateData.slug = String(slug).trim();
+    }
 
     const { data, error } = await supabaseAdmin
       .from('product_categories')
@@ -136,8 +146,10 @@ export async function PUT(request: NextRequest) {
       .single();
 
     if (error) {
+      // ตารางมี unique ทั้งชื่อและ slug — บอกให้ตรงว่าอันไหนซ้ำ ไม่งั้นผู้ใช้แก้ผิดช่อง
       if (error.code === '23505') {
-        return NextResponse.json({ error: 'หมวดหมู่นี้มีอยู่แล้ว' }, { status: 400 });
+        const clash = /slug/i.test(error.message) ? 'ลิงก์นี้ถูกใช้ไปแล้วในร้านนี้' : 'หมวดหมู่นี้มีอยู่แล้ว';
+        return NextResponse.json({ error: clash }, { status: 400 });
       }
       throw error;
     }

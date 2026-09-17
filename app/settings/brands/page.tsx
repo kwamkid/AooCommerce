@@ -36,6 +36,8 @@ interface BrandItem {
   sort_order: number;
   supplier_id?: string | null;
   supplier?: SupplierRef | null;
+  /** ลิงก์หน้าร้าน (`?brand=<slug>`) — แก้ได้ในฟอร์มแก้ไขแบรนด์ */
+  slug?: string | null;
 }
 
 export default function BrandsPage() {
@@ -198,6 +200,8 @@ function BrandsPageInner() {
         open={formOpen}
         brand={editingBrand}
         suppliers={suppliers}
+        // ลิงก์ของแบรนด์อื่น (ไม่รวมตัวที่กำลังแก้) — เตือนซ้ำตั้งแต่ตอนพิมพ์ ไม่ต้องรอ DB ตีกลับ
+        takenSlugs={brands.filter(item => item.id !== editingBrand?.id).map(item => item.slug || '').filter(Boolean)}
         onClose={() => setFormOpen(false)}
         onSaved={() => void fetchBrands()}
       />

@@ -16,12 +16,15 @@ import { MasterDataGrid, MasterDataGridCard } from '@/components/ui/MasterDataGr
 import Modal, { ModalFormBody, ModalFormFooter } from '@/components/ui/Modal';
 import PageHeader from '@/components/ui/PageHeader';
 import SaveButton from '@/components/ui/SaveButton';
+import SlugField from '@/components/ui/SlugField';
 import { EmptyCard, LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 import { apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
+import { masterSlugErrorMessage, validateMasterSlug } from '@/lib/master-slug';
 import { can } from '@/lib/permissions';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { useFetchOnce } from '@/lib/use-fetch-once';
+import { useStorefrontLinks } from '@/lib/useStorefrontLinks';
 import { useToast } from '@/lib/toast-context';
 
 interface CategoryItem {
@@ -29,6 +32,8 @@ interface CategoryItem {
   name: string;
   parent_id: string | null;
   sort_order: number;
+  /** ลิงก์หน้าร้าน (`?cat=<slug>`) — DB เติมให้ตอนสร้าง แก้ได้ในโมดัลแก้ไข */
+  slug?: string | null;
   children?: CategoryItem[];
 }
 
@@ -40,6 +45,7 @@ function CategoriesPage() {
   const { userProfile } = useAuth();
   const { showToast } = useToast();
   const { confirmDialog, confirm } = useConfirmDialog();
+  const storefront = useStorefrontLinks();
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get('q') || '';
@@ -53,6 +59,8 @@ function CategoriesPage() {
   const [addName, setAddName] = useState('');
   const [editingCategory, setEditingCategory] = useState<CategoryItem | null>(null);
   const [editingName, setEditingName] = useState('');
+  /** ลิงก์หน้าร้านของหมวดที่กำลังแก้ */
+  const [editingSlug, setEditingSlug] = useState('');
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -104,6 +112,13 @@ function CategoriesPage() {
   const parentCount = categories.length;
   const childCount = categories.reduce((sum, parent) => sum + (parent.children?.length || 0), 0);
 
+  /** ลิงก์ของหมวดอื่นทั้งหมด (หลัก+ย่อย) ยกเว้นตัวที่กำลังแก้ — unique ต่อร้าน ไม่ใช่ต่อชั้น */
+  const takenSlugs = useCallback((exceptId: string) => categories
+    .flatMap(parent => [parent, ...(parent.children || [])])
+    .filter(item => item.id !== exceptId)
+    .map(item => item.slug || '')
+    .filter(Boolean), [categories]);
+
   const openAddModal = (parentId: string | null = null) => {
     setAddName('');
     setAddParentId(parentId);
@@ -118,11 +133,13 @@ function CategoriesPage() {
   const openEditModal = (category: CategoryItem) => {
     setEditingCategory(category);
     setEditingName(category.name);
+    setEditingSlug(category.slug || '');
   };
   const closeEditModal = () => {
     if (saving) return;
     setEditingCategory(null);
     setEditingName('');
+    setEditingSlug('');
   };
 
   const handleAdd = async () => {
@@ -149,11 +166,21 @@ function CategoriesPage() {
 
   const handleSaveEdit = async () => {
     if (!editingCategory || !editingName.trim()) return showToast('กรุณากรอกชื่อหมวดหมู่', 'error');
+    // ส่ง slug เฉพาะตอนที่เปลี่ยนจริง — ไม่แตะ = DB คงค่าเดิมที่ trigger เติมไว้
+    const slugChanged = editingSlug && editingSlug !== (editingCategory.slug || '');
+    if (slugChanged) {
+      const slugError = validateMasterSlug(editingSlug, takenSlugs(editingCategory.id));
+      if (slugError) return showToast(masterSlugErrorMessage(slugError), 'error');
+    }
     setSaving(true);
     try {
       const res = await apiFetch('/api/categories', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: editingCategory.id, name: editingName.trim() }),
+        body: JSON.stringify({
+          id: editingCategory.id,
+          name: editingName.trim(),
+          ...(slugChanged ? { slug: editingSlug } : {}),
+        }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -198,7 +225,7 @@ function CategoriesPage() {
       key: 'add-child', label: 'เพิ่มหมวดย่อย', icon: <Plus />,
       onClick: () => openAddModal(category.id), primary: true,
     },
-    { key: 'edit', label: 'แก้ไขชื่อ', icon: <Edit2 />, onClick: () => openEditModal(category) },
+    { key: 'edit', label: 'แก้ไข', icon: <Edit2 />, onClick: () => openEditModal(category) },
     {
       key: 'delete', label: 'ลบ', icon: <Trash2 />,
       onClick: () => void handleDelete(category, false), danger: true, disabled: deletingId === category.id, dividerBefore: true,
@@ -206,7 +233,7 @@ function CategoriesPage() {
   ];
 
   const childActions = (child: CategoryItem): ActionItem[] => [
-    { key: 'edit', label: 'แก้ไขชื่อ', icon: <Edit2 />, onClick: () => openEditModal(child) },
+    { key: 'edit', label: 'แก้ไข', icon: <Edit2 />, onClick: () => openEditModal(child) },
     {
       key: 'delete', label: 'ลบ', icon: <Trash2 />,
       onClick: () => void handleDelete(child, true), danger: true, disabled: deletingId === child.id, dividerBefore: true,
@@ -288,13 +315,23 @@ function CategoriesPage() {
         </ModalFormBody>
       </Modal>
 
-      <Modal open={Boolean(editingCategory)} onClose={closeEditModal} title="แก้ไขชื่อหมวดหมู่"
+      <Modal open={Boolean(editingCategory)} onClose={closeEditModal} title="แก้ไขหมวดหมู่"
         icon={<Edit2 />} size="md"
         footer={<ModalFormFooter><Button variant="secondary" onClick={closeEditModal} disabled={saving}>ยกเลิก</Button><SaveButton onClick={handleSaveEdit} loading={saving} /></ModalFormFooter>}
       >
-        <ModalFormBody>
+        <ModalFormBody stacked>
           <FormInput label="ชื่อหมวดหมู่" required value={editingName} onChange={event => setEditingName(event.target.value)}
             onKeyDown={event => { if (event.key === 'Enter') void handleSaveEdit(); }} autoFocus />
+          {/* ลิงก์หน้าร้าน — ขึ้นเฉพาะร้านที่เปิดหน้าร้านแล้ว (ยังไม่เปิด = ไม่มีหน้าให้ลิงก์ไป) */}
+          {editingCategory && storefront.enabled && (
+            <SlugField
+              value={editingSlug}
+              onChange={setEditingSlug}
+              originalValue={editingCategory.slug || ''}
+              takenSlugs={takenSlugs(editingCategory.id)}
+              previewPrefix={storefront.category('')}
+            />
+          )}
         </ModalFormBody>
       </Modal>
       {confirmDialog}

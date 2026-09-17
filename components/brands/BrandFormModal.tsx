@@ -21,17 +21,22 @@ import FormInput from '@/components/ui/FormInput';
 import ImageDropzone from '@/components/ui/ImageDropzone';
 import Modal, { ModalFormBody, ModalFormFooter } from '@/components/ui/Modal';
 import SaveButton from '@/components/ui/SaveButton';
+import SlugField from '@/components/ui/SlugField';
 import { apiFetch } from '@/lib/api-client';
 import { useFeatures } from '@/lib/features-context';
+import { masterSlugErrorMessage, validateMasterSlug } from '@/lib/master-slug';
 import { storageKeyFor } from '@/lib/storage-key';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/lib/toast-context';
+import { useStorefrontLinks } from '@/lib/useStorefrontLinks';
 
 export interface BrandFormValue {
   id: string;
   name: string;
   logo_url?: string | null;
   supplier_id?: string | null;
+  /** ลิงก์หน้าร้าน (`?brand=<slug>`) — DB เติมให้ตอนสร้าง แก้ได้ทีหลังจากฟอร์มนี้ */
+  slug?: string | null;
 }
 
 interface SupplierOption {
@@ -51,6 +56,8 @@ interface Props {
   hideSupplier?: boolean;
   /** ตัวเลือก Supplier ที่หน้าแม่โหลดไว้แล้ว — ไม่ส่งมาก็โหลดเอง */
   suppliers?: SupplierOption[];
+  /** ลิงก์ของแบรนด์อื่นในร้าน (ไม่รวมตัวที่กำลังแก้) — เตือนซ้ำตั้งแต่ตอนพิมพ์ */
+  takenSlugs?: string[];
   onSaved: (brand: BrandFormValue) => void;
 }
 
@@ -61,10 +68,12 @@ export default function BrandFormModal({
   supplierId,
   hideSupplier = false,
   suppliers: suppliersProp,
+  takenSlugs = [],
   onSaved,
 }: Props) {
   const { features } = useFeatures();
   const { showToast } = useToast();
+  const storefront = useStorefrontLinks();
   const isEditing = Boolean(brand?.id);
 
   const [name, setName] = useState('');
@@ -75,6 +84,8 @@ export default function BrandFormModal({
   /** ImageDropzone กำลังย่อรูปอยู่ — ปิดปุ่มบันทึกไว้ก่อน ไม่งั้นได้แบรนด์ที่ไม่มีรูป */
   const [logoBusy, setLogoBusy] = useState(false);
   const [supplier, setSupplier] = useState('');
+  /** ลิงก์หน้าร้านของแบรนด์ — แก้ได้เฉพาะตอนแก้ไข (ตอนสร้าง DB เติมให้จากชื่อ) */
+  const [slug, setSlug] = useState('');
   const [saving, setSaving] = useState(false);
   const [suppliers, setSuppliers] = useState<SupplierOption[]>(suppliersProp || []);
 
@@ -87,6 +98,7 @@ export default function BrandFormModal({
     setLogo(null);
     setLogoUrl(brand?.logo_url || null);
     setSupplier(brand?.supplier_id || supplierId || '');
+    setSlug(brand?.slug || '');
   }, [open, brand, supplierId]);
 
   useEffect(() => {
@@ -117,6 +129,15 @@ export default function BrandFormModal({
         logo_url: savedLogoUrl || '',
         supplier_id: supplier || null,
       };
+      // ส่ง slug เฉพาะตอนที่ผู้ใช้เปลี่ยนจริง — ตอนสร้างปล่อยให้ trigger ที่ DB เติมจากชื่อ
+      if (isEditing && slug && slug !== (brand?.slug || '')) {
+        const slugError = validateMasterSlug(slug, takenSlugs);
+        if (slugError) {
+          setSaving(false);
+          return showToast(masterSlugErrorMessage(slugError), 'error');
+        }
+        payload.slug = slug;
+      }
       const res = await apiFetch('/api/brands', {
         method: isEditing ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -178,6 +199,17 @@ export default function BrandFormModal({
                 <span className="entity-selected-value"><Factory /><span className="entity-selected-value-text">{suppliers.find(item => item.id === supplier)?.name}</span></span>
               ) : undefined} />
           </FormField>
+        )}
+        {/* ลิงก์หน้าร้าน — ขึ้นเฉพาะตอนแก้ไขและร้านเปิดหน้าร้านแล้ว
+            (ยังไม่เปิด = ไม่มีหน้าให้ลิงก์ไป ช่องนี้ก็ไม่มีความหมาย) */}
+        {isEditing && storefront.enabled && (
+          <SlugField
+            value={slug}
+            onChange={setSlug}
+            originalValue={brand?.slug || ''}
+            takenSlugs={takenSlugs}
+            previewPrefix={storefront.brand('')}
+          />
         )}
       </ModalFormBody>
     </Modal>
