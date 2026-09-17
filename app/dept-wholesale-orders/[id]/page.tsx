@@ -5,10 +5,16 @@ import Layout from '@/components/layout/Layout';
 import DealerOrderForm from '@/components/dealer/DealerOrderForm';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import { useAuthGuard } from '@/lib/useAuthGuard';
+import { LoadingCard } from '@/components/ui/StateCard';
 
 export default function DeptWholesaleOrderDetailPage() {
   const params = useParams();
   const orderId = params.id as string;
+
+  const { allowed, loading: permLoading } = useAuthGuard('order.view');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
 
   return (
     <Layout>

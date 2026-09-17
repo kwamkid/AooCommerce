@@ -8,6 +8,9 @@ import { ArrowLeft, Printer } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { PageSkeleton } from '@/components/ui/Skeleton';
 import QRCode from 'qrcode';
+import { useAuthGuard } from '@/lib/useAuthGuard';
+import Layout from '@/components/layout/Layout';
+import { LoadingCard } from '@/components/ui/StateCard';
 
 interface ShippingAddress {
   id: string;
@@ -148,6 +151,10 @@ export default function ShippingLabelsPage() {
   const handlePrint = () => {
     window.print();
   };
+
+  const { allowed, loading: permLoading } = useAuthGuard('order.view');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
 
   if (authLoading || loading) {
     // หน้า print standalone (ไม่มี chrome ของแอป) — วาดโครงเอกสารเต็มความกว้าง ไม่ใช่การ์ดลอยกลางจอ

@@ -3,8 +3,14 @@
 import Layout from '@/components/layout/Layout';
 import PageHeader from '@/components/ui/PageHeader';
 import DealerOrderForm from '@/components/dealer/DealerOrderForm';
+import { useAuthGuard } from '@/lib/useAuthGuard';
+import { LoadingCard } from '@/components/ui/StateCard';
 
 export default function NewDeptWholesaleOrderPage() {
+  const { allowed, loading: permLoading } = useAuthGuard('order.manage');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
+
   return (
     <Layout>
       <div className="space-y-4">

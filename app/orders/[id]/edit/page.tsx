@@ -9,8 +9,13 @@ import Alert from '@/components/ui/Alert';
 import { LoadingCard } from '@/components/ui/StateCard';
 import OrderForm from '@/components/orders/OrderForm';
 import { apiFetch } from '@/lib/api-client';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 
 export default function EditOrderPage() {
+  const { allowed, loading: permLoading } = useAuthGuard('order.manage');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
+
   return (
     <Suspense fallback={
       <Layout>

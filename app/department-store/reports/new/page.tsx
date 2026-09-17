@@ -8,6 +8,7 @@ import DealerOrderForm from '@/components/dealer/DealerOrderForm';
 import { apiFetch } from '@/lib/api-client';
 import { showPdfPreview, mergePdfBlobs } from '@/lib/print-pdf';
 import { LoadingCard } from '@/components/ui/StateCard';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 
 function NewDeptStoreReportContent() {
   // Auto print ใบแจ้งหนี้ + ใบวางบิล after successful submit
@@ -122,6 +123,10 @@ function NewDeptStoreReportContent() {
 }
 
 export default function NewDeptStoreReportPage() {
+  const { allowed, loading: permLoading } = useAuthGuard('order.manage');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
+
   return (
     <Suspense fallback={
       <Layout>

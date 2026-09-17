@@ -26,6 +26,7 @@ import {
   Clock,
   DollarSign
 } from 'lucide-react';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 
 // Interfaces
 interface OrderDetail {
@@ -161,6 +162,10 @@ export default function PendingReportPage() {
       <InfoChip colors={`${badge.bg} ${badge.color}`}>{days < 0 ? 'ยังไม่ถึงกำหนด' : `${days} วัน`}</InfoChip>
     );
   };
+
+  const { allowed, loading: permLoading } = useAuthGuard('order.view');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
 
   if (authLoading) {
     return (

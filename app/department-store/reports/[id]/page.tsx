@@ -21,6 +21,7 @@ import SaveButton from '@/components/ui/SaveButton';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { type GpResolverContext, resolveGp, fetchGpContext } from '@/lib/gp-resolver';
 import { showPdfPreview } from '@/lib/print-pdf';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -717,6 +718,10 @@ function EditReportContent() {
 }
 
 export default function EditDeptStoreReportPage() {
+  const { allowed, loading: permLoading } = useAuthGuard('order.view');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
+
   return (
     <Suspense fallback={
       <Layout>

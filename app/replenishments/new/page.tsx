@@ -21,6 +21,7 @@ import StatusBadge from '@/components/ui/StatusBadge';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { showPdfPreview } from '@/lib/print-pdf';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 
 interface WarehouseItem {
   id: string;
@@ -459,6 +460,10 @@ function NewReplenishmentPageContent() {
 }
 
 export default function NewReplenishmentPage() {
+  const { allowed, loading: permLoading } = useAuthGuard('order.manage');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
+
   return (
     <Suspense fallback={
       <Layout>

@@ -22,6 +22,8 @@ import { printOrder, type PrintType } from '@/components/ui/OrderPrintButtons';
 import { OrderStatusBadge, PaymentStatusBadge } from '@/components/ui/OrderStatusBadge';
 import { orderStatusLabel } from '@/lib/status-labels';
 import { preOpenPrintWindow } from '@/lib/print-pdf';
+import { useAuthGuard } from '@/lib/useAuthGuard';
+import { LoadingCard } from '@/components/ui/StateCard';
 
 interface WholesaleOrder {
   id: string;
@@ -202,6 +204,10 @@ export default function DeptWholesaleOrdersPage() {
 
     return items;
   };
+
+  const { allowed, loading: permLoading } = useAuthGuard('order.view');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
 
   return (
     <Layout>

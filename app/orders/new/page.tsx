@@ -11,6 +11,7 @@ import { apiFetch } from '@/lib/api-client';
 import { Copy, Repeat, Package, CornerDownRight } from 'lucide-react';
 import { formatPrice } from '@/lib/utils/format';
 import { thumbUrl } from '@/lib/image-thumb';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 
 interface InitialOrderData {
   customer_id: string;
@@ -55,6 +56,10 @@ interface ExchangeReturnItem {
 }
 
 export default function NewOrderPage() {
+  const { allowed, loading: permLoading } = useAuthGuard('order.manage');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
+
   return (
     <Suspense fallback={
       <Layout>

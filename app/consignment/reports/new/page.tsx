@@ -7,6 +7,7 @@ import PageHeader from '@/components/ui/PageHeader';
 import { ClipboardList } from 'lucide-react';
 import DealerOrderForm from '@/components/dealer/DealerOrderForm';
 import { LoadingCard } from '@/components/ui/StateCard';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 
 function NewReportPageContent() {
   const router = useRouter();
@@ -42,6 +43,10 @@ function NewReportPageContent() {
 }
 
 export default function NewConsignmentReportPage() {
+  const { allowed, loading: permLoading } = useAuthGuard('order.manage');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
+
   return (
     <Suspense fallback={
       <Layout>

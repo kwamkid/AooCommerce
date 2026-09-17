@@ -25,6 +25,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { useCustomerPrefill } from '@/lib/useCustomerPrefill';
 import Button from '@/components/ui/Button';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -878,6 +879,10 @@ function EditReportContent() {
 }
 
 export default function EditConsignmentReportPage() {
+  const { allowed, loading: permLoading } = useAuthGuard('order.view');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
+
   return (
     <Suspense fallback={
       <Layout>

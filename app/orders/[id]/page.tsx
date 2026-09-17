@@ -68,6 +68,7 @@ import { showPdfPreview } from '@/lib/print-pdf';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
 import { MARKETPLACE_PLATFORMS, type QuotaPlatform } from '@/lib/marketplace/platforms';
 import type { MarketplaceBuyer } from '@/lib/marketplace/buyer-adapter';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 import { PLATFORM_ICONS, getTrackingUrl, getCarrierLabel } from '../components/types';
 import { useCarriers } from '@/lib/carrier-lookup';
 import FormSelect from '@/components/ui/FormSelect';
@@ -897,6 +898,10 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
     // Reload header to reflect changes
     fetchOrderHeader();
   };
+
+  const { allowed, loading: permLoading } = useAuthGuard('order.view');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
 
   if (authLoading || loading) {
     return (

@@ -19,6 +19,7 @@ import Link from 'next/link';
 import { LoadingCard } from '@/components/ui/StateCard';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { splitVatInclusive } from '@/lib/order-totals';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 
 export default function DepartmentOrderDetailPage() {
   const params = useParams();
@@ -297,6 +298,10 @@ export default function DepartmentOrderDetailPage() {
       setPrinting(false);
     }
   };
+
+  const { allowed, loading: permLoading } = useAuthGuard('order.view');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
 
   if (isLoading) {
     return <Layout><LoadingCard /></Layout>;
