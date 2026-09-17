@@ -18,6 +18,7 @@ import {
 import { THAI_BANKS, getBankByCode } from '@/lib/constants/banks';
 import Checkbox from '@/components/ui/Checkbox';
 import FormSelect from '@/components/ui/FormSelect';
+import FormField from '@/components/ui/FormField';
 import FormInput from '@/components/ui/FormInput';
 import NumberInput from '@/components/ui/NumberInput';
 import { useFormValidation } from '@/lib/useFormValidation';
@@ -41,8 +42,10 @@ export interface SupplierFormData {
   supplier_type: 'cash' | 'credit' | 'consignment';
   payment_terms: number;
   /** ส่วนแบ่ง % ที่ "เราได้" จากของฝากขายของเจ้านี้ — ที่เหลือจ่ายคืน supplier
-   *  ⚠️ คนละตัวกับ GP ฝากขายฝั่งลูกค้า (ห้าง/ตัวแทนหักจากเรา) ที่อยู่บนแบรนด์ */
+   *  ⚠️ คนละตัวกับ GP ฝากขายฝั่งลูกค้า (ห้าง/ตัวแทนหักจากเรา) */
   consignment_gp_rate: string;
+  /** ฐานที่ใช้คิดเงินจ่าย supplier: retail = ราคาตั้งขาย (ส่วนใหญ่) · discounted = ราคาที่ขายได้จริง */
+  consignment_gp_base: 'retail' | 'discounted';
   bank_code: string;
   bank_name: string;
   bank_account: string;
@@ -54,7 +57,7 @@ export interface SupplierFormData {
 export const emptySupplierForm: SupplierFormData = {
   name: '', contact_name: '', phone: '', email: '', address: '', tax_id: '',
   branch: '', is_vat_registered: false,
-  supplier_type: 'cash', payment_terms: 0, consignment_gp_rate: '',
+  supplier_type: 'cash', payment_terms: 0, consignment_gp_rate: '', consignment_gp_base: 'retail',
   bank_code: '', bank_name: '', bank_account: '', bank_account_name: '', notes: '',
   brand_ids: [],
 };
@@ -280,16 +283,29 @@ export default function SupplierForm({
         )}
 
         {form.supplier_type === 'consignment' && (
-          <FormInput
-            label="ส่วนแบ่งที่เราได้"
-            type="number"
-            min={0}
-            max={100}
-            postfix="%"
-            value={form.consignment_gp_rate}
-            onChange={e => updateField('consignment_gp_rate', e.target.value)}
-            hint="ขายได้ 100 บาท ใส่ 30 = เราเก็บ 30 จ่ายคืน supplier 70"
-          />
+          <div className="form-grid-2">
+            <FormInput
+              label="ส่วนแบ่งที่เราได้"
+              type="number"
+              min={0}
+              max={100}
+              postfix="%"
+              value={form.consignment_gp_rate}
+              onChange={e => updateField('consignment_gp_rate', e.target.value)}
+              hint="ขายได้ 100 ใส่ 30 = เราเก็บ 30 จ่ายคืน 70"
+            />
+            <FormField label="คิดส่วนแบ่งจากราคา">
+              <FormSelect
+                value={form.consignment_gp_base}
+                onChange={value => updateField('consignment_gp_base', value as 'retail' | 'discounted')}
+                options={[
+                  { id: 'retail', label: 'ราคาตั้งขาย' },
+                  { id: 'discounted', label: 'ราคาที่ขายได้จริง' },
+                ]}
+                searchThreshold={99}
+              />
+            </FormField>
+          </div>
         )}
 
         {/* Contact */}
@@ -419,9 +435,9 @@ export default function SupplierForm({
               </div>
             )}
 
-            {/* ส่วนแบ่งของฝากขาย — ขายได้เท่าไหร่ เราเก็บ X% ที่เหลือจ่ายคืน supplier */}
+            {/* ส่วนแบ่งของฝากขาย + ฐานที่ใช้คิด — คู่กัน ต้องอ่านพร้อมกันถึงจะเข้าใจ */}
             {form.supplier_type === 'consignment' && (
-              <div className="sm:w-72">
+              <div className="form-grid-2">
                 <FormInput
                   label="ส่วนแบ่งที่เราได้"
                   type="number"
@@ -432,6 +448,22 @@ export default function SupplierForm({
                   onChange={e => updateField('consignment_gp_rate', e.target.value)}
                   hint="ขายได้ 100 บาท ใส่ 30 = เราเก็บ 30 จ่ายคืน supplier 70"
                 />
+                <FormField
+                  label="คิดส่วนแบ่งจากราคา"
+                  hint={form.consignment_gp_base === 'retail'
+                    ? 'ตั้งขาย 1,000 ลดให้ลูกค้าเหลือ 800 → ยังจ่าย supplier ตาม 1,000'
+                    : 'ตั้งขาย 1,000 ลดให้ลูกค้าเหลือ 800 → จ่าย supplier ตาม 800'}
+                >
+                  <FormSelect
+                    value={form.consignment_gp_base}
+                    onChange={value => updateField('consignment_gp_base', value as 'retail' | 'discounted')}
+                    options={[
+                      { id: 'retail', label: 'ราคาตั้งขาย' },
+                      { id: 'discounted', label: 'ราคาที่ขายได้จริง' },
+                    ]}
+                    searchThreshold={99}
+                  />
+                </FormField>
               </div>
             )}
           </div>

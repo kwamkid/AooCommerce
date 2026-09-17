@@ -11,6 +11,7 @@ import {
 import { createCreditNote } from '@/lib/credit-notes/auto-cn';
 import { getPromotionComponents } from '@/lib/promotion-service';
 import { fetchCostMap } from '@/lib/cost-utils';
+import { soldUnitPriceMap } from '@/lib/consignment-cost';
 import { resolveDeliverySnapshot } from '@/lib/delivery-server';
 import { computeOrderTotals, splitVatInclusive } from '@/lib/order-totals';
 import { checkCoupon, normalizeCouponCode, type Coupon } from '@/lib/coupons';
@@ -612,9 +613,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch WAC cost map for cost snapshot
+    // ราคาขายจริงต่อหน่วย (หลังหักส่วนลดของบรรทัด) — supplier ฝากขายบางเจ้าคิดเงินจากราคานี้
+    // ไม่ใช่ราคาตั้งขาย (ดู lib/consignment-cost.ts) · ของเราเองไม่ใช้ค่านี้ ยังเป็น WAC ตามเดิม
     const costMap = await fetchCostMap(
       supabaseAdmin,
       itemsWithTotals.map((i: OrderItemInput) => i.variation_id).filter(Boolean),
+      { salePrices: soldUnitPriceMap(itemsWithTotals) },
     );
 
     // Create order items and shipments

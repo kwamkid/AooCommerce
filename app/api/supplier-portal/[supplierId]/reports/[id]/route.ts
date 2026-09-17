@@ -56,7 +56,7 @@ export async function GET(
     if (snapshot.supplier_type === 'consignment') {
       const { data } = await supabaseAdmin
         .from('supplier_snapshot_sales')
-        .select('id, variation_id, source, quantity_sold, revenue')
+        .select('id, variation_id, source, quantity_sold, revenue, payable_amount')
         .eq('snapshot_id', id);
       salesItems = data || [];
       (data || []).forEach((s: { variation_id: string }) => {

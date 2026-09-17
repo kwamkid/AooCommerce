@@ -15,6 +15,8 @@ import { getStorefrontCompany } from '@/lib/storefront-server';
 import { after } from 'next/server';
 import { reserveOrderStockOnce } from '@/lib/stock/order-stock';
 import { getStockConfig, checkStockAvailability } from '@/lib/stock-utils';
+import { fetchCostMap } from '@/lib/cost-utils';
+import { soldUnitPriceMap } from '@/lib/consignment-cost';
 import { resolveStorefrontWarehouse } from '@/lib/stock/order-warehouse';
 import { effectivePrice } from '@/lib/storefront';
 import { computeOrderTotals, splitVatInclusive } from '@/lib/order-totals';
@@ -445,6 +447,15 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // ต้นทุนของบรรทัด — เดิมหน้าร้านออนไลน์ไม่ snapshot เลย บิลจากหน้าร้านจึงไม่มีต้นทุน
+  // ทั้งชีวิต (รายงานกำไรนับเป็นกำไรเต็มราคาขาย) · ของฝากขายยิ่งสำคัญ เพราะค่านี้คือเงิน
+  // ที่ต้องจ่ายคืน supplier (ดู lib/consignment-cost.ts)
+  const checkoutCostMap = await fetchCostMap(
+    supabaseAdmin,
+    lines.map(l => l.variation_id).filter(Boolean) as string[],
+    { salePrices: soldUnitPriceMap(lines.map(l => ({ variation_id: l.variation_id, quantity: l.quantity, total: l.total, unit_price: l.unit_price }))) },
+  );
+
   const { error: itemsError } = await supabaseAdmin.from('order_items').insert(
     lines.map(l => ({
       company_id: company.id,
@@ -456,6 +467,7 @@ export async function POST(request: NextRequest) {
       variation_label: l.variation_label,
       quantity: l.quantity,
       unit_price: l.unit_price,
+      unit_cost: l.variation_id ? (checkoutCostMap[l.variation_id] ?? null) : null,
       discount_percent: 0,
       discount_amount: 0,
       discount_type: 'percent',

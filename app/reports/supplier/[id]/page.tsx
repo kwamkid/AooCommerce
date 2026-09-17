@@ -40,6 +40,8 @@ interface SalesItem {
   pos_terminal_id: string | null;
   quantity_sold: number;
   revenue: number;
+  /** เงินที่ต้องจ่าย supplier ของบรรทัดนี้ · null = ยังไม่ได้ตกลงส่วนแบ่งตอนที่ขาย */
+  payable_amount: number | null;
   variation: VariationInfo | null;
   pos_terminal_name: string | null;
 }
@@ -67,6 +69,7 @@ interface SnapshotData {
   total_stock_remaining: number;
   total_sold_quantity: number;
   total_sold_amount: number;
+  total_payable_amount: number | null;
   total_received_quantity: number;
   total_received_amount: number;
   notes: string | null;
@@ -322,9 +325,27 @@ export default function SnapshotDetailPage() {
                 <p className="text-lg font-bold text-gray-900 dark:text-white">{data.total_sold_quantity.toLocaleString()}</p>
                 <p className="text-xs text-gray-500">ชิ้น</p>
               </div>
-              <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4 col-span-2 sm:col-span-2">
+              <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
                 <p className="text-xs text-gray-500 dark:text-slate-400 mb-1">ยอดขายรวม</p>
                 <p className="text-lg font-bold text-green-600 dark:text-green-400">฿{formatCurrency(data.total_sold_amount)}</p>
+              </div>
+              {/* เงินที่ต้องจ่ายคืน supplier = ผลรวมต้นทุนที่ snapshot ไว้ตอนขาย
+                  (ฐาน × (1 − ส่วนแบ่งที่เราได้)) · null = ตอนขายยังไม่ได้ตกลงส่วนแบ่ง */}
+              <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
+                <p className="text-xs text-gray-500 dark:text-slate-400 mb-1">ต้องจ่าย supplier</p>
+                {data.total_payable_amount == null ? (
+                  <>
+                    <p className="text-lg font-bold text-amber-600 dark:text-amber-400">คิดไม่ได้</p>
+                    <p className="text-xs text-gray-500">ยังไม่ได้ตั้งส่วนแบ่งที่เราได้</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-lg font-bold text-red-600 dark:text-red-400">฿{formatCurrency(data.total_payable_amount)}</p>
+                    <p className="text-xs text-gray-500">
+                      เราเหลือ ฿{formatCurrency(Math.max(0, data.total_sold_amount - data.total_payable_amount))}
+                    </p>
+                  </>
+                )}
               </div>
             </>
           )}
@@ -409,6 +430,7 @@ export default function SnapshotDetailPage() {
                     {groupSales && <th className="text-left px-4 py-2 text-xs font-medium text-gray-500 uppercase">ช่องทาง</th>}
                     <th className="text-right px-4 py-2 text-xs font-medium text-gray-500 uppercase w-24">จำนวน</th>
                     <th className="text-right px-4 py-2 text-xs font-medium text-gray-500 uppercase w-32">ยอดขาย</th>
+                    <th className="text-right px-4 py-2 text-xs font-medium text-gray-500 uppercase w-32">ต้องจ่าย</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
@@ -426,6 +448,9 @@ export default function SnapshotDetailPage() {
                       )}
                       <td className="px-4 py-2 text-right font-medium text-gray-900 dark:text-white">{item.quantity_sold.toLocaleString()}</td>
                       <td className="px-4 py-2 text-right font-medium text-green-600 dark:text-green-400">฿{formatCurrency(item.revenue)}</td>
+                      <td className="px-4 py-2 text-right font-medium text-red-600 dark:text-red-400">
+                        {item.payable_amount == null ? '-' : `฿${formatCurrency(item.payable_amount)}`}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -434,6 +459,9 @@ export default function SnapshotDetailPage() {
                     <td className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300" colSpan={groupSales ? 2 : 1}>รวม</td>
                     <td className="px-4 py-2 text-right text-sm font-bold text-gray-900 dark:text-white">{data.total_sold_quantity.toLocaleString()}</td>
                     <td className="px-4 py-2 text-right text-sm font-bold text-green-600 dark:text-green-400">฿{formatCurrency(data.total_sold_amount)}</td>
+                    <td className="px-4 py-2 text-right text-sm font-bold text-red-600 dark:text-red-400">
+                      {data.total_payable_amount == null ? '-' : `฿${formatCurrency(data.total_payable_amount)}`}
+                    </td>
                   </tr>
                 </tfoot>
               </table>

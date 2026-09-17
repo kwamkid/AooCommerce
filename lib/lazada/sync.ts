@@ -26,6 +26,7 @@ import {
 } from '@/lib/lazada/api';
 import { parallelLimit } from '@/lib/parallel';
 import { fetchCostMap } from '@/lib/cost-utils';
+import { soldUnitPriceMap } from '@/lib/consignment-cost';
 import { holdsStockInWarehouse, skipStockReason } from '@/lib/marketplace/order-stock';
 import {
   reserveOrderStockOnce,
@@ -621,6 +622,7 @@ async function createNewOrder(
   const costMap = await fetchCostMap(
     supabaseAdmin,
     resolvedItems.map(i => i.variation_id).filter((v): v is string => !!v),
+    { salePrices: soldUnitPriceMap(resolvedItems.map(i => ({ variation_id: i.variation_id, quantity: i.qty, total: i.total, unit_price: i.price }))) },
   );
 
   const orderItemsToInsert = resolvedItems.map(item => ({

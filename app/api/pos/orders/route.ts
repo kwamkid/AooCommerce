@@ -3,6 +3,7 @@ import { NextRequest, NextResponse, after } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
 import { fetchCostMap } from '@/lib/cost-utils';
+import { soldUnitPriceMap } from '@/lib/consignment-cost';
 import { computeOrderTotals } from '@/lib/order-totals';
 import { checkCoupon, normalizeCouponCode, type Coupon } from '@/lib/coupons';
 import { getCompositeAvailability } from '@/lib/composite';
@@ -485,9 +486,12 @@ export async function POST(request: NextRequest) {
     after(() => import('@/lib/ads/dispatch').then(m => m.dispatchConversion({ event: 'Purchase', orderId: order.id })).catch(() => null));
 
     // Fetch WAC cost map for cost snapshot
+    // ราคาขายจริงต่อหน่วย (หลังหักส่วนลดของบรรทัด) — supplier ฝากขายบางเจ้าคิดเงินจากราคานี้
+    // ไม่ใช่ราคาตั้งขาย (ดู lib/consignment-cost.ts) · ของเราเองไม่ใช้ค่านี้ ยังเป็น WAC ตามเดิม
     const posCostMap = await fetchCostMap(
       supabaseAdmin,
       itemsWithTotals.map((i: PosItemInput) => i.variation_id).filter(Boolean),
+      { salePrices: soldUnitPriceMap(itemsWithTotals) },
     );
 
     // Create order items (no shipments for POS)

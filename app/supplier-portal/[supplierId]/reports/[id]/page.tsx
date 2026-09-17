@@ -45,6 +45,8 @@ interface SnapshotData {
   total_stock_remaining: number;
   total_sold_quantity: number;
   total_sold_amount: number;
+  /** เงินที่ร้านต้องจ่ายให้ supplier รอบนี้ · null = ยังไม่ได้ตกลงส่วนแบ่ง */
+  total_payable_amount: number | null;
   total_received_quantity: number;
   total_received_amount: number;
   stock_items: StockItem[];
@@ -158,6 +160,13 @@ export default function PortalReportDetailPage() {
           <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
             <p className="text-xs text-gray-500 mb-1">ยอดขาย</p>
             <p className="text-lg font-bold text-green-600 dark:text-green-400">฿{formatCurrency(data.total_sold_amount)}</p>
+          </div>
+        )}
+        {/* supplier เปิดดูเองได้ว่ารอบนี้จะได้รับเท่าไหร่ — ตัวเลขชุดเดียวกับที่ร้านเห็น */}
+        {isConsignment && data.total_payable_amount != null && (
+          <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
+            <p className="text-xs text-gray-500 mb-1">ยอดที่จะได้รับ</p>
+            <p className="text-lg font-bold text-primary">฿{formatCurrency(data.total_payable_amount)}</p>
           </div>
         )}
         {isCredit && (

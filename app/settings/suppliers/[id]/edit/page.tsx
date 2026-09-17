@@ -176,6 +176,7 @@ export default function EditSupplierPage() {
             supplier_type: ((s.supplier_type as string) || 'cash') as 'cash' | 'credit' | 'consignment',
             payment_terms: (s.payment_terms as number) || 0,
             consignment_gp_rate: s.consignment_gp_rate == null ? '' : String(s.consignment_gp_rate),
+            consignment_gp_base: (s.consignment_gp_base as 'retail' | 'discounted') || 'retail',
             bank_code: (s.bank_code as string) || '',
             bank_name: (s.bank_name as string) || '',
             bank_account: (s.bank_account as string) || '',

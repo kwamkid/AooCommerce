@@ -3,6 +3,7 @@ import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { reserveStock } from '@/lib/stock-service';
 import { pushStockAfter } from '@/lib/marketplace/push-after';
 import { fetchCostMap } from '@/lib/cost-utils';
+import { soldUnitPriceMap } from '@/lib/consignment-cost';
 import { guardFeature } from '@/lib/package-gates-server';
 
 // GET /api/department-orders
@@ -190,9 +191,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch WAC cost map for cost snapshot
+    // ราคาขายจริงต่อหน่วย (หลังหักส่วนลดของบรรทัด) — supplier ฝากขายบางเจ้าคิดเงินจากราคานี้
+    // ไม่ใช่ราคาตั้งขาย (ดู lib/consignment-cost.ts) · ของเราเองไม่ใช้ค่านี้ ยังเป็น WAC ตามเดิม
     const deptCostMap = await fetchCostMap(
       supabaseAdmin,
       items.map((i: { variation_id?: string }) => i.variation_id).filter(Boolean) as string[],
+      { salePrices: soldUnitPriceMap(items) },
     );
 
     // Insert items

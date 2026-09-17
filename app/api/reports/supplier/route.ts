@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
       .select(`
         id, supplier_id, supplier_type, period_year, period_month,
         snapshot_date, status,
-        total_stock_remaining, total_sold_quantity, total_sold_amount,
+        total_stock_remaining, total_sold_quantity, total_sold_amount, total_payable_amount,
         total_received_quantity, total_received_amount,
         notes, created_by, created_at
       `)
@@ -180,6 +180,8 @@ export async function POST(request: NextRequest) {
     let totalStockRemaining = 0;
     let totalSoldQuantity = 0;
     let totalSoldAmount = 0;
+    /** null = มีบรรทัดที่ยังไม่ได้ตกลงส่วนแบ่ง ⇒ ยอดที่ต้องจ่ายสรุปไม่ได้ (ห้ามแสดงเป็น 0) */
+    let totalPayableAmount: number | null = 0;
     let totalReceivedQuantity = 0;
     let totalReceivedAmount = 0;
 
@@ -215,7 +217,7 @@ export async function POST(request: NextRequest) {
         const { data: orderItems } = await supabaseAdmin
           .from('order_items')
           .select(`
-            variation_id, quantity, subtotal,
+            variation_id, quantity, subtotal, unit_cost,
             order:orders!inner(id, source, pos_terminal_id, order_date, order_status)
           `)
           .in('variation_id', variationIds)
@@ -226,15 +228,23 @@ export async function POST(request: NextRequest) {
 
         if (orderItems && orderItems.length > 0) {
           // Group by variation_id + source + pos_terminal_id
-          const salesMap = new Map<string, { variation_id: string; source: string; pos_terminal_id: string | null; quantity_sold: number; revenue: number }>();
+          // `payable` = เงินที่ต้องจ่าย supplier ของบรรทัดนั้น — มาจาก order_items.unit_cost
+          // ที่ถูก snapshot ไว้ตอนขายด้วยสูตร ฐาน × (1 − ส่วนแบ่งที่เราได้) (lib/consignment-cost.ts)
+          // ⛔ ห้ามคิดใหม่จากราคาปัจจุบัน — ส่วนแบ่ง/ราคาตั้งเปลี่ยนทีหลังแล้วรอบเก่าจะเพี้ยน
+          // null = ยังไม่ได้ตกลงส่วนแบ่งตอนที่ขาย (รายงานต้องบอกว่าคิดไม่ได้ ไม่ใช่แสดง 0)
+          const salesMap = new Map<string, { variation_id: string; source: string; pos_terminal_id: string | null; quantity_sold: number; revenue: number; payable: number | null }>();
 
           for (const oi of orderItems) {
             const order = oi.order as unknown as { source: string; pos_terminal_id: string | null };
             const key = `${oi.variation_id}_${order.source}_${order.pos_terminal_id || ''}`;
+            const linePayable = oi.unit_cost == null ? null : Number(oi.unit_cost) * Number(oi.quantity);
             const existing = salesMap.get(key);
             if (existing) {
               existing.quantity_sold += Number(oi.quantity);
               existing.revenue += Number(oi.subtotal || 0);
+              existing.payable = existing.payable == null || linePayable == null
+                ? null
+                : existing.payable + linePayable;
             } else {
               salesMap.set(key, {
                 variation_id: oi.variation_id,
@@ -242,6 +252,7 @@ export async function POST(request: NextRequest) {
                 pos_terminal_id: order.pos_terminal_id || null,
                 quantity_sold: Number(oi.quantity),
                 revenue: Number(oi.subtotal || 0),
+                payable: linePayable,
               });
             }
           }
@@ -253,11 +264,15 @@ export async function POST(request: NextRequest) {
             pos_terminal_id: s.pos_terminal_id,
             quantity_sold: s.quantity_sold,
             revenue: s.revenue,
+            payable_amount: s.payable == null ? null : Math.round(s.payable * 100) / 100,
           }));
 
           await supabaseAdmin.from('supplier_snapshot_sales').insert(salesRows);
           totalSoldQuantity = salesRows.reduce((s, r) => s + r.quantity_sold, 0);
           totalSoldAmount = salesRows.reduce((s, r) => s + r.revenue, 0);
+          totalPayableAmount = salesRows.some(r => r.payable_amount == null)
+            ? null
+            : salesRows.reduce((s, r) => s + (r.payable_amount || 0), 0);
         }
       }
 
@@ -306,6 +321,7 @@ export async function POST(request: NextRequest) {
         total_stock_remaining: totalStockRemaining,
         total_sold_quantity: totalSoldQuantity,
         total_sold_amount: totalSoldAmount,
+        total_payable_amount: totalPayableAmount == null ? null : Math.round(totalPayableAmount * 100) / 100,
         total_received_quantity: totalReceivedQuantity,
         total_received_amount: totalReceivedAmount,
       })

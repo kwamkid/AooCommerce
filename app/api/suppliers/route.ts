@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, contact_name, phone, email, address, tax_id, supplier_type, payment_terms, consignment_gp_rate, bank_code, bank_name, bank_account, bank_account_name, branch, is_vat_registered, notes } = body;
+    const { name, contact_name, phone, email, address, tax_id, supplier_type, payment_terms, consignment_gp_rate, consignment_gp_base, bank_code, bank_name, bank_account, bank_account_name, branch, is_vat_registered, notes } = body;
 
     if (!name?.trim()) {
       return NextResponse.json({ error: 'กรุณากรอกชื่อซัพพลายเออร์' }, { status: 400 });
@@ -64,6 +64,7 @@ export async function POST(request: NextRequest) {
         payment_terms: payment_terms || 0,
         // ส่วนแบ่งที่ "เราได้" จากของฝากขายของเจ้านี้ — ว่าง = ยังไม่ตกลง (รายงานจะยังคิดยอดที่ต้องจ่ายไม่ได้)
         consignment_gp_rate: consignment_gp_rate === '' || consignment_gp_rate == null ? null : Number(consignment_gp_rate),
+        consignment_gp_base: consignment_gp_base === 'discounted' ? 'discounted' : 'retail',
         bank_code: bank_code?.trim() || null,
         bank_name: bank_name?.trim() || null,
         bank_account: bank_account?.trim() || null,
@@ -120,6 +121,9 @@ export async function PUT(request: NextRequest) {
     }
     if (fields.name !== undefined) updateData.name = fields.name.trim(); // name can't be null
     if (fields.payment_terms !== undefined) updateData.payment_terms = fields.payment_terms;
+    if (fields.consignment_gp_base !== undefined) {
+      updateData.consignment_gp_base = fields.consignment_gp_base === 'discounted' ? 'discounted' : 'retail';
+    }
     if (fields.consignment_gp_rate !== undefined) {
       updateData.consignment_gp_rate = fields.consignment_gp_rate === '' || fields.consignment_gp_rate === null
         ? null

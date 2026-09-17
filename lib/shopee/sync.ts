@@ -8,6 +8,7 @@ import { logIntegration } from '@/lib/integration-logger';
 import { parallelLimit } from '@/lib/parallel';
 import { sendNewOrderPushById } from '@/lib/push/send';
 import { fetchCostMap } from '@/lib/cost-utils';
+import { soldUnitPriceMap } from '@/lib/consignment-cost';
 import { holdsStockInWarehouse, skipStockReason } from '@/lib/marketplace/order-stock';
 import {
   reserveOrderStockOnce,
@@ -1453,6 +1454,7 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
   const shopeeCostMap = await fetchCostMap(
     supabaseAdmin,
     resolvedItems.map(i => i.variation_id).filter((v): v is string => !!v),
+    { salePrices: soldUnitPriceMap(resolvedItems.map(i => ({ variation_id: i.variation_id, quantity: i.qty, total: i.total, unit_price: i.price }))) },
   );
 
   // Create order items in bulk (single insert)
