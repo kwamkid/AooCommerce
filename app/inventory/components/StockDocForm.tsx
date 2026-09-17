@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  AlertTriangle, ArrowRightLeft, CheckCircle2, ClipboardList,
+  AlertTriangle, ArrowRightLeft, CheckCircle2, ClipboardList, Factory,
   Package2, PackageMinus, Plus, Star, Warehouse,
 } from 'lucide-react';
 import Layout from '@/components/layout/Layout';
@@ -153,6 +153,23 @@ interface POOption {
   supplier_name: string;
 }
 
+/** ดีลของล็อตที่รับเข้า — ค่าตั้งต้นมาจาก supplier แต่แก้รายล็อตได้
+ *  (เจ้าเดียวกันส่งมาแบบซื้อขาดบ้าง ฝากขายบ้าง — กติกาเต็มใน .claude/rules/domains/inventory.md) */
+type DealType = 'cash' | 'credit' | 'consignment';
+
+interface SupplierOption {
+  id: string;
+  name: string;
+  supplier_type?: DealType | string | null;
+  payment_terms?: number | null;
+}
+
+const DEAL_OPTIONS: { id: DealType; label: string; hint: string }[] = [
+  { id: 'cash', label: 'ซื้อสด', hint: 'จ่ายทันที · ของเป็นของเราแล้ว' },
+  { id: 'credit', label: 'เครดิต', hint: 'ของเป็นของเราแล้ว แต่ยังค้างจ่าย' },
+  { id: 'consignment', label: 'ฝากขาย', hint: 'ของยังเป็นของ supplier · จ่ายเมื่อขายได้ · ไม่คิดเข้าต้นทุนเฉลี่ย' },
+];
+
 // ── ค้นสินค้าฝั่ง server ───────────────────────────────────────────────────
 
 interface SearchRow {
@@ -248,6 +265,11 @@ export default function StockDocForm({ mode }: { mode: StockDocMode }) {
   const [selectedPOId, setSelectedPOId] = useState('');
   const [selectedPO, setSelectedPO] = useState<POOption | null>(null);
 
+  const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
+  const [supplierId, setSupplierId] = useState('');
+  const [dealType, setDealType] = useState<DealType>('cash');
+  const [creditDueDate, setCreditDueDate] = useState('');
+
   const [lines, setLines] = useState<DocLine[]>([]);
   const [notes, setNotes] = useState('');
 
@@ -311,6 +333,31 @@ export default function StockDocForm({ mode }: { mode: StockDocMode }) {
       /* ปล่อยว่าง — ช่องค้น PO จะขึ้น "ไม่มี PO ที่รอรับของ" */
     } finally {
       setPosLoading(false);
+    }
+  }, []);
+
+  const suppliersFetchedRef = useRef(false);
+  useEffect(() => {
+    if (mode !== 'receive' || !allowed || !features.supplier || suppliersFetchedRef.current) return;
+    suppliersFetchedRef.current = true;
+    apiFetch('/api/suppliers')
+      .then(async res => { if (res.ok) setSuppliers(((await res.json()).data || []) as SupplierOption[]); })
+      .catch(() => { /* ไม่มีรายชื่อก็ยังรับเข้าได้ แค่ระบุดีลเองไม่มีค่าตั้งต้น */ });
+  }, [mode, allowed, features.supplier]);
+
+  /** เลือก supplier แล้วเติมดีลตั้งต้น + วันครบกำหนดจากเครดิตของเจ้านั้น */
+  const applySupplierDefaults = useCallback((id: string, list: SupplierOption[]) => {
+    const found = list.find(item => item.id === id);
+    const type = found?.supplier_type;
+    const nextDeal: DealType = type === 'credit' || type === 'consignment' ? type : 'cash';
+    setDealType(nextDeal);
+    if (nextDeal === 'credit') {
+      const days = Number(found?.payment_terms) || 0;
+      const due = new Date();
+      due.setDate(due.getDate() + days);
+      setCreditDueDate(due.toISOString().slice(0, 10));
+    } else {
+      setCreditDueDate('');
     }
   }, []);
 
@@ -430,6 +477,10 @@ export default function StockDocForm({ mode }: { mode: StockDocMode }) {
         supplier_id: po.supplier?.id || '',
         supplier_name: po.supplier?.name || '',
       });
+      if (po.supplier?.id) {
+        setSupplierId(po.supplier.id);
+        applySupplierDefaults(po.supplier.id, suppliers);
+      }
       if (po.warehouse_id) setSourceWarehouseId(po.warehouse_id);
       const newLines: DocLine[] = [];
       for (const item of ((po.items || []) as POItemRow[])) {
@@ -454,7 +505,7 @@ export default function StockDocForm({ mode }: { mode: StockDocMode }) {
     } catch {
       showToast('โหลดข้อมูล PO ไม่สำเร็จ', 'error');
     }
-  }, [showToast]);
+  }, [showToast, applySupplierDefaults, suppliers]);
 
   const handleReceiveModeChange = useCallback((next: 'manual' | 'po') => {
     setReceiveMode(prev => {
@@ -550,6 +601,12 @@ export default function StockDocForm({ mode }: { mode: StockDocMode }) {
         if (selectedPO) {
           payload.po_id = selectedPO.id;
           payload.supplier_id = selectedPO.supplier_id;
+        } else if (supplierId) {
+          payload.supplier_id = supplierId;
+        }
+        if (features.supplier && (selectedPO || supplierId)) {
+          payload.deal_type = dealType;
+          if (dealType === 'credit' && creditDueDate) payload.credit_due_date = creditDueDate;
         }
       } else if (mode === 'issue') {
         payload = {
@@ -691,6 +748,86 @@ export default function StockDocForm({ mode }: { mode: StockDocMode }) {
                 คลัง: <strong>{warehouses.find(wh => wh.id === sourceWarehouseId)?.name || '-'}</strong>
               </p>
             )}
+          </Card>
+        )}
+
+        {/* Supplier + ดีลของล็อตนี้ (โหมดรับเข้าใหม่) — จาก PO จะเติมให้เองจากใบสั่งซื้อ */}
+        {mode === 'receive' && features.supplier && receiveMode === 'manual' && (
+          <Card padding="md">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+              <div className="flex-1">
+                <label className="field-label">Supplier</label>
+                <EntitySearchInput
+                  value={supplierId}
+                  onChange={id => { setSupplierId(id); applySupplierDefaults(id, suppliers); }}
+                  onClear={() => { setSupplierId(''); setDealType('cash'); setCreditDueDate(''); }}
+                  options={suppliers.map(item => ({ id: item.id, label: item.name, subtitle: DEAL_OPTIONS.find(d => d.id === item.supplier_type)?.label }))}
+                  placeholder="ค้นหา Supplier..."
+                  icon={<Factory className="w-4 h-4" />}
+                  emptyMessage="ไม่พบ Supplier"
+                />
+              </div>
+              {supplierId && (
+                <div className="flex-1">
+                  <label className="field-label">ดีลของล็อตนี้</label>
+                  <FormSelect
+                    value={dealType}
+                    onChange={value => {
+                      const next = value as DealType;
+                      setDealType(next);
+                      if (next !== 'credit') setCreditDueDate('');
+                    }}
+                    options={DEAL_OPTIONS.map(d => ({ id: d.id, label: d.label }))}
+                    searchThreshold={99}
+                  />
+                  <p className="helper-text mt-1">{DEAL_OPTIONS.find(d => d.id === dealType)?.hint}</p>
+                </div>
+              )}
+              {supplierId && dealType === 'credit' && (
+                <div className="sm:w-48">
+                  <label className="field-label">ครบกำหนดจ่าย</label>
+                  <input
+                    type="date"
+                    value={creditDueDate}
+                    onChange={e => setCreditDueDate(e.target.value)}
+                    className="form-control-md w-full rounded-lg border border-gray-300 bg-white px-3 text-gray-900 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+                  />
+                </div>
+              )}
+            </div>
+          </Card>
+        )}
+
+        {/* ดีลของล็อตที่มาจาก PO — แก้ได้ เพราะเจ้าเดียวกันส่งมาคนละแบบได้ */}
+        {mode === 'receive' && features.supplier && receiveMode === 'po' && selectedPO && (
+          <Card padding="md">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+              <div className="flex-1">
+                <label className="field-label">ดีลของล็อตนี้</label>
+                <FormSelect
+                  value={dealType}
+                  onChange={value => {
+                    const next = value as DealType;
+                    setDealType(next);
+                    if (next !== 'credit') setCreditDueDate('');
+                  }}
+                  options={DEAL_OPTIONS.map(d => ({ id: d.id, label: d.label }))}
+                  searchThreshold={99}
+                />
+                <p className="helper-text mt-1">{DEAL_OPTIONS.find(d => d.id === dealType)?.hint}</p>
+              </div>
+              {dealType === 'credit' && (
+                <div className="sm:w-48">
+                  <label className="field-label">ครบกำหนดจ่าย</label>
+                  <input
+                    type="date"
+                    value={creditDueDate}
+                    onChange={e => setCreditDueDate(e.target.value)}
+                    className="form-control-md w-full rounded-lg border border-gray-300 bg-white px-3 text-gray-900 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+                  />
+                </div>
+              )}
+            </div>
           </Card>
         )}
 

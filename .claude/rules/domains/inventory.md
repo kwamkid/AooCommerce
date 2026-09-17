@@ -51,6 +51,13 @@ PostgreSQL: plpgsql จำแผนไว้ พอเรียกครบ 5 �
 - หน้าใช้ hook กลาง `useDocListParams(basePath, {defaultStatus, extraKeys})` (URL: `q wh status by from to page limit`) + `DocListFilters` (ค้นหา · ช่วงวัน · คลัง · ผู้ทำ · slot `extra`) · ค่าเริ่มต้นช่วงวัน = 30 วันล่าสุด (ไม่เขียนลง URL) · `setParams` ลบ `status` เมื่อเท่ากับ default ของหน้า (โอนย้าย default `pending`)
 - route PO ยังคืนคีย์เดิม `purchase_orders` และไม่ส่ง page/limit = limit 200 (ฟอร์มรับเข้าใช้เติมตัวเลือก PO) — อย่าตัด
 
+## ดีลของล็อตที่รับเข้า — ซื้อสด / เครดิต / ฝากขาย (2026-09-17)
+
+- **ดีลอยู่ที่ "ล็อตที่รับเข้า" ไม่ใช่ที่ตัว supplier** — `inventory_receives.deal_type` (`cash|credit|consignment`) + `credit_due_date` · supplier เจ้าเดียวกันส่งมาคนละแบบได้ · `suppliers.supplier_type` เหลือเป็น**ค่าตั้งต้น**ที่ฟอร์มเติมให้ (เลือก supplier → เติมดีล + คำนวณวันครบกำหนดจาก `payment_terms`) · `deal_type` เป็น null = ใบก่อน 17 ก.ย. 2569
+- ⛔ **ของฝากขายห้ามเข้า WAC** — `/api/inventory/receives` ข้าม `updateWeightedAverageCost()` เมื่อ `deal_type='consignment'` · ของยังเป็นของ supplier และต้นทุนจริงรู้ตอน**ขาย** (= ราคาขาย × (1 − ส่วนแบ่งที่เราได้)) ไม่ใช่ตอนรับเข้า · ปนเข้า WAC แล้วต้นทุนของล็อตซื้อขาดเพี้ยนตามไปด้วย
+- **GP มีสองตัว คนละทิศ ห้ามเรียกชื่อเดียวกัน**: `suppliers.consignment_gp_rate` = ส่วนแบ่งที่ **เราได้จาก supplier** (ขาย 100 GP 30 ⇒ จ่ายเขา 70) · `product_brands.default_gp_rate` + `customers.consignment_gp_rate` = GP ที่ **ห้าง/ตัวแทนหักจากเรา** (ฝั่งลูกค้า · `lib/gp-resolver.ts`)
+- แผนเต็ม + เฟสที่เหลือ (ต้นทุน/กำไรฝากขาย · ใบคืนผู้ขาย · แยกมูลค่าสต็อก · affiliate) อยู่ที่ `memo/plan-supplier-deals-2026-09-17.md`
+
 ## ฟอร์มรับเข้า / เบิกออก / โอนย้าย — `StockDocForm mode` ตัวเดียว (Phase 4 · 2026-09-13)
 
 - `app/inventory/components/StockDocForm.tsx` · หน้า `receive|issue|transfer/page.tsx` เป็น wrapper 8 บรรทัด · เลือกสินค้าด้วย `useServerSearch` + `/api/products/search?exclude_composite=1` (route กรอง `products.is_composite` ให้) · ยอดเฉพาะบรรทัดที่เลือกผ่าน **`GET /api/inventory/stock?variation_ids=&warehouse_id=`** (RPC `get_variation_stock` · `cost` map เฉพาะ `canViewCost` ใช้เติมต้นทุนรับเข้า)

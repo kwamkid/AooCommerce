@@ -12,6 +12,7 @@ import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { generateInventoryPdf } from '@/lib/inventory-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
+import Badge from '@/components/ui/Badge';
 import DataTable from '@/components/ui/DataTable';
 import StatusTabs from '@/components/ui/StatusTabs';
 import ActionMenu from '@/components/ui/ActionMenu';
@@ -32,7 +33,16 @@ interface Receive {
   warehouse: { id: string; name: string; code: string | null } | null;
   created_by_user: { id: string; name: string } | null;
   items: { id: string }[];
+  supplier?: { id: string; name: string } | null;
+  /** ดีลของล็อต — null = ใบก่อนมีระบบดีล (17 ก.ย. 2569) */
+  deal_type?: 'cash' | 'credit' | 'consignment' | null;
 }
+
+const DEAL_LABEL: Record<string, { label: string; tone: 'gray' | 'amber' | 'purple' }> = {
+  cash: { label: 'ซื้อสด', tone: 'gray' },
+  credit: { label: 'เครดิต', tone: 'amber' },
+  consignment: { label: 'ฝากขาย', tone: 'purple' },
+};
 
 const BREADCRUMBS = [{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการรับเข้า' }];
 
@@ -209,7 +219,7 @@ function ReceiveListContent() {
             </div>
           )}
           <DataTable<Receive>
-            storageKey="receives-visible-columns"
+            storageKey="receives-visible-columns-v2"
             columns={[
               {
                 key: 'receiveInfo', label: 'เลขที่', alwaysVisible: true,
@@ -226,6 +236,17 @@ function ReceiveListContent() {
                   <div className="flex items-center gap-1.5">
                     <Warehouse className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                     <span className="data-text text-gray-700 dark:text-slate-300">{r.warehouse?.name || '-'}</span>
+                  </div>
+                ),
+              },
+              {
+                key: 'supplierDeal', label: 'Supplier / ดีล',
+                render: (r) => (
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="data-text truncate text-gray-700 dark:text-slate-300">{r.supplier?.name || '-'}</span>
+                    {r.deal_type && DEAL_LABEL[r.deal_type] && (
+                      <Badge tone={DEAL_LABEL[r.deal_type].tone} size="sm">{DEAL_LABEL[r.deal_type].label}</Badge>
+                    )}
                   </div>
                 ),
               },

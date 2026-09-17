@@ -121,8 +121,9 @@ export async function GET(request: NextRequest) {
     let listQuery = supabaseAdmin
       .from('inventory_receives')
       .select(`
-        id, receive_number, status, notes, created_at, created_by,
+        id, receive_number, status, notes, created_at, created_by, deal_type,
         warehouse:warehouses!inventory_receives_warehouse_id_fkey(id, name, code),
+        supplier:suppliers(id, name),
         items:inventory_receive_items(id)
       `, { count: 'exact' })
       .eq('company_id', auth.companyId);
@@ -232,7 +233,23 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { warehouse_id, items, notes, po_id, supplier_id } = body;
+    const { warehouse_id, items, notes, po_id, supplier_id, deal_type, credit_due_date } = body;
+
+    // ดีลของล็อตนี้ — ซื้อสด / เครดิต / ฝากขาย (กติกาเต็มใน .claude/rules/domains/inventory.md)
+    // ไม่ส่งมา = ใช้ดีลตั้งต้นของ supplier รายนั้น · ไม่มี supplier เลยก็ปล่อยว่าง (ใบเก่าก่อน 17 ก.ย. 2569 เป็น null)
+    const DEAL_TYPES = ['cash', 'credit', 'consignment'] as const;
+    type DealType = (typeof DEAL_TYPES)[number];
+    let dealType: DealType | null = DEAL_TYPES.includes(deal_type) ? (deal_type as DealType) : null;
+    if (!dealType && supplier_id) {
+      const { data: supplierRow } = await supabaseAdmin
+        .from('suppliers')
+        .select('supplier_type')
+        .eq('id', supplier_id)
+        .eq('company_id', auth.companyId)
+        .single();
+      const fallback = supplierRow?.supplier_type;
+      if (DEAL_TYPES.includes(fallback)) dealType = fallback as DealType;
+    }
 
     if (!warehouse_id) {
       return NextResponse.json({ error: 'กรุณาเลือกคลังสินค้า' }, { status: 400 });
@@ -274,6 +291,9 @@ export async function POST(request: NextRequest) {
     };
     if (po_id) insertData.po_id = po_id;
     if (supplier_id) insertData.supplier_id = supplier_id;
+    if (dealType) insertData.deal_type = dealType;
+    // วันครบกำหนดใช้กับล็อตเครดิตเท่านั้น — ดีลอื่นส่งมาก็ไม่เก็บ
+    if (dealType === 'credit' && credit_due_date) insertData.credit_due_date = credit_due_date;
 
     const { data: receive, error: headerError } = await supabaseAdmin
       .from('inventory_receives')
@@ -318,7 +338,10 @@ export async function POST(request: NextRequest) {
       const newQuantity = result.balanceAfter;
 
       // Update WAC (Weighted Average Cost) on variation when unit_cost is provided
-      if (unit_cost && unit_cost > 0) {
+      // ⛔ ของฝากขาย **ห้ามเข้า WAC** — ยังเป็นของ supplier และต้นทุนจริงรู้ตอนขาย
+      //    (= ราคาขาย × (1 − ส่วนแบ่งที่เราได้)) ไม่ใช่ตอนรับเข้า · ปนเข้า WAC แล้วต้นทุน
+      //    ของล็อตซื้อขาดจะเพี้ยนตามไปด้วย — แผนเต็ม memo/plan-supplier-deals-2026-09-17.md
+      if (unit_cost && unit_cost > 0 && dealType !== 'consignment') {
         await updateWeightedAverageCost(
           supabaseAdmin,
           auth.companyId!,

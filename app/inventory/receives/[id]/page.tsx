@@ -11,6 +11,7 @@ import { showPdfPreview } from '@/lib/print-pdf';
 import { Warehouse, Package, ArrowLeft, User, CheckCircle2, XCircle, Printer } from 'lucide-react';
 import { flattenVariationItem, productDisplayName } from '../../components/types';
 import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
+import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import SaveButton from '@/components/ui/SaveButton';
 import { LoadingCard } from '@/components/ui/StateCard';
@@ -44,7 +45,16 @@ interface ReceiveData {
   items: ReceiveItem[];
   po?: { po_number: string } | null;
   supplier?: { name: string } | null;
+  /** ดีลของล็อตนี้ — null = ใบเก่าก่อนมีระบบดีล (17 ก.ย. 2569) */
+  deal_type?: 'cash' | 'credit' | 'consignment' | null;
+  credit_due_date?: string | null;
 }
+
+const DEAL_LABEL: Record<string, { label: string; tone: 'gray' | 'amber' | 'purple' }> = {
+  cash: { label: 'ซื้อสด', tone: 'gray' },
+  credit: { label: 'เครดิต', tone: 'amber' },
+  consignment: { label: 'ฝากขาย', tone: 'purple' },
+};
 
 function ReceiveDetailPageContent() {
   const params = useParams();
@@ -222,6 +232,20 @@ function ReceiveDetailPageContent() {
               <div>
                 <label className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1 block">Supplier</label>
                 <span className="text-sm text-gray-700 dark:text-slate-300">{data.supplier.name}</span>
+              </div>
+            )}
+            {data.deal_type && DEAL_LABEL[data.deal_type] && (
+              <div>
+                <label className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1 block">ดีล</label>
+                <div className="flex items-center gap-2">
+                  <Badge tone={DEAL_LABEL[data.deal_type].tone}>{DEAL_LABEL[data.deal_type].label}</Badge>
+                  {data.deal_type === 'credit' && data.credit_due_date && (
+                    <span className="subtitle-text">ครบกำหนด {formatDate(data.credit_due_date)}</span>
+                  )}
+                  {data.deal_type === 'consignment' && (
+                    <span className="subtitle-text">ของยังเป็นของ supplier — ไม่คิดเข้าต้นทุนเฉลี่ย</span>
+                  )}
+                </div>
               </div>
             )}
           </div>
