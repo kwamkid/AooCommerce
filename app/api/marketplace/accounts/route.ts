@@ -4,6 +4,7 @@ import { isReachableImage } from '@/lib/lazada/api';
 import { QUOTA_PLATFORMS } from '@/lib/marketplace/platforms';
 import { isLoginKitConfigured } from '@/lib/tiktok/login-kit';
 import { isChatAppConfigured as isLazadaChatAppConfigured } from '@/lib/lazada/api';
+import { guardFeature } from '@/lib/package-gates-server';
 
 // จัดการร้านที่เชื่อมต่อไว้ — **ทุก marketplace ใช้ route นี้ร่วมกัน**
 // (เดิมอยู่ที่ /api/shopee/accounts สมัยที่ยังมีแค่ Shopee · ย้ายมาชื่อกลาง 2026-08-30)
@@ -23,6 +24,9 @@ export async function GET(request: NextRequest) {
     if (!isAuth || !companyId || !can(auth, 'marketplace.connect')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(companyId, 'marketplace_sync');
+    if (blocked) return blocked;
 
     // Support ?platform=tiktok|lazada|all to filter by platform (default: shopee)
     const platformParam = new URL(request.url).searchParams.get('platform') || 'shopee';
@@ -112,6 +116,9 @@ export async function DELETE(request: NextRequest) {
     if (!isAuth || !companyId || !can(auth, 'marketplace.connect')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(companyId, 'marketplace_sync');
+    if (blocked) return blocked;
 
     const { searchParams } = new URL(request.url);
     const accountId = searchParams.get('id');
@@ -162,6 +169,9 @@ export async function PATCH(request: NextRequest) {
     if (!isAuth || !companyId || !can(auth, 'marketplace.connect')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(companyId, 'marketplace_sync');
+    if (blocked) return blocked;
 
     const body = await request.json();
     const accountId = body.id;
@@ -228,6 +238,9 @@ export async function PUT(request: NextRequest) {
     if (!isAuth || !companyId || !can(auth, 'marketplace.connect')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(companyId, 'marketplace_sync');
+    if (blocked) return blocked;
 
     const body = await request.json();
     const { id, auto_sync_stock, auto_sync_product_info, warehouse_id } = body;

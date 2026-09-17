@@ -9,6 +9,7 @@ import { ensureValidToken as ensureTikTokToken, getOrderStatement, type TikTokAc
 import { normalizeTikTokStatement, unmappedTikTokFields } from '@/lib/tiktok/settlement';
 import { fetchAndSaveEscrowDetail } from '@/lib/shopee/sync';
 import type { ShopeeAccountRow } from '@/lib/shopee/api';
+import { guardFeature } from '@/lib/package-gates-server';
 
 // ดึงยอด settlement จาก API ของแพลตฟอร์ม (ต่างจาก /backfill ที่แปลงจากข้อมูลที่เก็บไว้แล้ว)
 //
@@ -48,6 +49,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     companyFilter = auth.companyId ?? null;
+    // ด่านฟีเจอร์ของ API — เฉพาะขาที่ผู้ใช้ยิงเอง (ขา cron ไม่มีบริษัทให้ตรวจ)
+    if (companyFilter) {
+      const blocked = await guardFeature(companyFilter, 'marketplace_sync');
+      if (blocked) return blocked;
+    }
   }
 
   // 'all' = ไล่ทั้ง 3 เจ้าใน call เดียว — cron รายวันจะได้ตั้ง job เดียวพอ

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, supabaseAdmin } from '@/lib/supabase-admin';
+import { guardFeature } from '@/lib/package-gates-server';
 
 /**
  * Returns health summary for marketplace integrations:
@@ -17,6 +18,9 @@ export async function GET(request: NextRequest) {
     if (!isAuth || !companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(companyId, 'marketplace_sync');
+    if (blocked) return blocked;
 
     const now = new Date();
     const since = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();

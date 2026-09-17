@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { getCustomerConsignmentWarehouse } from '@/lib/consignment-warehouse';
 import { canAccessCounter } from '@/lib/counter-access';
+import { guardFeature } from '@/lib/package-gates-server';
 
 const bangkokNow = () => new Date(Date.now() + 7 * 3600_000);
 
@@ -15,6 +16,9 @@ export async function GET(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId || !auth.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(auth.companyId, 'counter_sales');
+    if (blocked) return blocked;
     if (!can(auth, 'counter.record')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }

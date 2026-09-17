@@ -1,6 +1,7 @@
 // Path: app/api/pos/terminals/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
+import { guardFeature } from '@/lib/package-gates-server';
 
 // GET — List POS terminals
 export async function GET(request: NextRequest) {
@@ -9,6 +10,9 @@ export async function GET(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(auth.companyId, 'pos');
+    if (blocked) return blocked;
 
     const { searchParams } = new URL(request.url);
     const activeOnly = searchParams.get('active') === 'true';
@@ -43,6 +47,9 @@ export async function POST(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(auth.companyId, 'pos');
+    if (blocked) return blocked;
     if (!can(auth, 'masterdata.pos_terminals')) {
       return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
@@ -116,6 +123,9 @@ export async function PUT(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(auth.companyId, 'pos');
+    if (blocked) return blocked;
     if (!can(auth, 'masterdata.pos_terminals')) {
       return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
@@ -192,6 +202,9 @@ export async function PATCH(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(auth.companyId, 'pos');
+    if (blocked) return blocked;
     if (!can(auth, 'masterdata.pos_terminals')) {
       return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
@@ -225,6 +238,9 @@ export async function DELETE(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(auth.companyId, 'pos');
+    if (blocked) return blocked;
     if (!can(auth, 'masterdata.pos_terminals')) {
       return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }

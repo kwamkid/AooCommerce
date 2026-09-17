@@ -14,6 +14,10 @@ const supabaseAdmin = createClient(
   }
 );
 
+/**
+ * ⛔ **ไม่มีด่านฟีเจอร์โดยตั้งใจ** — เส้นทางนี้เปิดด้วย `share_token` ที่ส่งให้ซัพพลายเออร์
+ * ซึ่งไม่มีบัญชีในระบบและไม่มีบริบทบริษัทให้ตรวจ · การเข้าถึงคุมด้วยตัว token เอง
+ */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);

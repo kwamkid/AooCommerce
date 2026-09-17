@@ -25,6 +25,7 @@ import type { SyncRun, SyncRunItem, SyncRunTrigger } from '@/lib/marketplace/syn
 import { isQuotaBlocked } from '@/lib/marketplace/quota';
 import type { QuotaPlatform } from '@/lib/marketplace/platforms';
 import { logIntegrationNow } from '@/lib/integration-logger';
+import { guardFeature } from '@/lib/package-gates-server';
 
 // ย้ายคลังแล้วส่งยอดทั้งร้าน — ร้านใหญ่ ~300 สินค้า ใช้เวลานาน
 export const maxDuration = 300;
@@ -50,6 +51,9 @@ export async function POST(request: NextRequest) {
     if (!isAuth || !companyId || !can(auth, 'marketplace.push')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(companyId, 'marketplace_sync');
+    if (blocked) return blocked;
 
     const { product_id, marketplace_account_id, cursor, run_id, variation_ids, trigger } =
       await request.json();

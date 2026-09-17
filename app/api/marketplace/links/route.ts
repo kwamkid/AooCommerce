@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse, after } from 'next/server';
 import { checkAuthWithCompany, supabaseAdmin } from '@/lib/supabase-admin';
 import { ensureValidToken, getShopeeCategories, ShopeeAccountRow } from '@/lib/shopee/api';
+import { guardFeature } from '@/lib/package-gates-server';
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,6 +9,9 @@ export async function GET(request: NextRequest) {
     if (!isAuth || !companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(companyId, 'marketplace_sync');
+    if (blocked) return blocked;
 
     const { searchParams } = new URL(request.url);
     const accountId = searchParams.get('account_id');
@@ -205,6 +209,9 @@ export async function PATCH(request: NextRequest) {
     if (!isAuth || !companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(companyId, 'marketplace_sync');
+    if (blocked) return blocked;
 
     const {
       link_id,

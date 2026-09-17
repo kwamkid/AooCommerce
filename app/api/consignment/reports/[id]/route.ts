@@ -5,6 +5,7 @@ import { deductStock, addStock } from '@/lib/stock-service';
 import { checkStockAvailability } from '@/lib/stock-utils';
 import { pushStockAfter } from '@/lib/marketplace/push-after';
 import { getCustomerConsignmentWarehouse } from '@/lib/consignment-warehouse';
+import { guardFeature } from '@/lib/package-gates-server';
 
 // GET — Fetch single report detail with items, customer, batch info
 export async function GET(
@@ -16,6 +17,9 @@ export async function GET(
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(auth.companyId, 'consignment');
+    if (blocked) return blocked;
 
     const { companyId } = auth;
     const { id: reportId } = await context.params;
@@ -92,6 +96,9 @@ export async function PUT(
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(auth.companyId, 'consignment');
+    if (blocked) return blocked;
 
     const { companyId, userId } = auth;
     const { id: reportId } = await context.params;

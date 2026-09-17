@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import crypto from 'crypto';
+import { guardFeature } from '@/lib/package-gates-server';
 
 function generateAccessCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I to avoid confusion
@@ -24,6 +25,9 @@ export async function POST(
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(auth.companyId, 'supplier');
+    if (blocked) return blocked;
     // Regenerating a supplier's portal access code is a supplier-management action
     if (!can(auth, 'masterdata.suppliers')) {
       return NextResponse.json({ error: 'Admin only' }, { status: 403 });

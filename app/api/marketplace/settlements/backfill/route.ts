@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { normalizeShopeeEscrow } from '@/lib/shopee/settlement';
 import { computeOrderCogs, saveSettlement } from '@/lib/marketplace/settlement';
+import { guardFeature } from '@/lib/package-gates-server';
 
 // Backfill ยอด settlement จากข้อมูลที่ดูดเก็บไว้แล้วใน orders.external_data
 // **ไม่ยิง API ของ marketplace เลยสักครั้ง** — แปลงจากของที่มีอยู่ล้วน
@@ -39,6 +40,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     companyFilter = auth.companyId ?? null;   // ผู้ใช้ทำได้เฉพาะบริษัทตัวเอง
+    // ด่านฟีเจอร์ของ API — เฉพาะขาที่ผู้ใช้ยิงเอง (ขา cron ไม่มีบริษัทให้ตรวจ)
+    if (companyFilter) {
+      const blocked = await guardFeature(companyFilter, 'marketplace_sync');
+      if (blocked) return blocked;
+    }
   }
 
   if (platform !== 'shopee') {

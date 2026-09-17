@@ -1,6 +1,7 @@
 // Path: app/api/pos/payment-channels/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { guardFeature } from '@/lib/package-gates-server';
 
 // GET — Fetch active POS payment channels
 export async function GET(request: NextRequest) {
@@ -9,6 +10,9 @@ export async function GET(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(auth.companyId, 'pos');
+    if (blocked) return blocked;
 
     const { data, error } = await supabaseAdmin
       .from('payment_channels')

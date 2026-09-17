@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { reserveStock } from '@/lib/stock-service';
 import { pushStockAfter } from '@/lib/marketplace/push-after';
+import { guardFeature } from '@/lib/package-gates-server';
 
 // GET /api/replenishments
 export async function GET(request: NextRequest) {
@@ -10,6 +11,9 @@ export async function GET(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(auth.companyId, 'consignment');
+    if (blocked) return blocked;
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status') || '';
@@ -122,6 +126,9 @@ export async function POST(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId || !auth.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(auth.companyId, 'consignment');
+    if (blocked) return blocked;
 
     const body = await request.json();
     const { customer_id, warehouse_id, counter_id, notes, internal_notes, items, shipping_fee } = body;

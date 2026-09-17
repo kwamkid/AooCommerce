@@ -4,6 +4,7 @@ import { logIntegrationNow } from '@/lib/integration-logger';
 import { isQuotaBlocked } from '@/lib/marketplace/quota';
 import { syncOrderSettlement } from '@/lib/marketplace/settlement';
 import { MARKETPLACE_PLATFORMS, type QuotaPlatform } from '@/lib/marketplace/platforms';
+import { guardFeature } from '@/lib/package-gates-server';
 
 // ดึงยอดเงินของออเดอร์ "ใบเดียว" ตามที่ผู้ใช้กดจากหน้าออเดอร์
 //
@@ -22,6 +23,9 @@ export async function POST(request: NextRequest) {
   if (!auth.isAuth || !auth.companyId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+  const blocked = await guardFeature(auth.companyId, 'marketplace_sync');
+  if (blocked) return blocked;
   if (!can(auth, 'marketplace.sync')) {
     return NextResponse.json({ error: 'ไม่มีสิทธิ์ดึงยอดเงินจากแพลตฟอร์ม' }, { status: 403 });
   }

@@ -10,6 +10,7 @@ import { getCompositeAvailability } from '@/lib/composite';
 import { normalizePhoneQuery } from '@/lib/numeric-input';
 import { issueOrderDocuments } from '@/lib/documents/issue-order-documents';
 import { sellOrderStockOnce } from '@/lib/stock/order-stock';
+import { guardFeature } from '@/lib/package-gates-server';
 interface PosItemInput {
   variation_id: string;
   product_id: string;
@@ -39,6 +40,9 @@ export async function GET(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(auth.companyId, 'pos');
+    if (blocked) return blocked;
 
     const { searchParams } = new URL(request.url);
     const sessionId = searchParams.get('session_id');
@@ -198,6 +202,9 @@ export async function POST(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(auth.companyId, 'pos');
+    if (blocked) return blocked;
 
     const body = await request.json();
     const {

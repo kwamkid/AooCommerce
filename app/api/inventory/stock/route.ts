@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
+import { guardFeature } from '@/lib/package-gates-server';
 
 /** ขอทีละมาก ๆ ไม่ได้ — ฟอร์มหนึ่งใบไม่ควรมีเกินนี้อยู่แล้ว */
 const MAX_IDS = 200;
@@ -24,6 +25,9 @@ export async function GET(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(auth.companyId, 'stock');
+    if (blocked) return blocked;
     if (!can(auth, 'inventory.view')) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์ดูข้อมูลสต็อก' }, { status: 403 });
     }

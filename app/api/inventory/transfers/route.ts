@@ -5,6 +5,7 @@ import { supabaseAdmin, checkAuthWithCompany, isAdminRole, can } from '@/lib/sup
 import { getStockConfig, parseStockDocLines, checkStockAvailability } from '@/lib/stock-utils';
 import { reserveStock, shipToTransit, receiveFromTransit, cancelFromShipped, unreserveStock } from '@/lib/stock-service';
 import { pushStockAfter } from '@/lib/marketplace/push-after';
+import { guardFeature } from '@/lib/package-gates-server';
 
 /** แถว `inventory_transfer_items` เท่าที่ route นี้ใช้ */
 interface TransferItemRow {
@@ -43,6 +44,9 @@ export async function GET(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(auth.companyId, 'stock');
+    if (blocked) return blocked;
 
     const { searchParams } = new URL(request.url);
     const transferId = searchParams.get('id');
@@ -203,6 +207,9 @@ export async function POST(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(auth.companyId, 'stock');
+    if (blocked) return blocked;
     if (!can(auth, 'inventory.manage')) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์สร้างใบโอนย้าย' }, { status: 403 });
     }
@@ -338,6 +345,9 @@ export async function PUT(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(auth.companyId, 'stock');
+    if (blocked) return blocked;
 
     const body = await request.json();
     const { transfer_id, action, items: receivedItems, receive_notes } = body;
@@ -638,6 +648,9 @@ export async function PATCH(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(auth.companyId, 'stock');
+    if (blocked) return blocked;
 
     const body = await request.json();
     const { id, notes } = body;

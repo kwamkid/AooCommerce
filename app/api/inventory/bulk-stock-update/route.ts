@@ -2,6 +2,7 @@ import { NextRequest, NextResponse, after } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
 import { adjustStock } from '@/lib/stock-service';
+import { guardFeature } from '@/lib/package-gates-server';
 
 interface BulkItem {
   product_id?: string;
@@ -30,6 +31,9 @@ export async function POST(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(auth.companyId, 'stock');
+    if (blocked) return blocked;
     if (!can(auth, 'inventory.manage')) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์อัพเดท stock' }, { status: 403 });
     }

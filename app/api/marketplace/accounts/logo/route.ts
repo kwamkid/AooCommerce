@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
+import { guardFeature } from '@/lib/package-gates-server';
 
 // อัปโหลดรูปโลโก้ร้าน marketplace เอง — POST multipart { file, account_id }
 //
@@ -22,6 +23,9 @@ export async function POST(request: NextRequest) {
   if (!isAuth || !companyId || !can(auth, 'marketplace.connect')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+  const blocked = await guardFeature(companyId, 'marketplace_sync');
+  if (blocked) return blocked;
 
   const form = await request.formData().catch(() => null);
   const file = form?.get('file') as File | null;

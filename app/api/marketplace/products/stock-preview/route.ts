@@ -8,6 +8,7 @@ import { createRun, discardPendingPreviews, isActionablePlan, replaceRunItems } 
 import { isQuotaBlocked } from '@/lib/marketplace/quota';
 import type { QuotaPlatform } from '@/lib/marketplace/platforms';
 import { logIntegrationNow } from '@/lib/integration-logger';
+import { guardFeature } from '@/lib/package-gates-server';
 
 // อ่านยอดทั้งร้าน (~1,000 ตัวเลือก) = หลายสิบคอล — เผื่อเวลาเท่ากับ route ที่ลงมือจริง
 export const maxDuration = 300;
@@ -31,6 +32,9 @@ export async function POST(request: NextRequest) {
     if (!isAuth || !companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(companyId, 'marketplace_sync');
+    if (blocked) return blocked;
 
     const body = await request.json();
     const marketplaceAccountId = body?.marketplace_account_id as string | undefined;

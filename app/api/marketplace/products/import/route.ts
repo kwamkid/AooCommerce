@@ -21,6 +21,7 @@ import {
   type ImportRequestItem,
   type ProductImportAccount,
 } from '@/lib/marketplace/product-import';
+import { guardFeature } from '@/lib/package-gates-server';
 
 export const maxDuration = 300;
 
@@ -52,6 +53,9 @@ export async function GET(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId || !can(auth, 'marketplace.sync')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const featureBlocked = await guardFeature(auth.companyId, 'marketplace_sync');
+    if (featureBlocked) return featureBlocked;
 
     const { searchParams } = new URL(request.url);
     const accountId = searchParams.get('account_id');
@@ -93,6 +97,9 @@ export async function POST(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId || !can(auth, 'marketplace.sync')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const featureBlocked = await guardFeature(auth.companyId, 'marketplace_sync');
+    if (featureBlocked) return featureBlocked;
 
     const body = await request.json();
     const {

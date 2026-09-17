@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { guardFeature } from '@/lib/package-gates-server';
 
 // GET - Products belonging to a supplier (through brand linkage)
 export async function GET(
@@ -11,6 +12,9 @@ export async function GET(
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(auth.companyId, 'supplier');
+    if (blocked) return blocked;
 
     const { id: supplierId } = await params;
 

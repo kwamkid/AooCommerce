@@ -7,6 +7,7 @@ import {
   reissueDepartmentOrderTax,
 } from '@/lib/documents/consignment-documents';
 import { getConsignmentDestinationWarehouse } from '@/lib/consignment-warehouse';
+import { guardFeature } from '@/lib/package-gates-server';
 
 // GET /api/department-orders/[id]
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -15,6 +16,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(auth.companyId, 'department_store');
+    if (blocked) return blocked;
 
     const { id } = await params;
 
@@ -122,6 +126,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(auth.companyId, 'department_store');
+    if (blocked) return blocked;
 
     const { id } = await params;
     const body = await request.json();
