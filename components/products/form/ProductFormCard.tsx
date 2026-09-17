@@ -29,6 +29,7 @@ import NumberInput from '@/components/ui/NumberInput';
 import Toggle from '@/components/ui/Toggle';
 import FilterChips, { FILTER_CHIP_PRIMARY_ACTIVE } from '@/components/ui/FilterChips';
 import ImageUploader, { type ProductImage } from '@/components/ui/ImageUploader';
+import SlugField from '@/components/ui/SlugField';
 import ProductCodesHelp from './ProductCodesHelp';
 import DiscountPriceInput from '@/components/ui/DiscountPriceInput';
 import { FieldError, PRODUCT_NAME_MAX, SHOPEE_NAME_MIN, StockText, numberInputClass } from './parts';
@@ -161,12 +162,16 @@ export interface ProductFormCardProps {
   variantsSlot?: ReactNode;
   /** composite type: note shown in place of prices (the editor itself sits below the card) */
   compositeNote?: ReactNode;
+  /** ลิงก์หน้าร้านค่าเดิมจาก DB — ใช้ตอนกดยกเลิกในช่อง slug (ไม่ส่ง = ใช้ค่าปัจจุบัน) */
+  originalSlug?: string;
+  /** ส่วนหน้าของ URL สินค้า เช่น `ร้านคุณ/p/` — ว่างได้เมื่อยังไม่เปิดหน้าร้าน */
+  storefrontPrefix?: string;
 }
 
 export default function ProductFormCard({
   values, onChange, mode, errors, productImages, onProductImagesChange, categories, brands,
   onAddCategory, onAddBrand, onTypeChange, typeDisabled, canViewCost, features, codePlaceholder,
-  simpleStock, variantsSlot, compositeNote,
+  simpleStock, variantsSlot, compositeNote, originalSlug, storefrontPrefix,
 }: ProductFormCardProps) {
   // Flatten the category tree (child rows show "แม่ > ลูก" once picked) — same as the old form
   const categoryOptions = useMemo(() => categories.flatMap(parent =>
@@ -371,6 +376,23 @@ export default function ProductFormCard({
           onChange={e => onChange({ description: e.target.value })}
           placeholder="รายละเอียดสินค้า (ไม่บังคับ)"
         />
+
+        {/* ── ลิงก์หน้าร้าน ──
+            เฉพาะโหมดแก้ไข (ตอนสร้างยังไม่มีชื่อให้ DB ปั้น slug — trigger ทำตอน INSERT)
+            และเฉพาะร้านที่เปิดหน้าร้านแล้ว: `storefrontPrefix` ว่าง = ยังไม่เปิด
+            ⛔ ห้ามโชว์ช่องนี้ให้ร้านที่ยังไม่เปิดหน้าร้าน (เจ้าของกำหนด 17 ก.ย. 2569) */}
+        {mode === 'edit' && storefrontPrefix && (
+          <>
+            <Divider />
+            <SlugField
+              value={values.slug}
+              onChange={slug => onChange({ slug })}
+              originalValue={originalSlug ?? values.slug}
+              previewPrefix={storefrontPrefix}
+              label="ลิงก์หน้าร้าน"
+            />
+          </>
+        )}
       </div>
     </Card>
   );

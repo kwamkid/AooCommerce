@@ -22,6 +22,7 @@ import { apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { useFeatures } from '@/lib/features-context';
 import { useToast } from '@/lib/toast-context';
+import { useStorefrontLinks } from '@/lib/useStorefrontLinks';
 import { type ProductImage, uploadStagedImages } from '@/components/ui/ImageUploader';
 import { typeChangeBlockReason, type TypeChangeBlockers } from '@/lib/product-type-change';
 import FormSelect from '@/components/ui/FormSelect';
@@ -69,6 +70,8 @@ export interface ProductItem extends CompositeProductData {
   product_id: string;
   code: string;
   name: string;
+  /** ลิงก์หน้าร้าน (`/p/<slug>`) — DB เติมจากชื่อตอนสร้าง */
+  slug?: string | null;
   description?: string;
   image?: string;
   main_image_url?: string;
@@ -111,7 +114,7 @@ interface ProductFormProps {
 }
 
 const EMPTY_VALUES: ProductFormValues = {
-  code: '', name: '', description: '', image: '', category_id: '', brand_id: '',
+  code: '', name: '', slug: '', description: '', image: '', category_id: '', brand_id: '',
   product_type: 'simple', is_active: true, selected_variation_types: [],
   variation_label: '-', sku: '', barcode: '', default_price: 0, discount_price: 0, cost_price: 0,
   variations: [],
@@ -162,6 +165,8 @@ export default function ProductForm({
   const { userProfile } = useAuth();
   const { features } = useFeatures();
   const { showToast } = useToast();
+  /** ลิงก์หน้าร้าน — ช่องแก้ slug ขึ้นเฉพาะร้านที่เปิดหน้าร้านแล้ว */
+  const storefront = useStorefrontLinks();
   const { confirmDialog, confirm } = useConfirmDialog();
 
   // Cost permission is per-member (owner/admin always have it, others by toggle)
@@ -219,6 +224,7 @@ export default function ProductForm({
       ...EMPTY_VALUES,
       code: useCode,
       name: editingProduct.name,
+      slug: editingProduct.slug || '',
       description: editingProduct.description || '',
       image: editingProduct.image || '',
       category_id: editingProduct.category_id || '',
@@ -597,6 +603,7 @@ export default function ProductForm({
             // สินค้าชุด: basic fields + slots/combos — no price/stock/variation fields
             code: values.code,
             name: values.name,
+            ...(values.slug ? { slug: values.slug } : {}),
             description: values.description,
             image: values.image,
             category_id: values.category_id,
@@ -719,6 +726,9 @@ export default function ProductForm({
           values={{ ...values, variations: rowsWithStock }}
           onChange={setFormValues}
           mode={isEditMode ? 'edit' : 'create'}
+          originalSlug={editingProduct?.slug || ''}
+          // ว่าง = ร้านยังไม่เปิดหน้าร้าน → การ์ดจะไม่วาดช่องลิงก์ให้เลย
+          storefrontPrefix={storefront.enabled ? `${storefront.home}/p/` : ''}
           errors={errors}
           productImages={productImages}
           onProductImagesChange={setProductImages}

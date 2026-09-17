@@ -60,6 +60,30 @@ export function hasThai(slug: string): boolean {
 }
 
 /**
+ * ยาวเกินเกณฑ์ที่ควรเป็น — เกินนี้ถึงจะเสนอปุ่ม "ย่อให้สั้น"
+ * 50 ตัวอักษรจริง ไม่ใช่หลังเข้ารหัส เพราะเกณฑ์ SEO ทั่วไปพูดถึงตัวอักษรที่คนอ่าน
+ */
+export const MASTER_SLUG_LONG = 50;
+
+/**
+ * ย่อ slug โดย **ตัดเป็นคำ ๆ จากท้าย** ไม่ตัดกลางคำ
+ * slug ที่ trigger สร้างจากชื่อสินค้าเต็มมักยาว 100+ ตัว ("hape-ของเล่นไม้-ของเล่นดนตรี-
+ * เปียโนเด็ก-ใส่ถ่านมีเสียง...") — คำแรก ๆ คือคำที่คนค้นจริง ที่เหลือเป็นหางโฆษณา
+ * ⚠️ คืนค่าเฉย ๆ ไม่บันทึกให้ — ผู้ใช้ต้องเห็นผลแล้วกดยืนยันเอง
+ */
+export function shortenSlug(slug: string, maxLength = MASTER_SLUG_LONG): string {
+  const parts = slug.split('-').filter(Boolean);
+  const kept: string[] = [];
+  for (const part of parts) {
+    const next = kept.length ? `${kept.join('-')}-${part}` : part;
+    // เก็บคำแรกไว้เสมอแม้มันจะยาวเกินเกณฑ์ไปเอง — ไม่งั้นได้ slug ว่าง
+    if (next.length > maxLength && kept.length) break;
+    kept.push(part);
+  }
+  return kept.join('-').slice(0, MASTER_SLUG_MAX);
+}
+
+/**
  * ความยาวของ slug **หลังเข้ารหัสลง URL จริง** — อักษรไทย 1 ตัวกลายเป็น `%E0%B8%99` (9 ตัว)
  * ใช้โชว์ให้ร้านเห็นตอนพิมพ์ว่าลิงก์ที่ copy ไปวางในแชทจะยาวแค่ไหน
  */

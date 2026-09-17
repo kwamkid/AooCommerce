@@ -42,7 +42,7 @@ import { useConfirmDialog } from '@/lib/useConfirmDialog';
 type Scenario = 'create' | 'simple' | 'variation';
 
 const EMPTY: ProductFormValues = {
-  code: '', name: '', description: '', image: '', category_id: '', brand_id: '',
+  code: '', name: '', slug: '', description: '', image: '', category_id: '', brand_id: '',
   product_type: 'simple', is_active: true, selected_variation_types: [],
   variation_label: '-', sku: '', barcode: '', default_price: 0, discount_price: 0, cost_price: 0,
   variations: [],

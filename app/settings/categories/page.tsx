@@ -322,7 +322,7 @@ function CategoriesPage() {
         <ModalFormBody stacked>
           <FormInput label="ชื่อหมวดหมู่" required value={editingName} onChange={event => setEditingName(event.target.value)}
             onKeyDown={event => { if (event.key === 'Enter') void handleSaveEdit(); }} autoFocus />
-          {/* ลิงก์หน้าร้าน — ขึ้นเฉพาะร้านที่เปิดหน้าร้านแล้ว (ยังไม่เปิด = ไม่มีหน้าให้ลิงก์ไป) */}
+          {/* ลิงก์หน้าร้าน — ขึ้นเฉพาะร้านที่เปิดหน้าร้านแล้ว (เจ้าของกำหนด 17 ก.ย. 2569) */}
           {editingCategory && storefront.enabled && (
             <SlugField
               value={editingSlug}

@@ -5,6 +5,7 @@ import { fetchAllRows } from '@/lib/supabase-paging';
 import { validateCompositeSlots, type CompositeSlot } from '@/lib/composite-shared';
 import { saveCompositeVariations, CompositeValidationError, type ComboInput, type SaveCompositeResult } from '@/lib/composite-save';
 import { getTypeChangeBlockers, typeChangeBlockReason } from '@/lib/product-type-change';
+import { masterSlugErrorMessage, validateMasterSlug } from '@/lib/master-slug';
 
 // Type definitions
 interface ProductData {
@@ -906,6 +907,7 @@ export async function PUT(request: NextRequest) {
       variations,
       code,
       name,
+      slug,
       description,
       image,
       variation_label,
@@ -1044,6 +1046,16 @@ export async function PUT(request: NextRequest) {
     }
     if (category_id !== undefined) updateData.category_id = category_id || null;
     if (brand_id !== undefined) updateData.brand_id = brand_id || null;
+    // ลิงก์หน้าร้าน (`/p/<slug>`) — แก้ได้จากฟอร์มสินค้า ผ่านกติกาชุดเดียวกับหน้าจอ
+    // ⛔ ค่าว่างไม่ทับของเดิม (ฟอร์มส่ง slug มาทุกครั้งผ่าน `...values`) และตอน **สร้าง**
+    //    ไม่รับเลย — trigger `slugify_th` ที่ DB เติมจากชื่อให้ตอน INSERT
+    if (slug !== undefined && slug !== '' && slug !== null) {
+      const slugError = validateMasterSlug(String(slug));
+      if (slugError) {
+        return NextResponse.json({ error: masterSlugErrorMessage(slugError) }, { status: 400 });
+      }
+      updateData.slug = String(slug).trim();
+    }
 
     // If product was auto-created from Shopee, mark as edited.
     if (currentProduct.source === 'shopee') {

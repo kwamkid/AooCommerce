@@ -58,6 +58,8 @@ export interface OptionGroup {
 export interface ProductFormValues {
   code: string;
   name: string;
+  /** ลิงก์หน้าร้าน (`/p/<slug>`) — DB เติมจากชื่อตอนสร้าง แก้ได้เฉพาะโหมดแก้ไข */
+  slug: string;
   description: string;
   image: string;
   category_id?: string;
