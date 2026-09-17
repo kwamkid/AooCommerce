@@ -1,11 +1,12 @@
-import { checkAuthWithCompany } from '@/lib/supabase-admin';
+import { checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { NextRequest, NextResponse } from 'next/server';
 import { getChatServiceLazy } from '@/lib/services/chat/registry';
 
 // GET - Get messages for a contact (any platform)
 export async function GET(request: NextRequest) {
   try {
-    const { isAuth, companyId } = await checkAuthWithCompany(request);
+    const auth = await checkAuthWithCompany(request);
+    const { isAuth, companyId } = auth;
     if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
 
@@ -37,9 +38,13 @@ export async function GET(request: NextRequest) {
 // POST - Send a message (routes to correct platform)
 export async function POST(request: NextRequest) {
   try {
-    const { isAuth, userId, companyId } = await checkAuthWithCompany(request);
+    const auth = await checkAuthWithCompany(request);
+    const { isAuth, userId, companyId } = auth;
     if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
+    if (!can(auth, 'chat.reply')) {
+      return NextResponse.json({ error: 'ไม่มีสิทธิ์ตอบแชท' }, { status: 403 });
+    }
 
     const body = await request.json();
     const { contact_id, platform, message, type = 'text', imageUrl, packageId, stickerId, imageSet } = body;

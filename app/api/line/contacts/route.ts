@@ -1,12 +1,12 @@
 // Path: app/api/line/contacts/route.ts
-import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { NextRequest, NextResponse } from 'next/server';
 
 // GET - Get LINE contacts list
 export async function GET(request: NextRequest) {
   try {
-    const { isAuth, companyId } = await checkAuthWithCompany(request);
-
+    const auth = await checkAuthWithCompany(request);
+    const { isAuth, companyId } = auth;
     if (!isAuth) {
       return NextResponse.json(
         { error: 'Unauthorized. Login required.' },
@@ -374,13 +374,16 @@ export async function GET(request: NextRequest) {
 // PUT - Update LINE contact (link to customer, etc.)
 export async function PUT(request: NextRequest) {
   try {
-    const { isAuth, companyId } = await checkAuthWithCompany(request);
-
+    const auth = await checkAuthWithCompany(request);
+    const { isAuth, companyId } = auth;
     if (!isAuth) {
       return NextResponse.json(
         { error: 'Unauthorized. Login required.' },
         { status: 401 }
       );
+    }
+    if (!can(auth, 'chat.reply')) {
+      return NextResponse.json({ error: 'ไม่มีสิทธิ์ดำเนินการนี้' }, { status: 403 });
     }
     if (!companyId) {
       return NextResponse.json(

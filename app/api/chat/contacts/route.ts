@@ -1,4 +1,4 @@
-import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { NextRequest, NextResponse, after } from 'next/server';
 import { isLineBotProfileStale, refreshLineBotProfile } from '@/lib/chat/line-bot-profile';
 import { buildMessagePreview } from '@/lib/chat/message-preview';
@@ -83,7 +83,8 @@ type ChatTag = { id: string; name: string; color: string };
 // GET - Get unified contacts from all platforms
 export async function GET(request: NextRequest) {
   try {
-    const { isAuth, companyId } = await checkAuthWithCompany(request);
+    const auth = await checkAuthWithCompany(request);
+    const { isAuth, companyId } = auth;
     if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
 
@@ -491,9 +492,13 @@ export async function GET(request: NextRequest) {
 // PUT - Link/unlink customer
 export async function PUT(request: NextRequest) {
   try {
-    const { isAuth, companyId } = await checkAuthWithCompany(request);
+    const auth = await checkAuthWithCompany(request);
+    const { isAuth, companyId } = auth;
     if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
+    if (!can(auth, 'chat.reply')) {
+      return NextResponse.json({ error: 'ไม่มีสิทธิ์ตอบแชท' }, { status: 403 });
+    }
 
     const { id, platform, customer_id } = await request.json();
     if (!id || !platform) {

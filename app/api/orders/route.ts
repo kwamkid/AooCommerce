@@ -1,7 +1,7 @@
 // Path: app/api/orders/route.ts  // v13 - exclude_flow_types filter
 import { NextRequest, NextResponse, after } from 'next/server';
 import { parseGiftCard } from '@/lib/gift-card';
-import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { resolveOrderWarehouse } from '@/lib/stock/order-warehouse';
 import {
   reserveOrderStockOnce,
@@ -281,6 +281,9 @@ export async function POST(request: NextRequest) {
         { error: 'Unauthorized' },
         { status: 401 }
       );
+    }
+    if (!can(auth, 'order.manage')) {
+      return NextResponse.json({ error: 'ไม่มีสิทธิ์ดำเนินการนี้' }, { status: 403 });
     }
 
     const orderData: OrderData = await request.json();
@@ -1502,6 +1505,9 @@ export async function PUT(request: NextRequest) {
         { status: 401 }
       );
     }
+    if (!can(auth, 'order.manage')) {
+      return NextResponse.json({ error: 'ไม่มีสิทธิ์ดำเนินการนี้' }, { status: 403 });
+    }
 
     const body = await request.json();
     // เบอร์โทรเก็บเป็นตัวเลขล้วนทั้งระบบ — normalize ที่ทางเข้าจุดเดียว ทุก insert/update ข้างล่างสะอาดเอง
@@ -2675,6 +2681,9 @@ export async function DELETE(request: NextRequest) {
         { error: 'Unauthorized' },
         { status: 401 }
       );
+    }
+    if (!can(auth, 'order.delete')) {
+      return NextResponse.json({ error: 'ไม่มีสิทธิ์ดำเนินการนี้' }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);

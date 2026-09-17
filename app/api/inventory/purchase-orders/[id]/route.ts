@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { guardFeature } from '@/lib/package-gates-server';
 
 // GET - PO detail
@@ -106,6 +106,9 @@ export async function PUT(
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    if (!can(auth, 'inventory.manage')) {
+      return NextResponse.json({ error: 'ไม่มีสิทธิ์ดำเนินการนี้' }, { status: 403 });
+    }
     // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
     const blocked = await guardFeature(auth.companyId, 'supplier');
     if (blocked) return blocked;
@@ -201,6 +204,9 @@ export async function PATCH(
     const auth = await checkAuthWithCompany(request);
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!can(auth, 'inventory.manage')) {
+      return NextResponse.json({ error: 'ไม่มีสิทธิ์ดำเนินการนี้' }, { status: 403 });
     }
     // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
     const blocked = await guardFeature(auth.companyId, 'supplier');
