@@ -8,6 +8,7 @@ import Sidebar from './Sidebar';
 import Header from './Header';
 import InstallAppBanner from '@/components/InstallAppBanner';
 import PullToRefresh from '@/components/PullToRefresh';
+import FeatureGuard from './FeatureGuard';
 
 interface LayoutProps {
   children: ReactNode;
@@ -107,8 +108,10 @@ export default function Layout({ children, title, breadcrumbs, noPadding }: Layo
           {/* Page Body */}
           {/* หน้าที่ส่ง noPadding (หน้าแชท) ต้องการกล่องที่สูงเท่า main พอดี — คิดจาก 100dvh
               ลบหัวเว็บเองจะพลาด 1px (เส้นขอบล่างของหัวเว็บ) แล้ว main เลื่อน/เด้งได้ */}
+          {/* ด่านฟีเจอร์อยู่ที่นี่ที่เดียว — ทุกหน้าที่ใช้ Layout ถูกดักอัตโนมัติ
+              ไม่ต้องไปใส่ if ในหน้าไหนเลย (ดูทะเบียน lib/feature-routes.ts) */}
           <div className={noPadding ? 'h-full print:h-auto print:p-0' : 'p-4 lg:p-6 pb-24 lg:pb-6 print:p-0'}>
-            {children}
+            <FeatureGuard>{children}</FeatureGuard>
           </div>
         </main>
       </div>

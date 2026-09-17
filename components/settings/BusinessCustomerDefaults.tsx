@@ -33,6 +33,8 @@ interface Defaults {
   default_gp_base_price: 'retail' | 'discounted';
   default_report_due_days?: number;
   default_payment_terms?: number;
+  statement_day: number;
+  credit_days: number;
   vat_included: boolean;
 }
 
@@ -46,6 +48,8 @@ const SCOPE_META: Record<BusinessCustomerScope, {
   hasReportTerms: boolean;
   /** แก้ Brand GP ได้จากแท็บนี้ไหม (เป็นค่าร่วม แก้ได้ที่เดียวพอ) */
   ownsBrandGp: boolean;
+  /** บอกผู้ใช้ว่าตั้งทับรายคนได้ที่ไหน */
+  perCustomerHint: string;
 }> = {
   consignment: {
     tab: 'consignment',
@@ -55,6 +59,7 @@ const SCOPE_META: Record<BusinessCustomerScope, {
     vatLabel: 'ราคาตัวแทนรวม VAT แล้ว',
     hasReportTerms: true,
     ownsBrandGp: true,
+    perCustomerHint: 'ตัวแทนแต่ละรายตั้งทับได้เองที่หน้าลูกค้า',
   },
   department_store: {
     tab: 'department-store',
@@ -64,6 +69,7 @@ const SCOPE_META: Record<BusinessCustomerScope, {
     vatLabel: 'ราคาห้างรวม VAT แล้ว',
     hasReportTerms: false,
     ownsBrandGp: false,
+    perCustomerHint: 'ห้างแต่ละเจ้ากำหนดไม่เหมือนกัน — ตั้งทับได้เองที่หน้าลูกค้า',
   },
 };
 
@@ -167,11 +173,37 @@ export default function BusinessCustomerDefaults({ scope }: { scope: BusinessCus
               )}
             </Card>
 
+            {/* รอบวางบิลของกลุ่มนี้ — ตัวแทนกับห้างวางบิลคนละรอบกันจริงในธุรกิจ
+                (ห้างมักกลางเดือน ตัวแทนมักสิ้นเดือน) จึงตั้งแยกกัน
+                และของจริงยังต่างกันรายลูกค้าอีกชั้น — ที่นี่เป็นแค่ค่าตั้งต้น */}
+            <Card className="card-p-lg">
+              <h3 className="heading-3 mb-1">รอบวางบิล</h3>
+              <p className="section-desc mb-4">
+                ค่าตั้งต้นของกลุ่มนี้ — {meta.perCustomerHint}
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg">
+                <UnitNumberField
+                  label="วางบิลทุกวันที่"
+                  value={values.statement_day}
+                  onChange={(n) => patch({ statement_day: Math.min(Math.max(n || 31, 1), 31) })}
+                  hint="31 = สิ้นเดือน · เดือนที่สั้นกว่าร่นมาเป็นวันสุดท้ายให้เอง"
+                  min={1} max={31}
+                />
+                <UnitNumberField
+                  label="ชำระภายใน"
+                  value={values.credit_days}
+                  onChange={(n) => patch({ credit_days: Math.min(Math.max(n ?? 30, 0), 180) })}
+                  unit="วัน" hint="นับจากวันวางบิล ไม่ใช่วันที่กดยืนยัน"
+                  min={0} max={180}
+                />
+              </div>
+            </Card>
+
             {meta.hasReportTerms && (
               <Card className="card-p-lg">
-                <h3 className="heading-3 mb-1">เงื่อนไขการแจ้งยอดและชำระ</h3>
+                <h3 className="heading-3 mb-1">เงื่อนไขการแจ้งยอด</h3>
                 <p className="section-desc mb-4">
-                  วันวางบิลตั้งที่ <a className="text-primary hover:underline" href="/settings">ทั่วไป › บิล และสินค้า</a> เพราะใช้ร่วมกับลูกค้าห้าง
+                  ตัวแทนต้องแจ้งยอดที่ขายได้ภายในกี่วัน ระบบถึงจะออกใบกำกับให้ (สัญญา ม.78(3))
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg">
                   <UnitNumberField
@@ -182,10 +214,10 @@ export default function BusinessCustomerDefaults({ scope }: { scope: BusinessCus
                     min={1} max={90}
                   />
                   <UnitNumberField
-                    label="ชำระภายใน"
+                    label="ชำระภายใน (สัญญาฝากขาย)"
                     value={values.default_payment_terms ?? 30}
                     onChange={(n) => patch({ default_payment_terms: n })}
-                    unit="วัน" hint="หลังวางบิล"
+                    unit="วัน" hint="ใช้แทนเครดิตด้านบนเมื่อเป็นตัวแทนฝากขาย"
                     min={0} max={180}
                   />
                 </div>

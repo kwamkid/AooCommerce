@@ -43,6 +43,8 @@ interface Props {
   hideContract?: boolean;
   /** ขายขาด mode: เปลี่ยน label GP → ส่วนลด, ซ่อนเงื่อนไขชำระ + สัญญา */
   wholesale?: boolean;
+  /** ลูกค้ารายนี้อยู่กลุ่มไหน — ตัดสินว่าอ่านค่าตั้งต้น "ตามระบบ" จากชุดไหน */
+  scope?: 'consignment' | 'department_store';
 }
 
 
@@ -81,27 +83,30 @@ function DefaultOrCustomTab({
 
 const GP_BASE_LABELS: Record<string, string> = { retail: 'ราคาปลีก', discounted: 'ราคาลด' };
 
-export default function ConsignmentSettings({ data, onChange, inputClassName, labelClassName, brandGpRows, onBrandGpRowsChange, hideContract, wholesale }: Props) {
+export default function ConsignmentSettings({ data, onChange, inputClassName, labelClassName, brandGpRows, onBrandGpRowsChange, hideContract, wholesale, scope = 'consignment' }: Props) {
   const [defaults, setDefaults] = useState<CompanyDefaults | null>(null);
 
   useEffect(() => {
-    // ค่าตั้งต้นมาจากสองที่: GP/เงื่อนไขฝากขาย อยู่ที่ตั้งค่าฟีเจอร์ ส่วนวันวางบิล
-    // อยู่ที่ ตั้งค่า > ทั่วไป > บิล และสินค้า (ใช้ร่วมกับลูกค้าห้างด้วย)
-    Promise.all([
-      apiFetch('/api/settings/features').then(r => (r.ok ? r.json() : null)).catch(() => null),
-      apiFetch('/api/settings/billing').then(r => (r.ok ? r.json() : null)).catch(() => null),
-    ]).then(([f, b]) => {
-      const cs = f?.consignment_settings;
-      // ไม่มีค่าที่ตั้งไว้ก็ยังต้องมี defaults เพื่อโชว์ "ตามระบบ" ให้ถูก
-      setDefaults({
-        default_gp_rate: cs?.default_gp_rate ?? 30,
-        default_gp_base_price: cs?.default_gp_base_price || 'retail',
-        default_report_due_days: cs?.default_report_due_days ?? 15,
-        default_payment_terms: cs?.default_payment_terms ?? 30,
-        default_statement_day: Number(b?.statement_day) || 31,
-      });
-    });
-  }, []);
+    /**
+     * ค่าตั้งต้น "ตามระบบ" ต้องมาจากกลุ่มที่ลูกค้ารายนี้อยู่จริง — ตัวแทนกับห้าง
+     * ตั้งคนละชุด (ตั้งค่า > ทั่วไป > ลูกค้าตัวแทน / ลูกค้าห้าง)
+     * ถ้าอ่านผิดกลุ่ม แท็บ "ตามระบบ" จะโชว์เลขที่ไม่ใช่ของจริง
+     */
+    apiFetch('/api/settings/business-customers')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        const cs = d?.[scope];
+        // ไม่มีค่าที่ตั้งไว้ก็ยังต้องมี defaults เพื่อโชว์ "ตามระบบ" ให้ถูก
+        setDefaults({
+          default_gp_rate: cs?.default_gp_rate ?? 30,
+          default_gp_base_price: cs?.default_gp_base_price || 'retail',
+          default_report_due_days: cs?.default_report_due_days ?? 15,
+          default_payment_terms: cs?.default_payment_terms ?? 30,
+          default_statement_day: Number(cs?.statement_day) || 31,
+        });
+      })
+      .catch(() => { /* โหลดไม่ได้ก็ยังกรอกเองได้ */ });
+  }, [scope]);
 
   // Custom = has value in DB, Default = null/empty → resolve from global at runtime
   const isCustomGp = data.consignment_gp_rate !== '' && data.consignment_gp_rate != null;

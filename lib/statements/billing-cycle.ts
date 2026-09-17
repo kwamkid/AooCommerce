@@ -133,11 +133,27 @@ export interface CustomerBillingTerms {
   creditDays: number;
 }
 
+/** กลุ่มลูกค้าธุรกิจ — แต่ละกลุ่มมีรอบวางบิลตั้งต้นของตัวเอง */
+export type BusinessCustomerScope = 'consignment' | 'department_store';
+
+/** ลูกค้ารายนี้อยู่กลุ่มไหน — ตัดสินจาก `customer_type` */
+export function scopeOfCustomerType(customerType: string | null | undefined): BusinessCustomerScope {
+  return customerType === 'department_store' || customerType === 'wholesale_department'
+    ? 'department_store'
+    : 'consignment';
+}
+
 /**
- * วันวางบิล + เครดิตของลูกค้ารายหนึ่ง — ลูกค้าทับบริษัท บริษัททับค่าตั้งต้นของระบบ
+ * วันวางบิล + เครดิตของลูกค้ารายหนึ่ง
  *
- * ห้างแต่ละเจ้ากำหนดวันวางบิลไม่เหมือนกัน จึงต้องตั้งรายลูกค้าได้ แต่ร้านส่วนใหญ่
- * ใช้วันเดียวกันหมด การมีค่าตั้งต้นของบริษัทจึงทำให้ไม่ต้องไล่ตั้งทีละราย
+ * **ค่าตั้งต้นแยกตามกลุ่ม** — ตัวแทนกับห้างวางบิลคนละรอบกันจริงในธุรกิจ
+ * (ห้างมักวางบิลกลางเดือน ตัวแทนมักสิ้นเดือน) จึงเก็บแยกที่
+ * `settings.consignment.*` กับ `settings.department_store.*`
+ *
+ * แต่ **ของจริงยังต่างกันรายลูกค้าอยู่ดี** — ห้างแต่ละเจ้ากำหนดไม่เหมือนกัน
+ * ค่าที่หน้าตั้งค่าจึงเป็นแค่ค่าตั้งต้นให้ไม่ต้องไล่กรอกทีละราย
+ *
+ * ลำดับ: ลูกค้า → ค่าตั้งต้นของกลุ่ม → (ค่าเดิมที่เคยเก็บรวม) → ค่าตั้งต้นระบบ
  */
 export async function billingTermsFor(
   companyId: string,
@@ -148,43 +164,43 @@ export async function billingTermsFor(
     supabaseAdmin.from('companies').select('settings').eq('id', companyId).single(),
     supabaseAdmin
       .from('customers')
-      .select('statement_day, credit_days, consignment_payment_terms')
+      .select('customer_type, statement_day, credit_days, consignment_payment_terms')
       .eq('id', customerId)
       .single(),
   ]);
 
-  /**
-   * ค่าตั้งต้นของบริษัทอยู่ที่ settings.billing (ตั้งค่า > ทั่วไป > รอบวางบิล)
-   * — **ใช้ร่วมกันทั้งตัวแทนและห้าง** ไม่ได้ผูกกับฟีเจอร์ฝากขาย เพราะทั้งสองสาย
-   * วางบิลรอบเดือนเหมือนกัน
-   */
+  interface ScopeDefaults {
+    statement_day?: number;
+    credit_days?: number;
+    /** ช่องเดิมของสายฝากขาย ก่อนแยกเป็น credit_days */
+    default_payment_terms?: number;
+  }
+
   const settings = (company?.settings ?? {}) as {
+    consignment?: ScopeDefaults;
+    department_store?: ScopeDefaults;
+    /** ก้อนรวมที่เคยใช้ช่วงสั้น ๆ ก่อนแยกตามกลุ่ม — อ่านเป็นทางถอยเท่านั้น */
     billing?: { statement_day?: number; credit_days?: number };
-    consignment?: { default_payment_terms?: number };
   };
 
+  const scope = scopeOfCustomerType(customer?.customer_type);
+  const scopeDefaults = settings[scope] ?? {};
+
   const statementDay = customer?.statement_day
+    || Number(scopeDefaults.statement_day)
     || Number(settings.billing?.statement_day)
     || DEFAULT_STATEMENT_DAY;
 
   /**
-   * ลำดับเครดิต: ลูกค้า → บริษัท → ค่าตั้งต้นระบบ
-   * ฝากขายมีช่องของตัวเอง (`consignment_payment_terms`) เพราะสัญญาฝากขากำหนดแยก
+   * ฝากขายมีช่องของตัวเอง (`consignment_payment_terms`) เพราะสัญญาฝากขายกำหนดแยก
    * จากเครดิตการค้าปกติ — ตั้งไว้ก็ใช้อันนั้นก่อน
    */
   const creditDays = (isConsignment ? customer?.consignment_payment_terms : null)
     ?? customer?.credit_days
+    ?? Number(scopeDefaults.credit_days)
+    ?? Number(scopeDefaults.default_payment_terms)
     ?? Number(settings.billing?.credit_days)
-    ?? Number(settings.consignment?.default_payment_terms)   // ค่าที่เคยตั้งไว้ก่อนย้ายที่
     ?? DEFAULT_CREDIT_DAYS;
 
   return { statementDay, creditDays: Number(creditDays) || 0 };
-}
-
-/** ค่าตั้งต้นวันวางบิลของบริษัท (ใช้ในหน้าตั้งค่า) */
-export async function companyStatementDay(companyId: string): Promise<number> {
-  const { data } = await supabaseAdmin
-    .from('companies').select('settings').eq('id', companyId).single();
-  const settings = (data?.settings ?? {}) as { billing?: { statement_day?: number } };
-  return Number(settings.billing?.statement_day) || DEFAULT_STATEMENT_DAY;
 }

@@ -17,12 +17,18 @@ export interface ConsignmentDefaults {
   default_gp_base_price: 'retail' | 'discounted';
   default_report_due_days: number;
   default_payment_terms: number;
+  /** วันวางบิลประจำเดือนของกลุ่มนี้ (1-31) */
+  statement_day: number;
+  /** เครดิตหลังวางบิล (วัน) */
+  credit_days: number;
   vat_included: boolean;
 }
 
 export interface DepartmentStoreDefaults {
   default_gp_rate: number;
   default_gp_base_price: 'retail' | 'discounted';
+  statement_day: number;
+  credit_days: number;
   vat_included: boolean;
 }
 
@@ -31,12 +37,16 @@ export const CONSIGNMENT_DEFAULTS: ConsignmentDefaults = {
   default_gp_base_price: 'retail',
   default_report_due_days: 15,
   default_payment_terms: 30,
+  statement_day: 31,
+  credit_days: 30,
   vat_included: true,
 };
 
 export const DEPARTMENT_STORE_DEFAULTS: DepartmentStoreDefaults = {
   default_gp_rate: 30,
   default_gp_base_price: 'retail',
+  statement_day: 31,
+  credit_days: 30,
   vat_included: true,
 };
 
@@ -50,11 +60,19 @@ export async function GET(request: NextRequest) {
       .from('companies').select('settings').eq('id', companyId).single();
     const settings = (data?.settings as Record<string, unknown>) || {};
 
+    // ก้อนรวมที่เคยใช้ช่วงสั้น ๆ ก่อนแยกรอบวางบิลตามกลุ่ม — อ่านเป็นทางถอยให้ค่าเดิมไม่หาย
+    const legacyBilling = (settings.billing as { statement_day?: number; credit_days?: number }) || {};
+
     return NextResponse.json({
-      consignment: { ...CONSIGNMENT_DEFAULTS, ...((settings.consignment as object) || {}) },
+      consignment: {
+        ...CONSIGNMENT_DEFAULTS,
+        ...legacyBilling,
+        ...((settings.consignment as object) || {}),
+      },
       // ห้างที่ยังไม่เคยตั้งเอง ใช้เรทเดียวกับตัวแทนไปก่อน (พฤติกรรมเดิมก่อนแยกช่อง)
       department_store: {
         ...DEPARTMENT_STORE_DEFAULTS,
+        ...legacyBilling,
         ...(settings.consignment as object || {}),
         ...((settings.department_store as object) || {}),
       },

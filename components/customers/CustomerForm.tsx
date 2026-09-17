@@ -554,6 +554,7 @@ export default function CustomerForm({
                 inputClassName={inputFull} labelClassName={labelFull}
                 brandGpRows={brandGpRows} onBrandGpRowsChange={setBrandGpRows}
                 hideContract={formData.customer_type === 'department_store'} wholesale={formData.sale_type !== 'consignment'}
+                scope={formData.customer_type === 'department_store' ? 'department_store' : 'consignment'}
               />
             </div>
           )}
