@@ -17,6 +17,7 @@ import FormSelect from '@/components/ui/FormSelect';
 import { BarChart3, ShoppingCart, Package, Banknote, Tag } from 'lucide-react';
 import { useFeatures } from '@/lib/features-context';
 import { isMarketplacePlatform } from '@/lib/marketplace-platforms';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 
 interface ReportItem {
   id: string;
@@ -97,6 +98,10 @@ export default function PromotionReportPage() {
   useEffect(() => {
     if (!authLoading) fetchReport();
   }, [authLoading, dateRange, source]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const { allowed, loading: permLoading } = useAuthGuard('product.manage');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
 
   return (
     <Layout>

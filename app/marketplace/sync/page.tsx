@@ -33,6 +33,7 @@ import ShopPicker from './components/ShopPicker';
 import StockPreview from './components/StockPreview';
 import RunResult from './components/RunResult';
 import RunHistory from './components/RunHistory';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 
 const BACK_HREF = '/settings/sales-channels?tab=marketplace';
 
@@ -187,6 +188,10 @@ function MarketplaceSyncContent() {
 }
 
 export default function MarketplaceSyncPage() {
+  const { allowed, loading: permLoading } = useAuthGuard('marketplace.sync');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
+
   return (
     <Layout>
       <Suspense fallback={<LoadingCard />}>

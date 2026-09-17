@@ -46,6 +46,7 @@ import PermissionEditor, {
 import { AreaBadges, AreaCell, AreaLegend, RoleBadge } from '@/components/members/AreaSummary';
 
 import { PHONE_INPUT_PROPS, onPhoneChange } from '@/lib/numeric-input';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 interface Member {
   id: string;
   /** ตำแหน่งหลักค่าเดียว — API แปลงมาให้แล้วแม้แถวนั้นยังเก็บค่าเก่าหลายตัว */
@@ -523,6 +524,10 @@ export default function MembersPage() {
       render: (m) => <AreaCell level={isAdminTierRole(m.role) ? 'manage' : 'none'} />,
     },
   ], []);
+
+  const { allowed, loading: permLoading } = useAuthGuard('members.view');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
 
   return (
     <Layout>

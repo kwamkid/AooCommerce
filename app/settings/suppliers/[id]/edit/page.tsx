@@ -13,6 +13,7 @@ import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
 import { LoadingCard } from '@/components/ui/StateCard';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 
 export default function EditSupplierPage() {
   const params = useParams();
@@ -126,6 +127,10 @@ export default function EditSupplierPage() {
       setSaving(false);
     }
   };
+
+  const { allowed, loading: permLoading } = useAuthGuard('masterdata.suppliers');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
 
   if (authLoading || loading) {
     return (

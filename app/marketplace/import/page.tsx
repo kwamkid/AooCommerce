@@ -33,6 +33,7 @@ import { useDebouncedCallback } from '@/lib/useDebounce';
 import { formatPrice } from '@/lib/utils/format';
 import { MARKETPLACE_PLATFORMS } from '@/lib/marketplace/platforms';
 import { ChevronLeft, ChevronRight, Link2, Package, Plus, Store } from 'lucide-react';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 
 const PAGE_SIZE = 20;
 const BACK_HREF = '/marketplace/sync';
@@ -607,6 +608,10 @@ function MarketplaceImportContent() {
 }
 
 export default function MarketplaceImportPage() {
+  const { allowed, loading: permLoading } = useAuthGuard('marketplace.sync');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
+
   return (
     <Layout>
       <Suspense fallback={<LoadingCard />}>

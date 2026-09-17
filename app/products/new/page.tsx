@@ -13,6 +13,7 @@ import { LoadingCard } from '@/components/ui/StateCard';
 import ProductForm, { type ProductItem } from '@/components/products/ProductForm';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 
 function NewProductContent() {
   const router = useRouter();
@@ -119,6 +120,10 @@ function NewProductContent() {
 }
 
 export default function NewProductPage() {
+  const { allowed, loading: permLoading } = useAuthGuard('product.manage');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
+
   return (
     <Suspense fallback={
       <Layout>

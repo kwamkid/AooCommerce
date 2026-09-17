@@ -18,6 +18,7 @@ import { formatCurrency } from '../purchase-orders/components/types';
 import POInfoCard from '../purchase-orders/components/POInfoCard';
 import POEditItemsTable from '../purchase-orders/components/POEditItemsTable';
 import StickyActionBar from '@/components/ui/StickyActionBar';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 
 export default function CreatePurchaseOrderPage() {
   const router = useRouter();
@@ -168,6 +169,10 @@ export default function CreatePurchaseOrderPage() {
     } catch { showToast('เกิดข้อผิดพลาด', 'error'); }
     finally { setSaving(false); }
   };
+
+  const { allowed, loading: permLoading } = useAuthGuard('inventory.manage');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
 
   if (authLoading || loading) {
     return (

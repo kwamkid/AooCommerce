@@ -23,6 +23,7 @@ import { useDocListParams } from '../components/useDocListParams';
 import {
   Loader2, ArrowDownToLine, Plus, Warehouse, Eye, Printer, X,
 } from 'lucide-react';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 
 interface Receive {
   id: string;
@@ -318,6 +319,10 @@ function ReceiveListContent() {
 
 export default function ReceiveListPage() {
   // ทั้งหน้าอ่าน useSearchParams → ต้องอยู่ใต้ Suspense (กฎ CSR bailout ของ Next 16)
+  const { allowed, loading: permLoading } = useAuthGuard('inventory.view');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
+
   return (
     <Layout title="รายการรับเข้า" breadcrumbs={BREADCRUMBS}>
       <Suspense fallback={<LoadingCard />}>

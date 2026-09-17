@@ -15,6 +15,7 @@ import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import SaveButton from '@/components/ui/SaveButton';
 import { LoadingCard } from '@/components/ui/StateCard';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 
 interface ReceiveItem {
   id: string;
@@ -295,6 +296,10 @@ function ReceiveDetailPageContent() {
 }
 
 export default function ReceiveDetailPage() {
+  const { allowed, loading: permLoading } = useAuthGuard('inventory.view');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
+
   return (
     <Suspense fallback={
       <Layout>

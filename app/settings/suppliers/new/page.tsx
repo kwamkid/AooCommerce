@@ -13,6 +13,7 @@ import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
 import SupplierForm, { type SupplierFormData } from '@/components/suppliers/SupplierForm';
 import { LoadingCard } from '@/components/ui/StateCard';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 
 export default function NewSupplierPage() {
   const router = useRouter();
@@ -73,6 +74,10 @@ export default function NewSupplierPage() {
       setSaving(false);
     }
   };
+
+  const { allowed, loading: permLoading } = useAuthGuard('masterdata.suppliers');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
 
   if (authLoading) {
     return (

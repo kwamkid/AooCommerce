@@ -16,6 +16,8 @@ import {
   FolderPlus,
   BadgePlus,
 } from 'lucide-react';
+import { useAuthGuard } from '@/lib/useAuthGuard';
+import { LoadingCard } from '@/components/ui/StateCard';
 
 interface BulkAction {
   href: string;
@@ -102,6 +104,10 @@ export default function BulkProductsHub() {
   const { features } = useFeatures();
   const canEdit = can({ roles: companyRoles, permissions }, 'product.bulk_edit');
   const visibleEditActions = EDIT_ACTIONS.filter(a => !a.requiresStock || features.stock);
+
+  const { allowed, loading: permLoading } = useAuthGuard('product.bulk_edit');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
 
   if (!canEdit) {
     return (

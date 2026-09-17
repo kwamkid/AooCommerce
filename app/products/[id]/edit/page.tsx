@@ -35,6 +35,7 @@ import { MARKETPLACE_PLATFORMS } from '@/lib/marketplace/platforms';
 import ProductSyncModal from '@/components/marketplace/ProductSyncModal';
 import Tabs from '@/components/ui/Tabs';
 import { storageSafeName } from '@/lib/storage-key';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 
 /** ป้ายชื่อแพลตฟอร์ม — registry เดียวกับทุกที่ ห้าม map ป้ายซ้ำ */
 function marketplaceLabel(platform: string): string {
@@ -668,6 +669,10 @@ export default function EditProductPage() {
     const matchSku = p.variations?.some(v => (v.sku || '').toLowerCase().includes(term));
     return matchName || matchCode || matchSku;
   }).slice(0, 20);
+
+  const { allowed, loading: permLoading } = useAuthGuard('product.manage');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
 
   if (authLoading || loading) {
     return (

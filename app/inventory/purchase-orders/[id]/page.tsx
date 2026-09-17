@@ -24,6 +24,7 @@ import POInfoCard from '../components/POInfoCard';
 import POEditItemsTable from '../components/POEditItemsTable';
 import POViewItemsTable from '../components/POViewItemsTable';
 import POReceivesSection from '../components/POReceivesSection';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 
 export default function PurchaseOrderDetailPage() {
   const params = useParams();
@@ -248,6 +249,10 @@ export default function PurchaseOrderDetailPage() {
   const canSave = editSupplierId && editWarehouseId && editItems.length > 0 && !saving;
 
   // ─── Loading ───
+  const { allowed, loading: permLoading } = useAuthGuard('inventory.view');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
+
   if (authLoading || loading) {
     return <Layout><LoadingCard /></Layout>;
   }

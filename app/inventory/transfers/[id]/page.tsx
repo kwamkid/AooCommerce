@@ -20,6 +20,7 @@ import Button from '@/components/ui/Button';
 import SaveButton from '@/components/ui/SaveButton';
 import { LoadingCard } from '@/components/ui/StateCard';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 
 interface TransferItem {
   id: string;
@@ -317,6 +318,10 @@ export default function TransferDetailPage() {
   };
 
   const notesChanged = (notes || '') !== (transfer?.notes || '');
+
+  const { allowed, loading: permLoading } = useAuthGuard('inventory.view');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
 
   if (authLoading || loading) {
     return (

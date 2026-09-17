@@ -14,6 +14,7 @@ import { flattenVariationItem, productDisplayName } from '../../components/types
 import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
 import Button from '@/components/ui/Button';
 import SaveButton from '@/components/ui/SaveButton';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 
 interface IssueItem {
   id: string;
@@ -136,6 +137,10 @@ export default function IssueDetailPage() {
   const getDisplayName = (item: IssueItem) => productDisplayName(flattenVariationItem(item));
 
   const notesChanged = (notes || '') !== (data?.notes || '');
+
+  const { allowed, loading: permLoading } = useAuthGuard('inventory.view');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
 
   if (authLoading || loading) {
     return (

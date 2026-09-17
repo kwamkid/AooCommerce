@@ -18,6 +18,8 @@ import EntitySearchInput, { EntitySearchOption } from '@/components/ui/EntitySea
 import {
   Loader2, Award, Package2, X, Factory, ChevronLeft, ChevronRight,
 } from 'lucide-react';
+import { useAuthGuard } from '@/lib/useAuthGuard';
+import { LoadingCard } from '@/components/ui/StateCard';
 
 interface BrandDetail {
   id: string;
@@ -208,6 +210,10 @@ export default function BrandDetailPage() {
       setRemoving(null);
     }
   }, [id, showToast]);
+
+  const { allowed, loading: permLoading } = useAuthGuard('masterdata.brands');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
 
   if (loading) {
     return (

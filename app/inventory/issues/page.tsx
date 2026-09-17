@@ -22,6 +22,7 @@ import { useDocListParams } from '../components/useDocListParams';
 import {
   Loader2, ArrowUpFromLine, Plus, Warehouse, Eye, Printer, X,
 } from 'lucide-react';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 
 interface Issue {
   id: string;
@@ -298,6 +299,10 @@ function IssueListContent() {
 
 export default function IssueListPage() {
   // ทั้งหน้าอ่าน useSearchParams → ต้องอยู่ใต้ Suspense (กฎ CSR bailout ของ Next 16)
+  const { allowed, loading: permLoading } = useAuthGuard('inventory.view');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
+
   return (
     <Layout title="รายการเบิกออก" breadcrumbs={BREADCRUMBS}>
       <Suspense fallback={<LoadingCard />}>

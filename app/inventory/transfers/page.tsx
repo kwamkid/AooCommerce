@@ -24,6 +24,7 @@ import { useDocListParams } from '../components/useDocListParams';
 import {
   Loader2, ArrowRightLeft, Plus, Warehouse, Eye, Printer, Ban, X,
 } from 'lucide-react';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 
 interface Transfer {
   id: string;
@@ -406,6 +407,10 @@ function TransferListContent() {
 
 export default function TransferListPage() {
   // ทั้งหน้าอ่าน useSearchParams → ต้องอยู่ใต้ Suspense (กฎ CSR bailout ของ Next 16)
+  const { allowed, loading: permLoading } = useAuthGuard('inventory.view');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
+
   return (
     <Layout title="รายการโอนย้ายสินค้า" breadcrumbs={BREADCRUMBS}>
       <Suspense fallback={<LoadingCard />}>

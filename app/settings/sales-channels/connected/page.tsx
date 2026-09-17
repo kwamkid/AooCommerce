@@ -18,6 +18,7 @@ import { DoneCard, LoadingCard } from '@/components/ui/StateCard';
 import PlatformIcon from '@/components/ui/PlatformIcon';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 
 const PLATFORM_LABELS: Record<string, string> = { lazada: 'Lazada', tiktok: 'TikTok Shop' };
 
@@ -92,6 +93,10 @@ function ConnectedContent() {
 }
 
 export default function MarketplaceConnectedPage() {
+  const { allowed, loading: permLoading } = useAuthGuard('settings.access');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
+
   return (
     <Layout>
       <Container size="2xl">

@@ -25,6 +25,7 @@ import {
   Check, AlertCircle, Pencil, ShieldAlert, Star, Tag, Package2,
   Warehouse as WarehouseIcon,
 } from 'lucide-react';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 
 interface Warehouse {
   id: string;
@@ -642,6 +643,10 @@ export default function BulkStockUpdatePage() {
     }
     return Array.from(map.entries()).map(([id, v]) => ({ id, ...v }));
   }, [dryRun]);
+
+  const { allowed, loading: permLoading } = useAuthGuard('inventory.manage');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
 
   if (!userProfile) return null;
 

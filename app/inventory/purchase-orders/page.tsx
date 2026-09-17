@@ -25,6 +25,7 @@ import { useDocListParams } from '../components/useDocListParams';
 import {
   Plus, ClipboardList, Factory, Warehouse, Pencil, Printer, Link2, Ban, Lock, Loader2, X,
 } from 'lucide-react';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 
 interface PurchaseOrder {
   id: string;
@@ -462,6 +463,10 @@ function PurchaseOrdersContent() {
 
 export default function PurchaseOrdersPage() {
   // ทั้งหน้าอ่าน useSearchParams → ต้องอยู่ใต้ Suspense (กฎ CSR bailout ของ Next 16)
+  const { allowed, loading: permLoading } = useAuthGuard('inventory.view');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
+
   return (
     <Layout title="ใบสั่งซื้อ (PO)" breadcrumbs={BREADCRUMBS}>
       <Suspense fallback={<LoadingCard />}>
