@@ -42,7 +42,11 @@ export default function StorePagination({ slug, page, totalPages, cat, brand, q 
     if (brand) params.set('brand', brand);
     if (q) params.set('q', q);
     if (p > 1) params.set('page', String(p));
-    const query = params.toString();
+    // `URLSearchParams.toString()` เข้ารหัสช่องว่างเป็น `+` (แบบ form) ส่วนลิงก์ที่เหลือของหน้าร้าน
+    // ประกอบด้วย `encodeURIComponent` ได้ `%20` — เบราว์เซอร์อ่านได้ทั้งคู่ แต่ URL ของหน้าเดียวกัน
+    // จะมีสองรูป (คำค้น `?q=` มีช่องว่างเป็นปกติ) จึงแปลงให้เหลือรูปเดียวทั้งร้าน
+    // `+` ที่ผู้ใช้พิมพ์เองถูกเข้ารหัสเป็น `%2B` ไปแล้ว — ที่เหลือจึงเป็นช่องว่างล้วน
+    const query = params.toString().replace(/\+/g, '%20');
     return query ? `${storefrontHref(slug)}?${query}` : storefrontHref(slug);
   };
 
