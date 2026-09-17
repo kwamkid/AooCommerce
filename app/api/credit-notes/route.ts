@@ -1,6 +1,6 @@
 // Path: app/api/credit-notes/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { createCreditNote } from '@/lib/credit-notes/auto-cn';
 
 // POST — Create a Credit Note (void, refund, or exchange)
@@ -9,6 +9,9 @@ export async function POST(request: NextRequest) {
     const auth = await checkAuthWithCompany(request);
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!can(auth, 'finance.manage')) {
+      return NextResponse.json({ error: 'ไม่มีสิทธิ์ดำเนินการนี้' }, { status: 403 });
     }
 
     const body = await request.json();

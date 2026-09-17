@@ -1,6 +1,6 @@
 // Path: app/api/shipping-addresses/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 
 import { normalizePhone } from '@/lib/numeric-input';
 // Type definitions
@@ -83,6 +83,9 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       );
     }
+    if (!can(auth, 'customer.edit')) {
+      return NextResponse.json({ error: 'ไม่มีสิทธิ์ดำเนินการนี้' }, { status: 403 });
+    }
 
     const addressData: ShippingAddressData = await request.json();
     // เบอร์โทรเก็บเป็นตัวเลขล้วนทั้งระบบ — normalize ที่ทางเข้าจุดเดียว ทุก insert/update ข้างล่างสะอาดเอง
@@ -158,6 +161,9 @@ export async function PUT(request: NextRequest) {
         { status: 401 }
       );
     }
+    if (!can(auth, 'customer.edit')) {
+      return NextResponse.json({ error: 'ไม่มีสิทธิ์ดำเนินการนี้' }, { status: 403 });
+    }
 
     const body = await request.json();
     // เบอร์โทรเก็บเป็นตัวเลขล้วนทั้งระบบ — normalize ที่ทางเข้าจุดเดียว ทุก insert/update ข้างล่างสะอาดเอง
@@ -211,6 +217,9 @@ export async function DELETE(request: NextRequest) {
         { error: 'Unauthorized' },
         { status: 401 }
       );
+    }
+    if (!can(auth, 'customer.edit')) {
+      return NextResponse.json({ error: 'ไม่มีสิทธิ์ดำเนินการนี้' }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);

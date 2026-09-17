@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse, after } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { addStock } from '@/lib/stock-service';
 
 // GET /api/return-notes — list
@@ -52,6 +52,9 @@ export async function POST(request: NextRequest) {
     const auth = await checkAuthWithCompany(request);
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!can(auth, 'finance.manage')) {
+      return NextResponse.json({ error: 'ไม่มีสิทธิ์ดำเนินการนี้' }, { status: 403 });
     }
 
     const body = await request.json();

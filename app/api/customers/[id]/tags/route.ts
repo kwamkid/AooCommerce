@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse, after } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 
 // Confirm the customer belongs to the caller's company. Returns true only when
 // the id resolves to a row in this company — blocks cross-tenant tag reads/writes
@@ -17,7 +17,8 @@ async function customerInCompany(customerId: string, companyId: string): Promise
 // GET — list tags for a specific customer
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { isAuth, companyId } = await checkAuthWithCompany(request);
+    const auth = await checkAuthWithCompany(request);
+    const { isAuth, companyId } = auth;
     if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
 
@@ -47,8 +48,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 // การกดครั้งถัดไปจะลบแท็กของเขาทิ้งเงียบ ๆ (ดู lib/tag-links.ts)
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { isAuth, companyId } = await checkAuthWithCompany(request);
+    const auth = await checkAuthWithCompany(request);
+    const { isAuth, companyId } = auth;
     if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!can(auth, 'customer.edit')) {
+      return NextResponse.json({ error: 'ไม่มีสิทธิ์ดำเนินการนี้' }, { status: 403 });
+    }
     if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
 
     const { id: customerId } = await params;
@@ -152,8 +157,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 // ที่อื่นทั้งหมดต้องใช้ PATCH (diff) ไม่งั้นจะลบแท็กที่คนอื่นเพิ่งติดทิ้ง
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { isAuth, companyId } = await checkAuthWithCompany(request);
+    const auth = await checkAuthWithCompany(request);
+    const { isAuth, companyId } = auth;
     if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!can(auth, 'customer.edit')) {
+      return NextResponse.json({ error: 'ไม่มีสิทธิ์ดำเนินการนี้' }, { status: 403 });
+    }
     if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
 
     const { id: customerId } = await params;
