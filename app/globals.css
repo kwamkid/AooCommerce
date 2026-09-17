@@ -458,6 +458,62 @@ h6:where(.heading-1, .heading-2, .heading-3, .heading-4) {
     @apply min-w-0 flex-1 truncate;
   }
 
+  /* ── กริดการ์ดของหน้า master data (แบรนด์ · หมวดหมู่) ──
+   * ใช้ผ่าน <MasterDataGrid> / <MasterDataGridCard> เสมอ — ห้ามประกอบกริดเองในหน้า
+   * ความกว้างการ์ดคุมด้วย auto-fill: จอแคบ 1 คอลัมน์ → กว้างขึ้นเพิ่มเองตามที่ว่าง
+   */
+  .master-grid {
+    @apply grid gap-3;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+  }
+  .master-card {
+    @apply flex flex-col rounded-xl border border-gray-200 bg-white p-4 transition-shadow dark:border-slate-700 dark:bg-slate-800;
+  }
+  .master-card-interactive {
+    @apply hover:border-primary/40 hover:shadow-md;
+  }
+  .master-card-head {
+    @apply flex items-start gap-3;
+  }
+  /* กรอบรูปแบรนด์/ไอคอนหมวด — ใหญ่กว่าในตารางเพราะการ์ดมีที่ให้หายใจ */
+  .master-card-avatar {
+    @apply flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl text-base font-semibold [&>svg]:h-5 [&>svg]:w-5;
+  }
+  .master-card-avatar-primary {
+    @apply bg-primary/10 text-primary;
+  }
+  .master-card-avatar-muted {
+    @apply bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-slate-300;
+  }
+  .master-card-avatar-img {
+    @apply h-full w-full object-contain;
+  }
+  .master-card-heading {
+    @apply min-w-0 flex-1;
+  }
+  .master-card-title {
+    @apply data-primary block min-w-0 truncate font-medium;
+  }
+  .master-card-title-link {
+    @apply master-card-title hover:text-primary;
+  }
+  .master-card-subtitle {
+    @apply page-subtitle truncate;
+  }
+  /* เนื้อเพิ่มใต้หัวการ์ด (รายการหมวดย่อย) — เส้นคั่นขึ้นเองเมื่อมีของ */
+  .master-card-body {
+    @apply mt-3 border-t border-gray-100 pt-2 dark:border-slate-700;
+  }
+  .master-card-row {
+    @apply flex items-center gap-2 py-1 [&>svg]:h-4 [&>svg]:w-4 [&>svg]:flex-shrink-0 [&>svg]:text-gray-400;
+  }
+  .master-card-row-name {
+    @apply min-w-0 flex-1 truncate;
+  }
+  .master-card-empty {
+    @apply page-subtitle py-1;
+  }
+
   /* ข้อมูลรองในช่องตาราง (ไอคอน + ข้อความ) และข้อความจาง ๆ ("ยังไม่ผูก Supplier") */
   .table-meta {
     @apply flex items-center gap-2 [&>svg]:w-4 [&>svg]:h-4 [&>svg]:flex-shrink-0 [&>svg]:text-gray-400;

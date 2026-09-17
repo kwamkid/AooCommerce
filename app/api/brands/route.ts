@@ -39,7 +39,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     // ฟอร์มเพิ่ม/แก้ไขเป็นใบเดียวกัน (หน้า /settings/brands) — ตอนสร้างจึงส่งครบทุกช่อง
     // เหมือนตอนแก้ ⛔ ห้ามตัดเหลือแค่ชื่อ ไม่งั้นค่าที่ผู้ใช้กรอกตอนสร้างหายเงียบ
-    const { name, logo_url, supplier_id, default_gp_rate, gp_base_price } = body;
+    //
+    // ⛔ **ห้ามรับ/เขียน `default_gp_rate` · `gp_base_price` ที่นี่** — `product_brands` ไม่มี
+    //    สองคอลัมน์นี้ ส่งไปเมื่อไหร่ PostgREST ตีกลับทั้งใบ (สร้างแบรนด์ไม่ได้เลย)
+    //    GP ระดับแบรนด์ของจริงอยู่ที่ `companies.settings.brand_gp_overrides`
+    //    (ตั้งค่า › ลูกค้าธุรกิจ) ซึ่ง `lib/gp-resolver.ts` อ่านตัวนั้น
+    const { name, logo_url, supplier_id } = body;
 
     if (!name?.trim()) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
@@ -64,8 +69,6 @@ export async function POST(request: NextRequest) {
         sort_order: nextOrder,
         logo_url: (logo_url || '').trim() || null,
         supplier_id: supplier_id || null,
-        default_gp_rate: default_gp_rate === '' || default_gp_rate == null ? null : Number(default_gp_rate),
-        gp_base_price: gp_base_price || 'retail',
       })
       .select()
       .single();
@@ -96,7 +99,8 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, name, sort_order, supplier_id, default_gp_rate, gp_base_price, logo_url } = body;
+    // ⛔ ไม่รับ `default_gp_rate`/`gp_base_price` — เหตุผลเดียวกับ POST ข้างบน
+    const { id, name, sort_order, supplier_id, logo_url } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'ID is required' }, { status: 400 });
@@ -106,8 +110,6 @@ export async function PUT(request: NextRequest) {
     if (name !== undefined) updateData.name = name.trim();
     if (sort_order !== undefined) updateData.sort_order = sort_order;
     if (supplier_id !== undefined) updateData.supplier_id = supplier_id || null;
-    if (default_gp_rate !== undefined) updateData.default_gp_rate = default_gp_rate === '' || default_gp_rate === null ? null : Number(default_gp_rate);
-    if (gp_base_price !== undefined) updateData.gp_base_price = gp_base_price || 'retail';
     // โลโก้แบรนด์ — หน้าร้านดึงไปแสดงบนหัวหน้ากรองแบรนด์ · ลบรูปแล้วส่งค่าว่างมาได้ (เก็บเป็น null)
     if (logo_url !== undefined) updateData.logo_url = (logo_url || '').trim() || null;
 

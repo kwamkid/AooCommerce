@@ -2,23 +2,21 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ChevronDown, CornerDownRight, Edit2, Folder, FolderTree, Plus, Tag, Trash2 } from 'lucide-react';
-import { DEFAULT_RECORDS_PER_PAGE, RECORDS_PER_PAGE_OPTIONS } from '@/app/components/Pagination';
+import { CornerDownRight, Edit2, Folder, FolderTree, Plus, Tag, Trash2 } from 'lucide-react';
 import Layout from '@/components/layout/Layout';
 import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import Container from '@/components/ui/Container';
-import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import FormField from '@/components/ui/FormField';
 import FormInput from '@/components/ui/FormInput';
 import FormSelect from '@/components/ui/FormSelect';
 import ListFilterBar from '@/components/ui/ListFilterBar';
-import MasterDataCell from '@/components/ui/MasterDataCell';
+import { MasterDataGrid, MasterDataGridCard } from '@/components/ui/MasterDataGrid';
 import Modal, { ModalFormBody, ModalFormFooter } from '@/components/ui/Modal';
 import PageHeader from '@/components/ui/PageHeader';
 import SaveButton from '@/components/ui/SaveButton';
-import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
+import { EmptyCard, LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 import { apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { can } from '@/lib/permissions';
@@ -34,13 +32,6 @@ interface CategoryItem {
   children?: CategoryItem[];
 }
 
-interface CategoryRow extends Omit<CategoryItem, 'children'> {
-  level: 0 | 1;
-  parentName: string | null;
-  childCount: number;
-  children?: CategoryRow[];
-}
-
 export default function CategoriesPageWrapper() {
   return <Suspense fallback={<Layout><LoadingCard /></Layout>}><CategoriesPage /></Suspense>;
 }
@@ -52,11 +43,6 @@ function CategoriesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get('q') || '';
-  const requestedPage = Math.max(1, Number(searchParams.get('page')) || 1);
-  const requestedLimit = Number(searchParams.get('limit'));
-  const recordsPerPage = RECORDS_PER_PAGE_OPTIONS.includes(requestedLimit as typeof RECORDS_PER_PAGE_OPTIONS[number])
-    ? requestedLimit
-    : DEFAULT_RECORDS_PER_PAGE;
 
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState<CategoryItem[]>([]);
@@ -65,11 +51,10 @@ function CategoriesPage() {
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [addParentId, setAddParentId] = useState<string | null>(null);
   const [addName, setAddName] = useState('');
-  const [editingCategory, setEditingCategory] = useState<CategoryRow | null>(null);
+  const [editingCategory, setEditingCategory] = useState<CategoryItem | null>(null);
   const [editingName, setEditingName] = useState('');
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [expandedMobileIds, setExpandedMobileIds] = useState<Set<string>>(() => new Set());
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const fetchCategories = useCallback(async () => {
@@ -97,58 +82,27 @@ function CategoriesPage() {
       const params = new URLSearchParams(searchParams.toString());
       if (value.trim()) params.set('q', value.trim());
       else params.delete('q');
-      params.delete('page');
       const queryString = params.toString();
       router.replace(queryString ? `?${queryString}` : window.location.pathname);
     }, 300);
   }, [router, searchParams]);
 
-  const parentRows = useMemo<CategoryRow[]>(() => categories.map(parent => ({
-    ...parent,
-    level: 0,
-    parentName: null,
-    childCount: parent.children?.length || 0,
-    children: (parent.children || []).map(child => ({
-      id: child.id,
-      name: child.name,
-      parent_id: child.parent_id,
-      sort_order: child.sort_order,
-      level: 1,
-      parentName: parent.name,
-      childCount: 0,
-    })),
-  })), [categories]);
-
-  const rows = useMemo(
-    () => parentRows.flatMap(parent => [parent, ...(parent.children || [])]),
-    [parentRows],
-  );
-
-  const displayRows = useMemo(() => {
+  /** ค้นแล้วต้องไม่ทำให้หมวดหลักหาย — เจอที่หมวดย่อยก็ยังโชว์การ์ดแม่ (เหลือเฉพาะลูกที่ตรง)
+   *  ไม่งั้นพิมพ์ชื่อหมวดย่อยแล้วจอว่าง ทั้งที่ของอยู่ในนั้น */
+  const visibleCategories = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return parentRows;
-    return rows.filter(row => row.name.toLowerCase().includes(query)
-      || row.parentName?.toLowerCase().includes(query));
-  }, [parentRows, rows, searchQuery]);
+    if (!query) return categories;
+    return categories.reduce<CategoryItem[]>((acc, parent) => {
+      const parentHit = parent.name.toLowerCase().includes(query);
+      const children = (parent.children || []).filter(child => child.name.toLowerCase().includes(query));
+      if (parentHit) acc.push(parent);
+      else if (children.length) acc.push({ ...parent, children });
+      return acc;
+    }, []);
+  }, [categories, searchQuery]);
 
   const parentCount = categories.length;
-  const childCount = rows.length - parentCount;
-  const totalPages = Math.max(1, Math.ceil(displayRows.length / recordsPerPage));
-  const currentPage = Math.min(requestedPage, totalPages);
-  const paginatedRows = displayRows.slice(
-    (currentPage - 1) * recordsPerPage,
-    currentPage * recordsPerPage,
-  );
-
-  const setPagination = (page: number, limit: number = recordsPerPage) => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (page > 1) params.set('page', String(page));
-    else params.delete('page');
-    if (limit !== DEFAULT_RECORDS_PER_PAGE) params.set('limit', String(limit));
-    else params.delete('limit');
-    const queryString = params.toString();
-    router.replace(queryString ? `?${queryString}` : window.location.pathname);
-  };
+  const childCount = categories.reduce((sum, parent) => sum + (parent.children?.length || 0), 0);
 
   const openAddModal = (parentId: string | null = null) => {
     setAddName('');
@@ -161,7 +115,7 @@ function CategoriesPage() {
     setAddName('');
     setAddParentId(null);
   };
-  const openEditModal = (category: CategoryRow) => {
+  const openEditModal = (category: CategoryItem) => {
     setEditingCategory(category);
     setEditingName(category.name);
   };
@@ -214,12 +168,12 @@ function CategoriesPage() {
     } finally { setSaving(false); }
   };
 
-  const handleDelete = async (category: CategoryRow) => {
-    const source = category.level === 0 ? categories.find(item => item.id === category.id) : category;
-    const children = source?.children || [];
+  /** ลบหมวดหลัก = ลบลูกก่อนทีละใบ แล้วค่อยลบตัวแม่ (API ไม่ลบเป็นชุดให้) */
+  const handleDelete = async (category: CategoryItem, isChild: boolean) => {
+    const children = isChild ? [] : (categories.find(item => item.id === category.id)?.children || []);
     const title = children.length
       ? `หมวดหมู่ “${category.name}” มีหมวดย่อย ${children.length} รายการ หมวดย่อยจะถูกลบด้วย`
-      : `ต้องการลบ${category.level === 1 ? 'หมวดย่อย' : 'หมวดหมู่'} “${category.name}” หรือไม่`;
+      : `ต้องการลบ${isChild ? 'หมวดย่อย' : 'หมวดหมู่'} “${category.name}” หรือไม่`;
     if (!await confirm({ title, variant: 'danger' })) return;
     setDeletingId(category.id);
     try {
@@ -239,50 +193,23 @@ function CategoriesPage() {
     } finally { setDeletingId(null); }
   };
 
-  const actionItems = (row: CategoryRow): ActionItem[] => [
-    ...(row.level === 0 ? [{
+  const parentActions = (category: CategoryItem): ActionItem[] => [
+    {
       key: 'add-child', label: 'เพิ่มหมวดย่อย', icon: <Plus />,
-      onClick: () => openAddModal(row.id), primary: true,
-    }] : []),
-    { key: 'edit', label: 'แก้ไขชื่อ', icon: <Edit2 />, onClick: () => openEditModal(row) },
+      onClick: () => openAddModal(category.id), primary: true,
+    },
+    { key: 'edit', label: 'แก้ไขชื่อ', icon: <Edit2 />, onClick: () => openEditModal(category) },
     {
       key: 'delete', label: 'ลบ', icon: <Trash2 />,
-      onClick: () => void handleDelete(row), danger: true, disabled: deletingId === row.id, dividerBefore: true,
+      onClick: () => void handleDelete(category, false), danger: true, disabled: deletingId === category.id, dividerBefore: true,
     },
   ];
-  const renderActions = (row: CategoryRow) => <ActionMenu items={actionItems(row)} />;
 
-  const toggleMobileExpanded = (id: string) => {
-    setExpandedMobileIds(previous => {
-      const next = new Set(previous);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const columns: DataTableColumn<CategoryRow>[] = [
+  const childActions = (child: CategoryItem): ActionItem[] => [
+    { key: 'edit', label: 'แก้ไขชื่อ', icon: <Edit2 />, onClick: () => openEditModal(child) },
     {
-      key: 'name', label: 'หมวดหมู่', alwaysVisible: true, grow: true,
-      render: row => <MasterDataCell
-        icon={row.level === 0 ? <Folder /> : <CornerDownRight />}
-        title={row.name}
-        subtitle={row.parentName ? `อยู่ใน ${row.parentName}` : undefined}
-        tone={row.level === 0 ? 'primary' : 'muted'}
-        nested={row.level === 1}
-      />,
-    },
-    {
-      key: 'type', label: 'ประเภท', defaultWidth: 150,
-      render: row => <Badge tone={row.level === 0 ? 'orange' : 'gray'}>{row.level === 0 ? 'หมวดหลัก' : 'หมวดย่อย'}</Badge>,
-    },
-    {
-      key: 'children', label: 'หมวดย่อย', align: 'center', defaultWidth: 120,
-      render: row => row.level === 0 ? `${row.childCount} รายการ` : '—',
-    },
-    {
-      key: 'actions', label: '', alwaysVisible: true, stopPropagation: true, align: 'right', defaultWidth: 64,
-      render: renderActions,
+      key: 'delete', label: 'ลบ', icon: <Trash2 />,
+      onClick: () => void handleDelete(child, true), danger: true, disabled: deletingId === child.id, dividerBefore: true,
     },
   ];
 
@@ -308,45 +235,42 @@ function CategoriesPage() {
             </>
           }
         />
-        <DataTable
-          storageKey="settings-categories" columns={columns} data={paginatedRows} loading={loading}
-          getRowId={row => row.id} emptyMessage={searchQuery ? 'ไม่พบหมวดหมู่ที่ค้นหา' : 'ยังไม่มีหมวดหมู่สินค้า'}
-          emptyIcon={<FolderTree className="data-empty-icon" />} currentPage={currentPage} totalPages={totalPages}
-          totalRecords={displayRows.length} recordsPerPage={recordsPerPage}
-          onPageChange={page => setPagination(page)}
-          onRecordsPerPageChange={limit => setPagination(1, limit)}
-          onLimitChange={(limit, page) => setPagination(page, limit)}
-          getSubRows={searchQuery.trim() ? undefined : row => row.children}
-          mobileCardRender={row => (
-            <div>
-              <div className="master-data-mobile-row">
-                <MasterDataCell
-                  icon={row.level === 0 ? <Folder /> : <CornerDownRight />}
-                  title={row.name}
-                  subtitle={row.level === 0 ? `${row.childCount} หมวดย่อย` : `หมวดย่อยของ ${row.parentName}`}
-                  tone={row.level === 0 ? 'primary' : 'muted'}
-                />
-                {!searchQuery.trim() && row.children && row.children.length > 0 && (
-                  <Button variant="ghost" size="sm" onClick={() => toggleMobileExpanded(row.id)} aria-label={expandedMobileIds.has(row.id) ? 'ซ่อนหมวดย่อย' : 'แสดงหมวดย่อย'}>
-                    <ChevronDown className={expandedMobileIds.has(row.id) ? 'master-data-expand-icon expanded' : 'master-data-expand-icon'} />
-                  </Button>
-                )}
-                {renderActions(row)}
-              </div>
-              {!searchQuery.trim() && expandedMobileIds.has(row.id) && row.children && (
-                <div className="master-data-subrows">
-                  {row.children.map(child => (
-                    <div key={child.id} className="master-data-subrow">
+
+        {loading ? <LoadingCard /> : visibleCategories.length === 0 ? (
+          <EmptyCard
+            icon={<FolderTree className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+            title={searchQuery ? 'ไม่พบหมวดหมู่ที่ค้นหา' : 'ยังไม่มีหมวดหมู่สินค้า'}
+            subtitle={searchQuery ? 'ลองเปลี่ยนคำค้น' : 'เพิ่มหมวดหมู่แรกเพื่อจัดกลุ่มสินค้าให้หาง่ายขึ้น'}
+            actions={searchQuery ? undefined : <Button variant="primary" icon={<Plus />} onClick={() => openAddModal()}>เพิ่มหมวดหมู่</Button>}
+          />
+        ) : (
+          <MasterDataGrid>
+            {visibleCategories.map(parent => {
+              const children = parent.children || [];
+              return (
+                <MasterDataGridCard
+                  key={parent.id}
+                  title={parent.name}
+                  icon={<Folder />}
+                  subtitle={children.length ? `${children.length} หมวดย่อย` : 'ไม่มีหมวดย่อย'}
+                  actions={<ActionMenu items={parentActions(parent)} />}
+                >
+                  {children.length > 0 ? children.map(child => (
+                    <div key={child.id} className="master-card-row">
                       <CornerDownRight />
-                      <span className="master-data-subrow-name">{child.name}</span>
-                      {renderActions(child)}
+                      <span className="master-card-row-name">{child.name}</span>
+                      <ActionMenu items={childActions(child)} />
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        />
+                  )) : (
+                    <Button variant="ghost" size="sm" icon={<Plus />} onClick={() => openAddModal(parent.id)}>
+                      เพิ่มหมวดย่อย
+                    </Button>
+                  )}
+                </MasterDataGridCard>
+              );
+            })}
+          </MasterDataGrid>
+        )}
       </Container>
 
       <Modal open={addModalOpen} onClose={closeAddModal} title={addParentId ? 'เพิ่มหมวดย่อย' : 'เพิ่มหมวดหมู่'}

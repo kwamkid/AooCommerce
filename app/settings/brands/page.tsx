@@ -3,7 +3,6 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Award, Edit2, Factory, PackageSearch, Plus, Trash2 } from 'lucide-react';
-import { DEFAULT_RECORDS_PER_PAGE, RECORDS_PER_PAGE_OPTIONS } from '@/app/components/Pagination';
 import Layout from '@/components/layout/Layout';
 import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
 import Alert from '@/components/ui/Alert';
@@ -11,11 +10,10 @@ import Badge from '@/components/ui/Badge';
 import BrandFormModal from '@/components/brands/BrandFormModal';
 import Button from '@/components/ui/Button';
 import Container from '@/components/ui/Container';
-import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import ListFilterBar from '@/components/ui/ListFilterBar';
-import MasterDataCell from '@/components/ui/MasterDataCell';
+import { MasterDataGrid, MasterDataGridCard } from '@/components/ui/MasterDataGrid';
 import PageHeader from '@/components/ui/PageHeader';
-import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
+import { EmptyCard, LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 import { apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { useFeatures } from '@/lib/features-context';
@@ -29,6 +27,8 @@ interface SupplierRef {
   supplier_type: string;
 }
 
+// ⛔ ไม่มี GP ที่แบรนด์ — GP ระดับแบรนด์อยู่ที่ `companies.settings.brand_gp_overrides`
+//    (ตั้งค่า › ลูกค้าธุรกิจ) ซึ่ง lib/gp-resolver.ts อ่านตัวนั้น · ห้ามเพิ่มกลับมาที่นี่
 interface BrandItem {
   id: string;
   name: string;
@@ -36,8 +36,6 @@ interface BrandItem {
   sort_order: number;
   supplier_id?: string | null;
   supplier?: SupplierRef | null;
-  default_gp_rate?: number | null;
-  gp_base_price?: 'retail' | 'discounted' | null;
 }
 
 export default function BrandsPage() {
@@ -52,11 +50,6 @@ function BrandsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get('q') || '';
-  const requestedPage = Math.max(1, Number(searchParams.get('page')) || 1);
-  const requestedLimit = Number(searchParams.get('limit'));
-  const recordsPerPage = RECORDS_PER_PAGE_OPTIONS.includes(requestedLimit as typeof RECORDS_PER_PAGE_OPTIONS[number])
-    ? requestedLimit
-    : DEFAULT_RECORDS_PER_PAGE;
 
   const [loading, setLoading] = useState(true);
   const [brands, setBrands] = useState<BrandItem[]>([]);
@@ -108,7 +101,6 @@ function BrandsPageInner() {
       const params = new URLSearchParams(searchParams.toString());
       if (value.trim()) params.set('q', value.trim());
       else params.delete('q');
-      params.delete('page');
       const queryString = params.toString();
       router.replace(queryString ? `?${queryString}` : window.location.pathname);
     }, 300);
@@ -120,23 +112,6 @@ function BrandsPageInner() {
     return brands.filter(brand => brand.name.toLowerCase().includes(query)
       || brand.supplier?.name?.toLowerCase().includes(query));
   }, [brands, searchQuery]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredBrands.length / recordsPerPage));
-  const currentPage = Math.min(requestedPage, totalPages);
-  const paginatedBrands = filteredBrands.slice(
-    (currentPage - 1) * recordsPerPage,
-    currentPage * recordsPerPage,
-  );
-
-  const setPagination = (page: number, limit: number = recordsPerPage) => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (page > 1) params.set('page', String(page));
-    else params.delete('page');
-    if (limit !== DEFAULT_RECORDS_PER_PAGE) params.set('limit', String(limit));
-    else params.delete('limit');
-    const queryString = params.toString();
-    router.replace(queryString ? `?${queryString}` : window.location.pathname);
-  };
 
   /** `brand` ว่าง = เพิ่มใหม่ · มีค่า = แก้ไข */
   const openForm = (brand?: BrandItem) => {
@@ -171,43 +146,6 @@ function BrandsPageInner() {
       onClick: () => void handleDelete(brand), danger: true, disabled: deletingId === brand.id, dividerBefore: true,
     },
   ];
-  const renderActions = (brand: BrandItem) => <ActionMenu items={actionItems(brand)} />;
-
-  const columns: DataTableColumn<BrandItem>[] = [
-    {
-      key: 'name', label: 'แบรนด์', alwaysVisible: true, grow: true, defaultWidth: 260,
-      // มีโลโก้แล้วใช้โลโก้แทนไอคอนเริ่มต้น — ร้านเห็นได้ทันทีว่าแบรนด์ไหนยังไม่ได้ใส่รูป
-      render: brand => (
-        <MasterDataCell
-          icon={brand.logo_url
-            // eslint-disable-next-line @next/next/no-img-element
-            ? <img src={brand.logo_url} alt="" className="w-full h-full object-contain" />
-            : <Award />}
-          title={brand.name}
-          href={`/settings/brands/${brand.id}`}
-        />
-      ),
-    },
-    ...(features.supplier ? [{
-      key: 'supplier', label: 'Supplier', defaultWidth: 320,
-      render: (brand: BrandItem) => brand.supplier ? (
-        <div className="table-meta"><Factory /><span>{brand.supplier.name}</span></div>
-      ) : <span className="table-muted">ยังไม่ผูก Supplier</span>,
-    }] : []),
-    ...(features.consignment ? [{
-      key: 'gp', label: 'GP ฝากขาย', defaultWidth: 180,
-      render: (brand: BrandItem) => brand.default_gp_rate == null
-        ? <Badge tone="gray" title="ใช้ค่า GP ฝากขายกลางที่ตั้งไว้ในบริษัท">ใช้ GP กลาง</Badge>
-        : <Badge tone="blue">{brand.default_gp_rate}%</Badge>,
-    }, {
-      key: 'gp-base', label: 'คิด GP จาก', defaultWidth: 150,
-      render: (brand: BrandItem) => brand.gp_base_price === 'discounted' ? 'ราคาลด' : 'ราคาปลีก',
-    }] : []),
-    {
-      key: 'actions', label: '', alwaysVisible: true, stopPropagation: true, align: 'right', defaultWidth: 64,
-      render: renderActions,
-    },
-  ];
 
   if (userProfile && !can(userProfile, 'masterdata.brands')) return <Layout><NoPermissionCard /></Layout>;
   if (!featuresFetched) return <Layout><LoadingCard /></Layout>;
@@ -223,30 +161,37 @@ function BrandsPageInner() {
   return (
     <Layout>
       <Container size="full">
-        <PageHeader icon={<Award />} title="แบรนด์" subtitle={`กำหนด Supplier และ GP ฝากขายของแต่ละแบรนด์ รวม ${brands.length} แบรนด์`}
+        <PageHeader icon={<Award />} title="แบรนด์" subtitle={`แบรนด์สินค้าทั้งหมด ${brands.length} แบรนด์`}
           actions={<Button variant="primary" icon={<Plus />} onClick={() => openForm()}>เพิ่มแบรนด์</Button>} />
-        <ListFilterBar value={searchInput} onChange={handleSearchChange} placeholder="ค้นหาแบรนด์หรือ Supplier..." summary={<Badge tone="orange">{brands.length} แบรนด์</Badge>} />
-        <DataTable
-          storageKey="settings-brands" columns={columns} data={paginatedBrands} loading={loading}
-          getRowId={brand => brand.id} emptyMessage={searchQuery ? 'ไม่พบแบรนด์ที่ค้นหา' : 'ยังไม่มีแบรนด์สินค้า'}
-          emptyIcon={<Award className="data-empty-icon" />} currentPage={currentPage} totalPages={totalPages}
-          totalRecords={filteredBrands.length} recordsPerPage={recordsPerPage}
-          onPageChange={page => setPagination(page)}
-          onRecordsPerPageChange={limit => setPagination(1, limit)}
-          onLimitChange={(limit, page) => setPagination(page, limit)}
-          mobileCardRender={brand => (
-            <div className="master-data-mobile-row">
-              <MasterDataCell
-                icon={<Award />}
+        <ListFilterBar value={searchInput} onChange={handleSearchChange}
+          placeholder={features.supplier ? 'ค้นหาแบรนด์หรือ Supplier...' : 'ค้นหาแบรนด์...'}
+          summary={<Badge tone="orange">{brands.length} แบรนด์</Badge>} />
+
+        {loading ? <LoadingCard /> : filteredBrands.length === 0 ? (
+          <EmptyCard
+            icon={<Award className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+            title={searchQuery ? 'ไม่พบแบรนด์ที่ค้นหา' : 'ยังไม่มีแบรนด์สินค้า'}
+            subtitle={searchQuery ? 'ลองเปลี่ยนคำค้น' : 'เพิ่มแบรนด์แรกเพื่อจัดกลุ่มสินค้าให้ลูกค้าหาง่ายขึ้น'}
+            actions={searchQuery ? undefined : <Button variant="primary" icon={<Plus />} onClick={() => openForm()}>เพิ่มแบรนด์</Button>}
+          />
+        ) : (
+          <MasterDataGrid>
+            {filteredBrands.map(brand => (
+              <MasterDataGridCard
+                key={brand.id}
                 title={brand.name}
+                imageUrl={brand.logo_url}
                 href={`/settings/brands/${brand.id}`}
-                subtitle={features.supplier ? brand.supplier?.name || 'ยังไม่ผูก Supplier' : undefined}
+                subtitle={features.supplier ? (
+                  brand.supplier
+                    ? <span className="table-meta"><Factory />{brand.supplier.name}</span>
+                    : 'ยังไม่ผูก Supplier'
+                ) : undefined}
+                actions={<ActionMenu items={actionItems(brand)} />}
               />
-              {features.consignment && brand.default_gp_rate != null && <Badge tone="blue">GP {brand.default_gp_rate}%</Badge>}
-              {renderActions(brand)}
-            </div>
-          )}
-        />
+            ))}
+          </MasterDataGrid>
+        )}
       </Container>
 
       <BrandFormModal

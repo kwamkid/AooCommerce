@@ -539,7 +539,6 @@ export default function SupplierForm({
       <BrandFormModal
         open={brandModalOpen}
         hideSupplier
-        hideGp
         onClose={() => setBrandModalOpen(false)}
         onSaved={handleBrandCreated}
       />

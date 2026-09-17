@@ -3,8 +3,14 @@
 // ฟอร์มแบรนด์ของกลาง — ใช้ทั้งหน้า /settings/brands และหน้า Supplier
 //
 // ⛔ ห้ามเขียนฟอร์มแบรนด์ซ้ำที่อื่นอีก · ที่ไหนอยากได้แค่บางช่องให้ปิดด้วย prop
-//    (`hideSupplier` · `hideGp` · `supplierId` = ผูก Supplier ให้เลยโดยไม่ต้องเลือก)
+//    (`hideSupplier` · `supplierId` = ผูก Supplier ให้เลยโดยไม่ต้องเลือก)
 // เพิ่ม/แก้ไข = ใบเดียวกัน ต่างแค่หัวข้อกับปลายทางที่บันทึก (POST/PUT)
+//
+// ⛔ **ห้ามเอาช่อง GP ฝากขากลับมาที่แบรนด์อีก** (ถอดออก 17 ก.ย. 2569 ตามคำสั่งเจ้าของ)
+//    เหตุผลสองชั้น: (1) `product_brands` ไม่มีคอลัมน์ `default_gp_rate`/`gp_base_price`
+//    อยู่จริง — ส่งไปเมื่อไหร่ PostgREST ตีกลับทั้งใบ (สร้างแบรนด์ใหม่พังทุกครั้ง)
+//    (2) GP ระดับแบรนด์ที่ `lib/gp-resolver.ts` อ่านจริงคือ `companies.settings.brand_gp_overrides`
+//    ซึ่งตั้งที่ **ตั้งค่า › ลูกค้าธุรกิจ** อยู่แล้ว — มีสองที่ให้กรอกคือที่มาของความสับสน
 
 import { useEffect, useState } from 'react';
 import { Award, Edit2, Factory } from 'lucide-react';
@@ -12,7 +18,6 @@ import Button from '@/components/ui/Button';
 import EntitySearchInput from '@/components/ui/EntitySearchInput';
 import FormField from '@/components/ui/FormField';
 import FormInput from '@/components/ui/FormInput';
-import FormSelect from '@/components/ui/FormSelect';
 import ImageDropzone from '@/components/ui/ImageDropzone';
 import Modal, { ModalFormBody, ModalFormFooter } from '@/components/ui/Modal';
 import SaveButton from '@/components/ui/SaveButton';
@@ -27,8 +32,6 @@ export interface BrandFormValue {
   name: string;
   logo_url?: string | null;
   supplier_id?: string | null;
-  default_gp_rate?: number | null;
-  gp_base_price?: 'retail' | 'discounted' | null;
 }
 
 interface SupplierOption {
@@ -46,8 +49,6 @@ interface Props {
   supplierId?: string;
   /** ซ่อนช่องเลือก Supplier (นอกเหนือจากที่ปิดตามฟีเจอร์อยู่แล้ว) */
   hideSupplier?: boolean;
-  /** ซ่อนช่อง GP ฝากขาย — ใช้เมื่ออยากได้แค่ชื่อกับโลโก้ */
-  hideGp?: boolean;
   /** ตัวเลือก Supplier ที่หน้าแม่โหลดไว้แล้ว — ไม่ส่งมาก็โหลดเอง */
   suppliers?: SupplierOption[];
   onSaved: (brand: BrandFormValue) => void;
@@ -59,7 +60,6 @@ export default function BrandFormModal({
   brand,
   supplierId,
   hideSupplier = false,
-  hideGp = false,
   suppliers: suppliersProp,
   onSaved,
 }: Props) {
@@ -75,13 +75,10 @@ export default function BrandFormModal({
   /** ImageDropzone กำลังย่อรูปอยู่ — ปิดปุ่มบันทึกไว้ก่อน ไม่งั้นได้แบรนด์ที่ไม่มีรูป */
   const [logoBusy, setLogoBusy] = useState(false);
   const [supplier, setSupplier] = useState('');
-  const [gpRate, setGpRate] = useState('');
-  const [gpBase, setGpBase] = useState<'retail' | 'discounted'>('retail');
   const [saving, setSaving] = useState(false);
   const [suppliers, setSuppliers] = useState<SupplierOption[]>(suppliersProp || []);
 
   const showSupplierPicker = features.supplier && !hideSupplier && !supplierId;
-  const showGp = features.consignment && !hideGp;
 
   // เติมค่าตั้งต้นทุกครั้งที่เปิด — ปิดแล้วเปิดใหม่ต้องไม่ค้างค่าของรอบก่อน
   useEffect(() => {
@@ -90,8 +87,6 @@ export default function BrandFormModal({
     setLogo(null);
     setLogoUrl(brand?.logo_url || null);
     setSupplier(brand?.supplier_id || supplierId || '');
-    setGpRate(brand?.default_gp_rate == null ? '' : String(brand.default_gp_rate));
-    setGpBase(brand?.gp_base_price || 'retail');
   }, [open, brand, supplierId]);
 
   useEffect(() => {
@@ -104,10 +99,6 @@ export default function BrandFormModal({
 
   const handleSave = async () => {
     if (!name.trim()) return showToast('กรุณากรอกชื่อแบรนด์', 'error');
-    const parsedGpRate = gpRate === '' ? null : Number(gpRate);
-    if (parsedGpRate != null && (!Number.isFinite(parsedGpRate) || parsedGpRate < 0 || parsedGpRate > 100)) {
-      return showToast('GP ต้องอยู่ระหว่าง 0–100%', 'error');
-    }
     setSaving(true);
     try {
       // อัปโลโก้ก่อน แล้วค่อยบันทึกแบรนด์ — อัปไม่ผ่านต้องไม่บันทึกชื่อไปครึ่ง ๆ
@@ -126,12 +117,6 @@ export default function BrandFormModal({
         logo_url: savedLogoUrl || '',
         supplier_id: supplier || null,
       };
-      // ฟีเจอร์ฝากขายปิดอยู่ (หรือหน้านี้ซ่อนช่อง GP) = ไม่ส่งคีย์ GP ไปเลย
-      // ⛔ ส่ง null ไปจะทับค่าที่ตั้งไว้จากหน้าแบรนด์เต็มจนหายเงียบ
-      if (showGp) {
-        payload.default_gp_rate = parsedGpRate;
-        payload.gp_base_price = gpBase;
-      }
       const res = await apiFetch('/api/brands', {
         method: isEditing ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -185,7 +170,7 @@ export default function BrandFormModal({
           />
         </FormField>
         {showSupplierPicker && (
-          <FormField label="Supplier" hint="เจ้าของสินค้าที่เรารับมาขาย — ใช้กับใบสั่งซื้อและรายงาน ไม่เกี่ยวกับ GP ฝากขาย">
+          <FormField label="Supplier" hint="เจ้าของสินค้าที่เรารับมาขาย — ใช้กับใบสั่งซื้อและรายงาน">
             <EntitySearchInput value={supplier} onChange={setSupplier} onClear={() => setSupplier('')}
               options={suppliers.map(item => ({ id: item.id, label: item.name, subtitle: item.supplier_type }))}
               placeholder="ค้นหา Supplier..."
@@ -193,19 +178,6 @@ export default function BrandFormModal({
                 <span className="entity-selected-value"><Factory /><span className="entity-selected-value-text">{suppliers.find(item => item.id === supplier)?.name}</span></span>
               ) : undefined} />
           </FormField>
-        )}
-        {showGp && (
-          <div className="form-grid-2">
-            {/* GP ฝากขาย = ส่วนแบ่งที่ **ห้าง/ตัวแทนหักจากเรา** (ฝั่งลูกค้า) — คนละตัวกับส่วนแบ่ง
-                ที่เราได้จาก Supplier · ลำดับที่ระบบใช้จริง (lib/gp-resolver.ts):
-                ลูกค้า×แบรนด์ → ลูกค้า → แบรนด์ (ช่องนี้) → ค่ากลางบริษัท */}
-            <FormInput label="GP ที่ห้าง/ตัวแทนหักเรา" type="number" min={0} max={100} postfix="%" value={gpRate}
-              onChange={event => setGpRate(event.target.value)} hint="เว้นว่าง = ใช้ GP ฝากขายกลางของบริษัท" />
-            <FormField label="คิด GP จากราคา">
-              <FormSelect value={gpBase} onChange={value => setGpBase(value as 'retail' | 'discounted')}
-                options={[{ id: 'retail', label: 'ราคาปลีก' }, { id: 'discounted', label: 'ราคาลด' }]} searchThreshold={99} portal />
-            </FormField>
-          </div>
         )}
       </ModalFormBody>
     </Modal>
