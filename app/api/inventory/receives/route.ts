@@ -4,6 +4,7 @@ import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { getStockConfig, parseStockDocLines } from '@/lib/stock-utils';
 import { addStock, updateWeightedAverageCost } from '@/lib/stock-service';
 import { pushStockAfter } from '@/lib/marketplace/push-after';
+import { guardFeature } from '@/lib/package-gates-server';
 
 /** วันเปล่า `YYYY-MM-DD` → ขอบเขตตามเวลาไทย (ปลายทางเป็น timestamptz) */
 function toBoundary(value: string | null, end: boolean): string | null {
@@ -27,6 +28,9 @@ export async function GET(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(auth.companyId, 'stock');
+    if (blocked) return blocked;
 
     const { searchParams } = new URL(request.url);
     const receiveId = searchParams.get('id');
@@ -223,6 +227,9 @@ export async function POST(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(auth.companyId, 'stock');
+    if (blocked) return blocked;
     if (!can(auth, 'inventory.manage')) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์รับเข้าสินค้า' }, { status: 403 });
     }
@@ -427,6 +434,9 @@ export async function PATCH(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(auth.companyId, 'stock');
+    if (blocked) return blocked;
 
     const body = await request.json();
     const { id, notes } = body;

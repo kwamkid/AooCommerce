@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
+import { guardFeature } from '@/lib/package-gates-server';
 
 // GET - Fetch all active suppliers
 export async function GET(request: NextRequest) {
@@ -8,6 +9,9 @@ export async function GET(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(auth.companyId, 'supplier');
+    if (blocked) return blocked;
 
     const { data, error } = await supabaseAdmin
       .from('suppliers')
@@ -32,6 +36,9 @@ export async function POST(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(auth.companyId, 'supplier');
+    if (blocked) return blocked;
     if (!can(auth, 'masterdata.suppliers')) {
       return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
@@ -90,6 +97,9 @@ export async function PUT(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(auth.companyId, 'supplier');
+    if (blocked) return blocked;
     if (!can(auth, 'masterdata.suppliers')) {
       return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
@@ -147,6 +157,9 @@ export async function DELETE(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
+    const blocked = await guardFeature(auth.companyId, 'supplier');
+    if (blocked) return blocked;
     if (!can(auth, 'masterdata.suppliers')) {
       return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
