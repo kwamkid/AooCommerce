@@ -14,6 +14,8 @@ import { showPdfPreview } from '@/lib/print-pdf';
 import { thumbUrl } from '@/lib/image-thumb';
 import Button from '@/components/ui/Button';
 import { Loader2, ArrowLeft, Factory, Calendar, Warehouse, Package, BarChart3, ShoppingCart, Printer, CheckCircle2, Send } from 'lucide-react';
+import { useAuthGuard } from '@/lib/useAuthGuard';
+import { LoadingCard } from '@/components/ui/StateCard';
 
 interface VariationInfo {
   id: string;
@@ -193,6 +195,10 @@ export default function SnapshotDetailPage() {
 
   const formatCurrency = (n: number) => n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const formatDate = (d: string) => new Date(d).toLocaleDateString('th-TH', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+  const { allowed, loading: permLoading } = useAuthGuard('report.supplier.view');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
 
   if (authLoading || loading) {
     return (

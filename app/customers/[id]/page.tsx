@@ -35,6 +35,7 @@ import {
   RefreshCw,
   KeyRound,
 } from 'lucide-react';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 
 // Customer interface
 interface Customer {
@@ -270,6 +271,10 @@ export default function CustomerEditPage() {
       setRegeneratingCode(false);
     }
   };
+
+  const { allowed, loading: permLoading } = useAuthGuard('customer.view');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
 
   if (authLoading || loading) {
     return (

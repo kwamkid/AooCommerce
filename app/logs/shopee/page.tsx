@@ -30,6 +30,7 @@ import { LoadingCard } from '@/components/ui/StateCard';
 import { InfoChip } from '@/components/ui/StatusBadge';
 import Badge from '@/components/ui/Badge';
 import { getBadgeColor } from '@/lib/status-tab-colors';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 
 interface IntegrationLog {
   id: string;
@@ -247,6 +248,10 @@ export default function ShopeeLogsPage() {
 
   const startIdx = (page - 1) * recordsPerPage;
   const endIdx = Math.min(startIdx + recordsPerPage, totalRecords);
+
+  const { allowed, loading: permLoading } = useAuthGuard('logs.view');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
 
   if (checkingMarketplace) return null;
   if (!marketplaceOn) return null;   // useMarketplaceGuard เด้งออกให้แล้ว

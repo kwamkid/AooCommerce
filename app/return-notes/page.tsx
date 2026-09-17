@@ -10,6 +10,8 @@ import { apiFetch } from '@/lib/api-client';
 import { RotateCcw, Search, Plus } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
+import { useAuthGuard } from '@/lib/useAuthGuard';
+import { LoadingCard } from '@/components/ui/StateCard';
 
 interface ReturnNoteRow {
   id: string;
@@ -64,6 +66,10 @@ export default function ReturnNotesPage() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const totalPages = Math.ceil(total / recordsPerPage);
+
+  const { allowed, loading: permLoading } = useAuthGuard('finance.view');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
 
   return (
     <Layout>

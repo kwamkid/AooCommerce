@@ -17,6 +17,8 @@ import FormSelect from '@/components/ui/FormSelect';
 import Button from '@/components/ui/Button';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { statusLabel } from '@/lib/status-labels';
+import { useAuthGuard } from '@/lib/useAuthGuard';
+import { LoadingCard } from '@/components/ui/StateCard';
 
 interface Supplier {
   id: string;
@@ -178,6 +180,10 @@ export default function SupplierReportsPage() {
   const formatCurrency = (n: number) => n.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
   const years = Array.from({ length: 5 }, (_, i) => now.getFullYear() - i);
+
+  const { allowed, loading: permLoading } = useAuthGuard('report.supplier.view');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
 
   if (authLoading || loading) {
     return (

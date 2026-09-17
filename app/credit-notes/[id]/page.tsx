@@ -13,6 +13,7 @@ import { showPdfPreview } from '@/lib/print-pdf';
 import { LoadingCard } from '@/components/ui/StateCard';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { ArrowLeft, Loader2, Printer, ReceiptText, ExternalLink } from 'lucide-react';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 
 interface CreditNoteDetail {
   id: string;
@@ -105,6 +106,10 @@ export default function CreditNoteDetailPage() {
       setGeneratingPdf(false);
     }
   };
+
+  const { allowed, loading: permLoading } = useAuthGuard('finance.view');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
 
   if (authLoading || loading) {
     return (

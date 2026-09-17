@@ -18,6 +18,7 @@ import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import FormInput from '@/components/ui/FormInput';
 import DateRangePicker, { type DateValueType } from '@/components/ui/DateRangePicker';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 
 interface StatementDetail {
   id: string;
@@ -263,6 +264,10 @@ export default function StatementDetailPage() {
       showToast('ไม่สามารถสร้าง PDF ได้', 'error');
     }
   };
+
+  const { allowed, loading: permLoading } = useAuthGuard('finance.view');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไปหน้าอื่น
 
   if (loading) {
     return (
