@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useRef, useEffect, type ReactNode } from 'react';
-import { Minus, Plus, Trash2, User, Tag } from 'lucide-react';
+import { AlertTriangle, Minus, Plus, Trash2, User, Tag } from 'lucide-react';
 import { formatPrice } from '@/lib/utils/format';
 import Button from '@/components/ui/Button';
 import NumberInput from '@/components/ui/NumberInput';
@@ -37,6 +37,10 @@ export interface CartItem {
   promotion_type?: string;
   promotion_components?: CartItemComponent[];
   promotion_tiers?: { min_qty: number; discount_type: string; discount_value: number }[];
+  /** สินค้าฝากขาย: เงินที่ต้องจ่ายคืน supplier ต่อชิ้น — ขายต่ำกว่านี้ = ขาดทุนต่อชิ้น
+   *  ⛔ เตือนเท่านั้น ห้ามบล็อก (แถมของหน้าร้านเกิดขึ้นจริง) */
+  consignmentPayable?: number | null;
+  consignmentSupplier?: string | null;
 }
 
 interface CartPanelProps {
@@ -218,6 +222,12 @@ export default function CartPanel({
           items.map(item => {
             const lineTotal = getLineTotal(item);
             const canAdd = allowOversell || item.quantity < item.max_stock;
+            // ราคาต่อชิ้นหลังลด ต่ำกว่าที่ต้องจ่ายคืนเจ้าของสินค้า = ขาดทุนต่อชิ้น
+            const payable = item.consignmentPayable ?? null;
+            const perUnitAfterDiscount = item.quantity > 0 ? lineTotal / item.quantity : item.unit_price;
+            const consignLossPerUnit = payable != null && payable > 0 && perUnitAfterDiscount < payable
+              ? Math.round((payable - perUnitAfterDiscount) * 100) / 100
+              : null;
             return (
               <div key={item.variation_id} className="bg-white dark:bg-white/5 rounded-lg p-3 shadow-sm dark:shadow-none">
                 <div className="flex items-start gap-2">
@@ -274,6 +284,16 @@ export default function CartPanel({
                     <p className="text-gray-900 dark:text-white font-semibold text-sm">฿{formatPrice(lineTotal)}</p>
                   </div>
                 </div>
+
+                {consignLossPerUnit != null && (
+                  <div className="mt-1.5 flex items-start gap-1 text-xs text-amber-600 dark:text-amber-400">
+                    <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-px" />
+                    <span>
+                      ขาดทุน ฿{formatPrice(consignLossPerUnit)}/ชิ้น — ของฝากขาย
+                      {item.consignmentSupplier ? ` ${item.consignmentSupplier}` : ''} ต้องจ่าย ฿{formatPrice(payable as number)}/ชิ้น
+                    </span>
+                  </div>
+                )}
 
                 {/* Promotion components sub-rows */}
                 {item.promotion_components && item.promotion_components.length > 0 && (

@@ -20,6 +20,7 @@ import ProductGrid, { PosProduct } from './ProductGrid';
 import CategoryTabs from './CategoryTabs';
 import BarcodeInput from './BarcodeInput';
 import CartPanel, { CartItem, CartItemComponent } from './CartPanel';
+import { useConsignmentTerms } from '@/lib/useConsignmentTerms';
 import Tabs from '@/components/ui/Tabs';
 
 interface FilterItem {
@@ -91,6 +92,8 @@ const PosSaleScreen = forwardRef<PosSaleScreenHandle, PosSaleScreenProps>(functi
 
   // Cart
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  /** เงื่อนไขฝากขายของสินค้าในตะกร้า — ตะกร้าใช้เตือนเมื่อลดราคา/แถมต่ำกว่าที่ต้องจ่ายคืน supplier */
+  const consignmentTerms = useConsignmentTerms(cartItems.map(i => i.variation_id));
   const [promoModal, setPromoModal] = useState<{ promo: PromoData } | null>(null);
   const [orderDiscount, setOrderDiscount] = useState(0);
   const [orderDiscountType, setOrderDiscountType] = useState<'percent' | 'amount'>('amount');
@@ -598,7 +601,11 @@ const PosSaleScreen = forwardRef<PosSaleScreenHandle, PosSaleScreenProps>(functi
         {/* Right — Cart */}
         <div className={`md:w-[32%] md:min-w-[320px] md:max-w-[420px] md:border-l border-gray-200 dark:border-gray-700/50 p-4 flex flex-col overflow-hidden bg-gray-50 dark:bg-[#1E293B]/50 ${mobileTab !== 'cart' ? 'hidden md:flex' : 'flex-1'}`}>
           <CartPanel
-            items={cartItems}
+            items={cartItems.map(item => ({
+              ...item,
+              consignmentPayable: consignmentTerms[item.variation_id]?.payableUnitCost ?? null,
+              consignmentSupplier: consignmentTerms[item.variation_id]?.supplierName ?? null,
+            }))}
             orderDiscount={orderDiscount}
             orderDiscountType={orderDiscountType}
             customerName={customerName}

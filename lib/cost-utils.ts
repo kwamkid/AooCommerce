@@ -46,11 +46,17 @@ export async function fetchCostMap(
   }
 
   const componentIds = [...new Set([...partsMap.values()].flat().map(p => p.variationId))];
-  const { data: components } = await supabase
-    .from('product_variations')
-    .select('id, cost_price')
-    .in('id', componentIds);
+  const [{ data: components }, componentTerms] = await Promise.all([
+    supabase.from('product_variations').select('id, cost_price').in('id', componentIds),
+    // ชิ้นส่วนบางชิ้นอาจเป็นของ supplier ฝากขาย (ชุดของเราเองแต่หยิบของเขามาประกอบ)
+    // ต้นทุนชิ้นนั้น = เงินที่ต้องจ่ายเจ้าของ ไม่ใช่ WAC — ไม่รู้ราคาขายแยกของชิ้นส่วน
+    // จึงคิดจากราคาตั้งขายของชิ้นส่วนเสมอ (consignmentUnitCost ถอยไปใช้ฐานนั้นให้เอง)
+    fetchConsignmentTerms(supabase, componentIds),
+  ]);
   const componentCost = new Map((components || []).map(c => [c.id, c.cost_price as number | null]));
+  for (const [variationId, term] of componentTerms) {
+    componentCost.set(variationId, consignmentUnitCost(term));
+  }
 
   for (const [comboId, parts] of partsMap) {
     const anyKnown = parts.some(p => componentCost.get(p.variationId) != null);

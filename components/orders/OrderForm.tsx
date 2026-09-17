@@ -23,6 +23,7 @@ import {
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
 import EntitySearchInput from '@/components/ui/EntitySearchInput';
 import ItemsTable, { type TableItem as OrderTableItem, type PromotionComponent } from '@/components/ui/ItemsTable';
+import { useConsignmentTerms } from '@/lib/useConsignmentTerms';
 import PromotionSelectModal, { type PromoData, type PromoItemData, type PromotionSelectResult } from '@/components/ui/PromotionSelectModal';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
@@ -656,6 +657,11 @@ export default function OrderForm({
   }, [step, useWizard]);
 
   const hasProducts = branchOrders.length > 0 && branchOrders[0]?.products.length > 0;
+  /** เงื่อนไขฝากขายของสินค้าในบิล — ตารางใช้เตือนเมื่อราคาหลังลดต่ำกว่าที่ต้องจ่ายคืน supplier
+   *  (เตือนเท่านั้น ไม่บล็อก — แถมของ/ลดหนักเกิดขึ้นจริง) */
+  const consignmentTerms = useConsignmentTerms(
+    (branchOrders[0]?.products || []).map(p => p.variation_id).filter(Boolean) as string[],
+  );
 
   // คอลัมน์สรุปยอดเกาะขวาเมื่อกล่องกว้างพอ — ไม่งั้นจอกว้างคอลัมน์เดียวจะยืดจนอ่านยาก
   useEffect(() => {
@@ -3191,6 +3197,8 @@ export default function OrderForm({
               promotion_name: p.promotion_name,
               promotion_type: p.promotion_type,
               promotion_components: p.promotion_components,
+              consignmentPayable: consignmentTerms[p.variation_id]?.payableUnitCost ?? null,
+              consignmentSupplier: consignmentTerms[p.variation_id]?.supplierName ?? null,
             }))}
             columns={['qty', 'unit_price', 'discount', 'total']}
             showItemNotes

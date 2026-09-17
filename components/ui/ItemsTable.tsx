@@ -46,6 +46,11 @@ export interface TableItem {
   stock_dest?: number | null;
   /** GP breakdown text, e.g. "฿990 - GP30% = ฿693" */
   gpInfo?: string | null;
+  /** สินค้าฝากขาย: เงินที่ต้องจ่ายคืน supplier ต่อชิ้น (null/ไม่ส่ง = ไม่ใช่ของฝากขาย)
+   *  ขายต่ำกว่านี้ = ขาดทุนต่อชิ้น — เตือนแต่ **ห้ามบล็อก** (แถมของก็มีจริง) */
+  consignmentPayable?: number | null;
+  /** ชื่อ supplier เจ้าของสินค้าฝากขาย — ใช้ในข้อความเตือน */
+  consignmentSupplier?: string | null;
   /** Promotion data */
   promotion_id?: string | null;
   promotion_name?: string | null;
@@ -158,6 +163,28 @@ const COLUMN_WIDTH_PX: Record<ColumnKey, number> = {
 const PRODUCT_COLUMN_MIN_PX = 200;
 /** คอลัมน์ถังขยะเดี่ยว — โผล่เฉพาะตอนไม่มีคอลัมน์ "รวม" ให้ฝัง */
 const TRASH_COLUMN_PX = 28;
+
+/**
+ * ขายของฝากขายต่ำกว่าเงินที่ต้องจ่ายคืนเจ้าของ = ขาดทุนต่อชิ้น
+ * เทียบที่ "ราคาต่อหน่วยหลังหักส่วนลดของบรรทัด" เพราะนั่นคือเงินที่ได้จริงต่อชิ้น
+ * ⛔ เตือนเท่านั้น ห้ามบล็อก — แถมของ/ลดหนักเป็นการตัดสินใจทางธุรกิจที่เกิดจริง
+ */
+function consignmentLoss(
+  item: TableItem,
+  lineTotal: number,
+): { payable: number; lossPerUnit: number; supplier?: string | null } | null {
+  const payable = item.consignmentPayable;
+  if (payable == null || payable <= 0) return null;
+  const qty = Number(item.quantity) || 0;
+  if (qty <= 0) return null;
+  const perUnit = lineTotal / qty;
+  if (perUnit >= payable) return null;
+  return {
+    payable,
+    lossPerUnit: Math.round((payable - perUnit) * 100) / 100,
+    supplier: item.consignmentSupplier,
+  };
+}
 
 function fmt(n: number) {
   return n.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
@@ -494,6 +521,8 @@ export default function ItemsTable({
               const destQty = item.stock_dest;
               const isOverDest = !disableDestWarning && hasStockDest && destQty !== undefined && destQty !== null && item.quantity > destQty;
               const hasPromoComponents = item.promotion_components && item.promotion_components.length > 0;
+              // ขายของฝากขายต่ำกว่าเงินที่ต้องจ่ายคืนเจ้าของ = ขาดทุนต่อชิ้น (รวมเคสแถม = ราคา 0)
+              const consignLoss = consignmentLoss(item, lineTotal);
               return (
                 <Fragment key={`${item.variation_id}-${idx}`}>
                 <tr className="data-tr">
@@ -572,6 +601,12 @@ export default function ItemsTable({
                             inputClassName="w-full"
                           />
                       }
+                      {consignLoss && (
+                        <div className="mt-0.5 flex items-center justify-end gap-0.5 text-[10px] text-amber-600 dark:text-amber-400">
+                          <AlertTriangle className="w-2.5 h-2.5 flex-shrink-0" />
+                          ขาดทุน ฿{fmt(consignLoss.lossPerUnit)}/ชิ้น
+                        </div>
+                      )}
                     </td>
                   )}
                   {hasCost && (
@@ -741,6 +776,7 @@ export default function ItemsTable({
           const destQty = item.stock_dest;
           const isOverDest = hasStockDest && destQty !== undefined && destQty !== null && item.quantity > destQty;
           const poMismatch = hasPoQty && item.po_quantity != null && item.quantity !== item.po_quantity;
+          const consignLoss = consignmentLoss(item, mSubtotal - mDiscAmt);
           return (
             <div key={`${item.variation_id}-${idx}`} className="p-3 overflow-hidden">
               <div className="flex items-start gap-3">
@@ -933,6 +969,12 @@ export default function ItemsTable({
                   <AlertTriangle className="w-3 h-3 flex-shrink-0" />
                   {isOverStock && 'จำนวนเกินสต๊อกที่มี'}
                   {poMismatch && `ต่างจาก PO ${Math.abs(item.quantity - (item.po_quantity ?? 0))} ชิ้น`}
+                </div>
+              )}
+              {consignLoss && !readOnly && (
+                <div className="mt-1.5 flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+                  <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+                  ขาดทุน ฿{fmt(consignLoss.lossPerUnit)}/ชิ้น — ต้องจ่าย{consignLoss.supplier ? ` ${consignLoss.supplier}` : ''} ฿{fmt(consignLoss.payable)}/ชิ้น
                 </div>
               )}
 
