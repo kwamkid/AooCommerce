@@ -2,16 +2,16 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import BrandFormModal from '@/components/brands/BrandFormModal';
+import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import StickyActionBar from '@/components/ui/StickyActionBar';
 import {
-  Loader2,
   Factory,
   Banknote,
   CreditCard,
   Handshake,
   ChevronDown,
-  X,
   Plus,
   Tag,
 } from 'lucide-react';
@@ -40,6 +40,9 @@ export interface SupplierFormData {
   is_vat_registered: boolean;
   supplier_type: 'cash' | 'credit' | 'consignment';
   payment_terms: number;
+  /** ส่วนแบ่ง % ที่ "เราได้" จากของฝากขายของเจ้านี้ — ที่เหลือจ่ายคืน supplier
+   *  ⚠️ คนละตัวกับ GP ฝากขายฝั่งลูกค้า (ห้าง/ตัวแทนหักจากเรา) ที่อยู่บนแบรนด์ */
+  consignment_gp_rate: string;
   bank_code: string;
   bank_name: string;
   bank_account: string;
@@ -51,7 +54,7 @@ export interface SupplierFormData {
 export const emptySupplierForm: SupplierFormData = {
   name: '', contact_name: '', phone: '', email: '', address: '', tax_id: '',
   branch: '', is_vat_registered: false,
-  supplier_type: 'cash', payment_terms: 0,
+  supplier_type: 'cash', payment_terms: 0, consignment_gp_rate: '',
   bank_code: '', bank_name: '', bank_account: '', bank_account_name: '', notes: '',
   brand_ids: [],
 };
@@ -116,8 +119,9 @@ export default function SupplierForm({
 
   // Brand picker state (full mode only)
   const [allBrands, setAllBrands] = useState<Brand[]>([]);
-  const [newBrandName, setNewBrandName] = useState('');
-  const [addingBrand, setAddingBrand] = useState(false);
+  /** เปิดฟอร์มแบรนด์ของกลาง — ปิดช่อง Supplier/GP ไว้ เพราะแบรนด์ที่สร้างจากหน้านี้
+   *  ผูกกับ Supplier ที่กำลังแก้อยู่แล้ว เหลือให้กรอกแค่ชื่อกับโลโก้ */
+  const [brandModalOpen, setBrandModalOpen] = useState(false);
 
   useEffect(() => {
     if (!bankDropdownOpen) return;
@@ -149,29 +153,9 @@ export default function SupplierForm({
   const removeBrandId = (id: string) => {
     setForm(prev => ({ ...prev, brand_ids: (prev.brand_ids || []).filter(bid => bid !== id) }));
   };
-  const handleCreateBrand = async () => {
-    if (!newBrandName.trim() || addingBrand) return;
-    setAddingBrand(true);
-    try {
-      const res = await apiFetch('/api/brands', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newBrandName.trim() }),
-      });
-      if (!res.ok) {
-        const body = await res.json();
-        throw new Error(body.error || 'ไม่สามารถสร้างแบรนด์ได้');
-      }
-      const result = await res.json();
-      const created = result.data;
-      setAllBrands(prev => [...prev, { id: created.id, name: created.name }]);
-      addBrandId(created.id);
-      setNewBrandName('');
-    } catch {
-      // silently fail — user will see it didn't add
-    } finally {
-      setAddingBrand(false);
-    }
+  const handleBrandCreated = (created: { id: string; name: string }) => {
+    setAllBrands(prev => (prev.some(b => b.id === created.id) ? prev : [...prev, { id: created.id, name: created.name }]));
+    addBrandId(created.id);
   };
 
   const updateField = <K extends keyof SupplierFormData>(key: K, value: SupplierFormData[K]) => {
@@ -293,6 +277,19 @@ export default function SupplierForm({
               className="w-32 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base sm:text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
               placeholder="30" min={0} />
           </div>
+        )}
+
+        {form.supplier_type === 'consignment' && (
+          <FormInput
+            label="ส่วนแบ่งที่เราได้"
+            type="number"
+            min={0}
+            max={100}
+            postfix="%"
+            value={form.consignment_gp_rate}
+            onChange={e => updateField('consignment_gp_rate', e.target.value)}
+            hint="ขายได้ 100 บาท ใส่ 30 = เราเก็บ 30 จ่ายคืน supplier 70"
+          />
         )}
 
         {/* Contact */}
@@ -421,6 +418,22 @@ export default function SupplierForm({
                   placeholder="30" min={0} />
               </div>
             )}
+
+            {/* ส่วนแบ่งของฝากขาย — ขายได้เท่าไหร่ เราเก็บ X% ที่เหลือจ่ายคืน supplier */}
+            {form.supplier_type === 'consignment' && (
+              <div className="sm:w-72">
+                <FormInput
+                  label="ส่วนแบ่งที่เราได้"
+                  type="number"
+                  min={0}
+                  max={100}
+                  postfix="%"
+                  value={form.consignment_gp_rate}
+                  onChange={e => updateField('consignment_gp_rate', e.target.value)}
+                  hint="ขายได้ 100 บาท ใส่ 30 = เราเก็บ 30 จ่ายคืน supplier 70"
+                />
+              </div>
+            )}
           </div>
 
           {/* ข้อมูลติดต่อ */}
@@ -480,47 +493,36 @@ export default function SupplierForm({
               แบรนด์
             </h2>
 
-            {/* Selected brands */}
+            {/* แบรนด์ที่ผูกอยู่ */}
             {selectedBrandIds.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {selectedBrandIds.map(id => {
                   const brand = allBrands.find(b => b.id === id);
                   if (!brand) return null;
                   return (
-                    <span key={id} className="inline-flex items-center gap-1 px-2.5 py-1 bg-orange-50 dark:bg-orange-900/20 text-primary text-sm rounded-full border border-primary/20">
+                    <Badge key={id} tone="orange" onRemove={() => removeBrandId(id)} removeLabel={`นำ ${brand.name} ออก`}>
                       {brand.name}
-                      <button type="button" onClick={() => removeBrandId(id)} className="hover:bg-orange-100 dark:hover:bg-orange-900/40 rounded-full p-0.5">
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
+                    </Badge>
                   );
                 })}
               </div>
             )}
 
-            {/* Add existing brand */}
-            {availableBrands.length > 0 && (
-              <FormSelect
-                value=""
-                onChange={value => { if (value) addBrandId(value); }}
-                options={availableBrands.map(b => ({ id: b.id, label: b.name }))}
-                placeholder="เลือกแบรนด์ที่มีอยู่..."
-              />
-            )}
-
-            {/* Create new brand inline */}
-            <div className="flex gap-2">
-              <FormInput
-                containerClassName="flex-1"
-                value={newBrandName}
-                onChange={e => setNewBrandName(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleCreateBrand(); } }}
-                placeholder="สร้างแบรนด์ใหม่..."
-              />
-              <button type="button" onClick={handleCreateBrand} disabled={!newBrandName.trim() || addingBrand}
-                className="px-3 py-2 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-gray-700 dark:text-slate-300 rounded-lg transition-colors disabled:opacity-50 flex-shrink-0">
-                {addingBrand ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-              </button>
+            <div className="flex flex-wrap items-center gap-2">
+              {availableBrands.length > 0 && (
+                <div className="min-w-0 flex-1">
+                  <FormSelect
+                    value=""
+                    onChange={value => { if (value) addBrandId(value); }}
+                    options={availableBrands.map(b => ({ id: b.id, label: b.name }))}
+                    placeholder="เลือกแบรนด์ที่มีอยู่..."
+                  />
+                </div>
+              )}
+              {/* สร้างแบรนด์ใหม่ที่ผูกกับ Supplier รายนี้ทันที — ฟอร์มเดียวกับหน้าแบรนด์ */}
+              <Button variant="secondary" icon={<Plus />} onClick={() => setBrandModalOpen(true)}>
+                เพิ่มแบรนด์
+              </Button>
             </div>
           </div>
 
@@ -533,6 +535,14 @@ export default function SupplierForm({
           </div>
         </div>
       </div>
+
+      <BrandFormModal
+        open={brandModalOpen}
+        hideSupplier
+        hideGp
+        onClose={() => setBrandModalOpen(false)}
+        onSaved={handleBrandCreated}
+      />
 
       <StickyActionBar
         saving={busy}

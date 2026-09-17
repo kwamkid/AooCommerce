@@ -471,6 +471,20 @@ h6:where(.heading-1, .heading-2, .heading-3, .heading-4) {
   }
 
   /* ── ฟอร์ม ── */
+  /* สองช่องต่อแถว (จอแคบซ้อนกัน) — เช่น GP% + ฐานที่ใช้คิด GP */
+  .form-grid-2 {
+    @apply grid gap-4 sm:grid-cols-2;
+  }
+  /* ค่าที่เลือกแล้วของ EntitySearchInput (selectedDisplay) — แถวเดียว สูงเท่าช่องกรอก
+     เว้นที่ขวาให้ปุ่มกากบาทที่ EntitySearchInput วางทับไว้ */
+  .entity-selected-value {
+    @apply flex items-center gap-2 rounded-lg border border-primary/30 bg-orange-50 px-3 pr-9
+           dark:bg-orange-900/20 [&>svg]:w-4 [&>svg]:h-4 [&>svg]:flex-shrink-0 [&>svg]:text-gray-400;
+    height: 42px;
+  }
+  .entity-selected-value-text {
+    @apply min-w-0 flex-1 truncate text-sm text-gray-900 dark:text-slate-100;
+  }
   /* ป้าย + ตัวควบคุมที่ไม่มีป้ายในตัว (FormSelect · กลุ่ม Radio ฯลฯ) — ใช้ผ่าน <FormField> */
   .form-field {
     @apply space-y-1.5;

@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Search, X, Check, Loader2, ChevronDown, Plus } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Search, X, Check, Loader2, Plus } from 'lucide-react';
+import { useDropUp } from '@/lib/useDropUp';
 
 export interface EntitySearchOption {
   id: string;
@@ -67,7 +69,8 @@ export default function EntitySearchInput({
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
   const [highlightIdx, setHighlightIdx] = useState(-1);
-  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
+  /** กล่องรายการ (ใช้วัดความสูงจริงก่อนตัดสินว่าจะพลิกขึ้นไหม) */
+  const listBoxRef = useRef<HTMLDivElement>(null);
   // Internal flag: true from the moment user types until parent loading cycle completes
   const [pendingSearch, setPendingSearch] = useState(false);
   // Mobile fullscreen modal mode
@@ -132,6 +135,9 @@ export default function EntitySearchInput({
   useEffect(() => {
     if (!open || mobileModal) return;
     const handleClickOutside = (e: MouseEvent) => {
+      // รายการวาดที่ body แล้ว จึงไม่ได้อยู่ใน containerRef — กดเลือกในรายการต้องไม่นับว่ากดข้างนอก
+      // (ไม่งั้น dropdown ปิดก่อน onClick ของแถวจะทำงาน = เลือกไม่ได้เลย)
+      if (listBoxRef.current?.contains(e.target as Node)) return;
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         if (debounceRef.current) clearTimeout(debounceRef.current);
         setPendingSearch(false);
@@ -148,27 +154,31 @@ export default function EntitySearchInput({
     setHighlightIdx(search ? 0 : -1);
   }, [search]);
 
-  // Calculate dropdown position — desktop only (fixed, so it floats above everything)
-  useEffect(() => {
-    if (!open || mobileModal || !inputRef.current) return;
-    const update = () => {
-      if (!inputRef.current) return;
-      const rect = inputRef.current.getBoundingClientRect();
-      setDropdownStyle({
+  /**
+   * ตำแหน่งรายการผลค้นหา — วาดที่ body (portal) เสมอ
+   * ⚠️ เดิมวาดไว้ในฟอร์มแล้วสั่ง `position: fixed` เอง ซึ่งเพี้ยนทันทีที่มี ancestor
+   * สร้าง containing block (โมดัลที่มี transform/filter) จนรายการไปทับช่องกรอกตัวเอง
+   * — เจอจริงที่ฟอร์มแบรนด์ 17 ก.ย. 2569 · พลิกขึ้นเองเมื่อที่ว่างข้างล่างไม่พอ
+   */
+  const dropdownOpen = open && !mobileModal;
+  const { dropUp, rect, height } = useDropUp(inputRef, {
+    open: dropdownOpen,
+    estimatedHeight: 240,
+    dropdownRef: listBoxRef,
+    margin: 8,
+    requireMoreSpaceAbove: true,
+    recalcOnScroll: true,
+    layout: true,
+    deps: [options.length, search],
+  });
+  const dropdownStyle: React.CSSProperties | null = rect
+    ? {
         position: 'fixed',
-        top: rect.bottom + 4,
+        top: dropUp ? Math.max(8, rect.top - 4 - height) : rect.bottom + 4,
         left: rect.left,
         width: rect.width,
-      });
-    };
-    update();
-    window.addEventListener('scroll', update, true);
-    window.addEventListener('resize', update);
-    return () => {
-      window.removeEventListener('scroll', update, true);
-      window.removeEventListener('resize', update);
-    };
-  }, [open, mobileModal]);
+      }
+    : null;
 
   // Lock body scroll when mobile modal is open
   useEffect(() => {
@@ -427,14 +437,21 @@ export default function EntitySearchInput({
         />
       </div>
 
-      {/* Desktop Dropdown — fixed, floats above everything */}
-      {open && !mobileModal && (search.length >= minSearchLength) && (search || options.length <= 20) && (
-        <div style={dropdownStyle} className="z-[100] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg overflow-hidden flex flex-col">
-          <div ref={listRef} className="max-h-60 overflow-y-auto py-1 flex-1">
-            {renderOptions()}
-          </div>
-        </div>
-      )}
+      {/* Desktop Dropdown — วาดที่ body จึงไม่โดนกล่องที่ครอบตัด และไม่ทับช่องกรอก */}
+      {dropdownOpen && dropdownStyle && (search.length >= minSearchLength) && (search || options.length <= 20)
+        && typeof document !== 'undefined'
+        && createPortal(
+          <div
+            ref={listBoxRef}
+            style={dropdownStyle}
+            className="z-[9999] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg overflow-hidden flex flex-col"
+          >
+            <div ref={listRef} className="max-h-60 overflow-y-auto py-1 flex-1">
+              {renderOptions()}
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {/* Mobile Modal (top sheet with backdrop) */}
       {mobileModal && (

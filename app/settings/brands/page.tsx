@@ -8,21 +8,13 @@ import Layout from '@/components/layout/Layout';
 import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
 import Alert from '@/components/ui/Alert';
 import Badge from '@/components/ui/Badge';
+import BrandFormModal from '@/components/brands/BrandFormModal';
 import Button from '@/components/ui/Button';
 import Container from '@/components/ui/Container';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
-import EntitySearchInput from '@/components/ui/EntitySearchInput';
-import FormField from '@/components/ui/FormField';
-import FormInput from '@/components/ui/FormInput';
-import FormSelect from '@/components/ui/FormSelect';
 import ListFilterBar from '@/components/ui/ListFilterBar';
 import MasterDataCell from '@/components/ui/MasterDataCell';
-import ImageDropzone from '@/components/ui/ImageDropzone';
-import { supabase } from '@/lib/supabase';
-import { storageKeyFor } from '@/lib/storage-key';
-import Modal, { ModalFormBody, ModalFormFooter } from '@/components/ui/Modal';
 import PageHeader from '@/components/ui/PageHeader';
-import SaveButton from '@/components/ui/SaveButton';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 import { apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
@@ -71,20 +63,10 @@ function BrandsPageInner() {
   const [suppliers, setSuppliers] = useState<SupplierRef[]>([]);
   const [searchInput, setSearchInput] = useState(initialQuery);
   const [searchQuery, setSearchQuery] = useState(initialQuery);
-  const [addModalOpen, setAddModalOpen] = useState(false);
-  const [addName, setAddName] = useState('');
+  /** ฟอร์มแบรนด์เป็นของกลาง (components/brands/BrandFormModal) — หน้า Supplier ใช้ใบเดียวกัน
+   *  `formOpen` + `editingBrand` (null = เพิ่มใหม่) ⛔ ห้ามเขียนฟอร์มแบรนด์ซ้ำในหน้านี้อีก */
+  const [formOpen, setFormOpen] = useState(false);
   const [editingBrand, setEditingBrand] = useState<BrandItem | null>(null);
-  const [editingName, setEditingName] = useState('');
-  /** ไฟล์โลโก้ที่เพิ่งเลือก (ยังไม่อัป) · `null` = ไม่ได้แตะ หรือกดลบรูปเดิม */
-  const [editingLogo, setEditingLogo] = useState<File | null>(null);
-  /** รูปเดิมของแบรนด์ — แยกจากไฟล์ใหม่ เพื่อให้รู้ว่า "ลบรูปเดิม" ต่างจาก "ไม่ได้แตะ" */
-  const [editingLogoUrl, setEditingLogoUrl] = useState<string | null>(null);
-  /** ImageDropzone กำลังย่อรูปอยู่ — ปิดปุ่มบันทึกไว้ก่อน ไม่งั้นได้แบรนด์ที่ไม่มีรูป */
-  const [logoBusy, setLogoBusy] = useState(false);
-  const [editingSupplierId, setEditingSupplierId] = useState('');
-  const [editingGpRate, setEditingGpRate] = useState('');
-  const [editingGpBase, setEditingGpBase] = useState<'retail' | 'discounted'>('retail');
-  const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -156,102 +138,10 @@ function BrandsPageInner() {
     router.replace(queryString ? `?${queryString}` : window.location.pathname);
   };
 
-  const closeAddModal = () => {
-    if (saving) return;
-    setAddModalOpen(false);
-    setAddName('');
-  };
-
-  const openEditModal = (brand: BrandItem) => {
-    setEditingBrand(brand);
-    setEditingName(brand.name);
-    setEditingSupplierId(brand.supplier_id || '');
-    setEditingGpRate(brand.default_gp_rate == null ? '' : String(brand.default_gp_rate));
-    setEditingGpBase(brand.gp_base_price || 'retail');
-    setEditingLogo(null);
-    setEditingLogoUrl(brand.logo_url || null);
-  };
-
-  const closeEditModal = () => {
-    if (saving) return;
-    setEditingBrand(null);
-    setEditingName('');
-    setEditingSupplierId('');
-    setEditingGpRate('');
-    setEditingGpBase('retail');
-    setEditingLogo(null);
-    setEditingLogoUrl(null);
-  };
-
-  const handleAdd = async () => {
-    if (!addName.trim()) return showToast('กรุณากรอกชื่อแบรนด์', 'error');
-    setSaving(true);
-    try {
-      const res = await apiFetch('/api/brands', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: addName.trim() }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to create');
-      }
-      showToast('เพิ่มแบรนด์สำเร็จ');
-      setAddModalOpen(false);
-      setAddName('');
-      await fetchBrands();
-    } catch (error: unknown) {
-      showToast(error instanceof Error ? error.message : 'เพิ่มไม่สำเร็จ', 'error');
-    } finally { setSaving(false); }
-  };
-
-  const handleSaveEdit = async () => {
-    if (!editingBrand || !editingName.trim()) return showToast('กรุณากรอกชื่อแบรนด์', 'error');
-    const parsedGpRate = editingGpRate === '' ? null : Number(editingGpRate);
-    if (parsedGpRate != null && (!Number.isFinite(parsedGpRate) || parsedGpRate < 0 || parsedGpRate > 100)) {
-      return showToast('GP ต้องอยู่ระหว่าง 0–100%', 'error');
-    }
-    setSaving(true);
-    try {
-      // อัปโลโก้ก่อน แล้วค่อยบันทึกแบรนด์ — อัปไม่ผ่านต้องไม่บันทึกชื่อไปครึ่ง ๆ
-      // ⚠️ ชื่อไฟล์ต้องผ่าน storageKeyFor — Storage ตอบ 400 InvalidKey กับชื่อไทย/อีโมจิ/#
-      let logoUrl = editingLogoUrl;
-      if (editingLogo) {
-        const path = `brand-logos/${storageKeyFor(editingLogo.name, 'jpg')}`;
-        const { error: uploadError } = await supabase.storage
-          .from('chat-media')
-          .upload(path, editingLogo, { contentType: editingLogo.type || 'image/jpeg' });
-        if (uploadError) throw new Error(`อัปโหลดโลโก้ไม่สำเร็จ: ${uploadError.message}`);
-        logoUrl = supabase.storage.from('chat-media').getPublicUrl(path).data.publicUrl;
-      }
-      const res = await apiFetch('/api/brands', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: editingBrand.id,
-          name: editingName.trim(),
-          logo_url: logoUrl || '',
-          supplier_id: editingSupplierId || null,
-          default_gp_rate: parsedGpRate,
-          gp_base_price: editingGpBase,
-        }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to update');
-      }
-      showToast('อัปเดตแบรนด์สำเร็จ');
-      closeEditModalAfterSave();
-      await fetchBrands();
-    } catch (error: unknown) {
-      showToast(error instanceof Error ? error.message : 'บันทึกไม่สำเร็จ', 'error');
-    } finally { setSaving(false); }
-  };
-
-  const closeEditModalAfterSave = () => {
-    setEditingBrand(null);
-    setEditingName('');
-    setEditingSupplierId('');
-    setEditingGpRate('');
-    setEditingGpBase('retail');
+  /** `brand` ว่าง = เพิ่มใหม่ · มีค่า = แก้ไข */
+  const openForm = (brand?: BrandItem) => {
+    setEditingBrand(brand || null);
+    setFormOpen(true);
   };
 
   const handleDelete = async (brand: BrandItem) => {
@@ -275,7 +165,7 @@ function BrandsPageInner() {
       key: 'products', label: 'สินค้าในแบรนด์', description: 'เพิ่มหรือนำสินค้าออกจากแบรนด์', icon: <PackageSearch />,
       onClick: () => router.push(`/settings/brands/${brand.id}`), primary: true,
     },
-    { key: 'edit', label: 'แก้ไขแบรนด์', icon: <Edit2 />, onClick: () => openEditModal(brand) },
+    { key: 'edit', label: 'แก้ไขแบรนด์', icon: <Edit2 />, onClick: () => openForm(brand) },
     {
       key: 'delete', label: 'ลบ', icon: <Trash2 />,
       onClick: () => void handleDelete(brand), danger: true, disabled: deletingId === brand.id, dividerBefore: true,
@@ -334,7 +224,7 @@ function BrandsPageInner() {
     <Layout>
       <Container size="full">
         <PageHeader icon={<Award />} title="แบรนด์" subtitle={`กำหนด Supplier และ GP ฝากขายของแต่ละแบรนด์ รวม ${brands.length} แบรนด์`}
-          actions={<Button variant="primary" icon={<Plus />} onClick={() => setAddModalOpen(true)}>เพิ่มแบรนด์</Button>} />
+          actions={<Button variant="primary" icon={<Plus />} onClick={() => openForm()}>เพิ่มแบรนด์</Button>} />
         <ListFilterBar value={searchInput} onChange={handleSearchChange} placeholder="ค้นหาแบรนด์หรือ Supplier..." summary={<Badge tone="orange">{brands.length} แบรนด์</Badge>} />
         <DataTable
           storageKey="settings-brands" columns={columns} data={paginatedBrands} loading={loading}
@@ -359,58 +249,13 @@ function BrandsPageInner() {
         />
       </Container>
 
-      <Modal open={addModalOpen} onClose={closeAddModal} title="เพิ่มแบรนด์" icon={<Award />} size="md"
-        footer={<ModalFormFooter><Button variant="secondary" onClick={closeAddModal} disabled={saving}>ยกเลิก</Button><SaveButton onClick={handleAdd} loading={saving} /></ModalFormFooter>}
-      >
-        <ModalFormBody>
-          <FormInput label="ชื่อแบรนด์" required value={addName} onChange={event => setAddName(event.target.value)}
-            onKeyDown={event => { if (event.key === 'Enter') void handleAdd(); }} placeholder="เช่น Nike, Samsung" autoFocus />
-        </ModalFormBody>
-      </Modal>
-
-      <Modal open={Boolean(editingBrand)} onClose={closeEditModal} title="แก้ไขแบรนด์" icon={<Edit2 />} size="lg"
-        footer={<ModalFormFooter><Button variant="secondary" onClick={closeEditModal} disabled={saving}>ยกเลิก</Button><SaveButton onClick={handleSaveEdit} loading={saving} disabled={logoBusy} /></ModalFormFooter>}
-      >
-        <ModalFormBody stacked>
-          <FormInput label="ชื่อแบรนด์" required value={editingName} onChange={event => setEditingName(event.target.value)} autoFocus />
-          {/* โลโก้แบรนด์ — หน้าร้านออนไลน์ดึงไปแสดงบนหัวหน้ากรองแบรนด์
-              ย่อเหลือ 400px พอสำหรับที่แสดงจริง 44px เผื่อจอ retina แล้ว */}
-          <FormField label="โลโก้แบรนด์" hint="ไม่ใส่ก็ได้ — หน้าร้านจะแสดงแค่ชื่อแบรนด์">
-            <ImageDropzone
-              value={editingLogo}
-              // กดกากบาทลบรูป = `onChange(null)` — ต้องล้างรูปเดิมด้วย ไม่งั้นกดลบแล้วยังบันทึกรูปเก่ากลับไป
-              onChange={file => { setEditingLogo(file); if (!file) setEditingLogoUrl(null); }}
-              initialPreviewUrl={editingLogoUrl}
-              onBusyChange={setLogoBusy}
-              alt={`โลโก้ ${editingName}`}
-              label="เลือกรูปโลโก้"
-              maxWidthOrHeight={400}
-              maxSizeMB={0.15}
-              changeOnClick
-            />
-          </FormField>
-          {features.supplier && (
-            <FormField label="Supplier">
-              <EntitySearchInput value={editingSupplierId} onChange={setEditingSupplierId} onClear={() => setEditingSupplierId('')}
-                options={suppliers.map(supplier => ({ id: supplier.id, label: supplier.name, subtitle: supplier.supplier_type }))}
-                placeholder="ค้นหา Supplier..."
-                selectedDisplay={editingSupplierId ? (
-                  <div className="entity-selected-value"><Factory /><span className="entity-selected-value-text">{suppliers.find(supplier => supplier.id === editingSupplierId)?.name}</span></div>
-                ) : undefined} />
-            </FormField>
-          )}
-          {features.consignment && (
-            <div className="form-grid-2">
-              <FormInput label="GP ฝากขายของแบรนด์" type="number" min={0} max={100} postfix="%" value={editingGpRate}
-                onChange={event => setEditingGpRate(event.target.value)} hint="เว้นว่างเพื่อใช้ GP ฝากขายกลางของบริษัท" />
-              <FormField label="คิด GP จากราคา">
-                <FormSelect value={editingGpBase} onChange={value => setEditingGpBase(value as 'retail' | 'discounted')}
-                  options={[{ id: 'retail', label: 'ราคาปลีก' }, { id: 'discounted', label: 'ราคาลด' }]} searchThreshold={99} />
-              </FormField>
-            </div>
-          )}
-        </ModalFormBody>
-      </Modal>
+      <BrandFormModal
+        open={formOpen}
+        brand={editingBrand}
+        suppliers={suppliers}
+        onClose={() => setFormOpen(false)}
+        onSaved={() => void fetchBrands()}
+      />
       {confirmDialog}
     </Layout>
   );

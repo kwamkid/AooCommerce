@@ -37,7 +37,9 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, logo_url } = body;
+    // ฟอร์มเพิ่ม/แก้ไขเป็นใบเดียวกัน (หน้า /settings/brands) — ตอนสร้างจึงส่งครบทุกช่อง
+    // เหมือนตอนแก้ ⛔ ห้ามตัดเหลือแค่ชื่อ ไม่งั้นค่าที่ผู้ใช้กรอกตอนสร้างหายเงียบ
+    const { name, logo_url, supplier_id, default_gp_rate, gp_base_price } = body;
 
     if (!name?.trim()) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
@@ -61,6 +63,9 @@ export async function POST(request: NextRequest) {
         name: name.trim(),
         sort_order: nextOrder,
         logo_url: (logo_url || '').trim() || null,
+        supplier_id: supplier_id || null,
+        default_gp_rate: default_gp_rate === '' || default_gp_rate == null ? null : Number(default_gp_rate),
+        gp_base_price: gp_base_price || 'retail',
       })
       .select()
       .single();
