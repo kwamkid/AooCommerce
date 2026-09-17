@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { ensureValidToken, ShopeeAccountRow, getItemFullDetails, updateStock } from '@/lib/shopee/api';
 import {
   type BundleDealParams,
@@ -50,9 +50,13 @@ interface CompletedStep {
 // ─── POST /api/shopee/deals — Push promotion to Shopee ──
 
 export async function POST(req: NextRequest) {
-  const { isAuth, companyId } = await checkAuthWithCompany(req);
+  const auth = await checkAuthWithCompany(req);
+  const { isAuth, companyId } = auth;
   if (!isAuth || !companyId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  if (!can(auth, 'product.manage')) {
+    return NextResponse.json({ error: 'ไม่มีสิทธิ์ดำเนินการนี้' }, { status: 403 });
   }
 
   try {
@@ -1191,7 +1195,8 @@ export async function POST(req: NextRequest) {
 // ─── GET /api/shopee/deals — List deals for a promotion ──
 
 export async function GET(req: NextRequest) {
-  const { isAuth, companyId } = await checkAuthWithCompany(req);
+  const auth = await checkAuthWithCompany(req);
+  const { isAuth, companyId } = auth;
   if (!isAuth || !companyId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -1225,9 +1230,13 @@ export async function GET(req: NextRequest) {
 // Called after saving promotion locally. Updates all synced shops.
 
 export async function PATCH(req: NextRequest) {
-  const { isAuth, companyId } = await checkAuthWithCompany(req);
+  const auth = await checkAuthWithCompany(req);
+  const { isAuth, companyId } = auth;
   if (!isAuth || !companyId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  if (!can(auth, 'product.manage')) {
+    return NextResponse.json({ error: 'ไม่มีสิทธิ์ดำเนินการนี้' }, { status: 403 });
   }
 
   try {
@@ -1775,9 +1784,13 @@ export async function PATCH(req: NextRequest) {
 // Called when user deletes a promotion and confirms Shopee deletion.
 
 export async function DELETE(req: NextRequest) {
-  const { isAuth, companyId } = await checkAuthWithCompany(req);
+  const auth = await checkAuthWithCompany(req);
+  const { isAuth, companyId } = auth;
   if (!isAuth || !companyId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  if (!can(auth, 'product.manage')) {
+    return NextResponse.json({ error: 'ไม่มีสิทธิ์ดำเนินการนี้' }, { status: 403 });
   }
 
   try {

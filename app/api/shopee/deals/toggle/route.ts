@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { ensureValidToken, ShopeeAccountRow } from '@/lib/shopee/api';
 import {
   getBundleDeal,
@@ -15,9 +15,13 @@ import { logIntegration } from '@/lib/integration-logger';
 // ─── POST /api/shopee/deals/toggle — Enable/Disable single shop deal ──
 
 export async function POST(req: NextRequest) {
-  const { isAuth, companyId } = await checkAuthWithCompany(req);
+  const auth = await checkAuthWithCompany(req);
+  const { isAuth, companyId } = auth;
   if (!isAuth || !companyId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  if (!can(auth, 'product.manage')) {
+    return NextResponse.json({ error: 'ไม่มีสิทธิ์ดำเนินการนี้' }, { status: 403 });
   }
 
   try {

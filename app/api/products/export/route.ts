@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { checkAuthWithCompany, supabaseAdmin } from '@/lib/supabase-admin';
+import { checkAuthWithCompany, supabaseAdmin, can } from '@/lib/supabase-admin';
 import { loadCompositeExportInfo } from '@/lib/bulk/composite-import';
 
 export async function POST(request: NextRequest) {
@@ -7,6 +7,9 @@ export async function POST(request: NextRequest) {
     const auth = await checkAuthWithCompany(request);
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!can(auth, 'product.view')) {
+      return NextResponse.json({ error: 'ไม่มีสิทธิ์ดำเนินการนี้' }, { status: 403 });
     }
 
     const canViewCost = auth.canViewCost === true;

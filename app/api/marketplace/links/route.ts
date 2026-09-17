@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse, after } from 'next/server';
-import { checkAuthWithCompany, supabaseAdmin } from '@/lib/supabase-admin';
+import { checkAuthWithCompany, supabaseAdmin, can } from '@/lib/supabase-admin';
 import { ensureValidToken, getShopeeCategories, ShopeeAccountRow } from '@/lib/shopee/api';
 import { guardFeature } from '@/lib/package-gates-server';
 
 export async function GET(request: NextRequest) {
   try {
-    const { isAuth, companyId } = await checkAuthWithCompany(request);
+    const auth = await checkAuthWithCompany(request);
+    const { isAuth, companyId } = auth;
     if (!isAuth || !companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -205,9 +206,13 @@ export async function GET(request: NextRequest) {
 // PATCH - Update marketplace link (platform_price override)
 export async function PATCH(request: NextRequest) {
   try {
-    const { isAuth, companyId } = await checkAuthWithCompany(request);
+    const auth = await checkAuthWithCompany(request);
+    const { isAuth, companyId } = auth;
     if (!isAuth || !companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!can(auth, 'product.manage')) {
+      return NextResponse.json({ error: 'ไม่มีสิทธิ์ดำเนินการนี้' }, { status: 403 });
     }
     // ด่านฟีเจอร์ของ API — UI กันคนหลงเข้าหน้าได้ แต่กันคนยิง API ตรงไม่ได้
     const blocked = await guardFeature(companyId, 'marketplace_sync');
@@ -282,9 +287,13 @@ export async function PATCH(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    const { isAuth, companyId } = await checkAuthWithCompany(request);
+    const auth = await checkAuthWithCompany(request);
+    const { isAuth, companyId } = auth;
     if (!isAuth || !companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!can(auth, 'product.manage')) {
+      return NextResponse.json({ error: 'ไม่มีสิทธิ์ดำเนินการนี้' }, { status: 403 });
     }
     const blocked = await guardFeature(companyId, 'marketplace_sync');
     if (blocked) return blocked;

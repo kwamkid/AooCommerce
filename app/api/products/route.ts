@@ -1,6 +1,6 @@
 // Path: app/api/products/route.ts
 import { NextRequest, NextResponse, after } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { fetchAllRows } from '@/lib/supabase-paging';
 import { validateCompositeSlots, type CompositeSlot } from '@/lib/composite-shared';
 import { saveCompositeVariations, CompositeValidationError, type ComboInput, type SaveCompositeResult } from '@/lib/composite-save';
@@ -193,6 +193,9 @@ export async function POST(request: NextRequest) {
         { error: 'Unauthorized' },
         { status: 401 }
       );
+    }
+    if (!can(auth, 'product.manage')) {
+      return NextResponse.json({ error: 'ไม่มีสิทธิ์ดำเนินการนี้' }, { status: 403 });
     }
 
     const productData: ProductData = await request.json();
@@ -893,6 +896,9 @@ export async function PUT(request: NextRequest) {
         { status: 401 }
       );
     }
+    if (!can(auth, 'product.manage')) {
+      return NextResponse.json({ error: 'ไม่มีสิทธิ์ดำเนินการนี้' }, { status: 403 });
+    }
 
     const body = await request.json();
     const {
@@ -1335,6 +1341,9 @@ export async function DELETE(request: NextRequest) {
         { error: 'Unauthorized' },
         { status: 401 }
       );
+    }
+    if (!can(auth, 'product.manage')) {
+      return NextResponse.json({ error: 'ไม่มีสิทธิ์ดำเนินการนี้' }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);

@@ -143,6 +143,7 @@ export const CAPABILITIES = {
   // Customers
   'customer.view':               [...ADMIN_TIER, 'customers:view'],
   'customer.edit':               [...ADMIN_TIER, 'customers:manage'],
+  'customer.delete':             ADMIN_PLUS,    // ลบลูกค้าถาวร — ที่อยู่/แท็ก/กิจกรรมหายตามและออเดอร์ถูก unlink
 
   // Suppliers / reports
   'supplier.edit':               ADMIN_TIER,
