@@ -54,6 +54,11 @@ export interface ExportConfig {
    * ไม่ส่ง = ใช้รูปหลักของสินค้า · ส่งมา = แทนที่รูปแรก ที่เหลือเรียงตามเดิม
    */
   cover_image_url?: string | null;
+  /**
+   * ชื่อประกาศเฉพาะร้านนี้ — ไม่ส่ง = ใช้ชื่อสินค้าในระบบ
+   * (ใช้ตอนแพลตฟอร์มมีเพดาน/ขั้นต่ำความยาวที่ชื่อจริงของเราไม่ผ่าน เช่น TikTok ขั้นต่ำ 25 ตัวอักษร)
+   */
+  title?: string | null;
 }
 
 export interface ExportOneResult {
@@ -170,13 +175,16 @@ export async function fetchProductForExport(
   if (!product) return null;
 
   const variationColumns = 'id, variation_label, sku, default_price, discount_price, attributes';
+  // ⛔ `product_variations` ไม่มีคอลัมน์ `sort_order` — เรียงด้วย `created_at`
+  //    เหมือน `/api/products` (เคยใช้ sort_order แล้ว query error เงียบ ๆ ทั้งสองชั้น
+  //    → ทุกสินค้ากลายเป็น "ยังไม่มีตัวเลือก/ราคา" ส่งขึ้นร้านไม่ได้เลยสักตัว)
   const { data: variations } = await supabaseAdmin
     .from('product_variations')
     .select(variationColumns)
     .eq('company_id', companyId)
     .eq('product_id', productId)
     .eq('is_active', true)
-    .order('sort_order', { ascending: true });
+    .order('created_at', { ascending: true });
 
   // ข้อมูลยุคก่อนมี `company_id` บน `product_variations` ยังมีอยู่จริง — ตัวกรองด้านบน
   // ทำให้สินค้าเก่ากลายเป็น "ไม่มีตัวเลือก" แล้วส่งขึ้นร้านไม่ได้ (ทางถอยเดิมของ Shopee)
@@ -187,7 +195,7 @@ export async function fetchProductForExport(
       .select(variationColumns)
       .eq('product_id', productId)
       .eq('is_active', true)
-      .order('sort_order', { ascending: true });
+      .order('created_at', { ascending: true });
     rows = legacy || [];
   }
 
@@ -308,7 +316,7 @@ export function buildExportPayload(
   return {
     product_id: product.id,
     code: product.code,
-    name: product.name,
+    name: (config.title || '').trim() || product.name,
     description: product.platform_description || product.description || product.name,
     images,
     uploaded_images: [],
@@ -384,6 +392,33 @@ async function upsertLinks(
   }
 }
 
+// ── การผูกที่ค้างอยู่ ─────────────────────────────────────────────────────────
+
+/**
+ * ประกาศที่ผูกไว้ยังอยู่บนร้านจริงไหม
+ * ตอบ `true` เมื่อไม่แน่ใจเสมอ (แพลตฟอร์มไม่รองรับการถาม · API ล้ม) — เดาว่า
+ * "ไม่อยู่" แล้วสร้างใหม่คือของเสียบนร้าน ซึ่งแก้ยากกว่า link ค้าง
+ */
+async function itemStillOnShop(ctx: ExportContext, externalItemId: string): Promise<boolean> {
+  if (!ctx.adapter.itemExists) return true;
+  try {
+    return await ctx.adapter.itemExists(ctx.account, externalItemId);
+  } catch {
+    return true;
+  }
+}
+
+/** ล้างการผูกของสินค้านี้กับร้านนี้ (ประกาศบนร้านไม่มีแล้ว) */
+async function clearStaleLinks(ctx: ExportContext, productId: string): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from('marketplace_product_links')
+    .delete()
+    .eq('company_id', ctx.companyId)
+    .eq('account_id', ctx.accountId)
+    .eq('product_id', productId);
+  if (error) console.error('[Product Export] ล้างการผูกที่ค้างไม่สำเร็จ:', error);
+}
+
 // ── ส่งสินค้าหนึ่งตัว ─────────────────────────────────────────────────────────
 
 /**
@@ -411,12 +446,19 @@ export async function exportProduct(
     base.product_name = product.name;
 
     if (product.existing_link) {
-      return {
-        ...base,
-        already_linked: true,
-        external_item_id: product.existing_link.external_item_id,
-        errors: [`"${product.name}" ผูกกับร้านนี้อยู่แล้ว (#${product.existing_link.external_item_id}) — แก้ที่หน้าสินค้าแทน`],
-      };
+      // ประกาศอาจถูกลบทิ้งที่หลังบ้านของร้านไปแล้ว — link ฝั่งเราค้างอยู่ทำให้ส่งใหม่
+      // ไม่ได้ตลอดกาล ถามร้านก่อนว่ายังมีจริงไหม ไม่มีแล้วก็ล้าง link ทิ้งแล้วส่งต่อ
+      const stillOnShop = await itemStillOnShop(ctx, product.existing_link.external_item_id);
+      if (stillOnShop) {
+        return {
+          ...base,
+          already_linked: true,
+          external_item_id: product.existing_link.external_item_id,
+          errors: [`"${product.name}" ผูกกับร้านนี้อยู่แล้ว (#${product.existing_link.external_item_id}) — แก้ที่หน้าสินค้าแทน`],
+        };
+      }
+      await clearStaleLinks(ctx, productId);
+      base.warnings.push(`ประกาศเดิม #${product.existing_link.external_item_id} ถูกลบไปจากร้านแล้ว — ล้างการผูกให้และสร้างใหม่`);
     }
     if (product.is_composite) {
       return { ...base, errors: [`"${product.name}" เป็นสินค้าชุด — ส่งขึ้นร้านไม่ได้ (ไม่มีสต็อกของตัวเอง)`] };

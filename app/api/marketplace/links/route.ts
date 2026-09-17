@@ -273,3 +273,43 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to update link' }, { status: 500 });
   }
 }
+
+/**
+ * ยกเลิกการผูกสินค้ากับร้าน — `?account_id=&product_id=`
+ *
+ * ใช้ตอนประกาศบนร้านถูกลบไปแล้วแต่แถว link ฝั่งเราค้างอยู่ (ทำให้ส่งสินค้าตัวนั้น
+ * ขึ้นร้านใหม่ไม่ได้) — **ลบแค่การผูกฝั่งเรา ไม่แตะประกาศบนร้าน**
+ */
+export async function DELETE(request: NextRequest) {
+  try {
+    const { isAuth, companyId } = await checkAuthWithCompany(request);
+    if (!isAuth || !companyId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const blocked = await guardFeature(companyId, 'marketplace_sync');
+    if (blocked) return blocked;
+
+    const { searchParams } = new URL(request.url);
+    const accountId = searchParams.get('account_id');
+    const productId = searchParams.get('product_id');
+    if (!accountId || !productId) {
+      return NextResponse.json({ error: 'ต้องระบุ account_id และ product_id' }, { status: 400 });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('marketplace_product_links')
+      .delete()
+      .eq('company_id', companyId)
+      .eq('account_id', accountId)
+      .eq('product_id', productId)
+      .select('id');
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    return NextResponse.json({ success: true, removed: (data || []).length });
+  } catch (error) {
+    console.error('Delete marketplace link error:', error);
+    return NextResponse.json({ error: 'ยกเลิกการผูกไม่สำเร็จ' }, { status: 500 });
+  }
+}

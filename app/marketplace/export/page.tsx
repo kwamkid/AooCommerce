@@ -41,7 +41,7 @@ import { useDebouncedCallback } from '@/lib/useDebounce';
 import { useServerSearch } from '@/lib/useServerSearch';
 import { formatPrice } from '@/lib/utils/format';
 import { MARKETPLACE_PLATFORMS } from '@/lib/marketplace/platforms';
-import { ChevronLeft, ChevronRight, Package, Store, Settings2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Package, Store, Unlink } from 'lucide-react';
 
 const PAGE_SIZE = 30;
 const BACK_HREF = '/marketplace/sync';
@@ -67,6 +67,8 @@ interface MarketplaceAttribute {
 }
 
 interface ProductConfig {
+  /** ชื่อประกาศบนร้าน — ว่าง = ใช้ชื่อสินค้าในระบบ */
+  title: string;
   categoryId: string | null;
   categoryName: string;
   brandId: string | null;
@@ -90,7 +92,7 @@ interface ExportResultRow {
 type Step = 'select' | 'configure' | 'run';
 
 const EMPTY_CONFIG: ProductConfig = {
-  categoryId: null, categoryName: '', brandId: null, brandName: '',
+  title: '', categoryId: null, categoryName: '', brandId: null, brandName: '',
   weight: '0.5', length: '', width: '', height: '', attributes: {},
 };
 
@@ -122,21 +124,29 @@ function MarketplaceExportContent() {
   const [appliedSearch, setAppliedSearch] = useState('');
   const [linkedIds, setLinkedIds] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Map<string, ProductRow>>(new Map());
+  // ตัวกรองของรายการสินค้าในระบบ (ไม่เกี่ยวกับหมวดของร้าน)
+  const [ourBrands, setOurBrands] = useState<{ id: string; name: string }[]>([]);
+  const [ourCategories, setOurCategories] = useState<{ id: string; name: string }[]>([]);
+  const [brandFilter, setBrandFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [unlinking, setUnlinking] = useState<string | null>(null);
 
   // ── ขั้นที่ 2: ตั้งค่า ─────────────────────────────────────────────────────
   const [configs, setConfigs] = useState<Record<string, ProductConfig>>({});
   const [attributesByCategory, setAttributesByCategory] = useState<Record<string, MarketplaceAttribute[]>>({});
   const [bulkConfig, setBulkConfig] = useState<ProductConfig>(EMPTY_CONFIG);
-  const [showBulk, setShowBulk] = useState(false);
-  const [expanded, setExpanded] = useState<string | null>(null);
+  // รายการที่ผู้ใช้กดสลับเอง — ค่าเริ่มต้นคือ "ยังขาดของ = กางไว้" (ครบแล้ว = ย่อ)
+  const [toggledCards, setToggledCards] = useState<Set<string>>(new Set());
   // ค่าเริ่มต้น = เปิดขายทันที (เจ้าของไม่อยากเข้าหลังบ้านไปกด publish ซ้ำ) · เปิดสวิตช์เมื่ออยากตรวจก่อน
   const [draft, setDraft] = useState(false);
   const [brandSupported, setBrandSupported] = useState(false);
   const [brandNeedsCategory, setBrandNeedsCategory] = useState(false);
+  // ข้อจำกัดชื่อประกาศของร้านนี้ — มาจาก adapter ฝั่ง server (หน้าไม่รู้จัก platform เอง)
+  const [titleRules, setTitleRules] = useState<{ min: number; max: number }>({ min: 0, max: 0 });
 
   // ── ขั้นที่ 3: ส่ง ────────────────────────────────────────────────────────
   const [running, setRunning] = useState(false);
-  const [progress, setProgress] = useState<{ done: number; total: number; label: string } | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number; label: string; ok: number; failed: number } | null>(null);
   const [results, setResults] = useState<ExportResultRow[] | null>(null);
 
   const label = platform ? platformLabel(platform) : 'Marketplace';
@@ -174,6 +184,38 @@ function MarketplaceExportContent() {
     })();
   }, [accountId, marketplaceOn]);
 
+  // ข้อจำกัดของร้านนี้ (ความยาวชื่อประกาศ) — ถามครั้งเดียวต่อร้าน
+  useEffect(() => {
+    if (!accountId || !marketplaceOn) return;
+    (async () => {
+      try {
+        const res = await apiFetch(`/api/marketplace/products/export?account_id=${accountId}`);
+        const data = await res.json();
+        if (res.ok) setTitleRules({ min: Number(data.title_min) || 0, max: Number(data.title_max) || 0 });
+      } catch {
+        // ไม่ได้ก็แค่ไม่เตือนล่วงหน้า — ฝั่งร้านยังตีกลับให้อยู่ดี
+      }
+    })();
+  }, [accountId, marketplaceOn]);
+
+  // แบรนด์/หมวดหมู่ของเรา (ไว้กรองรายการสินค้า — คนละชุดกับหมวดของร้าน)
+  useEffect(() => {
+    if (!marketplaceOn) return;
+    (async () => {
+      try {
+        const [brandRes, catRes] = await Promise.all([
+          apiFetch('/api/brands'),
+          apiFetch('/api/categories'),
+        ]);
+        const [brandData, catData] = await Promise.all([brandRes.json(), catRes.json()]);
+        setOurBrands((brandData.data || []).map((b: { id: string; name: string }) => ({ id: b.id, name: b.name })));
+        setOurCategories((catData.data || []).map((c: { id: string; name: string }) => ({ id: c.id, name: c.name })));
+      } catch {
+        // ไม่มีตัวกรองก็ยังค้นด้วยคำค้นได้
+      }
+    })();
+  }, [marketplaceOn]);
+
   // แพลตฟอร์มไหนมีทะเบียนแบรนด์ให้ค้น — ถามครั้งเดียวแล้วซ่อน/แสดงช่องตามนั้น
   useEffect(() => {
     if (!accountId || !platform) return;
@@ -190,7 +232,11 @@ function MarketplaceExportContent() {
   }, [accountId, platform]);
 
   // ── รายการสินค้าในระบบ ───────────────────────────────────────────────────
-  const loadProducts = useCallback(async (targetPage: number, q: string) => {
+  const loadProducts = useCallback(async (
+    targetPage: number,
+    q: string,
+    filters?: { brandId?: string; categoryId?: string },
+  ) => {
     setLoading(true);
     setLoadError(null);
     try {
@@ -201,6 +247,8 @@ function MarketplaceExportContent() {
         limit: String(PAGE_SIZE),
       });
       if (q) params.set('search', q);
+      if (filters?.brandId) params.set('brand_id', filters.brandId);
+      if (filters?.categoryId) params.set('category_id', filters.categoryId);
       const res = await apiFetch(`/api/products?${params}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'โหลดรายการสินค้าไม่สำเร็จ');
@@ -229,12 +277,48 @@ function MarketplaceExportContent() {
   const runSearch = useDebouncedCallback((value: string) => {
     setAppliedSearch(value);
     setPage(1);
-    loadProducts(1, value);
+    loadProducts(1, value, { brandId: brandFilter, categoryId: categoryFilter });
   }, 400);
 
   const goPage = (target: number) => {
     setPage(target);
-    loadProducts(target, appliedSearch);
+    loadProducts(target, appliedSearch, { brandId: brandFilter, categoryId: categoryFilter });
+  };
+
+  /** เปลี่ยนตัวกรอง = กลับไปหน้าแรกเสมอ (หน้าเดิมอาจไม่มีอยู่แล้วหลังกรอง) */
+  const applyFilters = (patch: { brandId?: string; categoryId?: string }) => {
+    const nextBrand = patch.brandId ?? brandFilter;
+    const nextCategory = patch.categoryId ?? categoryFilter;
+    setBrandFilter(nextBrand);
+    setCategoryFilter(nextCategory);
+    setPage(1);
+    loadProducts(1, appliedSearch, { brandId: nextBrand, categoryId: nextCategory });
+  };
+
+  /**
+   * ยกเลิกการผูกสินค้ากับร้านนี้ — ใช้ตอนประกาศบนร้านถูกลบไปแล้วแต่ฝั่งเรายังจำว่าผูกอยู่
+   * (ลบแค่การผูกฝั่งเรา ไม่แตะประกาศบนร้าน)
+   */
+  const unlinkProduct = async (product: ProductRow) => {
+    setUnlinking(product.product_id);
+    try {
+      const res = await apiFetch(
+        `/api/marketplace/links?account_id=${accountId}&product_id=${product.product_id}`,
+        { method: 'DELETE' },
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'ยกเลิกการผูกไม่สำเร็จ');
+      setLinkedIds(prev => {
+        const next = new Set(prev);
+        next.delete(product.product_id);
+        return next;
+      });
+      showToast(`ยกเลิกการผูก "${product.name}" แล้ว — ส่งขึ้นร้านใหม่ได้`, 'success');
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'ยกเลิกการผูกไม่สำเร็จ', 'error');
+    } finally {
+      setUnlinking(null);
+    }
   };
 
   const selectable = useMemo(
@@ -291,6 +375,8 @@ function MarketplaceExportContent() {
       for (const productId of selected.keys()) {
         const current = next[productId] || EMPTY_CONFIG;
         next[productId] = {
+          // ชื่อประกาศเป็นของเฉพาะตัว — ค่ากลางไม่ทับ
+          title: current.title,
           categoryId: bulkConfig.categoryId ?? current.categoryId,
           categoryName: bulkConfig.categoryId ? bulkConfig.categoryName : current.categoryName,
           brandId: bulkConfig.brandId ?? current.brandId,
@@ -304,8 +390,7 @@ function MarketplaceExportContent() {
       }
       return next;
     });
-    setShowBulk(false);
-    showToast('ใช้ค่ากับทุกรายการแล้ว', 'success');
+    showToast(`เติมค่าให้ ${selected.size} รายการแล้ว`, 'success');
   };
 
   // ── ค้นแบรนด์ ────────────────────────────────────────────────────────────
@@ -326,10 +411,24 @@ function MarketplaceExportContent() {
   });
 
   // ── ตรวจก่อนส่ง ──────────────────────────────────────────────────────────
+
+  /** ชื่อที่จะไปโผล่บนร้านจริง — ไม่ได้พิมพ์ทับ = ชื่อสินค้าในระบบ */
+  const titleOf = (product: ProductRow): string => (configOf(product.product_id).title || '').trim() || product.name;
+
+  /** ชื่อนี้ผิดกติกาความยาวของร้านไหม — คืนข้อความบอกเหตุ (null = ผ่าน) */
+  const titleProblem = useCallback((title: string): string | null => {
+    const len = [...title].length;
+    if (titleRules.min && len < titleRules.min) return `ชื่อสั้นไป ${titleRules.min - len} ตัวอักษร (ร้านนี้ขอ ${titleRules.min}–${titleRules.max || '∞'} ตัวอักษร)`;
+    if (titleRules.max && len > titleRules.max) return `ชื่อยาวเกิน ${len - titleRules.max} ตัวอักษร (ร้านนี้รับได้ ${titleRules.max} ตัวอักษร)`;
+    return null;
+  }, [titleRules]);
+
   const missingConfig = useMemo(() => {
     const out: string[] = [];
     for (const [productId, product] of selected) {
       const cfg = configOf(productId);
+      const badTitle = titleProblem((cfg.title || '').trim() || product.name);
+      if (badTitle) out.push(`${product.name}: ${badTitle}`);
       if (!cfg.categoryId) { out.push(`${product.name}: ยังไม่ได้เลือกหมวดหมู่`); continue; }
       for (const attr of attributesByCategory[cfg.categoryId] || []) {
         if (!attr.required) continue;
@@ -341,7 +440,7 @@ function MarketplaceExportContent() {
     return out;
   // configs/attributesByCategory เปลี่ยนแล้วต้องคิดใหม่ — configOf อ่านจาก configs
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected, configs, attributesByCategory]);
+  }, [selected, configs, attributesByCategory, titleProblem]);
 
   // ── ส่งจริง (SSE) ────────────────────────────────────────────────────────
   const startExport = async () => {
@@ -358,6 +457,7 @@ function MarketplaceExportContent() {
       return {
         product_id: productId,
         config: {
+          title: (cfg.title || '').trim() || undefined,
           category_id: cfg.categoryId,
           category_name: cfg.categoryName,
           brand_id: cfg.brandId,
@@ -372,15 +472,22 @@ function MarketplaceExportContent() {
     setStep('run');
     setRunning(true);
     setResults(null);
-    setProgress({ done: 0, total: items.length, label: 'กำลังเริ่ม...' });
+    setProgress({ done: 0, total: items.length, label: 'กำลังเริ่ม...', ok: 0, failed: 0 });
 
     const collected: ExportResultRow[] = [];
     try {
       // SSE — apiFetch อ่าน body เป็น json ไม่ได้ ต้องยิง fetch ตรงพร้อมแนบ token เอง
       const token = await getAccessToken();
+      // ต้องแนบ X-Company-Id เองด้วย (apiFetch แนบให้ แต่ fetch ตรงไม่มี) —
+      // ไม่งั้น API ตกไปใช้บริษัทแรกของผู้ใช้ แล้วหาร้านไม่เจอ = 404 "ไม่พบร้านนี้"
+      const currentCompanyId = typeof window !== 'undefined' ? localStorage.getItem('aoo-current-company-id') : null;
       const res = await fetch('/api/marketplace/products/export', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(currentCompanyId ? { 'X-Company-Id': currentCompanyId } : {}),
+        },
         body: JSON.stringify({ account_id: accountId, items, draft }),
       });
       if (!res.ok || !res.body) {
@@ -402,11 +509,13 @@ function MarketplaceExportContent() {
           if (!line.startsWith('data: ')) continue;
           const evt = JSON.parse(line.slice(6));
           if (evt.type === 'progress') {
-            setProgress({
+            setProgress(prev => ({
               done: evt.done,
               total: evt.total,
               label: `${evt.success ? 'ส่งแล้ว' : 'ไม่สำเร็จ'}: ${evt.product_name}`,
-            });
+              ok: (prev?.ok || 0) + (evt.success ? 1 : 0),
+              failed: (prev?.failed || 0) + (evt.success ? 0 : 1),
+            }));
           } else if (evt.type === 'done') {
             collected.push(...(evt.results || []));
             if (evt.next_cursor) {
@@ -538,10 +647,19 @@ function MarketplaceExportContent() {
           ระบบกำลังอัปโหลดรูปและสร้างประกาศทีละรายการ — ปิดหน้าตอนนี้รายการที่เหลือจะไม่ถูกส่ง
         </Alert>
         <Card>
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <span className="body-text">
+              ส่งแล้ว {progress?.done || 0} จาก {progress?.total || 0} รายการ
+            </span>
+            <div className="flex flex-wrap gap-2">
+              <Badge tone="emerald">{progress?.ok || 0} สำเร็จ</Badge>
+              {(progress?.failed || 0) > 0 && <Badge tone="red">{progress?.failed} ไม่สำเร็จ</Badge>}
+            </div>
+          </div>
           <ProgressBar
             value={progress?.done || 0}
             max={progress?.total || 1}
-            label={`${progress?.label || 'กำลังส่ง...'} (${progress?.done || 0}/${progress?.total || 0})`}
+            label={progress?.label || 'กำลังส่ง...'}
           />
         </Card>
       </Container>
@@ -661,67 +779,80 @@ function MarketplaceExportContent() {
                 </p>
               </div>
             </div>
-            <Button
-              variant={showBulk ? 'primary' : 'secondary'}
-              icon={<Settings2 className="w-4 h-4" />}
-              onClick={() => setShowBulk(!showBulk)}
-            >
-              ใช้กับทุกรายการ
-            </Button>
           </div>
         </Card>
 
-        {showBulk && (
-          <Card>
-            <h2 className="heading-3 mb-3">ตั้งค่าเดียวกันให้ทุกรายการ</h2>
-            <div className="space-y-3">
-              <div>
-                <label className="field-label">หมวดหมู่ {label}</label>
-                <CategoryPicker
-                  accountId={accountId}
-                  value={bulkConfig.categoryId}
-                  categoryName={bulkConfig.categoryName}
-                  platformLabel={label}
-                  onChange={(id, name) => {
-                    setBulkConfig(prev => ({ ...prev, categoryId: id, categoryName: name, attributes: {} }));
-                    if (id) loadAttributes(id);
-                  }}
-                />
-              </div>
-              {brandField(bulkConfig, (id, name) => setBulkConfig(prev => ({ ...prev, brandId: id, brandName: name })))}
-              {sizeFields(bulkConfig, (p) => setBulkConfig(prev => ({ ...prev, ...p })))}
-              {renderAttributeForm(bulkConfig.categoryId, bulkConfig, (attributes) => setBulkConfig(prev => ({ ...prev, attributes })))}
-              <div className="flex justify-end gap-3">
-                <Button variant="secondary" onClick={() => setShowBulk(false)}>ยกเลิก</Button>
-                <Button variant="primary" onClick={applyBulk} disabled={!bulkConfig.categoryId && !bulkConfig.weight}>
-                  ใช้กับทุกรายการ ({selected.size})
-                </Button>
-              </div>
+        <Card>
+          <h2 className="heading-3">ตั้งค่าเริ่มต้นของทุกรายการ</h2>
+          <p className="helper-text text-gray-500 mb-3">
+            กรอกครั้งเดียวแล้วกด &ldquo;เติมให้ทุกรายการ&rdquo; — รายการที่ต่างจากนี้ค่อยไล่แก้ทีละตัวข้างล่าง
+          </p>
+          <div className="space-y-3">
+            <div>
+              <label className="field-label">หมวดหมู่ {label}</label>
+              <CategoryPicker
+                accountId={accountId}
+                value={bulkConfig.categoryId}
+                categoryName={bulkConfig.categoryName}
+                platformLabel={label}
+                onChange={(id, name) => {
+                  setBulkConfig(prev => ({ ...prev, categoryId: id, categoryName: name, attributes: {} }));
+                  if (id) loadAttributes(id);
+                }}
+              />
             </div>
-          </Card>
-        )}
+            {brandField(bulkConfig, (id, name) => setBulkConfig(prev => ({ ...prev, brandId: id, brandName: name })))}
+            {sizeFields(bulkConfig, (p) => setBulkConfig(prev => ({ ...prev, ...p })))}
+            {renderAttributeForm(bulkConfig.categoryId, bulkConfig, (attributes) => setBulkConfig(prev => ({ ...prev, attributes })))}
+            <div className="flex justify-end">
+              <Button variant="primary" onClick={applyBulk} disabled={!bulkConfig.categoryId && !bulkConfig.weight}>
+                เติมให้ทุกรายการ ({selected.size})
+              </Button>
+            </div>
+          </div>
+        </Card>
 
         <Card>
-          <h2 className="heading-3 mb-3">ตั้งค่ารายสินค้า ({selected.size})</h2>
+          <h2 className="heading-3">ไล่แก้เฉพาะที่ต่าง ({selected.size})</h2>
+          <p className="helper-text text-gray-500 mb-3">
+            รายการที่ขึ้น &ldquo;ครบแล้ว&rdquo; ส่งได้เลย — เปิดดูเฉพาะตัวที่ยังขาด
+          </p>
           <div className="space-y-2">
             {[...selected.values()].map(product => {
               const cfg = configOf(product.product_id);
-              const open = expanded === product.product_id;
+              const badTitle = titleProblem(titleOf(product));
+              // ขาดอะไรของรายการนี้บ้าง — ใช้ข้อความชุดเดียวกับตัวตรวจก่อนส่ง
+              const problems = missingConfig.filter(m => m.startsWith(`${product.name}: `));
+              // ยังขาด = กางให้เห็นเลย ไม่ต้องให้ไปกดหา · กดเองเมื่อไหร่ค่อยสลับเฉพาะใบนั้น
+              const flipped = toggledCards.has(product.product_id);
+              const open = problems.length > 0 ? !flipped : flipped;
               return (
                 <div key={product.product_id} className="rounded-lg border border-gray-200 dark:border-slate-700 p-3 space-y-3">
                   <div className="flex items-start gap-3">
                     <ProductImageThumb src={product.main_image_url || product.image} alt={product.name} size="sm" fallbackIcon={<Package className="w-5 h-5" />} />
                     <div className="min-w-0 flex-1">
                       <div className="body-text truncate">{product.name}</div>
-                      <div className="flex flex-wrap gap-x-2 gap-y-1 mt-0.5">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5">
                         <span className="helper-text text-gray-500">{product.code}</span>
                         {product.simple_default_price ? (
                           <span className="helper-text text-gray-500">{formatPrice(product.simple_default_price)}</span>
                         ) : null}
+                        {problems.length === 0
+                          ? <Badge tone="emerald" size="sm">ครบแล้ว</Badge>
+                          : <Badge tone="amber" size="sm">ยังขาด {problems.length} อย่าง</Badge>}
                       </div>
                     </div>
-                    <Button size="sm" variant="ghost" onClick={() => setExpanded(open ? null : product.product_id)}>
-                      {open ? 'ย่อ' : 'ตั้งค่าเพิ่มเติม'}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setToggledCards(prev => {
+                        const next = new Set(prev);
+                        if (next.has(product.product_id)) next.delete(product.product_id);
+                        else next.add(product.product_id);
+                        return next;
+                      })}
+                    >
+                      {open ? 'ย่อ' : 'แก้'}
                     </Button>
                   </div>
 
@@ -738,6 +869,21 @@ function MarketplaceExportContent() {
                       }}
                     />
                   </div>
+
+                  {/* ชื่อที่ร้านไม่รับ ต้องแก้ตรงนี้เลย ไม่ใช่ให้ไปแก้ชื่อสินค้าในระบบ */}
+                  {(badTitle || cfg.title) && (
+                    <div>
+                      <FormInput
+                        label={`ชื่อประกาศบน ${label}`}
+                        required
+                        value={cfg.title || product.name}
+                        onChange={(e) => patchConfig(product.product_id, { title: e.target.value })}
+                      />
+                      <p className={`helper-text mt-1 ${badTitle ? 'text-red-600 dark:text-red-400' : 'text-gray-500'}`}>
+                        {badTitle || `${[...titleOf(product)].length} ตัวอักษร — ใช้เฉพาะประกาศร้านนี้ ไม่กระทบชื่อสินค้าในระบบ`}
+                      </p>
+                    </div>
+                  )}
 
                   {open && (
                     <div className="space-y-3 pt-1">
@@ -778,7 +924,8 @@ function MarketplaceExportContent() {
 
       <Alert tone="info" title="สินค้าที่ผูกกับร้านนี้แล้วจะไม่แสดง">
         ระบบสร้างประกาศใหม่ให้เฉพาะสินค้าที่ยังไม่เคยผูกกับร้านนี้ · สินค้าชุด (ประกอบจากชิ้นส่วน) ส่งขึ้นร้านไม่ได้ ·
-        หลังสร้างเสร็จ ระบบจะส่งสต็อกของเราขึ้นร้านให้ทันที
+        หลังสร้างเสร็จ ระบบจะส่งสต็อกของเราขึ้นร้านให้ทันที ·
+        ลบประกาศทิ้งที่หลังบ้านของร้านแล้วแต่ตรงนี้ยังขึ้นว่าผูกอยู่ กด &ldquo;ยกเลิกการผูก&rdquo; เพื่อส่งใหม่ได้
       </Alert>
 
       <Card>
@@ -789,6 +936,28 @@ function MarketplaceExportContent() {
             onSubmit={() => runSearch.now(search)}
             placeholder="ค้นหาชื่อสินค้า หรือรหัสสินค้า..."
           />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="field-label">แบรนด์</label>
+              <FormSelect
+                value={brandFilter}
+                onChange={(v) => applyFilters({ brandId: v })}
+                options={ourBrands.map(b => ({ id: b.id, label: b.name }))}
+                clearLabel="ทุกแบรนด์"
+                searchThreshold={8}
+              />
+            </div>
+            <div>
+              <label className="field-label">หมวดหมู่</label>
+              <FormSelect
+                value={categoryFilter}
+                onChange={(v) => applyFilters({ categoryId: v })}
+                options={ourCategories.map(c => ({ id: c.id, label: c.name }))}
+                clearLabel="ทุกหมวดหมู่"
+                searchThreshold={8}
+              />
+            </div>
+          </div>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <Checkbox
               checked={allPageSelected}
@@ -850,6 +1019,17 @@ function MarketplaceExportContent() {
                         {composite && <Badge tone="gray" size="sm">สินค้าชุด — ส่งไม่ได้</Badge>}
                       </div>
                     </div>
+                    {linked && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        icon={<Unlink className="w-4 h-4" />}
+                        loading={unlinking === product.product_id}
+                        onClick={() => unlinkProduct(product)}
+                      >
+                        ยกเลิกการผูก
+                      </Button>
+                    )}
                   </div>
                 </div>
               );

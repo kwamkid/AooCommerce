@@ -317,6 +317,17 @@ export const shopeeProductExportAdapter: ProductExportAdapter = {
   createApiPath: '/api/v2/product/add_item',
   // Shopee ไม่มีทะเบียนแบรนด์รวม — ต้องรู้หมวดปลายกิ่งก่อนถึงถามได้
   brandsNeedCategory: true,
+  titleRules: { max: 120 },
+
+  async itemExists(account, externalItemId): Promise<boolean> {
+    const creds = await ensureValidToken(asShopeeAccount(account));
+    const { data, error } = await shopeeApiRequest(creds, 'GET', '/api/v2/product/get_item_base_info', {
+      item_id_list: externalItemId,
+    });
+    if (error) return false;
+    const list = (data as { item_list?: { item_status?: string }[] } | null)?.item_list || [];
+    return list.length > 0 && list[0]?.item_status !== 'DELETED';
+  },
 
   async searchBrands(account, query, opts): Promise<MarketplaceBrand[]> {
     const categoryId = opts?.categoryId ? String(opts.categoryId) : '';

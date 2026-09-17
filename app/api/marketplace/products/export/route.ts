@@ -26,6 +26,28 @@ interface ExportRequestBody {
   cursor?: string;
 }
 
+/**
+ * ข้อจำกัดของร้านนี้ที่หน้า wizard ต้องรู้ล่วงหน้า — `GET ?account_id=`
+ *   → { platform, title_min, title_max, can_verify_link }
+ * (หน้า wizard ห้ามรู้จัก platform เอง — ค่ามาจาก adapter ของร้านนั้น)
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const ctx = await resolveExportContext(request, searchParams.get('account_id'));
+    if (isResponse(ctx)) return ctx;
+
+    return NextResponse.json({
+      platform: ctx.platform,
+      title_min: ctx.adapter.titleRules?.min ?? 0,
+      title_max: ctx.adapter.titleRules?.max ?? 0,
+      can_verify_link: typeof ctx.adapter.itemExists === 'function',
+    });
+  } catch (error) {
+    return errorResponse(error, 'อ่านข้อจำกัดของร้านไม่สำเร็จ');
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as ExportRequestBody;

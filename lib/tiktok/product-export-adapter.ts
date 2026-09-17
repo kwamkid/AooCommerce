@@ -30,6 +30,10 @@ const asTikTokAccount = (account: ProductExportAccount) => account as unknown as
 
 const CREATE_PATH = '/product/202309/products';
 const LOCALE = 'th-TH';
+// ร้านฝั่ง SEA (ไทยรวมอยู่ด้วย) **บังคับ** ใช้ต้นไม้หมวดหมู่ v2 (7 ระดับ) — ส่ง v1 จะโดน
+// `12052217 ... all-region shops must use V2 categories` ตอนสร้างสินค้า
+// ต้องส่งให้ครบทั้งขาอ่านหมวด · อ่าน attribute · สร้างสินค้า ไม่งั้น id คนละต้นไม้กัน
+const CATEGORY_VERSION = 'v2';
 
 async function creds(account: ProductExportAccount): Promise<TikTokCredentials> {
   return ensureValidToken(asTikTokAccount(account));
@@ -154,6 +158,7 @@ function buildCreateBody(payload: ExportPayload, warehouseId: string, draft: boo
     title: payload.name,
     description: payload.description || payload.name,
     category_id: payload.category_id,
+    category_version: CATEGORY_VERSION,
     save_mode: draft ? 'AS_DRAFT' : 'LISTING',
     main_images: payload.uploaded_images.slice(0, 9).map(uri => ({ uri })),
     package_weight: { value: weightValue(payload.weight), unit: 'KILOGRAM' },
@@ -193,9 +198,23 @@ function buildCreateBody(payload: ExportPayload, warehouseId: string, draft: boo
 export const tiktokProductExportAdapter: ProductExportAdapter = {
   createApiPath: CREATE_PATH,
 
+  // TikTok ตีกลับชื่อที่สั้นกว่า 25 ตัวอักษร ("The product name must be between
+  // 25 and 510 characters") — หน้า wizard เอาไปเตือนก่อนส่ง
+  titleRules: { min: 25, max: 510 },
+
+  async itemExists(account, externalItemId): Promise<boolean> {
+    const c = await creds(account);
+    const { data, error } = await tiktokApiRequest(
+      c, 'GET', `/product/202309/products/${encodeURIComponent(externalItemId)}`, {},
+    );
+    if (error) return false;
+    const status = (data as { status?: string } | null)?.status || '';
+    return !!data && status !== 'DELETED';
+  },
+
   async getCategories(account): Promise<MarketplaceCategory[]> {
     const c = await creds(account);
-    const { data, error } = await tiktokApiRequest(c, 'GET', '/product/202309/categories', { locale: LOCALE });
+    const { data, error } = await tiktokApiRequest(c, 'GET', '/product/202309/categories', { locale: LOCALE, category_version: CATEGORY_VERSION });
     if (error) await fail(error);
 
     const categories = (data as { categories?: {
@@ -217,7 +236,10 @@ export const tiktokProductExportAdapter: ProductExportAdapter = {
   async getCategoryAttributes(account, categoryId): Promise<MarketplaceAttribute[]> {
     const c = await creds(account);
     const { data, error } = await tiktokApiRequest(
-      c, 'GET', `/product/202309/categories/${encodeURIComponent(categoryId)}/attributes`, { locale: LOCALE },
+      c,
+      'GET',
+      `/product/202309/categories/${encodeURIComponent(categoryId)}/attributes`,
+      { locale: LOCALE, category_version: CATEGORY_VERSION },
     );
     if (error) await fail(error);
 

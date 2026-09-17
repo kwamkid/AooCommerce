@@ -217,6 +217,16 @@ function detailErrors(raw: Record<string, unknown> | undefined): string[] {
 
 export const lazadaProductExportAdapter: ProductExportAdapter = {
   createApiPath: CREATE_PATH,
+  titleRules: { max: 255 },
+
+  async itemExists(account, externalItemId): Promise<boolean> {
+    const c = await creds(account);
+    const { data, error } = await lazadaApiRequest(c, 'GET', '/product/item/get', {
+      item_id: externalItemId,
+    });
+    if (error) return false;
+    return !!(data as { item_id?: unknown } | null)?.item_id;
+  },
 
   async getCategories(account): Promise<MarketplaceCategory[]> {
     const c = await creds(account);

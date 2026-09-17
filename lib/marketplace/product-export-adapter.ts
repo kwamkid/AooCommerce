@@ -165,6 +165,17 @@ export interface ProductExportAdapter {
   /** ปิดขายประกาศที่เพิ่งสร้าง (ใช้กับแพลตฟอร์มที่ไม่มีโหมดร่างในตัว) */
   deactivate?(account: ProductExportAccount, externalItemId: string): Promise<void>;
   /**
+   * ประกาศนี้ยังอยู่บนร้านจริงไหม — ใช้ตอนเจอว่า "ผูกไว้แล้ว" เพื่อกันเคสที่คนไปลบ
+   * ทิ้งที่หลังบ้านของร้าน แล้ว link ฝั่งเราค้าง ทำให้ส่งใหม่ไม่ได้ตลอดกาล
+   * ไม่มี = ชั้นกลางไม่ตรวจ (ถือว่ายังอยู่)
+   */
+  itemExists?(account: ProductExportAccount, externalItemId: string): Promise<boolean>;
+  /**
+   * ข้อจำกัดความยาวชื่อประกาศของแพลตฟอร์มนั้น — หน้า wizard เอาไปเตือนล่วงหน้า
+   * (TikTok บังคับ 25–255 · Shopee 20–120 · Lazada สั้นได้)
+   */
+  titleRules?: { min?: number; max?: number };
+  /**
    * คอลัมน์เฉพาะ platform ที่ต้องลง `marketplace_product_links` เพิ่มจากคอลัมน์กลาง
    * (เช่น `shopee_category_id` / `shopee_attributes` ที่หน้าแก้สินค้าอ่านอยู่)
    */

@@ -239,9 +239,16 @@ function MarketplaceImportContent() {
   const runPass = async (body: Record<string, unknown>, acc: ImportSummary): Promise<string | undefined> => {
     // SSE — apiFetch อ่าน body เป็น json ไม่ได้ ต้องยิง fetch ตรงพร้อมแนบ token เอง
     const token = await getAccessToken();
+    // X-Company-Id ต้องแนบเอง (apiFetch แนบให้ แต่ fetch ตรงไม่มี) — ไม่งั้น API
+    // ตกไปใช้บริษัทแรกของผู้ใช้ แล้วหาร้านไม่เจอ = 404 "ไม่พบร้านนี้"
+    const currentCompanyId = typeof window !== 'undefined' ? localStorage.getItem('aoo-current-company-id') : null;
     const res = await fetch('/api/marketplace/products/import', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(currentCompanyId ? { 'X-Company-Id': currentCompanyId } : {}),
+      },
       body: JSON.stringify({ account_id: accountId, copy_sku_to_barcode: copySkuToBarcode, ...body }),
     });
     if (!res.ok || !res.body) {
