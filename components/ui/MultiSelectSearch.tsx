@@ -164,14 +164,16 @@ export default function MultiSelectSearch({
               {visibleChips.map(opt => (
                 <span
                   key={opt.id}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-50 dark:bg-orange-900/20 text-[#F4511E] dark:text-orange-400 rounded-md text-sm font-medium border border-orange-200 dark:border-orange-800/50"
+                  // ⛔ ห้ามกลับไปใช้โทนส้ม/แดงของแบรนด์ — ชิปพวกนี้คือ "ค่าที่เลือกไว้แล้ว"
+                  // ไม่ใช่ข้อผิดพลาด แต่คนอ่านเป็น error ทันทีเมื่อเป็นโทนแดง (เจ้าของท้วง 18 ก.ย. 2026)
+                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 rounded-md text-sm font-medium border border-emerald-200 dark:border-emerald-800/50"
                 >
                   {opt.icon}
                   <span className="truncate max-w-[180px]">{opt.label}</span>
                   <button
                     type="button"
                     onClick={e => removeChip(opt.id, e)}
-                    className="hover:bg-orange-200 dark:hover:bg-orange-800/50 rounded p-0.5 -mr-1"
+                    className="hover:bg-emerald-200 dark:hover:bg-emerald-800/50 rounded p-0.5 -mr-1"
                   >
                     <X className="w-3 h-3" />
                   </button>

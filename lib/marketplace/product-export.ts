@@ -59,6 +59,11 @@ export interface ExportConfig {
    * (ใช้ตอนแพลตฟอร์มมีเพดาน/ขั้นต่ำความยาวที่ชื่อจริงของเราไม่ผ่าน เช่น TikTok ขั้นต่ำ 25 ตัวอักษร)
    */
   title?: string | null;
+  /**
+   * ราคาเฉพาะร้านนี้รายตัวเลือก (`variation_id` → ราคา) — ไม่ส่ง = ใช้ราคาขายในระบบ
+   * ใช้ตอนยืมราคาจากร้านที่สินค้าตัวนี้ขายอยู่แล้ว (ราคาบนแพลตฟอร์มบวกค่าธรรมเนียมไว้แล้ว)
+   */
+  prices?: Record<string, number> | null;
 }
 
 export interface ExportOneResult {
@@ -305,7 +310,7 @@ export function buildExportPayload(
     variation_id: v.id,
     name: v.variation_label || product.name,
     sku: (v.sku || '').trim() || product.code,
-    price: sellingPrice(v),
+    price: Number(config.prices?.[v.id] || 0) > 0 ? Number(config.prices?.[v.id]) : sellingPrice(v),
     stock: Math.max(0, stockByVariation?.get(v.id) ?? 0),
     attributes: variation
       ? Object.entries(v.attributes || {}).map(([type_name, value]) => ({ type_name, value: String(value) }))

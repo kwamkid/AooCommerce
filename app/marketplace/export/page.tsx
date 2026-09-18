@@ -41,7 +41,7 @@ import { useDebouncedCallback } from '@/lib/useDebounce';
 import { useServerSearch } from '@/lib/useServerSearch';
 import { formatPrice } from '@/lib/utils/format';
 import { MARKETPLACE_PLATFORMS } from '@/lib/marketplace/platforms';
-import { ChevronLeft, ChevronRight, Package, Store, Unlink } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Package, Store, Unlink } from 'lucide-react';
 
 const PAGE_SIZE = 30;
 const BACK_HREF = '/marketplace/sync';
@@ -69,6 +69,10 @@ interface MarketplaceAttribute {
 interface ProductConfig {
   /** ชื่อประกาศบนร้าน — ว่าง = ใช้ชื่อสินค้าในระบบ */
   title: string;
+  /** ราคาที่ยืมจากร้านอื่นรายตัวเลือก — ว่าง = ใช้ราคาขายในระบบ */
+  prices: Record<string, number>;
+  /** ร้านที่ยืมข้อมูลมา (null = ใช้ข้อมูลในระบบ) */
+  sourceAccountId: string | null;
   categoryId: string | null;
   categoryName: string;
   brandId: string | null;
@@ -78,6 +82,19 @@ interface ProductConfig {
   width: string;
   height: string;
   attributes: Record<string, string | string[]>;
+}
+
+/** ข้อมูลที่ยืมมาได้จากร้านที่สินค้าตัวนี้ขายอยู่แล้ว */
+interface ReferenceSource {
+  account_id: string;
+  platform: string;
+  account_name: string;
+  title: string | null;
+  weight: number | null;
+  brand_name: string | null;
+  attributes: { name: string; values: string[] }[];
+  prices: Record<string, number>;
+  filled: number;
 }
 
 interface ExportResultRow {
@@ -92,7 +109,7 @@ interface ExportResultRow {
 type Step = 'select' | 'configure' | 'run';
 
 const EMPTY_CONFIG: ProductConfig = {
-  title: '', categoryId: null, categoryName: '', brandId: null, brandName: '',
+  title: '', prices: {}, sourceAccountId: null, categoryId: null, categoryName: '', brandId: null, brandName: '',
   weight: '0.5', length: '', width: '', height: '', attributes: {},
 };
 
@@ -134,7 +151,9 @@ function MarketplaceExportContent() {
   // ── ขั้นที่ 2: ตั้งค่า ─────────────────────────────────────────────────────
   const [configs, setConfigs] = useState<Record<string, ProductConfig>>({});
   const [attributesByCategory, setAttributesByCategory] = useState<Record<string, MarketplaceAttribute[]>>({});
-  const [bulkConfig, setBulkConfig] = useState<ProductConfig>(EMPTY_CONFIG);
+  // ⚠️ น้ำหนักต้องเริ่มว่าง (ไม่ใช่ 0.5 ของ EMPTY_CONFIG) — "เติมให้ทุกรายการ" ทับเฉพาะ
+  // ช่องที่กรอกไว้ ถ้ามีค่าติดมาเองจะไปทับน้ำหนักที่ยืมมาจากร้านเดิมทั้งชุด
+  const [bulkConfig, setBulkConfig] = useState<ProductConfig>({ ...EMPTY_CONFIG, weight: '' });
   // รายการที่ผู้ใช้กดสลับเอง — ค่าเริ่มต้นคือ "ยังขาดของ = กางไว้" (ครบแล้ว = ย่อ)
   const [toggledCards, setToggledCards] = useState<Set<string>>(new Set());
   // ค่าเริ่มต้น = เปิดขายทันที (เจ้าของไม่อยากเข้าหลังบ้านไปกด publish ซ้ำ) · เปิดสวิตช์เมื่ออยากตรวจก่อน
@@ -143,6 +162,21 @@ function MarketplaceExportContent() {
   const [brandNeedsCategory, setBrandNeedsCategory] = useState(false);
   // ข้อจำกัดชื่อประกาศของร้านนี้ — มาจาก adapter ฝั่ง server (หน้าไม่รู้จัก platform เอง)
   const [titleRules, setTitleRules] = useState<{ min: number; max: number }>({ min: 0, max: 0 });
+  // ข้อมูลจากร้านที่สินค้าแต่ละตัวขายอยู่แล้ว (product_id → ร้านที่ยืมได้ เรียงครบสุดก่อน)
+  const [references, setReferences] = useState<Record<string, ReferenceSource[]>>({});
+  // ตัวเลือกของสินค้าแต่ละตัว + ราคาในระบบ — ใช้ตอนให้แก้ราคารายตัวเลือก
+  const [variationsByProduct, setVariationsByProduct] = useState<
+    Record<string, { id: string; label: string; price: number }[]>
+  >({});
+  // ร้านอ้างอิงที่เลือกให้ทั้งชุด ('auto' = ครบสุดของแต่ละตัว · '' = ไม่ยืม)
+  const [bulkSource, setBulkSource] = useState('auto');
+  // รายการที่กำลังเปลี่ยนร้านที่มาเฉพาะตัว (ปกติใช้ตามที่เลือกไว้ด้านบน)
+  const [editingSource, setEditingSource] = useState<string | null>(null);
+  // ชิปกรองรายการ — ค่าเริ่มต้นดูเฉพาะตัวที่ยังขาด (ตัวที่ครบแล้วไม่มีอะไรต้องทำ)
+  const [cardFilter, setCardFilter] = useState<'all' | 'ready' | 'missing'>('missing');
+  // ⚠️ รายการที่ "กำลังแสดงอยู่" ต้องไม่หายไปกลางคันตอนผู้ใช้ยังพิมพ์อยู่ — พอแก้ครบ
+  // การ์ดจะเปลี่ยนป้ายเป็นเขียวแต่ยังอยู่ที่เดิม จนกว่าจะกดเก็บเอง
+  const [pinnedCards, setPinnedCards] = useState<Set<string>>(new Set());
 
   // ── ขั้นที่ 3: ส่ง ────────────────────────────────────────────────────────
   const [running, setRunning] = useState(false);
@@ -150,6 +184,12 @@ function MarketplaceExportContent() {
   const [results, setResults] = useState<ExportResultRow[] | null>(null);
 
   const label = platform ? platformLabel(platform) : 'Marketplace';
+
+  // ขึ้นขั้นใหม่ = เริ่มอ่านจากหัวเสมอ (ของเดิมค้างตำแหน่งเลื่อนของขั้นก่อน)
+  // ⚠️ ตัวที่เลื่อนจริงคือ `<main>` ของ Layout ไม่ใช่ window — `window.scrollTo` ไม่มีผล
+  useEffect(() => {
+    document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [step]);
 
   // ── โหลดข้อมูลร้าน + สินค้าที่ผูกแล้ว ─────────────────────────────────────
   useEffect(() => {
@@ -369,14 +409,102 @@ function MarketplaceExportContent() {
     setConfigs(prev => ({ ...prev, [productId]: { ...(prev[productId] || EMPTY_CONFIG), ...patch } }));
   };
 
+  // ── ยืมข้อมูลจากร้านที่สินค้าตัวนี้ขายอยู่แล้ว ──────────────────────────────
+
+  /**
+   * เอาค่าจากร้านอ้างอิงมาเติมให้ config ของสินค้าหนึ่งตัว
+   * ชื่อ/ราคา/น้ำหนัก ใช้ได้ตรง ๆ · แบรนด์กับคุณสมบัติเป็น **ชื่อ** จึงต้องจับคู่กับ
+   * ทะเบียนของร้านใหม่อีกที (id ของแต่ละแพลตฟอร์มคนละชุดกัน) — จับคู่ไม่ได้ก็ปล่อยว่าง
+   */
+  const configFromSource = (src: ReferenceSource, current: ProductConfig): Partial<ProductConfig> => ({
+    title: src.title || '',
+    prices: { ...src.prices },
+    sourceAccountId: src.account_id,
+    weight: src.weight ? String(src.weight) : current.weight,
+  });
+
+  /** คุณสมบัติของหมวดร้านใหม่ที่จับคู่กับของร้านเดิมได้ (เทียบด้วยชื่อ) */
+  const matchAttributes = useCallback((
+    src: ReferenceSource,
+    categoryId: string | null,
+  ): Record<string, string | string[]> => {
+    const schema = categoryId ? attributesByCategory[categoryId] : null;
+    if (!schema || src.attributes.length === 0) return {};
+    const norm = (t: string) => t.trim().toLowerCase().replace(/\s+/g, '');
+    const out: Record<string, string | string[]> = {};
+    for (const attr of schema) {
+      const hit = src.attributes.find(a => norm(a.name) === norm(attr.name));
+      if (!hit) continue;
+      if (attr.options.length === 0) {
+        out[attr.id] = hit.values[0];
+        continue;
+      }
+      const matched = attr.options.filter(o => hit.values.some(v => norm(v) === norm(o.name)));
+      if (matched.length === 0) continue;
+      out[attr.id] = attr.input_type === 'multi' ? matched.map(o => o.id) : matched[0].id;
+    }
+    return out;
+  }, [attributesByCategory]);
+
+  /** เปลี่ยนร้านอ้างอิงของสินค้าหนึ่งตัว (null = กลับไปใช้ข้อมูลในระบบ) */
+  const applyReference = (productId: string, accountIdOrNull: string | null) => {
+    const current = configOf(productId);
+    if (!accountIdOrNull) {
+      patchConfig(productId, { title: '', prices: {}, sourceAccountId: null });
+      return;
+    }
+    const src = (references[productId] || []).find(r => r.account_id === accountIdOrNull);
+    if (!src) return;
+    const patch = configFromSource(src, current);
+    const attrs = matchAttributes(src, current.categoryId);
+    patchConfig(productId, {
+      ...patch,
+      attributes: Object.keys(attrs).length > 0 ? { ...current.attributes, ...attrs } : current.attributes,
+    });
+  };
+
+  /** ร้านที่ยืมข้อมูลได้ของ "ชุดที่เลือกไว้ทั้งหมด" — รวมจากทุกสินค้า ไม่ซ้ำ */
+  const referenceAccounts = useMemo(() => {
+    const seen = new Map<string, { id: string; label: string; count: number }>();
+    for (const productId of selected.keys()) {
+      for (const r of references[productId] || []) {
+        const hit = seen.get(r.account_id);
+        if (hit) hit.count += 1;
+        else seen.set(r.account_id, {
+          id: r.account_id,
+          label: `${platformLabel(r.platform)} — ${r.account_name || 'ร้าน'}`,
+          count: 1,
+        });
+      }
+    }
+    return [...seen.values()].sort((a, b) => b.count - a.count);
+  }, [selected, references]);
+
+  /**
+   * เลือกทีเดียวให้ทุกรายการ — `'auto'` = ร้านที่ข้อมูลครบสุดของแต่ละตัว ·
+   * `''` = ไม่ยืม ใช้ข้อมูลในระบบ · uuid = ร้านนั้นสำหรับทุกตัวที่ขายอยู่ที่ร้านนั้น
+   */
+  const applyReferenceToAll = (choice: string) => {
+    setBulkSource(choice);
+    for (const productId of selected.keys()) {
+      const list = references[productId] || [];
+      if (choice === '') { applyReference(productId, null); continue; }
+      if (choice === 'auto') { applyReference(productId, list[0]?.account_id || null); continue; }
+      // ตัวที่ไม่ได้ขายอยู่ที่ร้านนั้น ปล่อยไว้ตามเดิม (ยืมจากร้านที่ไม่มีของไม่ได้)
+      if (list.some(r => r.account_id === choice)) applyReference(productId, choice);
+    }
+  };
+
   const applyBulk = () => {
     setConfigs(prev => {
       const next = { ...prev };
       for (const productId of selected.keys()) {
         const current = next[productId] || EMPTY_CONFIG;
         next[productId] = {
-          // ชื่อประกาศเป็นของเฉพาะตัว — ค่ากลางไม่ทับ
+          // ของเฉพาะตัว (ชื่อ · ราคาที่ยืมมา) — ค่ากลางไม่ทับ
           title: current.title,
+          prices: current.prices,
+          sourceAccountId: current.sourceAccountId,
           categoryId: bulkConfig.categoryId ?? current.categoryId,
           categoryName: bulkConfig.categoryId ? bulkConfig.categoryName : current.categoryName,
           brandId: bulkConfig.brandId ?? current.brandId,
@@ -392,6 +520,82 @@ function MarketplaceExportContent() {
     });
     showToast(`เติมค่าให้ ${selected.size} รายการแล้ว`, 'success');
   };
+
+  /**
+   * เข้าขั้นตั้งค่า = ไปถามว่าสินค้าที่เลือกไว้ขายอยู่ที่ร้านไหนบ้าง แล้ว**เติมให้เลย**
+   * จากร้านที่ข้อมูลครบสุด (ผู้ใช้สลับร้าน/กลับไปใช้ข้อมูลในระบบได้ทีหลัง)
+   */
+  useEffect(() => {
+    if (step !== 'configure' || selected.size === 0 || !accountId) return;
+    const ids = [...selected.keys()];
+    // ตัวที่เคยถามไปแล้วไม่ต้องถามซ้ำ (กลับไปกลับมาระหว่างขั้น)
+    const missing = ids.filter(id => references[id] === undefined);
+    if (missing.length === 0) return;
+    (async () => {
+      try {
+        const res = await apiFetch(
+          `/api/marketplace/products/export/reference?account_id=${accountId}&product_ids=${missing.join(',')}`,
+        );
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'อ่านข้อมูลจากร้านเดิมไม่สำเร็จ');
+        const incoming = (data.references || {}) as Record<string, ReferenceSource[]>;
+        setVariationsByProduct(prev => ({ ...prev, ...(data.variations || {}) }));
+        // ตัวที่ไม่มีร้านเดิมเลยก็จดเป็น [] ไว้ จะได้ไม่ถามซ้ำ
+        setReferences(prev => {
+          const next = { ...prev };
+          for (const id of missing) next[id] = incoming[id] || [];
+          return next;
+        });
+        setConfigs(prev => {
+          const next = { ...prev };
+          for (const id of missing) {
+            const best = (incoming[id] || [])[0];
+            if (!best) continue;
+            const current = next[id] || EMPTY_CONFIG;
+            // ผู้ใช้พิมพ์ชื่อเองไว้แล้ว ห้ามทับ
+            if (current.title || current.sourceAccountId) continue;
+            next[id] = {
+              ...current,
+              title: best.title || '',
+              prices: { ...best.prices },
+              sourceAccountId: best.account_id,
+              weight: best.weight ? String(best.weight) : current.weight,
+            };
+          }
+          return next;
+        });
+      } catch {
+        // ยืมไม่ได้ก็ใช้ข้อมูลในระบบตามเดิม ไม่ต้องรบกวนผู้ใช้
+      }
+    })();
+  // references เปลี่ยนจากตัวเองด้านใน — ใส่ครบจะวนไม่จบ
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, selected, accountId]);
+
+  /**
+   * คุณสมบัติเติมได้ก็ต่อเมื่อรู้หมวดของร้านใหม่แล้ว (ตอนยืมข้อมูลมายังไม่รู้)
+   * — พอ schema ของหมวดมาถึง ค่อยจับคู่ชื่อแล้วเติมให้ตัวที่ยังว่าง
+   */
+  useEffect(() => {
+    if (step !== 'configure') return;
+    setConfigs(prev => {
+      let changed = false;
+      const next = { ...prev };
+      for (const productId of selected.keys()) {
+        const cfg = next[productId];
+        if (!cfg?.sourceAccountId || !cfg.categoryId) continue;
+        if (Object.keys(cfg.attributes).length > 0) continue;
+        if (!attributesByCategory[cfg.categoryId]) continue;
+        const src = (references[productId] || []).find(r => r.account_id === cfg.sourceAccountId);
+        if (!src) continue;
+        const attrs = matchAttributes(src, cfg.categoryId);
+        if (Object.keys(attrs).length === 0) continue;
+        next[productId] = { ...cfg, attributes: attrs };
+        changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [step, selected, attributesByCategory, references, matchAttributes]);
 
   // ── ค้นแบรนด์ ────────────────────────────────────────────────────────────
   const brandSearch = useServerSearch<{ id: string; name: string }>({
@@ -412,17 +616,41 @@ function MarketplaceExportContent() {
 
   // ── ตรวจก่อนส่ง ──────────────────────────────────────────────────────────
 
+  /** ราคาที่จะไปตั้งให้ตัวเลือกหนึ่ง — พิมพ์ทับ/ยืมมา ใช้ค่านั้น ไม่งั้นราคาขายในระบบ */
+  const priceOf = (productId: string, variationId: string, fallback: number): number => {
+    const set = configOf(productId).prices || {};
+    return Number(set[variationId] || 0) > 0 ? Number(set[variationId]) : fallback;
+  };
+
+  /**
+   * ราคาที่จะไปตั้งบนร้านจริงของทั้งสินค้า (หลายตัวเลือกคืนช่วงต่ำสุด–สูงสุด)
+   * ⛔ ตัวเลขนี้คือ "ราคาที่ลูกค้าจ่ายจริง" — มีราคาลดก็คือราคาลด ไม่ใช่ราคาเต็ม
+   */
+  const priceSummary = (product: ProductRow): string => {
+    const rows = variationsByProduct[product.product_id] || [];
+    const values = rows.length > 0
+      ? rows.map(v => priceOf(product.product_id, v.id, v.price)).filter(v => v > 0)
+      : Object.values(configOf(product.product_id).prices || {}).filter(v => v > 0);
+    if (values.length === 0) {
+      return product.simple_default_price ? formatPrice(product.simple_default_price) : '';
+    }
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    return min === max ? formatPrice(min) : `${formatPrice(min)}–${formatPrice(max)}`;
+  };
+
   /** ชื่อที่จะไปโผล่บนร้านจริง — ไม่ได้พิมพ์ทับ = ชื่อสินค้าในระบบ */
   const titleOf = (product: ProductRow): string => (configOf(product.product_id).title || '').trim() || product.name;
 
   /** ชื่อนี้ผิดกติกาความยาวของร้านไหม — คืนข้อความบอกเหตุ (null = ผ่าน) */
   const titleProblem = useCallback((title: string): string | null => {
     const len = [...title].length;
-    if (titleRules.min && len < titleRules.min) return `ชื่อสั้นไป ${titleRules.min - len} ตัวอักษร (ร้านนี้ขอ ${titleRules.min}–${titleRules.max || '∞'} ตัวอักษร)`;
-    if (titleRules.max && len > titleRules.max) return `ชื่อยาวเกิน ${len - titleRules.max} ตัวอักษร (ร้านนี้รับได้ ${titleRules.max} ตัวอักษร)`;
+    if (titleRules.min && len < titleRules.min) return `ขาดอีก ${titleRules.min - len} ตัวอักษร`;
+    if (titleRules.max && len > titleRules.max) return `เกินมา ${len - titleRules.max} ตัวอักษร`;
     return null;
   }, [titleRules]);
 
+  /** กี่รายการที่ตั้งค่าครบแล้ว — นับจากชื่อสินค้าที่ไม่โผล่ในรายการที่ยังขาด */
   const missingConfig = useMemo(() => {
     const out: string[] = [];
     for (const [productId, product] of selected) {
@@ -442,6 +670,58 @@ function MarketplaceExportContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected, configs, attributesByCategory, titleProblem]);
 
+  const readyCount = useMemo(() => {
+    let ready = 0;
+    for (const product of selected.values()) {
+      if (!missingConfig.some(m => m.startsWith(`${product.name}: `))) ready += 1;
+    }
+    return ready;
+  }, [selected, missingConfig]);
+
+  const missingCount = selected.size - readyCount;
+
+  // ตัวที่ยังขาดต้องอยู่ในรายการที่แสดงเสมอ — เพิ่มเข้าอย่างเดียว ไม่ถอดออกเอง
+  useEffect(() => {
+    if (step !== 'configure') return;
+    setPinnedCards(prev => {
+      let changed = false;
+      const next = new Set(prev);
+      for (const product of selected.values()) {
+        if (next.has(product.product_id)) continue;
+        if (missingConfig.some(m => m.startsWith(`${product.name}: `))) {
+          next.add(product.product_id);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [step, selected, missingConfig]);
+
+  const isMissing = useCallback(
+    (product: ProductRow) => missingConfig.some(m => m.startsWith(`${product.name}: `)),
+    [missingConfig],
+  );
+
+  /**
+   * รายการที่โชว์ในการ์ด
+   * โหมด "ยังขาด" ใช้รายชื่อที่ตรึงไว้ ไม่ใช่สถานะสด — ตัวที่เพิ่งแก้เสร็จต้องอยู่ที่เดิม
+   * (แค่เปลี่ยนเป็นการ์ดเขียว) ห้ามหายไปใต้มือคนที่กำลังพิมพ์ · กดชิปซ้ำ = เก็บกวาด
+   */
+  const visibleProducts = useMemo(() => {
+    const all = [...selected.values()];
+    if (cardFilter === 'all' || missingCount === 0) return all;
+    if (cardFilter === 'ready') return all.filter(p => !isMissing(p));
+    return all.filter(p => pinnedCards.has(p.product_id));
+  }, [selected, cardFilter, missingCount, pinnedCards, isMissing]);
+
+  /** กดชิป = กรอง และ (โหมดยังขาด) เก็บตัวที่แก้เสร็จออกไปในตัว */
+  const pickFilter = (next: 'all' | 'ready' | 'missing') => {
+    setCardFilter(next);
+    if (next === 'missing') {
+      setPinnedCards(new Set([...selected.values()].filter(isMissing).map(p => p.product_id)));
+    }
+  };
+
   // ── ส่งจริง (SSE) ────────────────────────────────────────────────────────
   const startExport = async () => {
     if (missingConfig.length > 0) {
@@ -458,6 +738,7 @@ function MarketplaceExportContent() {
         product_id: productId,
         config: {
           title: (cfg.title || '').trim() || undefined,
+          prices: Object.keys(cfg.prices || {}).length > 0 ? cfg.prices : undefined,
           category_id: cfg.categoryId,
           category_name: cfg.categoryName,
           brand_id: cfg.brandId,
@@ -743,7 +1024,7 @@ function MarketplaceExportContent() {
     );
 
     const sizeFields = (cfg: ProductConfig, patch: (p: Partial<ProductConfig>) => void) => (
-      <div className="flex flex-wrap items-end gap-3">
+      <>
         <div className="w-28">
           <label className="field-label">น้ำหนัก</label>
           <PostfixInput postfix="kg" value={cfg.weight} onChange={(v) => patch({ weight: v })} placeholder="0.5" width="w-full" inputClassName="w-full px-3" />
@@ -760,7 +1041,7 @@ function MarketplaceExportContent() {
           <label className="field-label">สูง</label>
           <PostfixInput postfix="ซม." value={cfg.height} onChange={(v) => patch({ height: v })} placeholder="10" width="w-full" inputClassName="w-full px-3" />
         </div>
-      </div>
+      </>
     );
 
     return (
@@ -782,29 +1063,58 @@ function MarketplaceExportContent() {
           </div>
         </Card>
 
-        <Card>
-          <h2 className="heading-3">ตั้งค่าเริ่มต้นของทุกรายการ</h2>
+        <Card className="!border-primary !bg-orange-50/60 dark:!bg-orange-950/20">
+          <h2 className="heading-3">ตั้งค่าเริ่มต้นของทุกรายการ ({selected.size} รายการ)</h2>
           <p className="helper-text text-gray-500 mb-3">
-            กรอกครั้งเดียวแล้วกด &ldquo;เติมให้ทุกรายการ&rdquo; — รายการที่ต่างจากนี้ค่อยไล่แก้ทีละตัวข้างล่าง
+            กรอกครั้งเดียวแล้วกด &ldquo;เติมให้ทุกรายการ&rdquo; — ตัวที่ต่างจากนี้ค่อยไล่แก้ข้างล่าง ·
+            ชื่อกับราคาจากร้านที่ขายอยู่แล้วมักใกล้ของจริงกว่าข้อมูลในระบบ
           </p>
           <div className="space-y-3">
-            <div>
-              <label className="field-label">หมวดหมู่ {label}</label>
-              <CategoryPicker
-                accountId={accountId}
-                value={bulkConfig.categoryId}
-                categoryName={bulkConfig.categoryName}
-                platformLabel={label}
-                onChange={(id, name) => {
-                  setBulkConfig(prev => ({ ...prev, categoryId: id, categoryName: name, attributes: {} }));
-                  if (id) loadAttributes(id);
-                }}
-              />
+            {/* สามอย่างที่ตั้งทีเดียวได้ทั้งชุด อยู่แถวเดียวกัน */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+              {referenceAccounts.length > 0 && (
+                <div>
+                  <label className="field-label">เอาชื่อ · ราคา · คุณสมบัติ มาจาก</label>
+                  <FormSelect
+                    value={bulkSource}
+                    onChange={applyReferenceToAll}
+                    options={[
+                      { id: 'auto', label: 'อัตโนมัติ — ร้านที่ข้อมูลครบที่สุดของแต่ละตัว' },
+                      // ตัวเลข = ในชุดที่เลือกไว้ มีกี่ตัวที่ขายอยู่บนร้านนั้น (ที่เหลือคงค่าเดิม)
+                      ...referenceAccounts.map(a => ({
+                        id: a.id,
+                        label: `${a.label} — มีข้อมูล ${a.count} จาก ${selected.size} รายการ`,
+                      })),
+                    ]}
+                    clearLabel="ไม่ยืม — ใช้ข้อมูลในระบบ"
+                  />
+                </div>
+              )}
+              <div>
+                <label className="field-label">หมวดหมู่ {label}</label>
+                <CategoryPicker
+                  accountId={accountId}
+                  value={bulkConfig.categoryId}
+                  categoryName={bulkConfig.categoryName}
+                  platformLabel={label}
+                  onChange={(id, name) => {
+                    setBulkConfig(prev => ({ ...prev, categoryId: id, categoryName: name, attributes: {} }));
+                    if (id) loadAttributes(id);
+                  }}
+                />
+              </div>
+              {brandField(bulkConfig, (id, name) => setBulkConfig(prev => ({ ...prev, brandId: id, brandName: name })))}
             </div>
-            {brandField(bulkConfig, (id, name) => setBulkConfig(prev => ({ ...prev, brandId: id, brandName: name })))}
-            {sizeFields(bulkConfig, (p) => setBulkConfig(prev => ({ ...prev, ...p })))}
+
+            <div className="flex flex-wrap items-end gap-3">
+              {sizeFields(bulkConfig, (p) => setBulkConfig(prev => ({ ...prev, ...p })))}
+            </div>
+
+            {/* เลือกหมวดแล้วคุณสมบัติของหมวดจะงอกต่อท้าย — ปุ่มจึงต้องอยู่ล่างสุดเสมอ */}
             {renderAttributeForm(bulkConfig.categoryId, bulkConfig, (attributes) => setBulkConfig(prev => ({ ...prev, attributes })))}
-            <div className="flex justify-end">
+
+            <div className="flex items-center justify-end gap-3 pt-1">
+              <p className="helper-text text-gray-500">ทับเฉพาะช่องที่กรอกไว้ข้างบน</p>
               <Button variant="primary" onClick={applyBulk} disabled={!bulkConfig.categoryId && !bulkConfig.weight}>
                 เติมให้ทุกรายการ ({selected.size})
               </Button>
@@ -813,12 +1123,35 @@ function MarketplaceExportContent() {
         </Card>
 
         <Card>
-          <h2 className="heading-3">ไล่แก้เฉพาะที่ต่าง ({selected.size})</h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="heading-3">รายสินค้า ({selected.size} รายการ)</h2>
+            {/* ชิปกรอง — กดแล้วกรองทันที (กด "ยังขาด" ซ้ำ = เก็บตัวที่แก้เสร็จออก) */}
+            <div className="flex flex-wrap items-center gap-2">
+              {([
+                { key: 'all' as const, label: `ทั้งหมด ${selected.size}`, tone: 'gray' as const },
+                { key: 'ready' as const, label: `ครบแล้ว ${readyCount}`, tone: 'emerald' as const },
+                { key: 'missing' as const, label: `ยังขาด ${missingCount}`, tone: 'amber' as const },
+              ]).map(chip => (
+                <button key={chip.key} type="button" onClick={() => pickFilter(chip.key)}>
+                  <Badge
+                    tone={cardFilter === chip.key ? chip.tone : 'gray'}
+                    className={cardFilter === chip.key ? 'ring-1 ring-current' : 'opacity-70'}
+                  >
+                    {chip.label}
+                  </Badge>
+                </button>
+              ))}
+            </div>
+          </div>
           <p className="helper-text text-gray-500 mb-3">
-            รายการที่ขึ้น &ldquo;ครบแล้ว&rdquo; ส่งได้เลย — เปิดดูเฉพาะตัวที่ยังขาด
+            {missingCount === 0
+              ? 'ตั้งค่าครบทุกรายการแล้ว — ส่งขึ้นร้านได้เลย'
+              : cardFilter === 'missing'
+                ? 'ตัวที่แก้เสร็จจะเป็นการ์ดเขียวแต่ยังอยู่ที่เดิม — กดชิป "ยังขาด" อีกครั้งเพื่อเก็บออก'
+                : 'กดชิปด้านบนเพื่อกรองรายการ'}
           </p>
           <div className="space-y-2">
-            {[...selected.values()].map(product => {
+            {visibleProducts.map(product => {
               const cfg = configOf(product.product_id);
               const badTitle = titleProblem(titleOf(product));
               // ขาดอะไรของรายการนี้บ้าง — ใช้ข้อความชุดเดียวกับตัวตรวจก่อนส่ง
@@ -826,25 +1159,72 @@ function MarketplaceExportContent() {
               // ยังขาด = กางให้เห็นเลย ไม่ต้องให้ไปกดหา · กดเองเมื่อไหร่ค่อยสลับเฉพาะใบนั้น
               const flipped = toggledCards.has(product.product_id);
               const open = problems.length > 0 ? !flipped : flipped;
+              const sources = references[product.product_id] || [];
+              const usedSource = sources.find(r => r.account_id === cfg.sourceAccountId);
               return (
-                <div key={product.product_id} className="rounded-lg border border-gray-200 dark:border-slate-700 p-3 space-y-3">
+                <div
+                  key={product.product_id}
+                  // พื้นการ์ดบอกสถานะเอง — กวาดตาทีเดียวรู้ว่าเหลือตัวไหนต้องแก้
+                  className={`rounded-lg border p-3 space-y-3 transition-colors ${
+                    problems.length > 0
+                      ? 'border-amber-300 bg-amber-50/60 dark:border-amber-500/40 dark:bg-amber-950/20'
+                      : 'border-emerald-200 bg-emerald-50/40 dark:border-emerald-500/30 dark:bg-emerald-950/20'
+                  }`}
+                >
                   <div className="flex items-start gap-3">
                     <ProductImageThumb src={product.main_image_url || product.image} alt={product.name} size="sm" fallbackIcon={<Package className="w-5 h-5" />} />
                     <div className="min-w-0 flex-1">
                       <div className="body-text truncate">{product.name}</div>
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5">
                         <span className="helper-text text-gray-500">{product.code}</span>
-                        {product.simple_default_price ? (
-                          <span className="helper-text text-gray-500">{formatPrice(product.simple_default_price)}</span>
-                        ) : null}
+                        {priceSummary(product) && (
+                          <span className={`helper-text ${usedSource ? 'text-primary' : 'text-gray-500'}`}>
+                            {priceSummary(product)}
+                            {usedSource && ' (ราคาบนร้านนั้น)'}
+                          </span>
+                        )}
                         {problems.length === 0
                           ? <Badge tone="emerald" size="sm">ครบแล้ว</Badge>
                           : <Badge tone="amber" size="sm">ยังขาด {problems.length} อย่าง</Badge>}
+                        {sources.length === 0 && (
+                          <span className="helper-text text-gray-400">ยังไม่ได้ขายบนร้านอื่น — ใช้ชื่อกับราคาในระบบ</span>
+                        )}
+                        {sources.length > 0 && (
+                          editingSource === product.product_id ? (
+                            <div className="w-72 max-w-full">
+                              <FormSelect
+                                value={cfg.sourceAccountId || ''}
+                                onChange={(v) => {
+                                  applyReference(product.product_id, v || null);
+                                  setEditingSource(null);
+                                }}
+                                options={sources.map(r => ({
+                                  id: r.account_id,
+                                  label: `${platformLabel(r.platform)} — ${r.account_name || 'ร้าน'}`,
+                                }))}
+                                clearLabel="ไม่ยืม — ใช้ชื่อกับราคาในระบบ"
+                              />
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              className="helper-text text-gray-500 underline decoration-dotted underline-offset-2"
+                              onClick={() => setEditingSource(product.product_id)}
+                            >
+                              {usedSource
+                                ? `เอาข้อมูลจาก ${platformLabel(usedSource.platform)} — ${usedSource.account_name || 'ร้าน'}`
+                                : 'ใช้ชื่อกับราคาในระบบ'}
+                            </button>
+                          )
+                        )}
                       </div>
                     </div>
+                    {/* ปุ่มเดียวกันทุกใบ — มีขอบให้เห็นว่ากดได้ ลูกศรบอกทิศ คำบอกว่าจะเกิดอะไร */}
                     <Button
                       size="sm"
-                      variant="ghost"
+                      variant="secondary"
+                      aria-label={open ? 'ย่อรายละเอียด' : 'ขยายรายละเอียด'}
+                      icon={open ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                       onClick={() => setToggledCards(prev => {
                         const next = new Set(prev);
                         if (next.has(product.product_id)) next.delete(product.product_id);
@@ -852,43 +1232,66 @@ function MarketplaceExportContent() {
                         return next;
                       })}
                     >
-                      {open ? 'ย่อ' : 'แก้'}
+                      {open ? 'ย่อ' : 'ขยาย'}
                     </Button>
                   </div>
 
-                  <div>
-                    <label className="field-label">หมวดหมู่ {label} <span className="text-red-500">*</span></label>
-                    <CategoryPicker
-                      accountId={accountId}
-                      value={cfg.categoryId}
-                      categoryName={cfg.categoryName}
-                      platformLabel={label}
-                      onChange={(id, name) => {
-                        patchConfig(product.product_id, { categoryId: id, categoryName: name, attributes: {} });
-                        if (id) loadAttributes(id);
-                      }}
-                    />
-                  </div>
-
-                  {/* ชื่อที่ร้านไม่รับ ต้องแก้ตรงนี้เลย ไม่ใช่ให้ไปแก้ชื่อสินค้าในระบบ */}
-                  {(badTitle || cfg.title) && (
+                  {/* ชื่อ · หมวดหมู่ · แบรนด์ อยู่แถวเดียวกัน — สามอย่างที่ต้องดูคู่กันเสมอ */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
                     <div>
+                      <label className="field-label">
+                        ชื่อประกาศบน {label}
+                        {badTitle && <span className="text-red-500"> *</span>}
+                      </label>
                       <FormInput
-                        label={`ชื่อประกาศบน ${label}`}
-                        required
                         value={cfg.title || product.name}
                         onChange={(e) => patchConfig(product.product_id, { title: e.target.value })}
                       />
+                      {/* ตัวนับต้องเห็นตลอด — ตัวเลขแดงบอกว่ายังไม่ผ่านแล้ว ไม่ต้องมีคำอธิบายซ้ำ */}
                       <p className={`helper-text mt-1 ${badTitle ? 'text-red-600 dark:text-red-400' : 'text-gray-500'}`}>
-                        {badTitle || `${[...titleOf(product)].length} ตัวอักษร — ใช้เฉพาะประกาศร้านนี้ ไม่กระทบชื่อสินค้าในระบบ`}
+                        {[...titleOf(product)].length}
+                        {titleRules.min ? `/${titleRules.min}` : ''} ตัวอักษร
                       </p>
                     </div>
-                  )}
+                    <div>
+                      <label className="field-label">หมวดหมู่ {label} <span className="text-red-500">*</span></label>
+                      <CategoryPicker
+                        accountId={accountId}
+                        value={cfg.categoryId}
+                        categoryName={cfg.categoryName}
+                        platformLabel={label}
+                        onChange={(id, name) => {
+                          patchConfig(product.product_id, { categoryId: id, categoryName: name, attributes: {} });
+                          if (id) loadAttributes(id);
+                        }}
+                      />
+                    </div>
+                    {brandField(cfg, (id, name) => patchConfig(product.product_id, { brandId: id, brandName: name }))}
+                  </div>
 
                   {open && (
                     <div className="space-y-3 pt-1">
-                      {brandField(cfg, (id, name) => patchConfig(product.product_id, { brandId: id, brandName: name }))}
-                      {sizeFields(cfg, (p) => patchConfig(product.product_id, p))}
+                      {/* ราคา + ขนาด อยู่แถวเดียวกัน — ตัวเลือกเยอะก็ตัดบรรทัดเอง */}
+                      <div className="flex flex-wrap items-end gap-3">
+                        {(variationsByProduct[product.product_id] || []).map(v => (
+                          <div key={v.id} className="w-32">
+                            <label className="field-label truncate">
+                              {v.label ? `ราคา ${v.label}` : 'ราคาตั้ง'}
+                            </label>
+                            <PostfixInput
+                              postfix="฿"
+                              value={String(priceOf(product.product_id, v.id, v.price) || '')}
+                              onChange={(val) => patchConfig(product.product_id, {
+                                prices: { ...(cfg.prices || {}), [v.id]: parseFloat(val) || 0 },
+                              })}
+                              placeholder={String(v.price || 0)}
+                              width="w-full"
+                              inputClassName="w-full px-3"
+                            />
+                          </div>
+                        ))}
+                        {sizeFields(cfg, (p) => patchConfig(product.product_id, p))}
+                      </div>
                       {renderAttributeForm(cfg.categoryId, cfg, (attributes) => patchConfig(product.product_id, { attributes }))}
                     </div>
                   )}
