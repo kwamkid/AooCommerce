@@ -11,8 +11,9 @@ import { useFeatures } from '@/lib/features-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import {
-  readFileToRows, rowsToSheet, getCell, isRowEmpty, isInstructionRow,
+  getCell, isRowEmpty, isInstructionRow, type ParsedSheet,
 } from '@/lib/bulk/parse-template';
+import { useBulkApply } from '@/lib/bulk/use-bulk-apply';
 
 import Container from '@/components/ui/Container';
 import Card from '@/components/ui/Card';
@@ -60,11 +61,8 @@ interface ResultRow {
   error?: string;
   __rowNum?: number;
 }
-interface RunResponse {
-  dry_run: boolean;
-  results: ResultRow[];
-  summary: { total: number; updated: number; unchanged: number; errors: number };
-}
+// รูปร่าง response ของทั้ง dry-run และของจริงอยู่ที่ `BulkRunResponse` ใน use-bulk-apply
+// (สัญญาเดียวกันทุกหน้า bulk) — หน้านี้ประกาศแค่ `ResultRow` ที่เป็นของตัวเอง
 
 const FIELD_LABELS: Record<string, string> = {
   name: 'ชื่อสินค้า',
@@ -83,6 +81,62 @@ function formatValue(field: string, v: unknown, label?: string): string {
   return s.length > 40 ? s.slice(0, 40) + '…' : s;
 }
 
+/**
+ * แปลงชีตที่อัปกลับมาเป็นรายการที่จะส่งขึ้น API — ส่วนเดียวที่ต่างจากหน้า bulk อื่น
+ * อยู่นอก component เพราะ `useBulkApply` รับเป็น callback (อยู่ในนั้นจะสร้างใหม่ทุก render)
+ *
+ * ⛔ อ่านค่าตามชื่อ header เสมอ (`getCell`) ห้ามอ่านตามตำแหน่งคอลัมน์ — ผู้ใช้สลับคอลัมน์
+ *    ใน Excel ได้ และเคยพังมาแล้ว (ดู fix-bug.md)
+ * ช่องที่ "ไม่มีคอลัมน์นั้นในไฟล์" ต่างจาก "มีคอลัมน์แต่เว้นว่าง" (= สั่งลบค่าเดิม)
+ * จึงต้องเช็คว่ามี header ก่อนใส่ key ลง item
+ */
+function parseSheet(sheet: ParsedSheet, brandEnabled: boolean): { items: ApplyItem[]; emptyMessage?: string } {
+  const items: ApplyItem[] = [];
+  let skippedNoId = 0;
+  for (let i = 0; i < sheet.rows.length; i++) {
+    const row = sheet.rows[i];
+    if (isRowEmpty(row) || isInstructionRow(row)) continue;
+
+    const productId = getCell(row, 'product_id (ห้ามแก้)', 'product_id');
+    if (!productId) {
+      // แถวมีข้อมูลแต่ไม่มี product_id — ข้ามเงียบ ๆ แต่นับไว้เตือนตอนไม่เหลือแถวเลย
+      if (Object.values(row).some(c => c && String(c).trim())) skippedNoId++;
+      continue;
+    }
+
+    const code = getCell(row, 'รหัสสินค้า', 'code');
+    const name = getCell(row, 'ชื่อสินค้า', 'name');
+    const status = getCell(row, 'สถานะ', 'status', 'is_active');
+    const brandName = getCell(row, 'แบรนด์', 'brand', 'brand_name');
+    const categoryName = getCell(row, 'หมวดหมู่', 'category', 'category_name');
+    const description = getCell(row, 'คำอธิบาย', 'description');
+
+    const item: ApplyItem = { product_id: productId, __rowNum: i + 2 };
+    if (code) item.code = code;
+    if (name) item.name = name;
+    const parsedStatus = parseStatusValue(status);
+    if (parsedStatus !== null) item.is_active = parsedStatus;
+    if (brandEnabled && Object.keys(row).some(k => k.includes('แบรนด์') || k.includes('brand'))) {
+      item.brand_name = brandName;
+    }
+    if (Object.keys(row).some(k => k.includes('หมวดหมู่') || k.includes('category'))) {
+      item.category_name = categoryName;
+    }
+    if (Object.keys(row).some(k => k.includes('คำอธิบาย') || k.includes('description'))) {
+      item.description = description;
+    }
+
+    items.push(item);
+  }
+
+  return {
+    items,
+    emptyMessage: skippedNoId > 0
+      ? 'ทุกแถวไม่มี product_id — หน้านี้แก้ไขเท่านั้น ถ้าอยากเพิ่มสินค้าใหม่ ใช้ "เพิ่มสินค้าใหม่" แทน'
+      : 'ไม่พบแถวที่มี product_id',
+  };
+}
+
 export default function BulkBasicInfoPage() {
   const router = useRouter();
   const { userProfile } = useAuth();
@@ -99,16 +153,16 @@ export default function BulkBasicInfoPage() {
   const [statusFilter, setStatusFilter] = useState<ProductStatusFilter>('active');
   const [exporting, setExporting] = useState(false);
 
-  const [step, setStep] = useState<'upload' | 'checking' | 'preview' | 'importing' | 'done'>('upload');
-  const [parsedItems, setParsedItems] = useState<ApplyItem[]>([]);
-  const [dryRun, setDryRun] = useState<RunResponse | null>(null);
-  const [finalRun, setFinalRun] = useState<RunResponse | null>(null);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-
-  // Preview pagination — reset to page 1 each time a new dry-run lands
-  const [previewPage, setPreviewPage] = useState(1);
-  const [previewPerPage, setPreviewPerPage] = useState(50);
-  useEffect(() => { setPreviewPage(1); }, [dryRun]);
+  // flow อัปไฟล์ → dry-run → ยืนยัน → Apply อยู่ที่ hook กลาง (lib/bulk/use-bulk-apply)
+  // หน้านี้เหลือหน้าที่แค่ "แปลงชีตเป็น items" กับ "วาดตารางพรีวิว"
+  const {
+    step, parsedItems, dryRun, finalRun, confirmOpen, setConfirmOpen,
+    previewPage, setPreviewPage, previewPerPage, setPreviewPerPage,
+    handleFile, confirmImport: handleConfirmImport, reset: resetAll,
+  } = useBulkApply<ApplyItem, ResultRow>({
+    endpoint: '/api/products/bulk/basic-info/apply',
+    parse: sheet => parseSheet(sheet, brandEnabled),
+  });
 
   useEffect(() => {
     if (!userProfile) return;
@@ -239,122 +293,6 @@ export default function BulkBasicInfoPage() {
     } finally {
       setExporting(false);
     }
-  };
-
-  const handleFile = async (file: File) => {
-    try {
-      const raw = await readFileToRows(file);
-      const sheet = rowsToSheet(raw);
-      if (sheet.rows.length === 0) {
-        showToast('ไฟล์ไม่มีข้อมูล (header + อย่างน้อย 1 แถว)', 'error');
-        return;
-      }
-
-      const items: ApplyItem[] = [];
-      let skippedNoId = 0;
-      for (let i = 0; i < sheet.rows.length; i++) {
-        const row = sheet.rows[i];
-        if (isRowEmpty(row) || isInstructionRow(row)) continue;
-
-        const productId = getCell(row, 'product_id (ห้ามแก้)', 'product_id');
-        if (!productId) {
-          // Row has data but no product_id — silently skipped, but count for warning
-          if (Object.values(row).some(c => c && String(c).trim())) skippedNoId++;
-          continue;
-        }
-
-        const code = getCell(row, 'รหัสสินค้า', 'code');
-        const name = getCell(row, 'ชื่อสินค้า', 'name');
-        const status = getCell(row, 'สถานะ', 'status', 'is_active');
-        const brandName = getCell(row, 'แบรนด์', 'brand', 'brand_name');
-        const categoryName = getCell(row, 'หมวดหมู่', 'category', 'category_name');
-        const description = getCell(row, 'คำอธิบาย', 'description');
-
-        const item: ApplyItem = { product_id: productId, __rowNum: i + 2 };
-        if (code) item.code = code;
-        if (name) item.name = name;
-        const parsedStatus = parseStatusValue(status);
-        if (parsedStatus !== null) item.is_active = parsedStatus;
-        if (brandEnabled && Object.keys(row).some(k => k.includes('แบรนด์') || k.includes('brand'))) {
-          item.brand_name = brandName;
-        }
-        if (Object.keys(row).some(k => k.includes('หมวดหมู่') || k.includes('category'))) {
-          item.category_name = categoryName;
-        }
-        if (Object.keys(row).some(k => k.includes('คำอธิบาย') || k.includes('description'))) {
-          item.description = description;
-        }
-
-        items.push(item);
-      }
-
-      if (items.length === 0) {
-        showToast(
-          skippedNoId > 0
-            ? `ทุกแถวไม่มี product_id — หน้านี้แก้ไขเท่านั้น ถ้าอยากเพิ่มสินค้าใหม่ ใช้ "เพิ่มสินค้าใหม่" แทน`
-            : 'ไม่พบแถวที่มี product_id',
-          'error',
-        );
-        return;
-      }
-
-      setParsedItems(items);
-      setStep('checking');
-
-      const res = await apiFetch('/api/products/bulk/basic-info/apply', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items, dry_run: true }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        showToast(data.error || 'ตรวจสอบไม่สำเร็จ', 'error');
-        setStep('upload');
-        return;
-      }
-      data.results = (data.results as ResultRow[]).map((r, idx) => ({ ...r, __rowNum: items[idx]?.__rowNum }));
-      setDryRun(data);
-      setStep('preview');
-    } catch (err) {
-      console.error('parse error:', err);
-      showToast('อ่านไฟล์ไม่สำเร็จ', 'error');
-      setStep('upload');
-    }
-  };
-
-  const handleConfirmImport = async () => {
-    setConfirmOpen(false);
-    setStep('importing');
-    try {
-      const res = await apiFetch('/api/products/bulk/basic-info/apply', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: parsedItems, dry_run: false }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        showToast(data.error || 'บันทึกไม่สำเร็จ', 'error');
-        setStep('preview');
-        return;
-      }
-      setFinalRun(data);
-      setStep('done');
-      const parts: string[] = [];
-      if (data.summary.updated > 0) parts.push(`อัพเดท ${data.summary.updated}`);
-      if (data.summary.errors > 0) parts.push(`ล้มเหลว ${data.summary.errors}`);
-      showToast(parts.join(', ') || 'เสร็จสิ้น', data.summary.errors > 0 ? 'error' : 'success');
-    } catch (err) {
-      console.error('import error:', err);
-      showToast('บันทึกไม่สำเร็จ', 'error');
-      setStep('preview');
-    }
-  };
-
-  const resetAll = () => {
-    setStep('upload');
-    setParsedItems([]);
-    setDryRun(null);
-    setFinalRun(null);
   };
 
   if (!userProfile) return null;
