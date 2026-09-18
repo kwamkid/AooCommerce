@@ -29,7 +29,10 @@ export async function GET(request: NextRequest) {
     }
 
     // ร้านมีสินค้าหลักพัน — `fetchAllRows` กันเพดาน 1,000 แถวของ Supabase ที่ตัดเงียบ
-    const rows = await fetchAllRows((from, to) => supabaseAdmin
+    // ⚠️ คืน `{ rows, count, error }` ไม่ใช่ array ตรง ๆ — ส่งทั้งก้อนออกไปคือหน้าจอพัง
+    const { rows, error } = await fetchAllRows<{
+      id: string; name: string; slug: string | null; image: string | null; code: string | null;
+    }>((from, to) => supabaseAdmin
       .from('products')
       .select('id, name, slug, image, code')
       .eq('company_id', auth.companyId!)
@@ -38,7 +41,9 @@ export async function GET(request: NextRequest) {
       .order('name', { ascending: true })
       .range(from, to));
 
-    return NextResponse.json({ data: rows || [] });
+    if (error) throw new Error(error.message);
+
+    return NextResponse.json({ data: rows });
   } catch (error) {
     console.error('GET product slugs error:', error);
     return NextResponse.json({ error: 'โหลดข้อมูลไม่สำเร็จ' }, { status: 500 });

@@ -10,7 +10,8 @@
 //    เท่านั้น ปิดหน้าไปคือหาย เหมือนไฟล์ที่ยังไม่ได้เซฟ
 
 import { useCallback, useMemo, useState } from 'react';
-import { ExternalLink, Link2, RotateCcw, Scissors } from 'lucide-react';
+import { Scissors } from 'lucide-react';
+import { ExternalLinkIcon, LinkIcon, ResetIcon } from '@/lib/icons';
 import Layout from '@/components/layout/Layout';
 import Button from '@/components/ui/Button';
 import Container from '@/components/ui/Container';
@@ -66,7 +67,9 @@ export default function StorefrontLinksPage() {
       const res = await apiFetch('/api/products/slugs');
       if (!res.ok) throw new Error('โหลดข้อมูลไม่สำเร็จ');
       const data = await res.json();
-      setRows((data.data || []) as ProductSlugRow[]);
+      // กันรูปร่างผิดจาก API — ตารางทั้งหน้าพังถ้าไม่ใช่ array (เคยพังมาแล้วเพราะ
+      // `fetchAllRows` คืน `{rows, count, error}` แล้ว route ส่งทั้งก้อนออกมา)
+      setRows(Array.isArray(data?.data) ? (data.data as ProductSlugRow[]) : []);
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'โหลดข้อมูลไม่สำเร็จ', 'error');
     } finally {
@@ -180,7 +183,7 @@ export default function StorefrontLinksPage() {
               title="เปิดหน้าสินค้าในแท็บใหม่"
               aria-label="เปิดหน้าสินค้าในแท็บใหม่"
               onClick={event => event.stopPropagation()}
-            ><ExternalLink className="w-4 h-4" /></a>
+            ><ExternalLinkIcon className="w-4 h-4" /></a>
           )}
         </div>
       ),
@@ -208,7 +211,7 @@ export default function StorefrontLinksPage() {
                   onClick={() => setDraft(row, row.slug || '')}
                   title="คืนค่าเดิม"
                   aria-label="คืนค่าเดิม"
-                ><RotateCcw className="w-4 h-4" /></button>
+                ><ResetIcon className="w-4 h-4" /></button>
               ) : undefined}
             />
             {shorter && shorter !== value && (
@@ -248,7 +251,7 @@ export default function StorefrontLinksPage() {
     <Layout>
       <Container size="full">
         <PageHeader
-          icon={<Link2 />}
+          icon={<LinkIcon />}
           title="ลิงก์สินค้าในหน้าร้าน"
           subtitle={`ลิงก์ที่ลูกค้าเห็นและ Google เก็บไป — สินค้าที่ขึ้นหน้าร้าน ${rows.length} รายการ`}
           backHref="/settings/storefront"
@@ -278,7 +281,7 @@ export default function StorefrontLinksPage() {
             getRowId={row => row.id}
             fitWidth
             emptyMessage={search ? 'ไม่พบสินค้าที่ค้นหา' : 'ยังไม่มีสินค้าที่ขึ้นหน้าร้าน'}
-            emptyIcon={<Link2 className="data-empty-icon" />}
+            emptyIcon={<LinkIcon className="data-empty-icon" />}
             currentPage={currentPage}
             totalPages={totalPages}
             totalRecords={filtered.length}
