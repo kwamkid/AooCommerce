@@ -7,21 +7,21 @@ import Button from '@/components/ui/Button';
 import { useAuth } from '@/lib/auth-context';
 import { useCopy } from '@/lib/useCopy';
 import { useFeatures } from '@/lib/features-context';
-import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { generatePOPdf } from '@/lib/supplier-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
 import { statusLabel } from '@/lib/status-labels';
 import DataTable from '@/components/ui/DataTable';
-import FormSelect from '@/components/ui/FormSelect';
 import StatusTabs from '@/components/ui/StatusTabs';
 import ActionMenu, { ActionItem } from '@/components/ui/ActionMenu';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { EmptyCard, LoadingCard } from '@/components/ui/StateCard';
 import StatusBadge from '@/components/ui/StatusBadge';
-import DocListFilters, { type DocListUser, type DocListWarehouse } from '../components/DocListFilters';
-import { useDocListParams } from '../components/useDocListParams';
+import ListFilters from '@/components/ui/ListFilters';
+import { FilterDateRange, FilterSupplier, FilterUser, FilterWarehouse } from '@/components/ui/ListFilterFields';
+import { useListFilterParams } from '@/lib/useListFilterParams';
+import { DOC_LIST_RANGE_DAYS, docListFields, docListUserOptions, type DocListUser } from '../components/doc-list-filters';
 import { Lock } from 'lucide-react';
 import { AddIcon, BanIcon, ChecklistIcon, CloseIcon, EditIcon, LinkIcon, LoadingIcon, PrintIcon, SupplierIcon, WarehouseIcon } from '@/lib/icons';
 import { useAuthGuard } from '@/lib/useAuthGuard';
@@ -54,6 +54,9 @@ const STATUS_TABS: { key: string; colorKey?: string }[] = [
 
 const BREADCRUMBS = [{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'ใบสั่งซื้อ (PO)' }];
 
+// ใบสั่งซื้อมีช่อง Supplier เพิ่มจากชุดมาตรฐานของเอกสารคลัง
+const PO_FIELDS = docListFields('all', ['sup']);
+
 function PurchaseOrdersContent() {
   const router = useRouter();
   const { userProfile, loading: authLoading } = useAuth();
@@ -62,19 +65,17 @@ function PurchaseOrdersContent() {
   const copy = useCopy();
   const { confirmDialog, confirm } = useConfirmDialog();
 
-  const {
-    search, warehouseId, status, userId, extra, page, limit,
-    dateRange, effectiveFrom, effectiveTo,
-    hasActiveFilters, depsKey, setParams, clearAll,
-  } = useDocListParams('/inventory/purchase-orders', { extraKeys: ['sup'] });
-  const supplierId = extra.sup || '';
+  const filters = useListFilterParams('/inventory/purchase-orders', {
+    fields: PO_FIELDS,
+    defaultRange: DOC_LIST_RANGE_DAYS,
+  });
+  const { page, limit, effectiveFrom, effectiveTo, hasActiveFilters, depsKey, clearAll } = filters;
+  const { q: search, wh: warehouseId, status, by: userId, sup: supplierId } = filters.values;
 
   const [rows, setRows] = useState<PurchaseOrder[]>([]);
   const [total, setTotal] = useState(0);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [users, setUsers] = useState<DocListUser[]>([]);
-  const [warehouses, setWarehouses] = useState<DocListWarehouse[]>([]);
-  const [suppliers, setSuppliers] = useState<{ id: string; label: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
   const [printingId, setPrintingId] = useState<string | null>(null);
@@ -87,23 +88,6 @@ function PurchaseOrdersContent() {
   useEffect(() => {
     if (featuresFetched && !features.supplier) router.replace('/inventory/receives');
   }, [featuresFetched, features.supplier, router]);
-
-  useFetchOnce(async () => {
-    try {
-      const [whRes, supRes] = await Promise.all([
-        apiFetch('/api/warehouses'),
-        apiFetch('/api/suppliers'),
-      ]);
-      if (whRes.ok) {
-        const data = await whRes.json();
-        setWarehouses(data.warehouses || []);
-      }
-      if (supRes.ok) {
-        const data = await supRes.json();
-        setSuppliers((data.data || []).map((s: { id: string; name: string }) => ({ id: s.id, label: s.name })));
-      }
-    } catch { /* ตัวกรองโหลดไม่ได้ = ไม่ต้องขึ้น error ทั้งหน้า */ }
-  }, isAuthReady && featureOk);
 
   const fetchData = useCallback(async (quiet = false) => {
     if (!quiet) setFetching(true);
@@ -290,7 +274,7 @@ function PurchaseOrdersContent() {
 
         <StatusTabs
           activeKey={status}
-          onSelect={(key) => setParams({ status: key })}
+          onSelect={(key) => filters.set({ status: key })}
           tabs={[
             { key: 'all', label: 'ทั้งหมด', count: counts.all ?? 0 },
             ...STATUS_TABS.map(t => ({
@@ -302,34 +286,18 @@ function PurchaseOrdersContent() {
           ]}
         />
 
-        <DocListFilters
+        <ListFilters
           search={search}
-          onSearch={(v) => setParams({ q: v || null })}
+          onSearch={(v) => filters.set({ q: v })}
           searchPlaceholder="ค้นหาเลขที่ PO, หมายเหตุ..."
-          dateRange={dateRange}
-          onDateRange={(from, to) => setParams({ from: from || null, to: to || null })}
-          warehouses={warehouses}
-          warehouseId={warehouseId}
-          onWarehouse={(v) => setParams({ wh: v || null })}
-          users={users}
-          userId={userId}
-          onUser={(v) => setParams({ by: v || null })}
-          onClear={clearAll}
           hasActiveFilters={hasActiveFilters}
-          extra={suppliers.length > 1 ? (
-            <div className="w-full md:w-44">
-              <FormSelect
-                value={supplierId}
-                onChange={(v) => setParams({ sup: v || null })}
-                options={suppliers}
-                clearLabel="ทุก Supplier"
-                placeholder="Supplier"
-                icon={<SupplierIcon className="w-4 h-4" />}
-                searchPlaceholder="ค้นหา Supplier..."
-              />
-            </div>
-          ) : undefined}
-        />
+          onClear={clearAll}
+        >
+          <FilterDateRange filters={filters} />
+          <FilterWarehouse value={warehouseId} onChange={(v) => filters.set({ wh: v })} />
+          <FilterSupplier value={supplierId} onChange={(v) => filters.set({ sup: v })} width="sm" />
+          <FilterUser value={userId} onChange={(v) => filters.set({ by: v })} options={docListUserOptions(users)} />
+        </ListFilters>
 
         {rows.length === 0 ? (
           <EmptyCard
@@ -426,9 +394,9 @@ function PurchaseOrdersContent() {
               totalPages={totalPages}
               totalRecords={total}
               recordsPerPage={limit}
-              onPageChange={(p) => setParams({ page: String(p) })}
-              onRecordsPerPageChange={(l) => setParams({ limit: String(l), page: '1' })}
-              onLimitChange={(l, p) => setParams({ limit: String(l), page: String(p) })}
+              onPageChange={filters.setPage}
+              onRecordsPerPageChange={filters.setLimit}
+              onLimitChange={(l, p) => filters.set({ limit: l, page: p })}
               mobileCardRender={(po) => (
                 <>
                   <div className="flex items-center justify-between mb-1.5">

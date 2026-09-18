@@ -15,7 +15,12 @@ import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api-client';
 import type { FormSelectOption } from '@/components/ui/FormSelect';
 
-export type FilterOptionSource = 'brands' | 'categories' | 'warehouses' | 'suppliers';
+export type FilterOptionSource =
+  | 'brands' | 'categories' | 'suppliers'
+  /** คลังของบริษัท */
+  | 'warehouses'
+  /** คลังของบริษัท + คลังที่ฝากไว้กับตัวแทน (หน้าโอนย้ายต้องเลือกปลายทางที่เป็นตัวแทนได้) */
+  | 'warehouses_with_consignment';
 
 interface RawRow {
   id: string;
@@ -29,8 +34,14 @@ const ENDPOINT: Record<FilterOptionSource, string> = {
   brands: '/api/brands',
   categories: '/api/categories',
   warehouses: '/api/warehouses',
+  warehouses_with_consignment: '/api/warehouses?include_consignment=true',
   suppliers: '/api/suppliers',
 };
+
+/** คลังมี 2 แหล่งที่ต่างกันแค่ขอบเขต — แปลงผลด้วยกติกาเดียวกัน */
+function isWarehouseSource(source: FilterOptionSource): boolean {
+  return source === 'warehouses' || source === 'warehouses_with_consignment';
+}
 
 /** แปลงผลจาก API เป็นตัวเลือกของช่อง — กติกาการแสดงผลของแต่ละชนิดอยู่ที่นี่ที่เดียว */
 function toOptions(source: FilterOptionSource, rows: RawRow[]): FormSelectOption[] {
@@ -46,7 +57,7 @@ function toOptions(source: FilterOptionSource, rows: RawRow[]): FormSelectOption
       })),
     ]);
   }
-  if (source === 'warehouses') {
+  if (isWarehouseSource(source)) {
     // คลังของบริษัทก่อน แล้วค่อยคลังที่ฝากไว้กับตัวแทน (ติดป้ายให้รู้ว่าไม่ใช่ของเรา)
     return [
       ...rows.filter(w => w.warehouse_type !== 'consignment').map(w => ({ id: w.id, label: w.name })),
@@ -81,7 +92,7 @@ export function useFilterOptions(source: FilterOptionSource, enabled = true): Fi
         if (!res.ok) throw new Error('load failed');
         const json = await res.json();
         // `/api/warehouses` คืน `{ warehouses }` ส่วนที่เหลือคืน `{ data }`
-        const rows = (source === 'warehouses' ? json.warehouses : json.data) as RawRow[] | undefined;
+        const rows = (isWarehouseSource(source) ? json.warehouses : json.data) as RawRow[] | undefined;
         if (!cancelled) setOptions(toOptions(source, Array.isArray(rows) ? rows : []));
       } catch {
         // โหลดตัวเลือกไม่ได้ = ช่องนั้นไม่ขึ้น ไม่ใช่ทั้งหน้าพัง

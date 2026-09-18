@@ -13,7 +13,7 @@
 import { type ReactNode } from 'react';
 import DateRangePicker from '@/components/ui/DateRangePicker';
 import FormSelect, { type FormSelectOption } from '@/components/ui/FormSelect';
-import { BrandIcon, CategoryIcon, SupplierIcon, WarehouseIcon } from '@/lib/icons';
+import { BrandIcon, CategoryIcon, SupplierIcon, UserIcon, WarehouseIcon } from '@/lib/icons';
 import { getMonthOptions } from '@/lib/month-options';
 import { useFilterOptions, type FilterOptionSource } from '@/lib/useFilterOptions';
 import { toDateParam, type ListFilterParams } from '@/lib/useListFilterParams';
@@ -115,6 +115,30 @@ export function FilterMonth({ value, onChange, width = 'sm' }: MonthProps) {
 }
 
 
+interface UserProps {
+  value: string;
+  onChange: (value: string) => void;
+  /** รายชื่อผู้ทำรายการ — มาจาก API ของหน้านั้น (ไม่ใช่สมาชิกทั้งบริษัท) */
+  options: FormSelectOption[];
+  width?: FilterFieldWidth;
+}
+
+/**
+ * ผู้ทำรายการ — **ต้องส่ง `options` มาเอง** เพราะแต่ละหน้ามีรายชื่อไม่เหมือนกัน
+ * (route ของเอกสารคลังคืนเฉพาะคนที่เคยทำเอกสารประเภทนั้น ไม่ใช่สมาชิกทุกคนในบริษัท)
+ */
+export function FilterUser({ value, onChange, options, width = 'sm' }: UserProps) {
+  return (
+    <FilterSelect
+      value={value} onChange={onChange} options={options}
+      clearLabel="ทุกคน" placeholder="ผู้ทำรายการ"
+      icon={<UserIcon className="w-4 h-4" />}
+      searchPlaceholder="ค้นหาผู้ทำรายการ..." width={width}
+    />
+  );
+}
+
+
 // ── ช่องที่ผูกกับข้อมูลของร้าน ────────────────────────────────────────────
 
 interface StoreDataProps {
@@ -161,9 +185,19 @@ export function FilterCategory({ value, onChange, options, enabled = true, width
   );
 }
 
+interface WarehouseProps extends StoreDataProps {
+  /** รวมคลังที่ฝากไว้กับตัวแทนด้วย (หน้าโอนย้าย) — ติดป้าย `[ตัวแทน]` ให้เอง */
+  includeConsignment?: boolean;
+}
+
 /** คลัง — ร้านที่มีคลังเดียวจะไม่เห็นช่องนี้ (ไม่มีอะไรให้เลือก) */
-export function FilterWarehouse({ value, onChange, options, enabled = true, width = 'md' }: StoreDataProps) {
-  const list = useStoreDataOptions('warehouses', options, enabled);
+export function FilterWarehouse({
+  value, onChange, options, enabled = true, width = 'md', includeConsignment,
+}: WarehouseProps) {
+  const list = useStoreDataOptions(
+    includeConsignment ? 'warehouses_with_consignment' : 'warehouses',
+    options, enabled,
+  );
   if (!enabled) return null;
   return (
     <FilterSelect

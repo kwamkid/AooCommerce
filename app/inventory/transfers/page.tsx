@@ -7,7 +7,6 @@ import Button from '@/components/ui/Button';
 import Tooltip from '@/components/ui/Tooltip';
 import { useAuth } from '@/lib/auth-context';
 import { useCopy } from '@/lib/useCopy';
-import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { generateInventoryPdf } from '@/lib/inventory-pdf';
@@ -19,8 +18,10 @@ import StatusTabs from '@/components/ui/StatusTabs';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import { EmptyCard, LoadingCard } from '@/components/ui/StateCard';
 import StatusBadge from '@/components/ui/StatusBadge';
-import DocListFilters, { type DocListUser, type DocListWarehouse } from '../components/DocListFilters';
-import { useDocListParams } from '../components/useDocListParams';
+import ListFilters from '@/components/ui/ListFilters';
+import { FilterDateRange, FilterUser, FilterWarehouse } from '@/components/ui/ListFilterFields';
+import { useListFilterParams } from '@/lib/useListFilterParams';
+import { DOC_LIST_RANGE_DAYS, docListFields, docListUserOptions, type DocListUser } from '../components/doc-list-filters';
 import { ArrowRightLeft } from 'lucide-react';
 import { AddIcon, BanIcon, CloseIcon, LoadingIcon, PrintIcon, ViewIcon, WarehouseIcon } from '@/lib/icons';
 import { useAuthGuard } from '@/lib/useAuthGuard';
@@ -46,23 +47,26 @@ interface Transfer {
 
 const BREADCRUMBS = [{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการโอนย้าย' }];
 
+// หน้านี้เปิดมาที่ "รอส่ง" ไม่ใช่ "ทั้งหมด" (ของที่ต้องทำต่อ) — ค่านี้จึงไม่ถูกเขียนลง URL
+const TRANSFER_FIELDS = docListFields('pending');
+
 function TransferListContent() {
   const router = useRouter();
   const { userProfile, loading: authLoading } = useAuth();
   const { showToast } = useToast();
   const copy = useCopy();
 
-  const {
-    search, warehouseId, status, userId, page, limit,
-    dateRange, effectiveFrom, effectiveTo,
-    hasActiveFilters, depsKey, setParams, clearAll,
-  } = useDocListParams('/inventory/transfers', { defaultStatus: 'pending' });
+  const filters = useListFilterParams('/inventory/transfers', {
+    fields: TRANSFER_FIELDS,
+    defaultRange: DOC_LIST_RANGE_DAYS,
+  });
+  const { page, limit, effectiveFrom, effectiveTo, hasActiveFilters, depsKey, clearAll } = filters;
+  const { q: search, wh: warehouseId, status, by: userId } = filters.values;
 
   const [rows, setRows] = useState<Transfer[]>([]);
   const [total, setTotal] = useState(0);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [users, setUsers] = useState<DocListUser[]>([]);
-  const [warehouses, setWarehouses] = useState<DocListWarehouse[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
   const [printingId, setPrintingId] = useState<string | null>(null);
@@ -70,16 +74,6 @@ function TransferListContent() {
   const [confirmCancel, setConfirmCancel] = useState<Transfer | null>(null);
 
   const isAuthReady = !authLoading && !!userProfile;
-
-  useFetchOnce(async () => {
-    try {
-      const res = await apiFetch('/api/warehouses?include_consignment=true');
-      if (res.ok) {
-        const data = await res.json();
-        setWarehouses(data.warehouses || []);
-      }
-    } catch { /* ตัวกรองโหลดไม่ได้ = ไม่ต้องขึ้น error ทั้งหน้า */ }
-  }, isAuthReady);
 
   const fetchData = useCallback(async (quiet = false) => {
     if (!quiet) setFetching(true);
@@ -229,7 +223,7 @@ function TransferListContent() {
 
         <StatusTabs
           activeKey={status}
-          onSelect={(key) => setParams({ status: key })}
+          onSelect={(key) => filters.set({ status: key })}
           tabs={[
             { key: 'all', label: 'ทั้งหมด', count: counts.all ?? 0 },
             { key: 'pending', label: 'ที่ต้องจัดส่ง', count: counts.pending ?? 0 },
@@ -240,22 +234,17 @@ function TransferListContent() {
           ]}
         />
 
-        <DocListFilters
+        <ListFilters
           search={search}
-          onSearch={(v) => setParams({ q: v || null })}
+          onSearch={(v) => filters.set({ q: v })}
           searchPlaceholder="ค้นหาเลขที่ใบโอน, หมายเหตุ..."
-          dateRange={dateRange}
-          onDateRange={(from, to) => setParams({ from: from || null, to: to || null })}
-          warehouses={warehouses}
-          warehouseId={warehouseId}
-          onWarehouse={(v) => setParams({ wh: v || null })}
-          warehouseLabel="ทุกคลัง (ต้นทาง/ปลายทาง)"
-          users={users}
-          userId={userId}
-          onUser={(v) => setParams({ by: v || null })}
-          onClear={clearAll}
           hasActiveFilters={hasActiveFilters}
-        />
+          onClear={clearAll}
+        >
+          <FilterDateRange filters={filters} />
+          <FilterWarehouse value={warehouseId} onChange={(v) => filters.set({ wh: v })} includeConsignment />
+          <FilterUser value={userId} onChange={(v) => filters.set({ by: v })} options={docListUserOptions(users)} />
+        </ListFilters>
 
         {rows.length === 0 ? (
           <EmptyCard
@@ -347,9 +336,9 @@ function TransferListContent() {
               totalPages={totalPages}
               totalRecords={total}
               recordsPerPage={limit}
-              onPageChange={(p) => setParams({ page: String(p) })}
-              onRecordsPerPageChange={(l) => setParams({ limit: String(l), page: '1' })}
-              onLimitChange={(l, p) => setParams({ limit: String(l), page: String(p) })}
+              onPageChange={filters.setPage}
+              onRecordsPerPageChange={filters.setLimit}
+              onLimitChange={(l, p) => filters.set({ limit: l, page: p })}
               mobileCardRender={(t) => (
                 <>
                   <div className="flex items-center justify-between mb-2">
