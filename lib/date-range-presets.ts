@@ -7,7 +7,10 @@
 //    นับถึงวันนี้ บางหน้านับถึงสิ้นเดือน
 // สัปดาห์เริ่ม **วันจันทร์** ตามที่คนไทยใช้จริง (date-fns ตั้งต้นเป็นวันอาทิตย์)
 
-import { endOfMonth, endOfWeek, startOfDay, startOfMonth, startOfWeek, subDays, subMonths } from 'date-fns';
+import {
+  endOfMonth, endOfWeek, endOfYear, startOfDay, startOfMonth, startOfWeek, startOfYear,
+  subDays, subMonths, subYears,
+} from 'date-fns';
 
 export type DateRangePreset =
   | 'today'
@@ -16,7 +19,9 @@ export type DateRangePreset =
   | 'last_30_days'
   | 'this_week'
   | 'this_month'
-  | 'last_month';
+  | 'last_month'
+  | 'this_year'
+  | 'last_year';
 
 export interface DateRangePresetDef {
   key: DateRangePreset;
@@ -62,6 +67,16 @@ export const DATE_RANGE_PRESETS: DateRangePresetDef[] = [
     key: 'last_month',
     label: 'เดือนที่แล้ว',
     getValue: () => { const pm = subMonths(new Date(), 1); return { from: startOfMonth(pm), to: endOfMonth(pm) }; },
+  },
+  {
+    key: 'this_year',
+    label: 'ปีนี้',
+    getValue: () => ({ from: startOfYear(new Date()), to: endOfYear(new Date()) }),
+  },
+  {
+    key: 'last_year',
+    label: 'ปีที่แล้ว',
+    getValue: () => { const py = subYears(new Date(), 1); return { from: startOfYear(py), to: endOfYear(py) }; },
   },
 ];
 

@@ -9,10 +9,10 @@ import PageHeader from '@/components/ui/PageHeader';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
 import { DocumentIcon, ExternalLinkIcon, PrintIcon } from '@/lib/icons';
-import FormSelect from '@/components/ui/FormSelect';
-import SearchInput from '@/components/ui/SearchInput';
-import { getMonthOptions } from '@/lib/month-options';
 import { showPdfPreview } from '@/lib/print-pdf';
+import ListFilters from '@/components/ui/ListFilters';
+import { FilterMonth } from '@/components/ui/ListFilterFields';
+import { useListFilterParams } from '@/lib/useListFilterParams';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import { formatThaiDate as formatDate, formatPrice as formatMoney } from '@/lib/utils/format';
 
@@ -62,13 +62,17 @@ export default function TaxInvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [month, setMonth] = useState('');
-  const [page, setPage] = useState(1);
-  const [recordsPerPage, setRecordsPerPage] = useState(20);
   const [loadTime, setLoadTime] = useState<number | null>(null);
 
-  const monthOptions = getMonthOptions();
+  // ตัวกรอง + แบ่งหน้าอยู่ใน URL ผ่าน hook กลาง — refresh/กดย้อนกลับแล้วยังอยู่ที่เดิม
+  // (เดิมเป็น useState ล้วน ตัวกรองหายทุกครั้งที่รีเฟรช)
+  const filters = useListFilterParams('/invoices/tax', {
+    fields: { q: { type: 'text' }, month: { type: 'select' } },
+  });
+  const search = filters.values.q;
+  const month = filters.values.month;
+  const page = filters.page;
+  const recordsPerPage = filters.limit;
 
   const fetchInvoices = useCallback(async () => {
     setLoading(true);
@@ -315,23 +319,15 @@ export default function TaxInvoicesPage() {
           subtitle="TAX-YYYYMM-NNNN — เรียงต่อเนื่องตลอดเดือน"
         />
 
-        {/* Filters */}
-        <div className="data-filter-card">
-          <div className="flex items-center gap-2 flex-wrap">
-            <FormSelect
-              value={month}
-              onChange={v => { setMonth(v); setPage(1); }}
-              options={monthOptions}
-            />
-            <div className="flex-1 min-w-[200px]">
-              <SearchInput
-                value={search}
-                onChange={v => { setSearch(v); setPage(1); }}
-                placeholder="ค้นหาเลขที่, ชื่อ, เลขภาษี..."
-              />
-            </div>
-          </div>
-        </div>
+        <ListFilters
+          search={search}
+          onSearch={value => filters.set({ q: value })}
+          searchPlaceholder="ค้นหาเลขที่, ชื่อ, เลขภาษี..."
+          hasActiveFilters={filters.hasActiveFilters}
+          onClear={filters.clearAll}
+        >
+          <FilterMonth value={month} onChange={value => filters.set({ month: value })} />
+        </ListFilters>
 
         <DataTable<Invoice>
           storageKey="tax-invoices-cols"
@@ -345,8 +341,8 @@ export default function TaxInvoicesPage() {
           totalPages={totalPages}
           totalRecords={total}
           recordsPerPage={recordsPerPage}
-          onPageChange={setPage}
-          onRecordsPerPageChange={setRecordsPerPage}
+          onPageChange={filters.setPage}
+          onRecordsPerPageChange={filters.setLimit}
           loadTime={loadTime}
           mobileCardRender={(inv) => {
             const link = getSourceLink(inv);
