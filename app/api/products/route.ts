@@ -934,7 +934,7 @@ export async function PUT(request: NextRequest) {
     // switch below) and is_composite (สินค้าชุด can't change type in either direction)
     const { data: currentProduct } = await supabaseAdmin
       .from('products')
-      .select('source, variation_label, is_composite')
+      .select('name, source, variation_label, is_composite')
       .eq('id', id)
       .eq('company_id', auth.companyId)
       .maybeSingle();
@@ -944,6 +944,15 @@ export async function PUT(request: NextRequest) {
     }
 
     const isCompositeProduct = !!currentProduct.is_composite;
+
+    /**
+     * ชื่อเปลี่ยนจริงหรือแค่กดบันทึกเฉย ๆ — ฟอร์มส่ง `name` มาทุกครั้งอยู่แล้ว
+     * เดิมเช็คแค่ `if (body.name)` จึงยิงขึ้นร้านทุกครั้งที่บันทึกสินค้า
+     * เผาโควตา Shopee ฟรี ๆ และเสี่ยงทับชื่อบนร้านโดยที่ผู้ใช้ไม่ได้ตั้งใจแก้ชื่อเลย
+     */
+    const nameChanged = typeof body.name === 'string'
+      && body.name.trim() !== ''
+      && body.name.trim() !== (currentProduct.name ?? '').trim();
     if (body.product_type !== undefined && (body.product_type === 'composite') !== isCompositeProduct) {
       return NextResponse.json({ error: 'เปลี่ยนประเภทของสินค้าชุดไม่ได้' }, { status: 400 });
     }
@@ -1099,7 +1108,7 @@ export async function PUT(request: NextRequest) {
       if (hasCompositeSlots) {
         after(() => import('@/lib/shopee/auto-sync').then(m => m.syncPriceNow(id)));
       }
-      if (body.name) {
+      if (nameChanged) {
         after(() => import('@/lib/shopee/auto-sync').then(m => m.syncInfoNow(id, body.name)));
       }
       const { data: comboRows } = await supabaseAdmin
@@ -1308,7 +1317,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Auto-sync product name to Shopee if name changed
-    if (body.name) {
+    if (nameChanged) {
       after(() => import('@/lib/shopee/auto-sync').then(m => m.syncInfoNow(id, body.name)));
     }
 

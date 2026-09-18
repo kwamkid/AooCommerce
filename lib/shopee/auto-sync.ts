@@ -105,7 +105,7 @@ export async function syncInfoNow(productId: string, productName: string): Promi
 
   const { data: links } = await supabaseAdmin
     .from('marketplace_product_links')
-    .select('account_id, external_item_id')
+    .select('account_id, external_item_id, platform_product_name')
     .eq('product_id', productId)
     .eq('sync_enabled', true)
     .eq('platform', 'shopee');
@@ -114,17 +114,33 @@ export async function syncInfoNow(productId: string, productName: string): Promi
 
   // Deduplicate by (account_id, external_item_id)
   const seen = new Set<string>();
-  const uniqueItems: { account_id: string; external_item_id: string }[] = [];
+  const uniqueItems: { account_id: string; external_item_id: string; name: string }[] = [];
   for (const link of links) {
     const key = `${link.account_id}:${link.external_item_id}`;
     if (!seen.has(key)) {
       seen.add(key);
-      uniqueItems.push({ account_id: link.account_id, external_item_id: link.external_item_id });
+      /**
+       * **ชื่อเฉพาะร้านชนะชื่อกลางเสมอ**
+       *
+       * ร้านตั้งชื่อบน Shopee ไว้ต่างจากชื่อในระบบเป็นเรื่องปกติ (ใส่คีย์เวิร์ด · ชื่อโปร ·
+       * ขนาดตัวอักษรที่ Shopee ชอบ) — 99.5% ของลิงก์ที่มีอยู่ตั้งชื่อเฉพาะร้านไว้
+       * เดิมส่งชื่อกลางตัวเดียวขึ้นทุกร้าน ⇒ แก้ชื่อในแท็บข้อมูลสินค้าครั้งเดียว
+       * ชื่อที่ทำ SEO ไว้บนทุกร้านหายหมด และกู้ไม่ได้เพราะไม่ได้เก็บค่าเดิมไว้
+       *
+       * อยากเปลี่ยนชื่อบนร้านไหน ต้องแก้ที่แท็บของร้านนั้น (ทางนั้นอัปเดต
+       * `platform_product_name` แล้วส่งขึ้นร้านให้เอง — ดู /api/marketplace/links)
+       */
+      const shopName = (link.platform_product_name as string | null)?.trim();
+      uniqueItems.push({
+        account_id: link.account_id,
+        external_item_id: link.external_item_id,
+        name: shopName || productName,
+      });
     }
   }
 
   // Process all items in parallel (5 concurrent)
-  await parallelLimit(uniqueItems, async ({ account_id, external_item_id }) => {
+  await parallelLimit(uniqueItems, async ({ account_id, external_item_id, name }) => {
     try {
       const { data: account } = await supabaseAdmin
         .from('marketplace_accounts')
@@ -137,7 +153,7 @@ export async function syncInfoNow(productId: string, productName: string): Promi
       if (account.auto_sync_product_info === false) return;
 
       const startMs = Date.now();
-      const result = await pushInfoToShopee(account as ShopeeAccountRow, parseInt(external_item_id), productName);
+      const result = await pushInfoToShopee(account as ShopeeAccountRow, parseInt(external_item_id), name);
       const durationMs = Date.now() - startMs;
 
       logIntegration({
@@ -149,7 +165,8 @@ export async function syncInfoNow(productId: string, productName: string): Promi
         action: 'auto_push_info',
         method: 'POST',
         api_path: '/api/v2/product/update_item',
-        request_body: { product_id: productId, item_name: productName, trigger: 'auto_sync' },
+        // บันทึกชื่อที่ **ส่งขึ้นร้านนั้นจริง** ไม่ใช่ชื่อกลาง — ไม่งั้นไล่ log ย้อนหลังแล้วหลง
+        request_body: { product_id: productId, item_name: name, trigger: 'auto_sync' },
         response_body: result,
         status: result.success ? 'success' : 'error',
         error_message: result.error || undefined,
