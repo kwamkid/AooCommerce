@@ -191,7 +191,7 @@ export default function BrandFormModal({
           />
         </FormField>
         {showSupplierPicker && (
-          <FormField label="Supplier" hint="เจ้าของสินค้าที่เรารับมาขาย — ใช้กับใบสั่งซื้อและรายงาน">
+          <FormField label="Supplier" hint="เว้นว่างได้ — ใส่เมื่อรับแบรนด์นี้จากเจ้าประจำ (ใบสั่งซื้อ · ยอดค้างจ่าย · ของฝากขาย) · แบรนด์ที่ซื้อมาเองไม่ต้องผูก">
             <EntitySearchInput value={supplier} onChange={setSupplier} onClear={() => setSupplier('')}
               options={suppliers.map(item => ({ id: item.id, label: item.name, subtitle: item.supplier_type }))}
               placeholder="ค้นหา Supplier..."

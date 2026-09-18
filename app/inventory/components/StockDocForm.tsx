@@ -20,6 +20,7 @@ import EntitySearchInput from '@/components/ui/EntitySearchInput';
 import FilterChips, { FILTER_CHIP_PRIMARY_ACTIVE } from '@/components/ui/FilterChips';
 import FormSelect from '@/components/ui/FormSelect';
 import FormTextarea from '@/components/ui/FormTextarea';
+import HelpHint from '@/components/ui/HelpHint';
 import ItemsTable, { type ColumnKey, type TableItem } from '@/components/ui/ItemsTable';
 import type { ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import { LoadingCard } from '@/components/ui/StateCard';
@@ -792,13 +793,22 @@ export default function StockDocForm({ mode }: { mode: StockDocMode }) {
               <div className="flex-1">
                 <label className="field-label">
                   Supplier {mode === 'supplier_return' && <span className="text-red-500">*</span>}
+                  {mode === 'receive' && (
+                    <HelpHint ariaLabel="ต้องเลือก Supplier ไหม">
+                      <b>ไม่เลือกก็ได้</b> — ของที่ซื้อมาเอง (ซื้อจากตลาด · นำเข้าเอง · ซื้อครั้งเดียว)
+                      รับเข้าได้ตามปกติ ต้นทุนเข้าต้นทุนเฉลี่ยเหมือนเดิม
+                      <br /><br />
+                      เลือกเมื่อเป็น<b>เจ้าประจำ</b>ที่อยากได้: ใบสั่งซื้อ (PO) · ยอดค้างจ่ายแบบเครดิต ·
+                      รายงานรอบเดือนรายเจ้า · ของฝากขาย (ต้องเลือก ไม่งั้นระบบไม่รู้ว่าต้องจ่ายคืนใครเท่าไหร่)
+                    </HelpHint>
+                  )}
                 </label>
                 <EntitySearchInput
                   value={supplierId}
                   onChange={id => { setSupplierId(id); applySupplierDefaults(id, suppliers); }}
                   onClear={() => { setSupplierId(''); setDealType('cash'); setCreditDueDate(''); }}
                   options={suppliers.map(item => ({ id: item.id, label: item.name, subtitle: DEAL_OPTIONS.find(d => d.id === item.supplier_type)?.label }))}
-                  placeholder="ค้นหา Supplier..."
+                  placeholder={mode === 'receive' ? 'ค้นหา Supplier (เว้นว่างได้)...' : 'ค้นหา Supplier...'}
                   icon={<Factory className="w-4 h-4" />}
                   emptyMessage="ไม่พบ Supplier"
                 />
