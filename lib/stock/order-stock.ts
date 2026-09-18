@@ -239,7 +239,17 @@ export async function deductOrderStockOnce(
   if (g.skip) return g.skip;
 
   const history = await readHistory(ctx.orderId);
-  if (history.deducted) return EMPTY('already_done');
+  /**
+   * "เคยตัดแล้ว" อย่างเดียวไม่พอที่จะบอกว่าตัดซ้ำไม่ได้ — ต้อง **ยังไม่ถูกคืน** ด้วย
+   *
+   * ของที่ตัดออกไปแล้วถูกคืนกลับเข้าคลัง (ยกเลิกแล้วกลับมา · หรือซ่อมการตัดที่เกิดผิดจังหวะ)
+   * ย่อมต้องตัดได้อีกเมื่อของออกจากร้านจริง · เช็คแค่ `deducted` จะทำให้ใบพวกนี้ **ไม่มีวัน
+   * ถูกตัดอีกเลย** ทั้งที่ของออกไปแล้ว — เจอจริง 18 ก.ย. 2569 ตอนซ่อม 10 ใบที่ webhook
+   * เลขพัสดุดันเป็น SHIPPED แล้วตัดสต็อกทั้งที่ของยังอยู่ที่ร้าน
+   *
+   * (`releaseOrderStockOnce` ใช้คู่ตรงข้ามของเงื่อนไขนี้อยู่แล้ว — `released && !deducted`)
+   */
+  if (history.deducted && !history.released) return EMPTY('already_done');
   if (!history.reserved) return EMPTY('never_reserved');
 
   const result: OrderStockResult = { applied: false, touched: [], errors: [], insufficient: [] };

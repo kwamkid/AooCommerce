@@ -16,6 +16,28 @@
 
 ---
 
+## 2026-09-18 — กดรับออเดอร์ Shopee แล้วใบข้ามไป "กำลังส่ง" + สต็อกถูกตัดทั้งที่ของยังอยู่ที่ร้าน
+
+**ที่เกิด**: [app/api/shopee/webhook/route.ts](app/api/shopee/webhook/route.ts) `handleOrderTracking()` (push code 4) · พ่วง [lib/stock/order-stock.ts](lib/stock/order-stock.ts) `deductOrderStockOnce()`
+**อาการ**: เจ้าของกดรับออเดอร์เมื่อเช้า ใบไปโผล่แท็บ "กำลังส่ง" ทั้งที่ต้องอยู่ "ที่ต้องจัดส่ง" · ตรวจลึกแล้วเจอว่าสต็อกถูกตัดออกจากคลังไปแล้วด้วยทั้งที่ของยังไม่ออกจากร้าน (13 ชิ้น / 10 ใบ)
+
+**Root cause — สองชั้นซ้อนกัน**
+1. push `order_tracking` (code 4) เลื่อนสถานะเองเมื่อเห็นเลขพัสดุ: `order_status='shipping'` + `external_status='SHIPPED'` — **"มีเลขพัสดุ" ≠ "ขนส่งรับของแล้ว"** พอกดรับออเดอร์ Shopee ออกเลขให้ทันทีแล้ว push มาเลย แต่ฝั่ง Shopee ยังเป็น `PROCESSED` (ยืนยันด้วย `get_order_detail` ทั้ง 10 ใบ) และ Seller Center ยังโชว์ "ที่ต้องจัดส่ง"
+2. บล็อกตัดสต็อกที่เพิ่งเพิ่มเช้าวันเดียวกัน (`ab2d9d03`) อยู่ใต้ `if (updatePayload.order_status)` ⇒ ตัดตามทันทีที่สถานะถูกดัน
+
+**เป็นกับดักที่ซ่อนมาตั้งแต่ 27 ก.พ. 2026** (commit `888dc900`) แต่เพิ่งโผล่ 17 ก.ย. เพราะ **ลำดับ push ของ Shopee สลับ** — ที่ผ่านมา tracking มา*ก่อน* PROCESSED เงื่อนไข `=== 'processing'` จึงไม่เคยเข้า · 17 ก.ย. เป็นต้นมา PROCESSED มาก่อน tracking เสี้ยววินาที (09:34:20 → 09:34:21) ⇒ เข้าเงื่อนไขทุกใบ · ย้อน 30 วัน: 30 ส.ค.–16 ก.ย. = 0 ใบ · 17 ก.ย. = 8 · 18 ก.ย. = 2
+
+**วิธีแก้**
+- push code 4 แตะได้แค่ `tracking_number` — สถานะ/สต็อก/เอกสารเป็นหน้าที่ของ `syncSingleOrder()` (push code 3) ทางเดียว (commit `bd63434f`) · แก้ชั้นนี้ทำให้บั๊กสต็อกของ `ab2d9d03` หายที่ต้นเหตุด้วย (ที่ sync ข้ามการตัดเพราะ `statusChanged === false` ก็เพราะ webhook เขียน SHIPPED ไปก่อน)
+- `deductOrderStockOnce` เปลี่ยนด่านจาก `if (history.deducted)` เป็น **`if (history.deducted && !history.released)`** — ของที่ตัดแล้วถูกคืนกลับเข้าคลังต้องตัดได้อีกเมื่อออกจริง ไม่งั้น 10 ใบที่ซ่อมจะไม่มีวันถูกตัดอีกเลย
+- ซ่อมข้อมูล 10 ใบ: `releaseOrderStockOnce` (คืนของ) → `reserveStock` (จองใหม่) → สถานะกลับเป็น `processing/PROCESSED` + ล้าง `fulfillment_status`/`shipped_at` · ลำดับใน `inventory_transactions` จึงอ่านได้ว่า `reserve → out → return → reserve`
+
+**ป้องกัน regression**
+- ⛔ **push ที่ไม่ได้บอกสถานะ ห้ามเดาสถานะให้** — เลขพัสดุ/เอกสาร/ที่อยู่ เป็นข้อมูลประกอบ ไม่ใช่สัญญาณว่าของเดินทางแล้ว
+- ก่อนสรุปว่า DB ถูกหรือผิด **ต้องถาม `get_order_detail` ของใบนั้น** ไม่ใช่ดูแค่ค่าที่ค้างใน DB หรือเดาจากเวลา (บทเรียนเดิม 2026-08-29)
+- `isStatusProgression()` ใน [lib/shopee/sync.ts](lib/shopee/sync.ts) กันสถานะถอยหลัง ⇒ **sync ซ่อมใบที่ถูกดันไปข้างหน้าไม่ได้** ต้องซ่อมด้วยสคริปต์ที่ยืนยันค่าจาก API ก่อนเขียน
+- เพิ่มการตัด/คืนสต็อกที่ไหนก็ตาม ให้ดู `history.released` คู่กับ `history.deducted` เสมอ
+
 ## 2026-09-18 — สร้างแบรนด์ใหม่พังทุกครั้ง: insert ส่งคอลัมน์ที่ไม่มีอยู่จริง
 
 **ที่เกิด**: [app/api/brands/route.ts](app/api/brands/route.ts) POST (+ PUT)
