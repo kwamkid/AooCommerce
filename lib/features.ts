@@ -215,6 +215,21 @@ export function detectPreset(f: FeatureFlags): BusinessPreset | null {
   return null;
 }
 
+/**
+ * **สวิตช์ที่เพิ่มทีหลังต้องถือว่า "เปิด" สำหรับร้านที่มีอยู่แล้ว**
+ *
+ * `storefront` · `counter_sales` · `broadcast` · `audience` เพิ่งกลายเป็นสวิตช์เมื่อ
+ * 17 ก.ย. 2026 — ก่อนหน้านั้นฟีเจอร์พวกนี้ **ใช้ได้เสมอ** ไม่มีสวิตช์ให้ปิด
+ * ร้านที่บันทึก settings ไว้ก่อนวันนั้นจึงไม่มีคีย์เหล่านี้ ถ้าตกไปใช้ DEFAULT_FEATURES
+ * (all-off) = **เมนูหายและ API 403 ทั้งที่เขาใช้งานอยู่**
+ * (เจอจริง: aDay Fresh มีบรอดแคสต์ 4 ใบ + กลุ่มเป้าหมาย 2 ชุด แต่คีย์เป็น null)
+ *
+ * ⛔ **เพิ่มสวิตช์ใหม่ครั้งต่อไปต้องทำแบบนี้ด้วย** — ฟีเจอร์ที่เคยใช้ได้เสมอแล้วมาใส่สวิตช์
+ * ทีหลัง ค่าเริ่มต้นของ "ร้านเก่า" ต้องเป็นเปิด ไม่ใช่ปิด · ร้านใหม่ไม่กระทบเพราะ
+ * onboarding เขียนค่าจาก PRESET_DEFAULTS ลงไปครบทุกคีย์อยู่แล้ว
+ */
+const GRANDFATHERED = true;
+
 // Parse features from company settings JSONB (handles missing/partial data)
 export function parseFeatures(settings: Record<string, unknown> | null | undefined): {
   preset: BusinessPreset;
@@ -249,10 +264,11 @@ export function parseFeatures(settings: Record<string, unknown> | null | undefin
         },
     marketplace_sync: stored.marketplace_sync ?? DEFAULT_FEATURES.marketplace_sync,
     pos: stored.pos ?? DEFAULT_FEATURES.pos,
-    storefront: stored.storefront ?? DEFAULT_FEATURES.storefront,
-    counter_sales: stored.counter_sales ?? DEFAULT_FEATURES.counter_sales,
-    broadcast: stored.broadcast ?? DEFAULT_FEATURES.broadcast,
-    audience: stored.audience ?? DEFAULT_FEATURES.audience,
+    // สวิตช์ที่เพิ่งมี — ร้านเก่ายังไม่มีคีย์เหล่านี้ใน settings จึงต้อง grandfather (ดูหมายเหตุด้านล่าง)
+    storefront: stored.storefront ?? GRANDFATHERED,
+    counter_sales: stored.counter_sales ?? GRANDFATHERED,
+    broadcast: stored.broadcast ?? GRANDFATHERED,
+    audience: stored.audience ?? GRANDFATHERED,
     consignment: stored.consignment ?? DEFAULT_FEATURES.consignment,
     product_brand: stored.product_brand ?? DEFAULT_FEATURES.product_brand,
     supplier: stored.supplier ?? DEFAULT_FEATURES.supplier,
