@@ -33,6 +33,7 @@ export type {
   MarketplaceBrand,
   ProductExportAccount,
 } from '@/lib/marketplace/product-export-adapter';
+import { sellingPrice } from '@/lib/product-display';
 export { getProductExportAdapter, exportPlatformLabel } from '@/lib/marketplace/product-export-adapter';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -189,6 +190,9 @@ export async function fetchProductForExport(
     .eq('company_id', companyId)
     .eq('product_id', productId)
     .eq('is_active', true)
+    // ⛔ ต้องกรอง `deleted_at` ด้วย — ตัวเลือกที่ลบจากฟอร์มถูก soft-delete โดย
+    // `is_active` ยังเป็น true อยู่ ⇒ กรองแค่ is_active จะส่งของที่ลบแล้วขึ้นร้าน
+    .is('deleted_at', null)
     .order('created_at', { ascending: true });
 
   // ข้อมูลยุคก่อนมี `company_id` บน `product_variations` ยังมีอยู่จริง — ตัวกรองด้านบน
@@ -200,6 +204,7 @@ export async function fetchProductForExport(
       .select(variationColumns)
       .eq('product_id', productId)
       .eq('is_active', true)
+      .is('deleted_at', null)
       .order('created_at', { ascending: true });
     rows = legacy || [];
   }
@@ -275,10 +280,7 @@ export async function fetchProductForExport(
   };
 }
 
-/** ราคาที่ลูกค้าจ่ายจริง — มีส่วนลดใช้ส่วนลด (กติกา discount < default ทั้งระบบ) */
-function sellingPrice(v: ExportVariationSource): number {
-  return v.discount_price > 0 ? v.discount_price : v.default_price;
-}
+
 
 /**
  * สินค้านี้ควรส่งขึ้นร้านเป็น "สินค้าเดี่ยว" หรือ "มีตัวเลือก"

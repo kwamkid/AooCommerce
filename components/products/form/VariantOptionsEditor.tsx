@@ -46,6 +46,12 @@ interface VariantOptionsEditorProps {
   showStock: boolean;
   /** regenerateRows refused the change (limits) */
   groupsError?: string | null;
+  /**
+   * ลบตัวเลือกทีละแถว — ต้องมี เพราะแถวที่มาจากการนำเข้า marketplace อาจซ้ำกัน
+   * (ชื่อเดียวกันคนละ SKU) ซึ่งฟอร์มสร้างเองไม่ได้ (`normalizeValues` กันค่าซ้ำ)
+   * แล้วผู้ใช้ก็ลบไม่ได้เลยถ้าไม่มีปุ่มนี้ · แถวที่บันทึกแล้วจะถูก soft-archive ที่ API
+   */
+  onDeleteRow: (row: VariantRow) => void;
 }
 
 // discount = สิ่งที่พิมพ์ในช่องลดเหลือ (฿ / % / ลดไป) — คิดเป็นราคาต่อแถวตอนกด "ใช้กับทุกแถว"
@@ -56,7 +62,7 @@ const DEFAULT_OFF_REASON = 'ตัวเลือกที่ปิดขาย�
 
 export default function VariantOptionsEditor({
   groups, onGroupsChange, rows, onRowsChange, variationTypes, onAddVariationType,
-  images, onImagesChange, errors, canViewCost, showStock, groupsError,
+  images, onImagesChange, errors, canViewCost, showStock, groupsError, onDeleteRow,
 }: VariantOptionsEditorProps) {
   const [bulk, setBulk] = useState<BulkState>(EMPTY_BULK);
   const groupNames = activeGroupNames(groups);
@@ -404,12 +410,26 @@ export default function VariantOptionsEditor({
                         </div>
                       </td>
                     )}
-                    <td className="px-3 py-3">
-                      <div className="h-[42px] flex items-center justify-center">
-                        <Toggle
-                          checked={row.is_active}
-                          onChange={v => updateRow(row._tempId, { is_active: v })}
-                          aria-label={`เปิดขาย ${row.variation_label}`}
+                    {/* สวิตช์กับปุ่มลบอยู่เซลล์เดียวกัน — คนละคอลัมน์ทำให้ห่างจนดูไม่ออกว่าของแถวไหน */}
+                    {/* สวิตช์กับปุ่มลบอยู่เซลล์เดียวกัน — แต่ต้อง `shrink-0` ทั้งคู่
+                        ไม่งั้น flex บีบสวิตช์จนกลมเสียรูป */}
+                    <td className="px-3 py-3 whitespace-nowrap">
+                      <div className="h-[42px] flex items-center justify-center gap-2">
+                        <span className="shrink-0">
+                          <Toggle
+                            checked={row.is_active}
+                            onChange={v => updateRow(row._tempId, { is_active: v })}
+                            aria-label={`เปิดขาย ${row.variation_label}`}
+                          />
+                        </span>
+                        <Button
+                          className="shrink-0"
+                          variant="ghost"
+                          size="sm"
+                          icon={<DeleteIcon className="w-4 h-4" />}
+                          onClick={() => onDeleteRow(row)}
+                          disabled={rows.length <= 1}
+                          aria-label={`ลบตัวเลือก ${row.variation_label}`}
                         />
                       </div>
                     </td>
@@ -444,11 +464,19 @@ export default function VariantOptionsEditor({
                     )}
                     <FieldError text={attrError(i)} />
                   </div>
-                  <div className="flex flex-col items-center gap-2">
+                  <div className="flex flex-col items-center gap-1">
                     <Toggle
                       checked={row.is_active}
                       onChange={v => updateRow(row._tempId, { is_active: v })}
                       aria-label={`เปิดขาย ${row.variation_label}`}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={<DeleteIcon className="w-4 h-4" />}
+                      onClick={() => onDeleteRow(row)}
+                      disabled={rows.length <= 1}
+                      aria-label={`ลบตัวเลือก ${row.variation_label}`}
                     />
                   </div>
                 </div>

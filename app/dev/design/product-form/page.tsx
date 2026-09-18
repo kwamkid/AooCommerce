@@ -38,6 +38,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useFeatures } from '@/lib/features-context';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
+import { discountPriceError } from '@/lib/product-display';
 
 type Scenario = 'create' | 'simple' | 'variation';
 
@@ -309,9 +310,8 @@ export default function ProductFormPlaygroundPage() {
     if (requireCode && !values.code.trim()) e.code = 'กรุณากรอกรหัสสินค้า';
     if (values.product_type === 'simple') {
       if (!(values.default_price > 0)) e.default_price = 'ราคาต้องมากกว่า 0';
-      if (values.discount_price > 0 && values.discount_price >= values.default_price) {
-        e.discount_price = 'ราคาลดเหลือต้องน้อยกว่าราคาปกติ';
-      }
+      const discountError = discountPriceError(values);
+      if (discountError) e.discount_price = discountError;
     } else if (values.product_type === 'variation') {
       Object.assign(e, validateOptionGroups(groups), validateVariantRows(rows, activeGroupNames(groups)));
     }
@@ -443,6 +443,7 @@ export default function ProductFormPlaygroundPage() {
                   onGroupsChange={changeGroups}
                   rows={rows}
                   onRowsChange={changeRows}
+                  onDeleteRow={(row) => changeRows(rows.filter(r => r._tempId !== row._tempId))}
                   variationTypes={variationTypes}
                   onAddVariationType={quickAdd}
                   images={variantImages}

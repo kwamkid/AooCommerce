@@ -45,6 +45,7 @@ import {
   activeGroupNames, groupsFromRows, regenerateRows, validateOptionGroups, validateVariantRows,
 } from '@/lib/product-variants';
 import { ShieldAlert } from 'lucide-react';
+import { discountPriceError } from '@/lib/product-display';
 
 // Variation as it comes from the API (edit mode)
 interface ApiVariation {
@@ -403,6 +404,43 @@ export default function ProductForm({
   };
 
   // ── variation options ──
+  /**
+   * ลบตัวเลือกทีละแถว
+   * แถวที่บันทึกแล้วจะหายจาก payload ตอนบันทึก แล้ว API soft-archive ให้ (`is_active=false`)
+   * — ห้าม hard-delete เพราะ `product_variations.id` ถูกอ้างจาก 19 ตาราง
+   * ค่าที่ไม่มีแถวไหนใช้แล้วต้องถอดออกจาก group ด้วย ไม่งั้น regenerate กลับมาใหม่
+   */
+  const handleDeleteRow = async (row: VariantRow) => {
+    if (rows.length <= 1) return;
+    if (row.id) {
+      const ok = await confirm({
+        title: `ลบตัวเลือก "${row.variation_label || row.sku || '-'}"?`,
+        description: 'จะหายจากสินค้านี้เมื่อกดบันทึก — ประวัติออเดอร์/สต็อกเดิมยังอยู่ครบใน DB\n\nถ้าแค่หยุดขายชั่วคราว ให้ปิดสวิตช์ "เปิดขาย" ของแถวนั้นแทน',
+        variant: 'danger',
+        confirmLabel: 'ลบ',
+        cancelLabel: 'ยกเลิก',
+      });
+      if (!ok) return;
+    }
+
+    const nextRows = rows.filter(r => r._tempId !== row._tempId);
+    setValues(v => ({ ...v, variations: nextRows }));
+    setVariationImages(prev => {
+      const updated = { ...prev };
+      delete updated[row._tempId];
+      return updated;
+    });
+
+    // ถอดค่าที่ไม่มีใครใช้แล้วออกจาก group (ไม่งั้นแถวถูกสร้างกลับมาตอนแตะตัวเลือก)
+    const stillUsed = (groupName: string, value: string) =>
+      nextRows.some(r => (r.attributes || {})[groupName] === value);
+    setGroups(prev => prev.map(g => {
+      const value = (row.attributes || {})[g.name];
+      if (!value || stillUsed(g.name, value)) return g;
+      return { ...g, values: g.values.filter(v => v !== value) };
+    }));
+  };
+
   const handleGroupsChange = async (next: OptionGroup[]) => {
     const result = regenerateRows(groups, next, rows, newRow);
     if (result.error) {
@@ -458,9 +496,8 @@ export default function ProductForm({
     } else if (values.product_type === 'simple') {
       if (!(values.default_price > 0)) e.default_price = 'ราคาต้องมากกว่า 0';
       // ราคาขาย 0 = ไม่มีส่วนลด (อนุญาต) · ถ้าใส่ต้องน้อยกว่าราคาปกติ
-      if (values.discount_price > 0 && values.discount_price >= values.default_price) {
-        e.discount_price = 'ราคาลดเหลือต้องน้อยกว่าราคาปกติ';
-      }
+      const discountError = discountPriceError(values);
+      if (discountError) e.discount_price = discountError;
     } else {
       Object.assign(e, validateOptionGroups(groups), validateVariantRows(rows, activeGroupNames(groups)));
     }
@@ -760,6 +797,7 @@ export default function ProductForm({
               canViewCost={canViewCost}
               showStock={isEditMode && !!features.stock}
               groupsError={groupsError}
+            onDeleteRow={handleDeleteRow}
             />
           }
           compositeNote={

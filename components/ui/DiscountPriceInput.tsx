@@ -112,7 +112,8 @@ export default function DiscountPriceInput({
   let hint: string | null = null;
   if (showHint && hasBase) {
     if (!(value > 0)) hint = emptyHint;
-    else if (summary) hint = `ลด ${fmtPercent(summary.percent)}% · ลด ${formatPrice(summary.amount)} ฿`;
+    // สั้นเข้าไว้ — ในตารางตัวเลือกคอลัมน์แคบ ข้อความยาวทำให้ "฿" ตกไปอยู่บรรทัดใหม่
+    else if (summary) hint = `ลด ${fmtPercent(summary.percent)}% · ${formatPrice(summary.amount)} ฿`;
   }
 
   const frameClass = `flex h-[42px] rounded-lg border bg-white dark:bg-slate-700 focus-within:ring-2 focus-within:ring-primary/40 focus-within:border-primary transition-colors ${
@@ -161,7 +162,7 @@ export default function DiscountPriceInput({
           </button>
         </Tooltip>
       </div>
-      {hint && <p className="helper-text mt-1">{hint}</p>}
+      {hint && <p className="helper-text mt-1 whitespace-nowrap">{hint}</p>}
 
       <Popover open={open} onClose={() => setOpen(false)} anchorRef={calcBtnRef} width={300} ariaLabel="คิดราคาลดเหลือ">
         <div className="p-3 space-y-3">

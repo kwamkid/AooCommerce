@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { resolveExportContext, isResponse, errorResponse } from '../helpers';
+import { sellingPrice } from '@/lib/product-display';
 
 export const maxDuration = 60;
 
@@ -147,6 +148,8 @@ export async function GET(request: NextRequest) {
       .eq('company_id', ctx.companyId)
       .in('product_id', productIds)
       .eq('is_active', true)
+      // ตัวเลือกที่ลบจากฟอร์มยัง `is_active = true` — ต้องดู `deleted_at` ด้วย
+      .is('deleted_at', null)
       .order('created_at', { ascending: true });
 
     const variations: Record<string, {
@@ -157,9 +160,7 @@ export async function GET(request: NextRequest) {
       default_price: number | null; discount_price: number | null;
     }[]) {
       // ราคาที่ลูกค้าจ่ายจริงในระบบ (มีส่วนลดใช้ส่วนลด — กติกาเดียวกับ `sellingPrice`)
-      const price = Number(row.discount_price || 0) > 0
-        ? Number(row.discount_price)
-        : Number(row.default_price || 0);
+      const price = sellingPrice(row);
       (variations[row.product_id] ||= []).push({
         id: row.id,
         label: row.variation_label || '',

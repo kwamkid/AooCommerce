@@ -41,7 +41,8 @@ import { useDebouncedCallback } from '@/lib/useDebounce';
 import { useServerSearch } from '@/lib/useServerSearch';
 import { formatPrice } from '@/lib/utils/format';
 import { MARKETPLACE_PLATFORMS } from '@/lib/marketplace/platforms';
-import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Package, Store, Unlink } from 'lucide-react';
+import { Unlink } from 'lucide-react';
+import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, ChevronUpIcon, ProductIcon, StoreIcon } from '@/lib/icons';
 
 const PAGE_SIZE = 30;
 const BACK_HREF = '/marketplace/sync';
@@ -840,7 +841,7 @@ function MarketplaceExportContent() {
 
   const header = (
     <PageHeader
-      icon={platform ? <PlatformIcon id={platform} /> : <Store />}
+      icon={platform ? <PlatformIcon id={platform} /> : <StoreIcon />}
       title={`ส่งสินค้าขึ้น ${label}`}
       subtitle={shopName || undefined}
       backHref={BACK_HREF}
@@ -1115,7 +1116,7 @@ function MarketplaceExportContent() {
 
             <div className="flex items-center justify-end gap-3 pt-1">
               <p className="helper-text text-gray-500">ทับเฉพาะช่องที่กรอกไว้ข้างบน</p>
-              <Button variant="primary" onClick={applyBulk} disabled={!bulkConfig.categoryId && !bulkConfig.weight}>
+              <Button variant="secondary" onClick={applyBulk} disabled={!bulkConfig.categoryId && !bulkConfig.weight}>
                 เติมให้ทุกรายการ ({selected.size})
               </Button>
             </div>
@@ -1172,7 +1173,7 @@ function MarketplaceExportContent() {
                   }`}
                 >
                   <div className="flex items-start gap-3">
-                    <ProductImageThumb src={product.main_image_url || product.image} alt={product.name} size="sm" fallbackIcon={<Package className="w-5 h-5" />} />
+                    <ProductImageThumb src={product.main_image_url || product.image} alt={product.name} size="sm" fallbackIcon={<ProductIcon className="w-5 h-5" />} />
                     <div className="min-w-0 flex-1">
                       <div className="body-text truncate">{product.name}</div>
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5">
@@ -1224,7 +1225,7 @@ function MarketplaceExportContent() {
                       size="sm"
                       variant="secondary"
                       aria-label={open ? 'ย่อรายละเอียด' : 'ขยายรายละเอียด'}
-                      icon={open ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      icon={open ? <ChevronUpIcon className="w-4 h-4" /> : <ChevronDownIcon className="w-4 h-4" />}
                       onClick={() => setToggledCards(prev => {
                         const next = new Set(prev);
                         if (next.has(product.product_id)) next.delete(product.product_id);
@@ -1311,7 +1312,8 @@ function MarketplaceExportContent() {
 
         <div className="flex justify-end gap-3">
           <Button variant="secondary" onClick={() => setStep('select')}>ย้อนกลับ</Button>
-          <ExportButton onClick={startExport} disabled={missingConfig.length > 0 || selected.size === 0}>
+          {/* ปุ่มลงมือจริงของขั้นนี้ต้องเป็นปุ่มสีเดียวในหน้า — ปุ่มอื่นเป็นตัวช่วยทั้งหมด */}
+          <ExportButton variant="primary" onClick={startExport} disabled={missingConfig.length > 0 || selected.size === 0}>
             ส่งขึ้น {label} ({selected.size})
           </ExportButton>
         </div>
@@ -1385,7 +1387,7 @@ function MarketplaceExportContent() {
           </Alert>
         ) : products.length === 0 ? (
           <EmptyCard
-            icon={<Package className="w-8 h-8" />}
+            icon={<ProductIcon className="w-8 h-8" />}
             title="ไม่พบสินค้า"
             subtitle={appliedSearch ? 'ลองเปลี่ยนคำค้น' : 'ยังไม่มีสินค้าในระบบที่ส่งขึ้นร้านได้'}
           />
@@ -1409,7 +1411,7 @@ function MarketplaceExportContent() {
                     <div className="pt-1">
                       <Checkbox checked={checked} onChange={() => toggleOne(product)} disabled={disabled} />
                     </div>
-                    <ProductImageThumb src={product.main_image_url || product.image} alt={product.name} size="sm" fallbackIcon={<Package className="w-5 h-5" />} />
+                    <ProductImageThumb src={product.main_image_url || product.image} alt={product.name} size="sm" fallbackIcon={<ProductIcon className="w-5 h-5" />} />
                     <div className="min-w-0 flex-1">
                       <div className="body-text truncate">{product.name}</div>
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5">
@@ -1440,11 +1442,11 @@ function MarketplaceExportContent() {
 
             {totalPages > 1 && (
               <div className="flex items-center justify-center gap-4 pt-2">
-                <Button size="sm" variant="secondary" disabled={page <= 1 || loading} onClick={() => goPage(page - 1)} icon={<ChevronLeft className="w-4 h-4" />}>
+                <Button size="sm" variant="secondary" disabled={page <= 1 || loading} onClick={() => goPage(page - 1)} icon={<ChevronLeftIcon className="w-4 h-4" />}>
                   ก่อนหน้า
                 </Button>
                 <span className="subtitle-text text-gray-500">หน้า {page}/{totalPages}</span>
-                <Button size="sm" variant="secondary" disabled={page >= totalPages || loading} onClick={() => goPage(page + 1)} iconRight={<ChevronRight className="w-4 h-4" />}>
+                <Button size="sm" variant="secondary" disabled={page >= totalPages || loading} onClick={() => goPage(page + 1)} iconRight={<ChevronRightIcon className="w-4 h-4" />}>
                   ถัดไป
                 </Button>
               </div>
@@ -1455,7 +1457,7 @@ function MarketplaceExportContent() {
 
       <div className="flex justify-end gap-3">
         <Button variant="secondary" onClick={() => router.push(BACK_HREF)}>ยกเลิก</Button>
-        <Button variant="primary" disabled={selected.size === 0} onClick={() => setStep('configure')} iconRight={<ChevronRight className="w-4 h-4" />}>
+        <Button variant="primary" disabled={selected.size === 0} onClick={() => setStep('configure')} iconRight={<ChevronRightIcon className="w-4 h-4" />}>
           ถัดไป ({selected.size})
         </Button>
       </div>
