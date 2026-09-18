@@ -15,6 +15,7 @@ import {
 } from '@/lib/shopee/push-handlers';
 import crypto from 'crypto';
 import { issueOrderDocuments } from '@/lib/documents/issue-order-documents';
+import { deductOrderStockOnce } from '@/lib/stock/order-stock';
 
 // Allow up to 60s — sync runs in background via after() but Vercel
 // still needs the function alive for background work to complete.
@@ -385,7 +386,7 @@ async function handleOrderTracking(
   // Find the order
   const { data: order } = await supabaseAdmin
     .from('orders')
-    .select('id, is_split')
+    .select('id, is_split, warehouse_id')
     .eq('company_id', account.company_id)
     .eq('external_order_sn', orderSn)
     .maybeSingle();
@@ -444,9 +445,31 @@ async function handleOrderTracking(
   } else {
     console.log(`[Shopee Webhook] Updated order tracking: ${orderSn} → ${trackingNo}${updatePayload.order_status ? ' (→ shipping)' : ''}`);
 
-    // Auto-issue document (ABB/REC) if status changed
     if (updatePayload.order_status) {
+      // Auto-issue document (ABB/REC)
       await issueOrderDocuments([order.id], account.company_id);
+
+      /**
+       * **ต้องตัดสต็อกที่นี่ด้วย ห้ามฝากไว้ให้ sync รอบถัดไป**
+       *
+       * บล็อกข้างบนเพิ่งเขียน `external_status = 'SHIPPED'` ลงไปแล้ว ⇒ ตัวซิงค์รอบถัดไป
+       * จะเห็น `statusChanged === false` แล้วข้ามทั้งบล็อกที่มี deductOrderStockOnce
+       * (lib/shopee/sync.ts) ⇒ ของออกจากคลังจริงแต่ยอดไม่เคยถูกตัด **ถาวร**
+       * เจอจริง 17 ก.ย. 2026 สองใบในวันเดียว (2609179BH1XS6K · 2609179H7AJ3D7)
+       *
+       * ตัวกลางกันตัดซ้ำจากหลักฐานใน inventory_transactions อยู่แล้ว เรียกซ้อนกับ
+       * sync ได้ไม่เป็นไร
+       */
+      const stock = await deductOrderStockOnce({
+        companyId: account.company_id,
+        orderId: order.id,
+        warehouseId: order.warehouse_id as string | null,
+        reference: `Shopee ${orderSn}`,
+        excludeAccountId: account.id,   // ร้านต้นทางตัดของตัวเองไปแล้ว
+      });
+      if (stock.errors.length > 0) {
+        console.error(`[Shopee Webhook] ตัดสต็อก ${orderSn} ไม่ครบ:`, stock.errors.join(' · '));
+      }
     }
   }
 }
