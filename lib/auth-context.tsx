@@ -50,7 +50,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 // ตัวนี้กันฝั่ง client · ขาดที่ไหนที่หนึ่งคือหน้านั้นเด้งไป /login หลัง hydrate
 // (เคยขาด '/store' ทำให้ลูกค้าที่ไม่ได้ล็อกอินเปิดหน้าร้านแล้วโดนเด้งออกทั้งหมด)
 // '/f/' = ลิงก์สั้นของไฟล์ที่ส่งในแชท — ลูกค้าเปิดโดยไม่มีบัญชีในระบบ
-const PUBLIC_ROUTES = ['/login', '/register', '/auth/callback', '/line-callback', '/onboarding', '/bills', '/transfers/receive', '/replenishments/receive', '/portal/consignment', '/supplier-portal', '/store', '/legal', '/install', '/f/'];
+// ⚠️ ต้องตรงกับ PUBLIC_PREFIXES ใน proxy.ts — แก้ที่เดียวไม่พอ
+const PUBLIC_ROUTES = ['/login', '/register', '/auth/callback', '/line-callback', '/onboarding', '/bills', '/transfers/receive', '/replenishments/receive', '/po/', '/department-orders/receive', '/portal/consignment', '/supplier-portal', '/store', '/legal', '/install', '/f/'];
 const STORAGE_KEY = 'aoo-current-company-id';
 const AUTH_CACHE_KEY = 'aoo-auth-cache';
 const AUTH_CACHE_TTL = 30 * 60 * 1000; // 30 minutes — refreshed on role/company changes

@@ -29,6 +29,12 @@ const PUBLIC_PREFIXES = [
   '/bills',
   '/transfers/receive',
   '/replenishments/receive',
+  // ใบสั่งซื้อที่ส่งให้ซัพพลายเออร์ · ใบรับของของห้าง — เปิดด้วย token ในลิงก์
+  // คนนอกไม่มีบัญชีในระบบ เด้งไป /login = ลิงก์ที่ส่งไปใช้ไม่ได้เลย
+  // ⚠️ `/po` ทั้งก้อนเป็นหน้า token อยู่แล้ว · `/department-orders` ต้องเจาะเฉพาะ
+  //    `/receive` เพราะที่เหลือเป็นหน้าในแอปที่ต้องล็อกอิน
+  '/po/',
+  '/department-orders/receive',
   '/portal/consignment',
   '/supplier-portal',
   '/invite/',
