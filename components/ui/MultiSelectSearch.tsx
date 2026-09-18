@@ -1,5 +1,8 @@
 'use client';
 
+// ⛔ ขนาดตัวอักษรต้องเท่า FormSelect เสมอ (trigger `.form-control-md` = 16px · รายการ `text-base`)
+//    สองตัวนี้วางคู่กันในฟอร์มเดียวตลอด ย่อตัวไหนเล็กกว่าอีกตัวแล้วเห็นเป็นคนละระบบทันที
+
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, X, Check, ChevronDown } from 'lucide-react';
@@ -152,11 +155,11 @@ export default function MultiSelectSearch({
         {icon && <span className="flex-shrink-0 text-gray-400">{icon}</span>}
         <div className="flex-1 min-w-0 flex flex-wrap items-center gap-1.5">
           {selectedOptions.length === 0 ? (
-            <span className="text-gray-400 dark:text-slate-500 text-sm">
+            <span className="text-gray-400 dark:text-slate-500 text-base">
               {emptyLabel || placeholder}
             </span>
           ) : triggerStyle === 'count' ? (
-            <span className="text-sm text-gray-700 dark:text-slate-300">
+            <span className="text-base text-gray-700 dark:text-slate-300">
               เลือกแล้ว {selectedOptions.length} รายการ
             </span>
           ) : (
@@ -166,7 +169,7 @@ export default function MultiSelectSearch({
                   key={opt.id}
                   // ⛔ ห้ามกลับไปใช้โทนส้ม/แดงของแบรนด์ — ชิปพวกนี้คือ "ค่าที่เลือกไว้แล้ว"
                   // ไม่ใช่ข้อผิดพลาด แต่คนอ่านเป็น error ทันทีเมื่อเป็นโทนแดง (เจ้าของท้วง 18 ก.ย. 2026)
-                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 rounded-md text-sm font-medium border border-emerald-200 dark:border-emerald-800/50"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 rounded-md text-base font-medium border border-emerald-200 dark:border-emerald-800/50"
                 >
                   {opt.icon}
                   <span className="truncate max-w-[180px]">{opt.label}</span>
@@ -180,7 +183,7 @@ export default function MultiSelectSearch({
                 </span>
               ))}
               {hiddenCount > 0 && (
-                <span className="text-xs text-gray-500 dark:text-slate-400 px-1">+{hiddenCount} เพิ่มเติม</span>
+                <span className="text-sm text-gray-500 dark:text-slate-400 px-1">+{hiddenCount} เพิ่มเติม</span>
               )}
             </>
           )}
@@ -214,14 +217,14 @@ export default function MultiSelectSearch({
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder={searchPlaceholder}
-                className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary bg-white dark:bg-slate-700/50 text-gray-900 dark:text-white"
+                className="w-full pl-8 pr-3 py-2 text-base border border-gray-200 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary bg-white dark:bg-slate-700/50 text-gray-900 dark:text-white"
               />
             </div>
             {showSelectAll && filteredOptions.length > 0 && (
               <button
                 type="button"
                 onClick={handleSelectAllFiltered}
-                className="mt-1.5 w-full text-left px-2 py-1 text-xs text-primary hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded font-medium"
+                className="mt-1.5 w-full text-left px-2 py-1 text-sm text-primary hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded font-medium"
               >
                 {allFilteredSelected
                   ? `ยกเลิกการเลือกทั้งหมด${search ? ' (ที่ค้นหา)' : ''} (${filteredOptions.length})`
@@ -233,7 +236,7 @@ export default function MultiSelectSearch({
           {/* Options list */}
           <div className="max-h-72 overflow-y-auto">
             {filteredOptions.length === 0 ? (
-              <div className="px-4 py-6 text-center text-sm text-gray-400 dark:text-slate-500">
+              <div className="px-4 py-6 text-center text-base text-gray-400 dark:text-slate-500">
                 ไม่พบรายการ
               </div>
             ) : (
@@ -257,7 +260,7 @@ export default function MultiSelectSearch({
                     </div>
                     {opt.icon && <span className="flex-shrink-0">{opt.icon}</span>}
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm text-gray-900 dark:text-white truncate">{opt.label}</div>
+                      <div className="text-base text-gray-900 dark:text-white truncate">{opt.label}</div>
                       {opt.subtitle && (
                         <div className="text-xs text-gray-400 dark:text-slate-500 truncate">{opt.subtitle}</div>
                       )}
@@ -270,7 +273,7 @@ export default function MultiSelectSearch({
 
           {/* Footer summary */}
           {selectedOptions.length > 0 && (
-            <div className="px-3 py-2 border-t border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-700/30 text-xs text-gray-500 dark:text-slate-400 flex items-center justify-between">
+            <div className="px-3 py-2 border-t border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-700/30 text-sm text-gray-500 dark:text-slate-400 flex items-center justify-between">
               <span>เลือกแล้ว {selectedOptions.length} รายการ</span>
               <button
                 type="button"
