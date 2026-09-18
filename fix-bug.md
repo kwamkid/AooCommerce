@@ -16,6 +16,60 @@
 
 ---
 
+## 2026-09-18 — สร้างแบรนด์ใหม่พังทุกครั้ง: insert ส่งคอลัมน์ที่ไม่มีอยู่จริง
+
+**ที่เกิด**: [app/api/brands/route.ts](app/api/brands/route.ts) POST (+ PUT)
+**อาการ**: กด "เพิ่มแบรนด์" แล้วขึ้นบันทึกไม่สำเร็จทุกครั้ง (PGRST204 column not found) — พังตั้งแต่ commit `f4933be9` จนถึง `874ae2b2`
+**Root cause**: ตอนรวมฟอร์มเพิ่ม/แก้แบรนด์เป็นใบเดียว เพิ่ม `default_gp_rate` / `gp_base_price` เข้า insert ของ POST โดยอ่านชื่อฟิลด์จาก **โค้ด PUT เดิม** ที่ส่งสองคีย์นี้อยู่ก่อนแล้ว — แต่ `product_brands` **ไม่เคยมีสองคอลัมน์นี้จริง** (มี 9 คอลัมน์: id · company_id · name · logo_url · sort_order · is_active · created_at · supplier_id · slug) · PUT เดิมรอดมาตลอดเพราะ UI ไม่เคยส่งค่ามา · GP ระดับแบรนด์ที่ `lib/gp-resolver.ts` อ่านจริงคือ `companies.settings.brand_gp_overrides` (ตั้งที่ ตั้งค่า › ลูกค้าธุรกิจ) ไม่ใช่คอลัมน์บนตาราง
+**วิธีแก้**: ถอดสองคีย์ออกจากทั้ง POST/PUT และจากฟอร์ม (commit `874ae2b2` โดยอีก session)
+**ป้องกัน regression**: ⛔ **ก่อนเพิ่มฟิลด์ใน insert/update ต้องยืนยันจาก `information_schema.columns` ก่อนเสมอ** — ห้ามเชื่อว่า "โค้ดเดิมส่งอยู่แล้วแปลว่าคอลัมน์มีจริง" (สาขาที่ไม่มีใครเรียกจะพังเงียบมาได้เป็นปี) · ช่องกรอกที่ไม่มีที่เก็บจริงต้องไม่มีในฟอร์ม — คนกรอกแล้วค่าหายเงียบแย่กว่าไม่มีช่อง
+
+## 2026-09-18 — รายการผลค้นหาในโมดัลลอยไปทับช่องกรอกของตัวเอง
+
+**ที่เกิด**: [components/ui/EntitySearchInput.tsx](components/ui/EntitySearchInput.tsx)
+**อาการ**: ในโมดัล (ฟอร์มแบรนด์) พิมพ์ค้นหา Supplier แล้วรายการผลลัพธ์ทับช่องกรอกจนมองไม่เห็นสิ่งที่พิมพ์
+**Root cause**: ตัวนี้เป็นของกลางตัวเดียวในบ้านที่ยังคำนวณ `position: fixed` เองแล้ววาด dropdown ไว้**ในต้นไม้ DOM ของฟอร์ม** (ไม่ได้ portal) — ตำแหน่ง fixed เพี้ยนทันทีที่มี ancestor สร้าง containing block และไม่มีตรรกะพลิกขึ้นเมื่อที่ว่างด้านล่างไม่พอ · ของกลางตัวอื่น (FormSelect · ProductSearchInput · ActionMenu · Popover · Tooltip · HelpHint · ThaiAddressInput · MonthYearPicker) ใช้ `useDropUp` + `createPortal` กันหมดแล้ว
+**วิธีแก้**: วาดที่ `document.body` ผ่าน `createPortal` + `useDropUp` (`recalcOnScroll` · `layout`) · `z-[9999]` · เพิ่มข้อยกเว้นให้ handler กดนอกกล่อง ไม่งั้นกดเลือกในรายการจะถูกนับว่า "กดข้างนอก" แล้วปิดก่อน `onClick` ทำงาน (commit `f4933be9`)
+**ป้องกัน regression**: ⛔ **ของลอยทุกชิ้นต้อง portal + `useDropUp` เสมอ** ห้ามคำนวณ `position: fixed` เองในไฟล์ · ย้ายไป portal เมื่อไหร่ ต้องแก้ตรรกะ "กดนอกกล่อง" ให้ยกเว้นกล่องที่ portal ไปด้วยทุกครั้ง
+
+## 2026-09-18 — บิลจากหน้าร้านออนไลน์ไม่มีต้นทุนเลยตั้งแต่เปิดใช้
+
+**ที่เกิด**: [app/api/storefront/checkout/route.ts](app/api/storefront/checkout/route.ts) ตอน insert `order_items`
+**อาการ**: รายงานกำไรนับออเดอร์จากหน้าร้านเป็น**กำไรเต็มราคาขาย** เพราะ `unit_cost` เป็น null ทุกบรรทัด
+**Root cause**: ทางขายอื่นทุกทาง (บิลตรง · POS · ออเดอร์ห้าง · Shopee/Lazada/TikTok) เรียก `fetchCostMap()` แล้ว snapshot ต้นทุนลงบรรทัด แต่ checkout ของหน้าร้านเขียน insert ของตัวเองโดยไม่มีคีย์ `unit_cost` เลย — ไม่มีใครสังเกตเพราะไม่มี error, แค่ตัวเลขกำไรสูงเกินจริง
+**วิธีแก้**: เรียก `fetchCostMap` (พร้อม `salePrices`) แล้ว snapshot เหมือนทางอื่น (commit `cff91f28`)
+**ป้องกัน regression**: ⛔ **เพิ่มทางขายใหม่ = ต้องผ่าน `fetchCostMap()`** ห้าม insert `order_items` โดยไม่มี `unit_cost` · ตรวจด้วย `select count(*) from order_items where unit_cost is null` แยกตาม `orders.source` เป็นระยะ
+
+## 2026-09-18 — webhook Shopee เลื่อนสถานะเป็น SHIPPED เอง แล้วของไม่เคยถูกตัดถาวร
+
+**ที่เกิด**: [app/api/shopee/webhook/route.ts](app/api/shopee/webhook/route.ts) `order_tracking` · [lib/shopee/sync.ts](lib/shopee/sync.ts) เงื่อนไข `statusChanged`
+**อาการ**: ออเดอร์ Shopee ที่ขนส่งมารับแล้ว ของออกจากคลังจริงแต่ยอดคงคลังไม่ลด — เจอ 2 ใบในวันเดียว (17 ก.ย. · `2609179BH1XS6K` · `2609179H7AJ3D7`) **หลังจากทำ service กลางครบแล้ว**
+**Root cause**: สองเส้นทางชนกัน — (1) webhook เห็นเลขพัสดุแล้วเขียน `order_status='shipping'` + `external_status='SHIPPED'` เอง ออกเอกสารให้ด้วย **แต่ไม่ตัดสต็อก** (2) ตัวซิงค์ตัดสต็อกใต้ `statusChanged = existing.external_status !== shopeeOrder.order_status` ⇒ พอ webhook เขียน SHIPPED ไปก่อน รอบถัดไปเห็นว่า "ไม่เปลี่ยน" จึงข้ามทั้งบล็อกที่มี `deductOrderStockOnce` — **ไม่มีรอบไหนมาตัดให้อีกเลย** · ไม่ใช่บั๊กของตัวกลาง — ตัวกลางไม่เคยถูกเรียกในเส้นทางนี้ เป็นเส้นทางที่ตกสำรวจตอนย้ายมาใช้ service กลาง
+**วิธีแก้**: webhook เรียก `deductOrderStockOnce` เองตรงจุดที่เลื่อนสถานะ (ที่เดียวกับที่ออกเอกสารอยู่แล้ว) — ตัวกลางกันตัดซ้ำจากหลักฐานใน `inventory_transactions` เรียกซ้อนกับ sync ได้ · ซ่อมข้อมูล 5 ใบที่ค้าง + ยอดติดลบ 2 แถว → 0 (commit ab2d9d03)
+**ป้องกัน regression**: ⛔ **เส้นทางไหนที่เลื่อนสถานะออเดอร์เอง ต้องเรียก service สต็อกเองด้วย** ห้ามฝากไว้ให้ sync รอบถัดไป เพราะ sync ตัดสินจาก "สถานะเปลี่ยนไหม" ซึ่งกลายเป็นเท็จถาวรทันทีที่มีคนเขียนสถานะไปก่อน (webhook · bulk-ship · ปุ่มในหน้าออเดอร์) · ⛔ ตรวจ "ส่งแล้วไม่ตัด" เป็นระยะด้วย query เทียบ `inventory_transactions` ต่อออเดอร์ อย่ารอให้คนมาทัก
+
+## 2026-09-18 — เพิ่มสวิตช์ฟีเจอร์ใหม่ แล้วร้านเก่าถูกปิดฟีเจอร์ไปเงียบ ๆ
+
+**ที่เกิด**: [lib/features.ts](lib/features.ts) `parseFeatures()` · `DEFAULT_FEATURES`
+**อาการ**: ร้านที่ใช้บรอดแคสต์/หน้าร้านอยู่ **เมนูหายและ API ตอบ 403** หลัง deploy (aDay Fresh มีบรอดแคสต์ 4 ใบ + กลุ่มเป้าหมาย 2 ชุด แต่เข้าไม่ได้)
+**Root cause**: `storefront` · `counter_sales` · `broadcast` · `audience` เพิ่งกลายเป็นสวิตช์ (commit 4359265a) — ก่อนหน้านั้น**ใช้ได้เสมอ ไม่มีสวิตช์ให้ปิด** · ร้านที่บันทึก `settings.features` ไว้ก่อนวันนั้นไม่มีคีย์เหล่านี้ จึงตกไปใช้ `DEFAULT_FEATURES` ซึ่งเป็น all-off โดยตั้งใจ (ไว้กัน UI กระพริบตอนโหลด) ⇒ อ่านได้ว่า "ปิด"
+**วิธีแก้**: สี่คีย์นี้ตกไปใช้ค่า `GRANDFATHERED = true` แทน `DEFAULT_FEATURES` — ร้านใหม่ไม่กระทบเพราะ onboarding เขียนค่าจาก `PRESET_DEFAULTS` ครบทุกคีย์ และค่าจะถูกเขียนลง DB เองครั้งแรกที่กดบันทึกหน้า Feature เสริม (commit b9be5916)
+**ป้องกัน regression**: ⛔ **เพิ่มสวิตช์ให้ฟีเจอร์ที่เคยใช้ได้เสมอ ค่าเริ่มต้นของ "ร้านเก่า" ต้องเป็นเปิด ไม่ใช่ปิด** — `?? DEFAULT_FEATURES.x` ถูกเฉพาะกับฟีเจอร์ที่เกิดมาพร้อมสวิตช์ · หลัง deploy ให้ query `settings->'features'->>'<คีย์ใหม่'` เทียบกับร่องรอยการใช้งานจริง (แถวใน `broadcasts` / `audiences` / `settings->'storefront'`) เพื่อยืนยันว่าไม่มีร้านไหนถูกปิดโดยไม่ตั้งใจ
+
+## 2026-09-18 — ส่งสินค้าขึ้น TikTok ไม่ได้เลยสักตัว: 3 บั๊กซ้อนกันคนละชั้น
+
+**ที่เกิด**: [app/marketplace/export/page.tsx](app/marketplace/export/page.tsx) · [lib/marketplace/product-export.ts](lib/marketplace/product-export.ts) · [lib/tiktok/product-export-adapter.ts](lib/tiktok/product-export-adapter.ts)
+**อาการ**: กดส่งแล้ว `POST /api/marketplace/products/export` ตอบ **404** → แก้แล้วเจอ "ยังไม่มีตัวเลือก/ราคา" **ทุกตัว** → แก้แล้วเจอ TikTok ตีกลับ `12052217 category_version` ทั้ง 29 รายการ (สำเร็จ 0 ทุกรอบ)
+**Root cause**: 3 ชั้นคนละสาเหตุ
+ 1. **404 ไม่ใช่ route หาย** — หน้า export/import ยิง `fetch` ตรง (เพราะ SSE อ่านเป็น json ไม่ได้) จึง**ไม่ได้แนบ `X-Company-Id`** ที่ `apiFetch` แนบให้ปกติ ⇒ [lib/supabase-admin.ts](lib/supabase-admin.ts) ตกไปใช้ **บริษัทแรกของ user (เรียงตาม `joined_at`)** → หา `marketplace_accounts` ไม่เจอ → 404 "ไม่พบร้านนี้" · GET หมวด/แบรนด์ผ่านหมดเพราะใช้ `apiFetch`
+ 2. **`fetchProductForExport` เรียงด้วย `sort_order` ซึ่ง `product_variations` ไม่มีคอลัมน์นี้** (มีแต่ `created_at`) — โค้ดรับแค่ `{ data }` ไม่อ่าน `error` ⇒ `data = null` เงียบ ๆ แล้วตกไป fallback ชั้น legacy ที่**ใช้ `sort_order` เหมือนกัน** → ว่างทั้งคู่ → ทุกสินค้าถูกตัดสินว่า "ไม่มีตัวเลือก"
+ 3. **ร้านฝั่ง SEA (ไทยด้วย) บังคับต้นไม้หมวดหมู่ v2** แต่เราไม่เคยส่ง `category_version` เลย → API ถือเป็น v1 (ค่า default) แล้วตีกลับตอนสร้างสินค้า
+**วิธีแก้**: (1) แนบ `X-Company-Id` จาก localStorage ในทั้งสองหน้าที่ยิง fetch ตรง (2) `.order('created_at')` ทั้งสองชั้น (3) `CATEGORY_VERSION = 'v2'` ส่งครบ 3 ขา — อ่านหมวด · อ่าน attribute · สร้างสินค้า (id คนละต้นไม้กัน ส่งครึ่งเดียวยิ่งพัง)
+**ป้องกัน regression**:
+ - ⛔ **ยิง `fetch` ตรงเข้า `/api` เมื่อไหร่ ต้องแนบ `Authorization` + `X-Company-Id` เองทั้งคู่** — ขาด `X-Company-Id` ไม่ได้ 401 แต่ได้ **บริษัทผิด** ซึ่งอ่านออกมาเป็น 404 "ไม่พบ" (บัญชีที่มีบริษัทเดียวจะไม่เจอบั๊กนี้เลย)
+ - ⛔ **query ที่ `.order()` ด้วยคอลัมน์ที่ไม่มีจริง ล้มเงียบ** — `{ data }` เป็น null โดยไม่มี error ให้เห็น · fallback ที่ copy query เดิมมาทั้งก้อนจะพังพร้อมกันเสมอ ต้องต่างกันจริงถึงเรียกว่า fallback
+ - เพิ่มค่าใหม่ให้ payload ของแพลตฟอร์ม ให้เช็ค OAS จริงก่อน (skill `tts-openapi-guide`) ไม่เดาจากความจำ
+
 ## 2026-09-17 — หน้าร้านโชว์สินค้าที่ซื้อไม่ได้ 62 ตัว: ตัวกรองกับตัวแสดงผลนับคนละคลัง
 
 **ที่เกิด**: RPC `get_storefront_catalog` vs `fetchAvailability()` ใน [lib/storefront-server.ts](lib/storefront-server.ts)
