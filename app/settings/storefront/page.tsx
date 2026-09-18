@@ -38,7 +38,8 @@ import CopyField from '@/components/ui/CopyField';
 import { useCompany } from '@/lib/company-context';
 import OptionCards from '@/components/ui/OptionCards';
 import { Check, ChevronDown, Loader2, X } from 'lucide-react';
-import { ExternalLink, Globe, KeyRound, Palette, PauseCircle, Plus, Store } from 'lucide-react';
+import { ExternalLink, Globe, KeyRound, Link2, Palette, PauseCircle, Plus, Store } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import Tabs from '@/components/ui/Tabs';
 import { useFeatures } from '@/lib/features-context';
 
@@ -258,6 +259,7 @@ const PREVIEW_SEED = [
 export default function StorefrontSettingsPage() {
   const { allowed, loading: guardLoading } = useAuthGuard('settings.access', { noRedirect: true });
   const { showToast } = useToast();
+  const router = useRouter();
   const { confirmDialog, confirm } = useConfirmDialog();
   const { currentCompany } = useCompany();
 
@@ -673,6 +675,22 @@ export default function StorefrontSettingsPage() {
                   ? `${cfg.public_base_url}${cfg.public_base_path}`
                   : `${origin}/store/${storefrontSlug.trim() || 'ชื่อลิงก์ของคุณ'}`}
               </p>
+
+              {/* ลิงก์รายสินค้าอยู่คนละชั้นกับชื่อร้าน — แยกเป็นหน้าของตัวเอง และทางเข้าอยู่ที่นี่
+                  ที่เดียว (ไม่ปล่อยให้เข้าจากหน้าสินค้า เพราะคนแก้สินค้ากับคนดูแลลิงก์/SEO
+                  มักไม่ใช่คนเดียวกัน และจะงงว่าทำไมมีช่องลิงก์สองที่) */}
+              {slug && (
+                <div className="mt-4 border-t border-gray-100 pt-4 dark:border-slate-700">
+                  <p className="heading-4 mb-1">ลิงก์รายสินค้า</p>
+                  <p className="section-desc mb-3">
+                    ชื่อที่ต่อท้าย <span className="break-all">/p/</span> ของสินค้าแต่ละตัว — ระบบตั้งให้จากชื่อสินค้าตอนสร้าง
+                    แก้ทีละหลายตัวได้ที่หน้าจัดการ พร้อมปุ่มย่อลิงก์ที่ยาวเกิน
+                  </p>
+                  <Button variant="secondary" icon={<Link2 />} onClick={() => router.push('/settings/storefront/links')}>
+                    จัดการลิงก์สินค้า
+                  </Button>
+                </div>
+              )}
             </Card>
 
             {/* คลังที่ใช้ขาย — ขึ้นเฉพาะร้านที่เปิดระบบคลัง
