@@ -20,6 +20,8 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Alert from '@/components/ui/Alert';
 import PageHeader from '@/components/ui/PageHeader';
+import Tabs from '@/components/ui/Tabs';
+import PriceInlineTable from '@/components/bulk/PriceInlineTable';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { LoadingCard, EmptyCard, NoPermissionCard, DoneCard } from '@/components/ui/StateCard';
 import Badge from '@/components/ui/Badge';
@@ -141,6 +143,8 @@ export default function BulkPricePage() {
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<ProductStatusFilter>('active');
   const [exporting, setExporting] = useState(false);
+  /** แก้บนตาราง (ค่าเริ่มต้น) หรือผ่านไฟล์ Excel */
+  const [mode, setMode] = useState<'table' | 'excel'>('table');
 
   // flow อัปไฟล์ → dry-run → ยืนยัน → Apply อยู่ที่ hook กลาง (lib/bulk/use-bulk-apply)
   const {
@@ -340,7 +344,26 @@ export default function BulkPricePage() {
           backHref="/products/bulk"
         />
 
+        {/* แก้ได้ 2 ทางในหน้าเดียว (เจ้าของกำหนด 17 ก.ย. 2569):
+            ① ตารางแก้สดบนเว็บ — เร็วเมื่อแก้ไม่กี่ตัว เห็นผลทันที
+            ② ไฟล์ Excel — คุ้มเมื่อต้องพิมพ์ค่าเองเยอะ ๆ หรืออยากแก้นอกระบบ
+            ⛔ แท็บนี้ขึ้นเฉพาะตอนยังไม่เริ่ม flow ไฟล์ (step === 'upload') ไม่งั้นคนกดสลับ
+               กลางทางแล้วงานที่ตรวจไว้หาย */}
         {step === 'upload' && (
+          <Tabs
+            tabs={[
+              { key: 'table', label: 'แก้บนตาราง' },
+              { key: 'excel', label: 'ไฟล์ Excel' },
+            ]}
+            activeKey={mode}
+            onSelect={key => setMode(key as 'table' | 'excel')}
+            fill
+          />
+        )}
+
+        {step === 'upload' && mode === 'table' && <PriceInlineTable canEditCost={canEditCost} />}
+
+        {step === 'upload' && mode === 'excel' && (
           <div className="space-y-4">
             <Alert tone="warning" title="หน้านี้สำหรับแก้ไขราคาสินค้าที่มีอยู่แล้วเท่านั้น">
               <span>
