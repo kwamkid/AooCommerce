@@ -3,7 +3,6 @@
 
 import { useState, useRef, useEffect } from 'react';
 import BrandFormModal from '@/components/brands/BrandFormModal';
-import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import StickyActionBar from '@/components/ui/StickyActionBar';
 import {
@@ -18,6 +17,7 @@ import {
 import { THAI_BANKS, getBankByCode } from '@/lib/constants/banks';
 import Checkbox from '@/components/ui/Checkbox';
 import FormSelect from '@/components/ui/FormSelect';
+import MultiSelectSearch from '@/components/ui/MultiSelectSearch';
 import FormField from '@/components/ui/FormField';
 import FormInput from '@/components/ui/FormInput';
 import NumberInput from '@/components/ui/NumberInput';
@@ -148,13 +148,10 @@ export default function SupplierForm({
   }, [compact]);
 
   const selectedBrandIds = form.brand_ids || [];
-  const availableBrands = allBrands.filter(b => !selectedBrandIds.includes(b.id));
 
+  /** แบรนด์ที่เพิ่งสร้างจากโมดัล — ผูกกับ Supplier รายนี้ทันทีโดยไม่ต้องไปเลือกซ้ำ */
   const addBrandId = (id: string) => {
     setForm(prev => ({ ...prev, brand_ids: [...(prev.brand_ids || []), id] }));
-  };
-  const removeBrandId = (id: string) => {
-    setForm(prev => ({ ...prev, brand_ids: (prev.brand_ids || []).filter(bid => bid !== id) }));
   };
   const handleBrandCreated = (created: { id: string; name: string }) => {
     setAllBrands(prev => (prev.some(b => b.id === created.id) ? prev : [...prev, { id: created.id, name: created.name }]));
@@ -471,7 +468,9 @@ export default function SupplierForm({
           {/* ข้อมูลติดต่อ */}
           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-6 space-y-4">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">ข้อมูลติดต่อ</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {/* ⛔ ห้ามกลับไป sm:grid-cols-3 — การ์ดนี้กว้างครึ่งจอ ช่องจะแคบจนอ่านค่าไม่ออก
+                (เบอร์โทร/อีเมลโดนตัดกลางคัน) · 3 ช่องต่อแถวเอาเฉพาะจอกว้างจริง ๆ */}
+            <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4">
               <FormInput
                 label="ชื่อผู้ติดต่อ"
                 value={form.contact_name}
@@ -502,19 +501,22 @@ export default function SupplierForm({
           {/* ข้อมูลการเงิน */}
           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-6 space-y-4">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">ข้อมูลการเงิน</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>{bankDropdown}</div>
-              <FormInput
-                label="เลขบัญชี"
-                value={form.bank_account}
-                onChange={e => updateField('bank_account', e.target.value)}
-                placeholder="xxx-x-xxxxx-x"
-              />
-              <FormInput
-                label="ชื่อบัญชี"
-                value={form.bank_account_name}
-                onChange={e => updateField('bank_account_name', e.target.value)}
-              />
+            {/* ธนาคารอยู่แถวของตัวเอง (ตัวเลือกยาว) · เลขบัญชี+ชื่อบัญชีแบ่งสองช่องเมื่อมีที่พอ */}
+            <div className="space-y-4">
+              {bankDropdown}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormInput
+                  label="เลขบัญชี"
+                  value={form.bank_account}
+                  onChange={e => updateField('bank_account', e.target.value)}
+                  placeholder="xxx-x-xxxxx-x"
+                />
+                <FormInput
+                  label="ชื่อบัญชี"
+                  value={form.bank_account_name}
+                  onChange={e => updateField('bank_account_name', e.target.value)}
+                />
+              </div>
             </div>
           </div>
 
@@ -525,37 +527,22 @@ export default function SupplierForm({
               แบรนด์
             </h2>
 
-            {/* แบรนด์ที่ผูกอยู่ */}
-            {selectedBrandIds.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {selectedBrandIds.map(id => {
-                  const brand = allBrands.find(b => b.id === id);
-                  if (!brand) return null;
-                  return (
-                    <Badge key={id} tone="orange" onRemove={() => removeBrandId(id)} removeLabel={`นำ ${brand.name} ออก`}>
-                      {brand.name}
-                    </Badge>
-                  );
-                })}
-              </div>
-            )}
+            {/* เลือกหลายแบรนด์ในทีเดียว — ตัวเดียวกับที่ใช้เลือกคุณสมบัติตอนส่งสินค้าขึ้นร้าน
+                (ชิปของที่เลือกอยู่ในตัวช่องแล้ว ไม่ต้องมีแถวชิปแยกอีก) */}
+            <MultiSelectSearch
+              value={selectedBrandIds}
+              onChange={ids => setForm(prev => ({ ...prev, brand_ids: ids }))}
+              options={allBrands.map(b => ({ id: b.id, label: b.name }))}
+              placeholder="เลือกแบรนด์ของ Supplier รายนี้..."
+              searchPlaceholder="พิมพ์ชื่อแบรนด์..."
+              emptyLabel="ยังไม่ได้ผูกแบรนด์"
+              icon={<Tag className="w-4 h-4" />}
+            />
 
-            <div className="flex flex-wrap items-center gap-2">
-              {availableBrands.length > 0 && (
-                <div className="min-w-0 flex-1">
-                  <FormSelect
-                    value=""
-                    onChange={value => { if (value) addBrandId(value); }}
-                    options={availableBrands.map(b => ({ id: b.id, label: b.name }))}
-                    placeholder="เลือกแบรนด์ที่มีอยู่..."
-                  />
-                </div>
-              )}
-              {/* สร้างแบรนด์ใหม่ที่ผูกกับ Supplier รายนี้ทันที — ฟอร์มเดียวกับหน้าแบรนด์ */}
-              <Button variant="secondary" icon={<Plus />} onClick={() => setBrandModalOpen(true)}>
-                เพิ่มแบรนด์
-              </Button>
-            </div>
+            {/* สร้างแบรนด์ใหม่ที่ผูกกับ Supplier รายนี้ทันที — ฟอร์มเดียวกับหน้าแบรนด์ */}
+            <Button variant="secondary" icon={<Plus />} onClick={() => setBrandModalOpen(true)}>
+              เพิ่มแบรนด์ใหม่
+            </Button>
           </div>
 
           {/* หมายเหตุ */}
