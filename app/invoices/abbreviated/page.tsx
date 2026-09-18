@@ -11,9 +11,9 @@ import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
 import { MoreHorizontal, FileUp } from 'lucide-react';
 import { ExternalLinkIcon, PrintIcon, ReceiptTextIcon } from '@/lib/icons';
-import FormSelect from '@/components/ui/FormSelect';
-import SearchInput from '@/components/ui/SearchInput';
-import { getMonthOptions } from '@/lib/month-options';
+import ListFilters from '@/components/ui/ListFilters';
+import { FilterMonth } from '@/components/ui/ListFilterFields';
+import { useListFilterParams } from '@/lib/useListFilterParams';
 import { showPdfPreview } from '@/lib/print-pdf';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import ActionMenu from '@/components/ui/ActionMenu';
@@ -41,17 +41,20 @@ export default function AbbreviatedInvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [month, setMonth] = useState('');
   const [voidedFilter, setVoidedFilter] = useState<'all' | 'active' | 'voided'>('all');
-  const [page, setPage] = useState(1);
-  const [recordsPerPage, setRecordsPerPage] = useState(20);
+  // ตัวกรอง + แบ่งหน้าอยู่ใน URL ผ่าน hook กลาง (เดิม useState ล้วน รีเฟรชแล้วหาย)
+  const filters = useListFilterParams('/invoices/abbreviated', {
+    fields: { q: { type: 'text' }, month: { type: 'select' } },
+  });
+  const search = filters.values.q;
+  const month = filters.values.month;
+  const page = filters.page;
+  const recordsPerPage = filters.limit;
   const [loadTime, setLoadTime] = useState<number | null>(null);
 
   // Modal
   const [taxModal, setTaxModal] = useState<{ orderId: string; orderNumber: string; customerId?: string } | null>(null);
 
-  const monthOptions = getMonthOptions();
 
   const fetchInvoices = useCallback(async () => {
     setLoading(true);
@@ -223,26 +226,19 @@ export default function AbbreviatedInvoicesPage() {
         <Tabs
           className="mb-0"
           activeKey={voidedFilter}
-          onSelect={k => { setVoidedFilter(k as typeof voidedFilter); setPage(1); }}
+          onSelect={k => { setVoidedFilter(k as typeof voidedFilter); filters.setPage(1); }}
           tabs={statusTabs.map(tab => ({ key: tab.key, label: tab.label }))}
         />
 
-        <div className="data-filter-card">
-          <div className="flex items-center gap-2 flex-wrap">
-            <FormSelect
-              value={month}
-              onChange={v => { setMonth(v); setPage(1); }}
-              options={monthOptions}
-            />
-            <div className="flex-1 min-w-[200px]">
-              <SearchInput
-                value={search}
-                onChange={v => { setSearch(v); setPage(1); }}
-                placeholder="ค้นหาเลขที่, คำสั่งซื้อ..."
-              />
-            </div>
-          </div>
-        </div>
+        <ListFilters
+          search={search}
+          onSearch={value => filters.set({ q: value })}
+          searchPlaceholder="ค้นหาเลขที่, คำสั่งซื้อ..."
+          hasActiveFilters={filters.hasActiveFilters}
+          onClear={filters.clearAll}
+        >
+          <FilterMonth value={month} onChange={value => filters.set({ month: value })} />
+        </ListFilters>
 
         <DataTable<Invoice>
           storageKey="abbreviated-invoices-cols"
@@ -257,8 +253,8 @@ export default function AbbreviatedInvoicesPage() {
           totalPages={totalPages}
           totalRecords={total}
           recordsPerPage={recordsPerPage}
-          onPageChange={setPage}
-          onRecordsPerPageChange={setRecordsPerPage}
+          onPageChange={filters.setPage}
+          onRecordsPerPageChange={filters.setLimit}
           loadTime={loadTime}
           mobileCardRender={(inv) => {
             const isVoided = !!inv.tax_invoice_voided_at;

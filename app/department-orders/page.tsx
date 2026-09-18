@@ -2,15 +2,16 @@
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useCopy } from '@/lib/useCopy';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import PageHeader from '@/components/ui/PageHeader';
 import Button from '@/components/ui/Button';
-import SearchInput from '@/components/ui/SearchInput';
 import FormSelect from '@/components/ui/FormSelect';
 import ActionMenu, { ActionItem } from '@/components/ui/ActionMenu';
 import StatusTabs from '@/components/ui/StatusTabs';
+import ListFilters from '@/components/ui/ListFilters';
+import { useListFilterParams } from '@/lib/useListFilterParams';
 import ShipModal, { type ShipResult } from '@/components/ui/ShipModal';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
@@ -24,7 +25,6 @@ import { showPdfPreview, mergePdfBlobs } from '@/lib/print-pdf';
 import { LoadingCard } from '@/components/ui/StateCard';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { statusLabel } from '@/lib/status-labels';
-import { useDebouncedCallback } from '@/lib/useDebounce';
 import { splitVatInclusive } from '@/lib/order-totals';
 
 interface DeptOrder {
@@ -83,31 +83,19 @@ function isPrintedDoc(r: DeptOrder, key: string): boolean {
 
 function DepartmentOrdersContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { showToast } = useToast();
   const copy = useCopy();
 
   // URL-based state
-  const activeStatus = searchParams.get('status') || 'all';
-  const search = searchParams.get('q') || '';
-  const currentPage = parseInt(searchParams.get('page') || '1', 10);
-  const recordsPerPage = parseInt(searchParams.get('limit') || '20', 10);
-
-  const setParams = useCallback((updates: Record<string, string>) => {
-    const params = new URLSearchParams(searchParams.toString());
-    let pageReset = false;
-    for (const [k, v] of Object.entries(updates)) {
-      if (k !== 'page') pageReset = true;
-      if (!v || v === 'all' || v === '' || v === '1' || v === '20') {
-        params.delete(k);
-      } else {
-        params.set(k, v);
-      }
-    }
-    if (pageReset) params.delete('page');
-    const qs = params.toString();
-    router.replace(qs ? `?${qs}` : '/department-orders', { scroll: false });
-  }, [searchParams, router]);
+  // ตัวกรอง + แบ่งหน้าเก็บใน URL ผ่าน hook กลาง (lib/useListFilterParams)
+  // ⛔ ห้ามเขียน setParams ของตัวเองกลับมาอีก
+  const filters = useListFilterParams('/department-orders', {
+    fields: { q: { type: 'text' }, status: { type: 'select', default: 'all' } },
+  });
+  const activeStatus = filters.values.status;
+  const search = filters.values.q;
+  const currentPage = filters.page;
+  const recordsPerPage = filters.limit;
 
   const [orders, setOrders] = useState<DeptOrder[]>([]);
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
@@ -234,16 +222,7 @@ function DepartmentOrdersContent() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const handleStatusChange = (s: string) => setParams({ status: s });
-
-  // Debounced search
-  const [searchInput, setSearchInput] = useState(search);
-  const debouncedSetSearch = useDebouncedCallback((val: string) => setParams({ q: val }));
-  const handleSearchChange = (val: string) => {
-    setSearchInput(val);
-    debouncedSetSearch(val);
-  };
-  useEffect(() => { setSearchInput(search); }, [search]);
+  const handleStatusChange = (s: string) => filters.set({ status: s });
 
   const totalCount = Object.values(statusCounts).reduce((a, b) => a + b, 0);
   const getTabCount = (key: string) => {
@@ -971,12 +950,13 @@ function DepartmentOrdersContent() {
           tabs={STATUS_TABS.map(t => ({ ...t, count: getTabCount(t.key) }))}
         />
 
-        {/* Search */}
-        <div className="flex items-center gap-2">
-          <div className="flex-1 min-w-0">
-            <SearchInput value={searchInput} onChange={handleSearchChange} placeholder="ค้นหาเลขใบส่งห้าง, ชื่อห้าง..." />
-          </div>
-        </div>
+        <ListFilters
+          search={search}
+          onSearch={value => filters.set({ q: value })}
+          searchPlaceholder="ค้นหาเลขใบส่งห้าง, ชื่อห้าง..."
+          hasActiveFilters={filters.hasActiveFilters}
+          onClear={filters.clearAll}
+        />
 
         {/* Table + Mobile Cards via DataTable */}
         <DataTable<DeptOrder>
@@ -1114,8 +1094,8 @@ function DepartmentOrdersContent() {
           totalPages={totalPages}
           totalRecords={totalRecords}
           recordsPerPage={recordsPerPage}
-          onPageChange={(v) => setParams({ page: String(v) })}
-          onRecordsPerPageChange={(v) => setParams({ limit: String(v) })}
+          onPageChange={filters.setPage}
+          onRecordsPerPageChange={filters.setLimit}
           mobileCardRender={(r) => {
             const isPrinting = printingId === r.id;
             return (

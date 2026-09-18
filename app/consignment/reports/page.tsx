@@ -2,10 +2,9 @@
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useCopy } from '@/lib/useCopy';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuthGuard } from '@/lib/useAuthGuard';
-import SearchInput from '@/components/ui/SearchInput';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { BadgeCheck } from 'lucide-react';
@@ -17,6 +16,8 @@ import Tooltip from '@/components/ui/Tooltip';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
 import StatusTabs from '@/components/ui/StatusTabs';
+import ListFilters from '@/components/ui/ListFilters';
+import { useListFilterParams } from '@/lib/useListFilterParams';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
@@ -24,7 +25,6 @@ import Button from '@/components/ui/Button';
 import { LoadingCard } from '@/components/ui/StateCard';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { statusLabel } from '@/lib/status-labels';
-import { useDebouncedCallback } from '@/lib/useDebounce';
 
 interface ConsignmentReport {
   id: string;
@@ -72,31 +72,19 @@ const formatDate = (d: string | null | undefined) => {
 
 function ConsignmentReportsContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { showToast } = useToast();
   const copy = useCopy();
 
   // Derive filter state from URL params
-  const activeStatus = searchParams.get('status') || 'all';
-  const search = searchParams.get('q') || '';
-  const currentPage = parseInt(searchParams.get('page') || '1', 10);
-  const recordsPerPage = parseInt(searchParams.get('limit') || '20', 10);
-
-  const setParams = useCallback((updates: Record<string, string>) => {
-    const params = new URLSearchParams(searchParams.toString());
-    let pageReset = false;
-    for (const [k, v] of Object.entries(updates)) {
-      if (k !== 'page') pageReset = true;
-      if (!v || v === 'all' || v === '' || v === '1' || v === '20') {
-        params.delete(k);
-      } else {
-        params.set(k, v);
-      }
-    }
-    if (pageReset) params.delete('page');
-    const qs = params.toString();
-    router.replace(qs ? `?${qs}` : '/consignment/reports', { scroll: false });
-  }, [searchParams, router]);
+  // ตัวกรอง + แบ่งหน้าเก็บใน URL ผ่าน hook กลาง (lib/useListFilterParams)
+  // ⛔ ห้ามเขียน setParams ของตัวเองกลับมาอีก
+  const filters = useListFilterParams('/consignment/reports', {
+    fields: { q: { type: 'text' }, status: { type: 'select', default: 'all' } },
+  });
+  const activeStatus = filters.values.status;
+  const search = filters.values.q;
+  const currentPage = filters.page;
+  const recordsPerPage = filters.limit;
 
   const [reports, setReports] = useState<ConsignmentReport[]>([]);
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
@@ -132,15 +120,6 @@ function ConsignmentReportsContent() {
   }, [activeStatus, search, currentPage, recordsPerPage]);
 
   useEffect(() => { fetchReports(); }, [fetchReports]);
-
-  // Debounced search
-  const [searchInput, setSearchInput] = useState(search);
-  const debouncedSetSearch = useDebouncedCallback((val: string) => setParams({ q: val }));
-  const handleSearchChange = (val: string) => {
-    setSearchInput(val);
-    debouncedSetSearch(val);
-  };
-  useEffect(() => { setSearchInput(search); }, [search]);
 
   const totalCount = Object.values(statusCounts).reduce((a, b) => a + b, 0);
   const getTabCount = (key: string) => key === 'all' ? totalCount : (statusCounts[key] || 0);
@@ -656,7 +635,7 @@ function ConsignmentReportsContent() {
         {/* Status Tabs */}
         <StatusTabs
           activeKey={activeStatus}
-          onSelect={(k) => setParams({ status: k })}
+          onSelect={(k) => filters.set({ status: k })}
           tabs={STATUS_TABS.map(t => {
             const count = getTabCount(t.key);
             const isActive = activeStatus === t.key;
@@ -664,12 +643,13 @@ function ConsignmentReportsContent() {
           })}
         />
 
-        {/* Search */}
-        <div className="flex items-center gap-2">
-          <div className="flex-1 min-w-0">
-            <SearchInput value={searchInput} onChange={handleSearchChange} placeholder="ค้นหาเลขรายงาน, ชื่อตัวแทน..." />
-          </div>
-        </div>
+        <ListFilters
+          search={search}
+          onSearch={value => filters.set({ q: value })}
+          searchPlaceholder="ค้นหาเลขรายงาน, ชื่อตัวแทน..."
+          hasActiveFilters={filters.hasActiveFilters}
+          onClear={filters.clearAll}
+        />
 
         {/* Table + Mobile Cards via DataTable */}
         <DataTable<ConsignmentReport>
@@ -779,8 +759,8 @@ function ConsignmentReportsContent() {
           totalPages={totalPages}
           totalRecords={totalRecords}
           recordsPerPage={recordsPerPage}
-          onPageChange={(v) => setParams({ page: String(v) })}
-          onRecordsPerPageChange={(v) => setParams({ limit: String(v) })}
+          onPageChange={filters.setPage}
+          onRecordsPerPageChange={filters.setLimit}
           mobileCardRender={(report) => {
             return (
               <>

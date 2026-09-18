@@ -2,10 +2,9 @@
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useCopy } from '@/lib/useCopy';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuthGuard } from '@/lib/useAuthGuard';
-import SearchInput from '@/components/ui/SearchInput';
 import FormSelect from '@/components/ui/FormSelect';
 import ActionMenu, { ActionItem } from '@/components/ui/ActionMenu';
 import ShipModal, { type ShipResult } from '@/components/ui/ShipModal';
@@ -15,6 +14,8 @@ import { useToast } from '@/lib/toast-context';
 import { AddIcon, BanIcon, ChecklistIcon, CopyIcon, DocumentIcon, EditIcon, LoadingIcon, PrintIcon, RefreshIcon, SendIcon, ShippingIcon, StockIssueIcon, SuccessIcon, UserAddIcon } from '@/lib/icons';
 import Tooltip from '@/components/ui/Tooltip';
 import StatusTabs from '@/components/ui/StatusTabs';
+import ListFilters from '@/components/ui/ListFilters';
+import { useListFilterParams } from '@/lib/useListFilterParams';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
@@ -28,7 +29,6 @@ import { generatePackingPdf } from '@/lib/orders-packing-pdf';
 import { generateReplenishmentLabelPdf } from '@/lib/order-shipping-label-pdf';
 import { showPdfPreview, mergePdfBlobs } from '@/lib/print-pdf';
 import { markPrinted } from '@/lib/print-tracking';
-import { useDebouncedCallback } from '@/lib/useDebounce';
 
 interface Replenishment {
   id: string;
@@ -82,31 +82,19 @@ function relativeTime(dateStr: string): string {
 
 function ReplenishmentsPageContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { showToast } = useToast();
   const copy = useCopy();
 
   // Derive filter state from URL params
-  const activeStatus = searchParams.get('status') || 'all';
-  const search = searchParams.get('q') || '';
-  const currentPage = parseInt(searchParams.get('page') || '1', 10);
-  const recordsPerPage = parseInt(searchParams.get('limit') || '20', 10);
-
-  const setParams = useCallback((updates: Record<string, string>) => {
-    const params = new URLSearchParams(searchParams.toString());
-    let pageReset = false;
-    for (const [k, v] of Object.entries(updates)) {
-      if (k !== 'page') pageReset = true;
-      if (!v || v === 'all' || v === '' || v === '1' || v === '20') {
-        params.delete(k);
-      } else {
-        params.set(k, v);
-      }
-    }
-    if (pageReset) params.delete('page');
-    const qs = params.toString();
-    router.replace(qs ? `?${qs}` : '/replenishments', { scroll: false });
-  }, [searchParams, router]);
+  // ตัวกรอง + แบ่งหน้าเก็บใน URL ผ่าน hook กลาง (lib/useListFilterParams)
+  // ⛔ ห้ามเขียน setParams ของตัวเองกลับมาอีก
+  const filters = useListFilterParams('/replenishments', {
+    fields: { q: { type: 'text' }, status: { type: 'select', default: 'all' } },
+  });
+  const activeStatus = filters.values.status;
+  const search = filters.values.q;
+  const currentPage = filters.page;
+  const recordsPerPage = filters.limit;
 
   const [replenishments, setReplenishments] = useState<Replenishment[]>([]);
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
@@ -162,17 +150,7 @@ function ReplenishmentsPageContent() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const handleStatusChange = (s: string) => setParams({ status: s });
-
-  // Debounced search — local input state, update URL after 400ms idle
-  const [searchInput, setSearchInput] = useState(search);
-  const debouncedSetSearch = useDebouncedCallback((val: string) => setParams({ q: val }));
-  const handleSearchChange = (val: string) => {
-    setSearchInput(val);
-    debouncedSetSearch(val);
-  };
-  // Sync local input when URL changes externally (e.g. back button)
-  useEffect(() => { setSearchInput(search); }, [search]);
+  const handleStatusChange = (s: string) => filters.set({ status: s });
 
   const totalCount = Object.values(statusCounts).reduce((a, b) => a + b, 0);
   const getTabCount = (key: string) => key === 'all' ? totalCount : (statusCounts[key] || 0);
@@ -722,12 +700,13 @@ function ReplenishmentsPageContent() {
           tabs={STATUS_TABS.map(t => ({ ...t, count: getTabCount(t.key) }))}
         />
 
-        {/* Search */}
-        <div className="flex items-center gap-2">
-          <div className="flex-1 min-w-0">
-            <SearchInput value={searchInput} onChange={handleSearchChange} placeholder="ค้นหาเลขใบเติมสินค้า, ชื่อตัวแทน..." />
-          </div>
-        </div>
+        <ListFilters
+          search={search}
+          onSearch={value => filters.set({ q: value })}
+          searchPlaceholder="ค้นหาเลขใบเติมสินค้า, ชื่อตัวแทน..."
+          hasActiveFilters={filters.hasActiveFilters}
+          onClear={filters.clearAll}
+        />
 
         {/* Table + Mobile Cards via DataTable */}
         <DataTable<Replenishment>
@@ -858,8 +837,8 @@ function ReplenishmentsPageContent() {
           totalPages={totalPages}
           totalRecords={totalRecords}
           recordsPerPage={recordsPerPage}
-          onPageChange={(v) => setParams({ page: String(v) })}
-          onRecordsPerPageChange={(v) => setParams({ limit: String(v) })}
+          onPageChange={filters.setPage}
+          onRecordsPerPageChange={filters.setLimit}
           mobileCardRender={(r) => {
             const isPrinting = printingId === r.id;
             return (
