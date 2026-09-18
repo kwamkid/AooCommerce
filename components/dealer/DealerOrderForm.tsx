@@ -21,6 +21,8 @@ import { formatNumber } from '@/lib/utils/format';
 import StickyActionBar from '@/components/ui/StickyActionBar';
 import { LoadingCard } from '@/components/ui/StateCard';
 import Badge from '@/components/ui/Badge';
+import { gpBasePrice } from '@/lib/product-display';
+import { productDisplayName } from '@/lib/product-display';
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -585,7 +587,7 @@ export default function DealerOrderForm({
   const gpInfoText = (item: OrderItem) => {
     if (!item.discount_rate) return null;
     const baseLabel = item.gp_base_price === 'discounted' ? 'ลด' : 'ปลีก';
-    const basePrice = item.gp_base_price === 'discounted' && item.discount_price > 0 ? item.discount_price : item.default_price;
+    const basePrice = gpBasePrice(item, item.gp_base_price);
     const prefix = isConsignment ? 'GP' : '';
     if (item.discount_type === 'amount') {
       return `฿${formatNumber(basePrice)}(${baseLabel}) - ฿${formatNumber(item.discount_rate)} = ฿${formatNumber(item.unit_price)}`;
@@ -929,8 +931,8 @@ export default function DealerOrderForm({
                   const pc = pcSummary[vid];
                   const item = items.find(i => i.variation_id === vid);
                   const p = products.find(pp => pp.id === vid);
-                  const name = item ? `${item.product_name}${item.variation_label ? ` — ${item.variation_label}` : ''}`
-                    : p ? `${p.name}${p.variation_label ? ` — ${p.variation_label}` : ''}` : vid;
+                  const name = item ? productDisplayName(item)
+                    : p ? productDisplayName({ product_name: p.name, variation_label: p.variation_label }) : vid;
                   const pcQty = pc?.qty || 0;
                   const formQty = item?.quantity || 0;
                   const diff = formQty - pcQty;

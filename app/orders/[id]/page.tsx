@@ -48,7 +48,8 @@ import StatusBadge, { InfoChip } from '@/components/ui/StatusBadge';
 import { OrderStatusBadge, PaymentStatusBadge } from '@/components/ui/OrderStatusBadge';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { orderStatusLabel, paymentStatusLabel, getNextOrderStatus } from '@/lib/status-labels';
-import { thumbUrl } from '@/lib/image-thumb';
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
+import { productDisplayName } from '@/lib/product-display';
 
 interface PaymentRecord {
   id: string;
@@ -801,7 +802,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
       order_item_id: oi.id,
       quantity: 0,
       max: Number(oi.quantity),
-      name: `${oi.product_name || ''}${oi.variation_label ? ` (${oi.variation_label})` : ''}`,
+      name: productDisplayName(oi),
       image: oi.image || null,
     }));
     setRefundItems(items);
@@ -2089,20 +2090,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
               {refundItems.map((item, idx) => (
                 <div key={item.order_item_id} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg">
                   {/* Product image */}
-                  <div className="w-12 h-12 flex-shrink-0 rounded-md overflow-hidden bg-white dark:bg-slate-600 border border-gray-200 dark:border-slate-500 group relative">
-                    {item.image ? (
-                      <>
-                        <img src={thumbUrl(item.image, 96)} alt="" loading="lazy" decoding="async" className="w-full h-full object-contain" />
-                        <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                          <img src={thumbUrl(item.image, 320)} alt="" loading="lazy" decoding="async" className="max-w-[200px] max-h-[200px] object-contain rounded shadow-lg pointer-events-none absolute bottom-full left-0 mb-2" />
-                        </div>
-                      </>
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <ProductIcon className="w-5 h-5 text-gray-300 dark:text-slate-500" />
-                      </div>
-                    )}
-                  </div>
+                  <ProductImageThumb src={item.image} alt={item.name} size="md" />
                   <div className="flex-1 min-w-0">
                     <div className="data-primary text-gray-900 dark:text-white line-clamp-2">{item.name}</div>
                     <div className="data-muted text-gray-400 dark:text-slate-500">สั่ง {item.max} ชิ้น</div>

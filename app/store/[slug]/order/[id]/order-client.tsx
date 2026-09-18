@@ -9,6 +9,7 @@ import { formatStorePrice, storefrontHref } from '@/lib/storefront';
 import { rememberOrder } from '@/lib/storefront-orders';
 import SlipDropzone from '@/components/storefront/SlipDropzone';
 import { THAI_BANKS } from '@/lib/constants/banks';
+import { productDisplayName } from '@/lib/product-display';
 
 export interface StoreOrder {
   id: string;
@@ -373,7 +374,7 @@ export default function OrderClient({ shop, initialOrder }: { shop: string; init
           <h2>รายการสินค้า</h2>
           {order.items?.map((it, i) => (
             <div key={i} className="sf-summary-row">
-              <span>{it.product_name}{it.variation_label ? ` (${it.variation_label})` : ''} × {it.quantity}</span>
+              <span>{productDisplayName(it)} × {it.quantity}</span>
               <span>{formatStorePrice(it.total)}</span>
             </div>
           ))}

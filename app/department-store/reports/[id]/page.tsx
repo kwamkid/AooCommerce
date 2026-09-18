@@ -19,6 +19,7 @@ import StatusBadge from '@/components/ui/StatusBadge';
 import { type GpResolverContext, resolveGp, fetchGpContext } from '@/lib/gp-resolver';
 import { showPdfPreview } from '@/lib/print-pdf';
 import { useAuthGuard } from '@/lib/useAuthGuard';
+import { gpBasePrice } from '@/lib/product-display';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -301,12 +302,12 @@ function EditReportContent() {
     setItems(prev => prev.map((item, i) => {
       if (i !== idx) return item;
       if (field === 'discount_type') {
-        const basePrice = item.gp_base_price === 'discounted' && item.discount_price > 0 ? item.discount_price : item.default_price;
+        const basePrice = gpBasePrice(item, item.gp_base_price);
         return { ...item, discount_type: value as 'percent' | 'amount', gp_rate: 0, selling_price: basePrice };
       }
       const updated = { ...item, [field]: value };
       if (field === 'gp_rate') {
-        const basePrice = updated.gp_base_price === 'discounted' && updated.discount_price > 0 ? updated.discount_price : updated.default_price;
+        const basePrice = gpBasePrice(updated, updated.gp_base_price);
         if (updated.discount_type === 'amount') {
           updated.selling_price = Math.max(0, Math.round((basePrice - (value as number)) * 100) / 100);
         } else {
@@ -323,7 +324,7 @@ function EditReportContent() {
 
   const gpInfoText = (item: ReportItem): string => {
     const basePriceLabel = item.gp_base_price === 'discounted' ? 'ลด' : 'ปลีก';
-    const basePrice = item.gp_base_price === 'discounted' && item.discount_price > 0 ? item.discount_price : item.default_price;
+    const basePrice = gpBasePrice(item, item.gp_base_price);
     if (item.discount_type === 'amount') {
       return `฿${formatNumber(basePrice)}(${basePriceLabel}) - ฿${formatNumber(item.gp_rate)} = ฿${formatNumber(item.selling_price)}`;
     }
@@ -636,7 +637,7 @@ function EditReportContent() {
                 sku: i.sku,
                 image: i.image,
                 quantity: i.qty_sold,
-                unit_price: i.gp_base_price === 'discounted' && i.discount_price > 0 ? i.discount_price : i.default_price,
+                unit_price: gpBasePrice(i, i.gp_base_price),
                 discount_value: i.gp_rate,
                 discount_type: (i.discount_type || 'percent') as 'percent' | 'amount',
                 gpInfo: isEditable ? gpInfoText(i) : null,

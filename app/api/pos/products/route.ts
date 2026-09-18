@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { getCompositeAvailability } from '@/lib/composite';
 import { guardFeature } from '@/lib/package-gates-server';
+import { sellingPrice } from '@/lib/product-display';
 
 // GET — Fetch products with per-warehouse stock for POS grid
 export async function GET(request: NextRequest) {
@@ -88,9 +89,7 @@ export async function GET(request: NextRequest) {
       }
 
       const product = variation.product as any;
-      const price = Number(variation.discount_price || 0) > 0
-        ? Number(variation.discount_price)
-        : Number(variation.default_price || 0);
+      const price = sellingPrice(variation);
 
       return NextResponse.json({
         products: [{
@@ -200,9 +199,7 @@ export async function GET(request: NextRequest) {
     // Build flat product list
     const products = variations.map(v => {
       const product = v.product as any;
-      const price = Number(v.discount_price || 0) > 0
-        ? Number(v.discount_price)
-        : Number(v.default_price || 0);
+      const price = sellingPrice(v);
 
       return {
         variation_id: v.id,

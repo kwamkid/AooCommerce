@@ -25,7 +25,6 @@ import { QRCodeSVG } from 'qrcode.react';
 import OrderProgress from '@/components/ui/OrderProgress';
 import { OrderStatusBadge, PaymentStatusBadge } from '@/components/ui/OrderStatusBadge';
 import { FullPageLoading } from '@/components/ui/Loading';
-import { thumbUrl } from '@/lib/image-thumb';
 
 import { isValidEmail, EMAIL_INVALID_MESSAGE } from '@/lib/email';
 import { isCompositeLine } from '@/lib/composite-shared';
@@ -614,9 +613,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
             <td className="py-1.5 text-sm align-top">{startIndex + idx + 1}</td>
             <td className="py-1.5 pl-2 text-sm align-top">
               <div className="flex items-center gap-2">
-                {item.image && (
-                  <img src={thumbUrl(item.image, 160)} alt="" loading="lazy" decoding="async" className="w-8 h-8 rounded object-cover flex-shrink-0" />
-                )}
+                {item.image && <ProductImageThumb src={item.image} alt={item.product_name} size="xs" disabled />}
                 <div>
                   <span className="font-medium">{productDisplayName({ product_name: item.product_name, variation_label: item.variation_label })}</span>
                   {item.product_code && <div className="text-gray-500 text-xs font-mono">SKU: {item.product_code}</div>}

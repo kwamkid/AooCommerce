@@ -2,12 +2,12 @@
 'use client';
 
 import { useState } from 'react';
-import { AddIcon, GiftIcon, OrderIcon, ProductIcon, RemoveIcon } from '@/lib/icons';
+import { AddIcon, GiftIcon, OrderIcon, RemoveIcon } from '@/lib/icons';
 import { formatPrice } from '@/lib/utils/format';
 import Modal from './Modal';
 import NumberInput from './NumberInput';
 import Button from './Button';
-import { thumbUrl } from '@/lib/image-thumb';
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
 
 // ── Types ──────────────────────────────────────────────
 
@@ -240,12 +240,7 @@ export default function PromotionSelectModal({
               <div className="space-y-2">
                 {promotion.items.map((item, i) => (
                   <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-white/5">
-                    {item.image
-                      ? <img src={thumbUrl(item.image, 96)} alt="" loading="lazy" decoding="async" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
-                      : <div className="w-10 h-10 rounded-lg bg-gray-200 dark:bg-white/10 flex items-center justify-center flex-shrink-0">
-                          <ProductIcon className="w-5 h-5 text-gray-400" />
-                        </div>
-                    }
+                    <ProductImageThumb src={item.image} alt={item.product_name} size="sm" disabled />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-gray-900 dark:text-white font-medium line-clamp-2">{item.product_name}</p>
                       {item.variation_label && <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{item.variation_label}</p>}
@@ -277,12 +272,7 @@ export default function PromotionSelectModal({
                 <div className="space-y-1.5">
                   {mainItems.map((item, i) => (
                     <div key={i} className="flex items-center gap-3 p-2.5 rounded-lg bg-gray-50 dark:bg-white/5">
-                      {item.image
-                        ? <img src={thumbUrl(item.image, 96)} alt="" loading="lazy" decoding="async" className="w-9 h-9 rounded object-cover flex-shrink-0" />
-                        : <div className="w-9 h-9 rounded bg-gray-200 dark:bg-white/10 flex items-center justify-center flex-shrink-0">
-                            <ProductIcon className="w-4 h-4 text-gray-400" />
-                          </div>
-                      }
+                      <ProductImageThumb src={item.image} alt={item.product_name} size="sm" disabled />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-gray-900 dark:text-white line-clamp-2">{item.product_name}</p>
                         {item.sku && <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{item.sku}</p>}
@@ -310,12 +300,7 @@ export default function PromotionSelectModal({
                       <div key={i} className={`flex items-center gap-3 p-2.5 rounded-lg transition-colors ${
                         selQty > 0 ? 'bg-purple-50 dark:bg-purple-900/20 ring-1 ring-purple-300 dark:ring-purple-700' : 'bg-gray-50 dark:bg-white/5'
                       }`}>
-                        {item.image
-                          ? <img src={thumbUrl(item.image, 96)} alt="" loading="lazy" decoding="async" className="w-9 h-9 rounded object-cover flex-shrink-0" />
-                          : <div className="w-9 h-9 rounded bg-gray-200 dark:bg-white/10 flex items-center justify-center flex-shrink-0">
-                              <ProductIcon className="w-4 h-4 text-gray-400" />
-                            </div>
-                        }
+                        <ProductImageThumb src={item.image} alt={item.product_name} size="sm" disabled />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-gray-900 dark:text-white line-clamp-2">{item.product_name}</p>
                           {item.variation_label && <p className="text-xs text-gray-400 truncate">{item.variation_label}</p>}
@@ -356,12 +341,7 @@ export default function PromotionSelectModal({
               {/* Product info */}
               {promotion.items[0] && (
                 <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-white/5">
-                  {promotion.items[0].image
-                    ? <img src={thumbUrl(promotion.items[0].image, 96)} alt="" loading="lazy" decoding="async" className="w-12 h-12 rounded-lg object-cover" />
-                    : <div className="w-12 h-12 rounded-lg bg-gray-200 dark:bg-white/10 flex items-center justify-center">
-                        <ProductIcon className="w-5 h-5 text-gray-400" />
-                      </div>
-                  }
+                  <ProductImageThumb src={promotion.items[0].image} alt={promotion.items[0].product_name} size="md" disabled />
                   <div>
                     <p className="text-sm text-gray-900 dark:text-white font-medium line-clamp-2">{promotion.items[0].product_name}</p>
                     {promotion.items[0].sku && <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{promotion.items[0].sku}</p>}

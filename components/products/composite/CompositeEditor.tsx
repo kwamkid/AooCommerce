@@ -24,6 +24,7 @@ import { useServerSearch } from '@/lib/useServerSearch';
 import { formatNumber, formatPrice } from '@/lib/utils/format';
 import type { CompositeSlot } from '@/lib/composite-shared';
 import type { ComboRow, CompositeEditorState } from './useCompositeEditor';
+import { sellingPrice } from '@/lib/product-display';
 
 const PRICE_INPUT = 'w-full px-3 text-right bg-white dark:bg-slate-700 text-gray-900 dark:text-white rounded-lg border focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-colors';
 const ERROR_TEXT = 'text-red-600 dark:text-red-400';
@@ -186,7 +187,7 @@ function SlotCard({ editor, slot, index }: { editor: CompositeEditorState; slot:
               <div className="flex flex-wrap gap-2">
                 {visibleOptions.map(o => {
                   const on = selected.has(o.variation_id);
-                  const price = o.discount_price && o.discount_price > 0 ? o.discount_price : o.default_price;
+                  const price = sellingPrice(o);
                   const content = (
                     <>
                       <span className="text-base text-gray-800 dark:text-slate-200">{o.label}</span>

@@ -5,6 +5,7 @@ import { AddIcon, ChevronLeftIcon, CloseIcon, RemoveIcon } from '@/lib/icons';
 import { useCart, setQuantity, removeFromCart } from '@/lib/storefront-cart';
 import { formatStorePrice, storefrontHref } from '@/lib/storefront';
 import CheckoutSteps from '@/components/storefront/CheckoutSteps';
+import { productDisplayName } from '@/lib/product-display';
 
 export default function CartClient({ shop, acceptingOrders = true }: { shop: string; acceptingOrders?: boolean }) {
   const { lines, subtotal, hydrated } = useCart(shop);
@@ -76,7 +77,7 @@ export default function CartClient({ shop, acceptingOrders = true }: { shop: str
         <h2>สรุปคำสั่งซื้อ</h2>
         {lines.map(l => (
           <div key={l.variation_id} className="sf-summary-row">
-            <span>{l.name}{l.variation_label ? ` · ${l.variation_label}` : ''} × {l.quantity}</span>
+            <span>{productDisplayName({ product_name: l.name, variation_label: l.variation_label })} × {l.quantity}</span>
             <span>{formatStorePrice(l.price * l.quantity)}</span>
           </div>
         ))}

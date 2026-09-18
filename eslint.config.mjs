@@ -30,6 +30,19 @@ const eslintConfig = defineConfig([
       }],
     },
   },
+
+  // ── ราคาขายจริง ───────────────────────────────────────────────────
+  // ห้ามคิด "มีส่วนลดใช้ส่วนลด" เองในหน้า/route — ใช้ sellingPrice() จาก lib/product-display.ts
+  {
+    files: ["app/**/*.{ts,tsx}", "components/**/*.{ts,tsx}", "lib/**/*.{ts,tsx}"],
+    ignores: ["lib/product-display.ts"],
+    rules: {
+      "no-restricted-syntax": ["error", {
+        selector: "ConditionalExpression > BinaryExpression[operator='>'][left.property.name='discount_price']",
+        message: "ห้ามคิดราคาขายจริงเอง — ใช้ sellingPrice(v) จาก @/lib/product-display (โปรโมชั่นคิดจาก default_price เสมอ ดู .claude/rules/domains/products.md)",
+      }],
+    },
+  },
 ]);
 
 export default eslintConfig;

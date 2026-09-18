@@ -41,7 +41,6 @@ import { fetchCustomerOrderContext } from '@/lib/gp-resolver';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
 import { computeOrderTotals } from '@/lib/order-totals';
 import { orderStatusLabel, paymentStatusLabel } from '@/lib/status-labels';
-import { thumbUrl } from '@/lib/image-thumb';
 import StickyActionBar from '@/components/ui/StickyActionBar';
 import Stepper, { type StepItem } from '@/components/ui/Stepper';
 import { LoadingCard } from '@/components/ui/StateCard';
@@ -54,6 +53,7 @@ import Link from 'next/link';
 
 import { isValidEmail, EMAIL_INVALID_MESSAGE } from '@/lib/email';
 import { normalizePhone } from '@/lib/numeric-input';
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
 // ข้อความเดียวกันทั้ง validate ตอนบันทึก และตอนกด "ถัดไป" ในเปลือก wizard
 // (เขียนคนละที่แล้วดริฟต์กันคือวิธีที่ผู้ใช้เจอสองข้อความสำหรับเรื่องเดียวกัน)
 const NO_ITEMS_ERROR = 'กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ';
@@ -2539,11 +2539,7 @@ export default function OrderForm({
                       </td>
                     )}
                     <td className="py-2 align-middle">
-                      {product.image ? (
-                        <img src={thumbUrl(product.image, 160)} alt={product.product_name} loading="lazy" decoding="async" className="w-16 h-16 object-cover rounded border border-gray-200" />
-                      ) : (
-                        <div className="w-16 h-16 bg-gray-100 rounded border border-gray-200 flex items-center justify-center text-gray-400 text-xs">N/A</div>
-                      )}
+                      <ProductImageThumb src={product.image} alt={product.product_name} size="lg" />
                     </td>
                     <td className="py-2 align-middle">
                       <div className="font-semibold text-sm">{product.product_name}</div>

@@ -5,7 +5,7 @@ import { ProductIcon, SearchIcon } from '@/lib/icons';
 import ImageLightbox from './ImageLightbox';
 import { thumbUrl } from '@/lib/image-thumb';
 
-export type ThumbSize = 'xs' | 'sm' | 'md' | 'lg';
+export type ThumbSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 /**
  * สัดส่วนกรอบ — ล้อตามที่ marketplace รองรับจริง ไม่ใช่ที่เราชอบ
  * Shopee รับแค่ **1:1 (default) กับ 3:4** เท่านั้น (3:4 ต้องอยู่ใน whitelist ตอนสร้างสินค้า
@@ -25,6 +25,8 @@ const SIZE_CLASS: Record<ThumbRatio, Record<ThumbSize, string>> = {
     sm: 'w-10 h-10',
     md: 'w-12 h-12',
     lg: 'w-16 h-16',
+    // xl = การ์ด (หน้าโปรโมชั่น/มือถือ) ที่รูปเป็นพระเอกของแถว ไม่ใช่ไอคอนข้างชื่อ
+    xl: 'w-20 h-20',
   },
   // 3:4 — กว้างเท่าเดิม สูง = กว้าง × 4/3
   portrait: {
@@ -32,6 +34,7 @@ const SIZE_CLASS: Record<ThumbRatio, Record<ThumbSize, string>> = {
     sm: 'w-10 h-[3.333rem]',
     md: 'w-12 h-16',
     lg: 'w-16 h-[5.333rem]',
+    xl: 'w-20 h-[6.667rem]',
   },
   // auto — กว้างคงที่ สูงตามสัดส่วนจริงของรูป (ไม่มีแถบเทาบน/ล่าง) เพดานสูง = 3:4
   // ใช้ในตารางรายการสินค้า/สต็อก (เจ้าของขอ 2026-09-13) · แถวสูงไม่เท่ากันได้ ยอมรับ
@@ -40,6 +43,7 @@ const SIZE_CLASS: Record<ThumbRatio, Record<ThumbSize, string>> = {
     sm: 'w-10',
     md: 'w-12',
     lg: 'w-16',
+    xl: 'w-20',
   },
 };
 
@@ -49,6 +53,7 @@ const AUTO_IMG_MAX: Record<ThumbSize, string> = {
   sm: 'max-h-[3.333rem]',
   md: 'max-h-16',
   lg: 'max-h-[5.333rem]',
+  xl: 'max-h-[6.667rem]',
 };
 
 const FALLBACK_ICON_CLASS: Record<ThumbSize, string> = {
@@ -56,6 +61,7 @@ const FALLBACK_ICON_CLASS: Record<ThumbSize, string> = {
   sm: 'w-4 h-4',
   md: 'w-5 h-5',
   lg: 'w-6 h-6',
+  xl: 'w-7 h-7',
 };
 
 const ZOOM_ICON_CLASS: Record<ThumbSize, string> = {
@@ -63,6 +69,7 @@ const ZOOM_ICON_CLASS: Record<ThumbSize, string> = {
   sm: 'w-3.5 h-3.5',
   md: 'w-4 h-4',
   lg: 'w-5 h-5',
+  xl: 'w-5 h-5',
 };
 
 interface ProductImageThumbProps {
@@ -122,7 +129,7 @@ export default function ProductImageThumb({
   // ของเก่าบางร้านอาจเป็นสัดส่วนอื่นที่ไม่ใช่ 1:1/3:4 กรอบจึงต้องรับได้โดยไม่ตัดทิ้ง
   const image = (
     <img
-      src={thumbUrl(src, size === 'lg' ? 160 : 96)}
+      src={thumbUrl(src, size === 'lg' || size === 'xl' ? 160 : 96)}
       alt={alt}
       loading="lazy"
       decoding="async"

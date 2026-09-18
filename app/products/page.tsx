@@ -39,6 +39,7 @@ import PageHeader from '@/components/ui/PageHeader';
 import { downloadBlob } from '@/lib/utils/download';
 import { useDebouncedCallback } from '@/lib/useDebounce';
 import { COMPOSITE_COLUMN_HEADER, COMPOSITE_TYPE_LABEL, PRICE_LOCKED_HEADER, PRICE_LOCKED_YES } from '@/lib/bulk/composite-ref';
+import { sellingPrice } from '@/lib/product-display';
 
 // ── Types ──
 
@@ -140,9 +141,8 @@ const variationKey = (product: ProductItem, v: Variation) =>
 
 const activeVariations = (product: ProductItem) => product.variations.filter(v => v.is_active !== false);
 
-/** Price the customer pays — discount when set, otherwise the normal price */
-const effectivePrice = (v: Pick<Variation, 'default_price' | 'discount_price'>) =>
-  (v.discount_price > 0 ? v.discount_price : v.default_price) ?? 0;
+/** ราคาที่ลูกค้าจ่ายจริง — ตัวกลางอยู่ที่ lib/product-display.ts */
+const effectivePrice = sellingPrice;
 
 /** `฿199 – ฿249` · single value when equal · null when empty */
 function moneyRange(values: number[]): string | null {

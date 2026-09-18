@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { productDisplayName } from '@/lib/product-display';
+import { productDisplayName, sellingPrice } from '@/lib/product-display';
 
 // การค้นของ "การ์ดในแชท" ที่ทุก marketplace ใช้ร่วมกัน — **อ่านจากฐานข้อมูลเราเท่านั้น
 // ไม่ยิง API ของแพลตฟอร์ม** (การถามแพลตฟอร์มต่อเป็นเรื่องของ lib/<platform>/chat-enrich.ts
@@ -91,9 +91,7 @@ async function buildProductInfo(
       })
     : fallback?.name || null;
 
-  const ourPrice = variation
-    ? (Number(variation.discount_price) > 0 ? Number(variation.discount_price) : Number(variation.default_price))
-    : null;
+  const ourPrice = variation ? sellingPrice(variation) : null;
 
   return {
     product_id: productId,

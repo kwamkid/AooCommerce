@@ -4,12 +4,10 @@ import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
-import { DarkThemeIcon, DocumentIcon, ErrorIcon, LightThemeIcon, PrintIcon, ProductIcon, SupplierIcon } from '@/lib/icons';
+import { DarkThemeIcon, DocumentIcon, ErrorIcon, LightThemeIcon, PrintIcon, SupplierIcon } from '@/lib/icons';
 import { FullPageLoading } from '@/components/ui/Loading';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { getImageUrl } from '@/lib/utils/image';
-import { formatPrice } from '@/lib/utils/format';
-import { thumbUrl } from '@/lib/image-thumb';
 
 interface POItem {
   product_name: string;
@@ -250,13 +248,7 @@ export default function PublicPOPage() {
                     <td className="text-center px-3 py-3 text-sm text-gray-400">{idx + 1}</td>
                     <td className="px-3 py-3">
                       <div className="flex items-center gap-3">
-                        {item.image ? (
-                          <img src={thumbUrl(getImageUrl(item.image), 96)} alt="" loading="lazy" decoding="async" className="w-9 h-9 rounded-lg object-cover flex-shrink-0" />
-                        ) : (
-                          <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${dark ? 'bg-white/10' : 'bg-gray-100'}`}>
-                            <ProductIcon className="w-4 h-4 text-gray-400" />
-                          </div>
-                        )}
+                        <ProductImageThumb src={item.image ? getImageUrl(item.image) : null} alt={item.product_name} size="sm" />
                         <div className="min-w-0">
                           <div className={`text-sm font-medium truncate ${dark ? 'text-white' : 'text-gray-900'}`}>
                             {item.product_name}

@@ -9,10 +9,10 @@ import { LoadingCard } from '@/components/ui/StateCard';
 import OrderForm from '@/components/orders/OrderForm';
 import { apiFetch } from '@/lib/api-client';
 import { Repeat, CornerDownRight } from 'lucide-react';
-import { CopyIcon, ProductIcon } from '@/lib/icons';
+import { CopyIcon } from '@/lib/icons';
 import { formatPrice } from '@/lib/utils/format';
-import { thumbUrl } from '@/lib/image-thumb';
 import { useAuthGuard } from '@/lib/useAuthGuard';
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
 
 interface InitialOrderData {
   customer_id: string;
@@ -326,13 +326,7 @@ function NewOrderContent() {
             <div className="divide-y divide-orange-100 dark:divide-orange-800/20">
               {exchangeReturnItems.map((item, idx) => (
                 <div key={idx} className="px-4 py-2.5 flex items-center gap-3">
-                  {item.image ? (
-                    <img src={thumbUrl(item.image, 96)} alt={item.product_name} loading="lazy" decoding="async" className="w-10 h-10 object-contain rounded-md bg-gray-50 dark:bg-slate-700/50 flex-shrink-0" />
-                  ) : (
-                    <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/20 rounded flex items-center justify-center flex-shrink-0">
-                      <ProductIcon className="w-4 h-4 text-orange-400" />
-                    </div>
-                  )}
+                  <ProductImageThumb src={item.image} alt={item.product_name} size="sm" />
                   <div className="flex-1 min-w-0">
                     <div className="text-sm text-gray-900 dark:text-white truncate">{item.product_name}</div>
                     {item.variation_label && (

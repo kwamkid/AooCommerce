@@ -11,11 +11,12 @@ import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { generateReportPdf } from '@/lib/supplier-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
-import { thumbUrl } from '@/lib/image-thumb';
 import Button from '@/components/ui/Button';
-import { BackIcon, LoadingIcon, OrderIcon, PrintIcon, ProductIcon, ReportIcon, SendIcon, SuccessIcon, SupplierIcon, WarehouseIcon } from '@/lib/icons';
+import { BackIcon, LoadingIcon, OrderIcon, PrintIcon, ReportIcon, SendIcon, SuccessIcon, SupplierIcon, WarehouseIcon } from '@/lib/icons';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import { LoadingCard } from '@/components/ui/StateCard';
+import { productDisplayName } from '@/lib/product-display';
+import ProductCell from '@/components/ui/ProductCell';
 
 interface VariationInfo {
   id: string;
@@ -104,8 +105,8 @@ const SOURCE_LABELS: Record<string, string> = {
 
 function getDisplayName(v: VariationInfo | null) {
   if (!v) return '-';
-  const productName = v.product?.name || '';
-  return v.variation_label ? `${productName} - ${v.variation_label}` : productName;
+  // ชื่อสินค้าใช้ตัวกลางเดียวกับทั้งระบบ (lib/product-display.ts)
+  return productDisplayName({ product_name: v.product?.name, variation_label: v.variation_label, sku: v.sku });
 }
 
 function getSubtitle(v: VariationInfo | null) {
@@ -400,19 +401,16 @@ export default function SnapshotDetailPage() {
                     {group.items.map(item => (
                       <tr key={item.id}>
                         <td className="px-4 py-2">
-                          <div className="flex items-center gap-3">
-                            {item.variation?.product?.image ? (
-                              <img src={thumbUrl(item.variation.product.image, 96)} alt="" loading="lazy" decoding="async" className="w-8 h-8 rounded object-cover flex-shrink-0" />
-                            ) : (
-                              <div className="w-8 h-8 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                                <ProductIcon className="w-4 h-4 text-gray-400" />
-                              </div>
-                            )}
-                            <div className="min-w-0">
-                              <p className="text-sm text-gray-900 dark:text-white truncate">{getDisplayName(item.variation)}</p>
-                              <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{getSubtitle(item.variation)}</p>
-                            </div>
-                          </div>
+                          <ProductCell
+                            item={{
+                              product_name: item.variation?.product?.name,
+                              variation_label: item.variation?.variation_label,
+                              product_code: item.variation?.product?.code,
+                              sku: item.variation?.sku,
+                              image: item.variation?.product?.image,
+                            }}
+                            size="xs"
+                          />
                         </td>
                         <td className="px-4 py-2 text-right font-medium text-gray-900 dark:text-white w-24">
                           {item.quantity.toLocaleString()}

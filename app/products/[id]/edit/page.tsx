@@ -37,6 +37,7 @@ import ProductSyncModal from '@/components/marketplace/ProductSyncModal';
 import Tabs from '@/components/ui/Tabs';
 import { storageSafeName } from '@/lib/storage-key';
 import { useAuthGuard } from '@/lib/useAuthGuard';
+import { hasDiscount } from '@/lib/product-display';
 
 /** ป้ายชื่อแพลตฟอร์ม — registry เดียวกับทุกที่ ห้าม map ป้ายซ้ำ */
 function marketplaceLabel(platform: string): string {
@@ -710,7 +711,7 @@ export default function EditProductPage() {
   // Helper: get system discount price for a link
   const getSystemDiscountPrice = (link: MarketplaceLink) => {
     const variation = link.product_variations;
-    if (variation) return variation.discount_price > 0 ? variation.discount_price : null;
+    if (variation) return hasDiscount(variation) ? variation.discount_price : null;
     return (product.simple_discount_price && product.simple_discount_price > 0)
       ? product.simple_discount_price
       : null;

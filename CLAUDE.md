@@ -103,6 +103,7 @@
 ## UI Rules (บังคับ)
 
 - **ห้ามใช้ native `<select>`** → ใช้ `FormSelect` แทนเสมอ
+- **การแสดงผลสินค้าต้องผ่านของกลาง** — `<ProductCell>` / `<ProductName>` / `<ProductPrice>` / `<ProductImageThumb>` + [lib/product-display.ts](lib/product-display.ts) (`productDisplayName` · `sellingPrice`) · ห้ามประกอบชื่อหรือคิดราคาลดเองในหน้า (ESLint บล็อก) · รายละเอียดใน `.claude/rules/ui-design-system.md`
 - **ไอคอนต้อง import จาก [lib/icons.ts](lib/icons.ts) เสมอ** (`import { ProductIcon } from '@/lib/icons'`) — ห้าม import จาก `lucide-react` ตรง ๆ (ESLint บล็อก) · หนึ่งความหมาย = หนึ่งไอคอนทั้งระบบ เปลี่ยนทีเดียวที่ไฟล์นั้น · รายละเอียดใน `.claude/rules/ui-design-system.md`
 - **ห้าม text-xs/text-sm** สำหรับ body content → เฉพาะ badge/label/subtitle
 - **Dropdown/Popover** → ใช้ `ActionMenu` (createPortal, z-9999) หรือ `z-[999]`

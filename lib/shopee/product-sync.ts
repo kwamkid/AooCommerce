@@ -15,6 +15,7 @@ import {
 import { SyncProgressCallback } from '@/lib/shopee/sync';
 import { parallelLimit } from '@/lib/parallel';
 import { upsertShopeeProduct } from '@/lib/shopee/product-helpers';
+import { sellingPrice } from '@/lib/product-display';
 
 // Re-export getCategoryName for backward compatibility
 export { getCategoryName } from '@/lib/shopee/product-helpers';
@@ -188,7 +189,7 @@ export async function pushPriceToShopee(
         .in('id', priceVariationIds);
       if (variations) {
         for (const v of variations) {
-          priceMap.set(v.id, v.discount_price > 0 ? v.discount_price : v.default_price);
+          priceMap.set(v.id, sellingPrice(v));
         }
       }
     }

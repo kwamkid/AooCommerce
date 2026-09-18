@@ -14,7 +14,7 @@ import { useCompany } from '@/lib/company-context';
 import { formatNumber } from '@/lib/utils/format';
 import ProductSearchInput, { ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
-import { productDisplayName, productSubtitle } from '@/lib/product-display';
+import { gpBasePrice, productDisplayName, productSubtitle } from '@/lib/product-display';
 import OrderSummaryBox from '@/components/ui/OrderSummaryBox';
 import CustomerSelectionCard from '@/components/ui/CustomerSelectionCard';
 import { useCustomerPrefill } from '@/lib/useCustomerPrefill';
@@ -451,11 +451,11 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
     setItems(prev => prev.map((item, i) => {
       if (i !== idx) return item;
       if (field === 'discount_type') {
-        return { ...item, discount_type: value as 'percent' | 'amount', gp_rate: 0, unit_price: item.gp_base_price === 'discounted' && item.discount_price > 0 ? item.discount_price : item.default_price };
+        return { ...item, discount_type: value as 'percent' | 'amount', gp_rate: 0, unit_price: gpBasePrice(item, item.gp_base_price) };
       }
       const updated = { ...item, [field]: value };
       if (field === 'gp_rate') {
-        const basePrice = updated.gp_base_price === 'discounted' && updated.discount_price > 0 ? updated.discount_price : updated.default_price;
+        const basePrice = gpBasePrice(updated, updated.gp_base_price);
         if (updated.discount_type === 'amount') {
           updated.unit_price = Math.max(0, Math.round((basePrice - (value as number)) * 100) / 100);
         } else {
@@ -472,7 +472,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
 
   const gpInfoText = (item: ReplenishmentItem): string => {
     const basePriceLabel = item.gp_base_price === 'discounted' ? 'ลด' : 'ปลีก';
-    const basePrice = item.gp_base_price === 'discounted' && item.discount_price > 0 ? item.discount_price : item.default_price;
+    const basePrice = gpBasePrice(item, item.gp_base_price);
     if (item.discount_type === 'amount') {
       return `฿${formatNumber(basePrice)}(${basePriceLabel}) - ฿${formatNumber(item.gp_rate)} = ฿${formatNumber(item.unit_price)}`;
     }
@@ -913,7 +913,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
                 sku: i.sku,
                 image: i.image,
                 quantity: i.quantity,
-                unit_price: i.gp_base_price === 'discounted' && i.discount_price > 0 ? i.discount_price : i.default_price,
+                unit_price: gpBasePrice(i, i.gp_base_price),
                 discount_value: i.gp_rate,
                 discount_type: (i.discount_type || 'percent') as 'percent' | 'amount',
                 gpInfo: gpInfoText(i),

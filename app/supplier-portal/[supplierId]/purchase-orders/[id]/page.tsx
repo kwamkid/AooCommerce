@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { FullPageLoading } from '@/components/ui/Loading';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { BackIcon, SuccessIcon, TimeIcon, WarehouseIcon, WarningIcon } from '@/lib/icons';
+import { productDisplayName } from '@/lib/product-display';
 
 interface POItem {
   id: string;
@@ -38,8 +39,8 @@ interface POData {
 
 function getDisplayName(v: POItem['variation']) {
   if (!v) return '-';
-  const name = v.product?.name || '';
-  return v.variation_label ? `${name} - ${v.variation_label}` : name;
+  // ชื่อสินค้าใช้ตัวกลางเดียวกับทั้งระบบ (lib/product-display.ts)
+  return productDisplayName({ product_name: v.product?.name, variation_label: v.variation_label, sku: v.sku });
 }
 
 export default function PortalPODetailPage() {

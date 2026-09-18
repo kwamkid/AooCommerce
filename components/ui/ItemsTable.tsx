@@ -9,6 +9,7 @@ import DiscountInput from '@/components/ui/DiscountInput';
 import PostfixInput from '@/components/ui/PostfixInput';
 import NumberInput from '@/components/ui/NumberInput';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
+import SharedProductCell from '@/components/ui/ProductCell';
 import { productDisplayName } from '@/lib/product-display';
 import { isCompositeLine } from '@/lib/composite-shared';
 
@@ -403,7 +404,6 @@ export default function ItemsTable({
 
   function ProductCell({ item, idx }: { item: TableItem; idx?: number }) {
     const hasPromo = item.promotion_components && item.promotion_components.length > 0;
-    const name = productDisplayName(item);
     // Build subtitle: SKU + price (when no price column)
     const subParts: string[] = [];
     if (item.sku) subParts.push(item.sku);
@@ -415,25 +415,29 @@ export default function ItemsTable({
       }
     }
     const sub = subParts.join(' | ');
+    // ใช้ช่อง "สินค้า" กลางของระบบ — รูป/ชื่อ/บรรทัดรอง เหมือนทุกหน้า
+    // บรรทัดรองที่นี่เป็น SKU + ราคา (ไม่ใช่รหัสสินค้ามาตรฐาน) จึงส่ง node เองแทน
     return (
-      <div className="flex items-center gap-3">
-        <ProductImageThumb src={item.image} alt={name} size="md" />
-        {/* showItemNotes: ต้อง flex-1 ให้ textarea `w-full` มี parent กว้างชัดเจน
-            (ไม่งั้น input กางตาม default ~200px — บั๊กเดียวกับช่องจำนวนในโหมดการ์ด)
-            หน้าอื่นที่ไม่เปิดหมายเหตุคงพฤติกรรมเดิมเป๊ะ */}
-        <div className={showItemNotes ? 'flex-1 min-w-0' : 'min-w-0'}>
-          <p className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">{name}</p>
-          <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+      <SharedProductCell
+        item={item}
+        size="md"
+        subtitle={false}
+        badges={
+          <>
             {hasPromo && <ComponentsBadge item={item} />}
             {!hasPromo && sub && <p className="text-xs text-gray-400 dark:text-slate-500 truncate">{sub}</p>}
             {hasStock && <StockBadge qty={stockMap[item.variation_id]} />}
-          </div>
-          {item.gpInfo && (
-            <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-0.5">{item.gpInfo}</p>
-          )}
-          {NoteCell({ item, idx })}
-        </div>
-      </div>
+          </>
+        }
+        footer={
+          <>
+            {item.gpInfo && (
+              <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-0.5">{item.gpInfo}</p>
+            )}
+            {NoteCell({ item, idx })}
+          </>
+        }
+      />
     );
   }
 

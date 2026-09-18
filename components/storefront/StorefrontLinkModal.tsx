@@ -18,10 +18,10 @@ import Modal from '@/components/ui/Modal';
 import SearchInput from '@/components/ui/SearchInput';
 import FilterChips, { FILTER_CHIP_PRIMARY_ACTIVE, type FilterChip } from '@/components/ui/FilterChips';
 import { LoadingCard, EmptyCard } from '@/components/ui/StateCard';
-import { thumbUrl } from '@/lib/image-thumb';
 import { apiFetch } from '@/lib/api-client';
 import { useDebouncedCallback } from '@/lib/useDebounce';
 import { useStorefrontLinks } from '@/lib/useStorefrontLinks';
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
 
 type Kind = 'home' | 'product' | 'category' | 'brand';
 
@@ -162,14 +162,7 @@ export default function StorefrontLinkModal({ open, onClose, onPick }: Props) {
                         className="w-full flex items-center gap-3 py-2.5 px-1 text-left hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
                       >
                         {(kind === 'product' || kind === 'brand') && (
-                          row.image ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={thumbUrl(row.image, 96)} alt="" className="w-10 h-10 rounded object-cover flex-shrink-0" />
-                          ) : (
-                            <span className="w-10 h-10 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                              <ProductIcon className="w-4 h-4 text-gray-400" />
-                            </span>
-                          )
+                          <ProductImageThumb src={row.image} alt={row.name} size="sm" disabled />
                         )}
                         <span className="min-w-0 flex-1">
                           <span className="body-text block truncate">{row.name}</span>

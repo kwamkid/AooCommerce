@@ -5,10 +5,10 @@ import { formatPrice } from '@/lib/utils/format';
 import { useCopy } from '@/lib/useCopy';
 import { useToast } from '@/lib/toast-context';
 import { getStatusHeaderTint } from '@/lib/status-tab-colors';
-import { BanIcon, DiscountIcon, LoadingIcon, PrintIcon, ProductIcon, StoreIcon, ViewIcon } from '@/lib/icons';
+import { BanIcon, DiscountIcon, LoadingIcon, PrintIcon, StoreIcon, ViewIcon } from '@/lib/icons';
 import StatusBadge from '@/components/ui/StatusBadge';
 import Badge from '@/components/ui/Badge';
-import { thumbUrl } from '@/lib/image-thumb';
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
 
 // สีแถบหัวการ์ดใบเสร็จ — คำเรียก/สี badge อยู่ที่ทะเบียนกลาง (domain 'posOrder')
 const ORDER_STATUS_CONFIG: Record<string, { headerBg: string; headerText: string }> = {
@@ -126,13 +126,7 @@ export default function PosOrderCard({ order, onViewReceipt, onVoid, voidingId, 
           <div className="px-4 space-y-1.5">
             {previewItems.map((item, idx) => (
               <div key={idx} className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-slate-700 overflow-hidden flex-shrink-0 flex items-center justify-center">
-                  {item.product?.image ? (
-                    <img src={thumbUrl(item.product.image, 96)} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
-                  ) : (
-                    <ProductIcon className="w-4 h-4 text-gray-300 dark:text-slate-500" />
-                  )}
-                </div>
+                <ProductImageThumb src={item.product?.image} alt={item.product_name} size="sm" />
                 <p className="data-primary text-gray-900 dark:text-slate-100 line-clamp-1 flex-1 min-w-0">
                   {item.product_name}
                   {item.variation_label && (

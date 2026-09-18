@@ -24,6 +24,7 @@ import FormSelect from '@/components/ui/FormSelect';
 import { LoadingCard, EmptyCard } from '@/components/ui/StateCard';
 import { FullPageLoading } from '@/components/ui/Loading';
 import Tabs from '@/components/ui/Tabs';
+import ProductName from '@/components/ui/ProductName';
 
 interface Counter {
   id: string;
@@ -341,10 +342,7 @@ export default function PcPage() {
                         return (
                           <div key={sale.id} className="flex items-center gap-3 px-4 py-3">
                             <div className="flex-1 min-w-0">
-                              <p className="text-gray-900 dark:text-white truncate">
-                                {sale.variation?.product?.name || 'สินค้า'}
-                                {sale.variation?.variation_label ? ` — ${sale.variation.variation_label}` : ''}
-                              </p>
+                              <ProductName item={{ product_name: sale.variation?.product?.name || 'สินค้า', variation_label: sale.variation?.variation_label }} className="text-gray-900 dark:text-white" />
                               <p className="helper-text text-gray-500">
                                 {new Date(sale.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
                                 {' · '}{formatNumber(sale.quantity)} × ฿{formatPrice(sale.unit_price)}
@@ -380,9 +378,7 @@ export default function PcPage() {
                       {summary.stock.map(s => (
                         <div key={s.variation_id} className="flex items-center gap-3 px-4 py-3">
                           <div className="flex-1 min-w-0">
-                            <p className="text-gray-900 dark:text-white truncate">
-                              {s.product_name}{s.variation_label ? ` — ${s.variation_label}` : ''}
-                            </p>
+                            <ProductName item={s} className="text-gray-900 dark:text-white" />
                             {s.unsettled_qty > 0 && (
                               <p className="helper-text text-amber-600">ขายแล้วรอตัดตาม report ห้าง {formatNumber(s.unsettled_qty)} ชิ้น</p>
                             )}
@@ -465,9 +461,7 @@ export default function PcPage() {
             <div className="divide-y divide-gray-100 dark:divide-gray-700/50">
               {checkout.items.map(i => (
                 <div key={i.variation_id} className="flex items-center py-2 gap-2">
-                  <p className="flex-1 min-w-0 truncate text-gray-900 dark:text-white">
-                    {i.product_name}{i.variation_label ? ` — ${i.variation_label}` : ''}
-                  </p>
+                  <ProductName item={i} className="flex-1 text-gray-900 dark:text-white" />
                   <p className="text-gray-500 text-sm">×{formatNumber(i.quantity)}</p>
                 </div>
               ))}

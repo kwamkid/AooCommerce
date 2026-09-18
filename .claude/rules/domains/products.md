@@ -56,6 +56,13 @@ paths:
 ### Types
 `bundle_set`, `buy_get_free`, `buy_get_discount`, `qty_discount`
 
+### ฐานราคาของโปรโมชั่น — **คิดจากราคาปกติเสมอ และโปรชนะราคาลด** (ยืนยัน 2026-09-18)
+- เครื่องคิดทั้ง 4 แบบใน `lib/promotions/*` อ่าน **`default_price`** อย่างเดียว — ไม่มีตัวไหนอ่าน `discount_price`
+- สินค้าที่ตั้ง "ลดเหลือ" ไว้อยู่แล้วและติดโปรโมชั่นด้วย → **ใช้ราคาโปร** ไม่ว่าจะแพงหรือถูกกว่าราคาลดปกติ
+  (เจ้าของเคาะ: ยึดโปรโมชั่นเป็นหลัก) — **ห้ามใส่ตัวเทียบ "เอาอันที่ถูกกว่า" เข้าไปเอง**
+- คนละเรื่องกับ `sellingPrice()` ใน `lib/product-display.ts` ซึ่งเป็น "ราคาขายจริงของสินค้าตอนไม่มีโปร"
+  (ใช้กับหน้าจอทั่วไป + ราคาที่ push ขึ้น marketplace)
+
 ### Shopee Push
 - `PushDealModal` → SSE progress → auto-export product if no link
 - Action matrix: create/edit/push/sync/unsync/resync/delete × status

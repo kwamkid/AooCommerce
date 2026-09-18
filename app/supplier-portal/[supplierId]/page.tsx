@@ -8,6 +8,7 @@ import FormSelect from '@/components/ui/FormSelect';
 import Button from '@/components/ui/Button';
 import { FullPageLoading } from '@/components/ui/Loading';
 import StatusBadge from '@/components/ui/StatusBadge';
+import { productDisplayName } from '@/lib/product-display';
 
 interface VariationInfo {
   id: string;
@@ -75,8 +76,8 @@ const SOURCE_LABELS: Record<string, string> = {
 
 function getDisplayName(v: VariationInfo | null) {
   if (!v) return '-';
-  const name = v.product?.name || '';
-  return v.variation_label ? `${name} - ${v.variation_label}` : name;
+  // ชื่อสินค้าใช้ตัวกลางเดียวกับทั้งระบบ (lib/product-display.ts)
+  return productDisplayName({ product_name: v.product?.name, variation_label: v.variation_label, sku: v.sku });
 }
 
 export default function SupplierPortalPage() {

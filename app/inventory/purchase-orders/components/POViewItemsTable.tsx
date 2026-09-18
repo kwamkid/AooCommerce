@@ -2,8 +2,9 @@
 
 import type { POItem } from './types';
 import { itemStatusBadge, formatCurrency } from './types';
-import { ProductIcon, SuccessIcon } from '@/lib/icons';
-import { thumbUrl } from '@/lib/image-thumb';
+import { SuccessIcon } from '@/lib/icons';
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
+import ProductName from '@/components/ui/ProductName';
 
 interface Props {
   items: POItem[];
@@ -41,10 +42,10 @@ export default function POViewItemsTable({ items, totalAmount }: Props) {
               return (
                 <tr key={item.id} className="data-tr">
                   <td className="px-3 py-3">
-                    {item.variation?.product?.image ? <img src={thumbUrl(item.variation.product.image, 160)} alt="" loading="lazy" decoding="async" className="w-16 h-16 rounded-lg object-cover border border-gray-200 dark:border-slate-600" /> : <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-slate-700 flex items-center justify-center"><ProductIcon className="w-6 h-6 text-gray-400" /></div>}
+                    <ProductImageThumb src={item.variation?.product?.image} alt={item.variation?.product?.name || ''} size="lg" />
                   </td>
                   <td className="px-4 py-3">
-                    <div className="data-primary text-gray-900 dark:text-white">{item.variation?.product?.name || '-'}{item.variation?.variation_label && item.variation.variation_label !== 'default' ? ` - ${item.variation.variation_label}` : ''}</div>
+                    <ProductName item={{ product_name: item.variation?.product?.name, variation_label: item.variation?.variation_label }} lines={1} className="data-primary text-gray-900 dark:text-white" />
                     <div className="data-secondary text-gray-500 dark:text-slate-400">{item.variation?.product?.code}{item.variation?.sku && <span className="ml-2">SKU: {item.variation.sku}</span>}</div>
                   </td>
                   <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white font-medium">{item.quantity}</td>
@@ -68,9 +69,9 @@ export default function POViewItemsTable({ items, totalAmount }: Props) {
           return (
             <div key={item.id} className="p-4">
               <div className="flex items-start gap-3 mb-2">
-                {item.variation?.product?.image ? <img src={thumbUrl(item.variation.product.image, 160)} alt="" loading="lazy" decoding="async" className="w-16 h-16 rounded-lg object-cover" /> : <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-slate-700 flex items-center justify-center"><ProductIcon className="w-6 h-6 text-gray-400" /></div>}
+                <ProductImageThumb src={item.variation?.product?.image} alt={item.variation?.product?.name || ''} size="lg" />
                 <div className="flex-1 min-w-0">
-                  <div className="data-primary text-gray-900 dark:text-white truncate">{item.variation?.product?.name}{item.variation?.variation_label && item.variation.variation_label !== 'default' ? ` - ${item.variation.variation_label}` : ''}</div>
+                  <ProductName item={{ product_name: item.variation?.product?.name, variation_label: item.variation?.variation_label }} className="data-primary text-gray-900 dark:text-white" />
                   <div className="data-secondary text-gray-500">{item.variation?.product?.code}</div>
                 </div>
                 <span className={`text-xs font-medium ${ib.color}`}>{ib.label}</span>

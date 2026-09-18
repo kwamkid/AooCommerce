@@ -18,6 +18,7 @@ import { searchAddress } from '@/lib/thai-address-data';
 import { parseThaiAddress } from '@/lib/address-parser';
 
 import { isValidEmail, EMAIL_INVALID_MESSAGE } from '@/lib/email';
+import { productDisplayName } from '@/lib/product-display';
 interface SlotOption {
   id: string;
   name: string;
@@ -864,7 +865,7 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
           <h2>สรุปคำสั่งซื้อ</h2>
           {lines.map(l => (
             <div key={l.variation_id} className="sf-summary-row">
-              <span>{l.name}{l.variation_label ? ` (${l.variation_label})` : ''} × {l.quantity}</span>
+              <span>{productDisplayName({ product_name: l.name, variation_label: l.variation_label })} × {l.quantity}</span>
               <span>{formatStorePrice(l.price * l.quantity)}</span>
             </div>
           ))}

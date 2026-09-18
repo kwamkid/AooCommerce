@@ -18,12 +18,13 @@ import { LoadingCard, EmptyCard } from '@/components/ui/StateCard';
 import UiStatusBadge, { InfoChip } from '@/components/ui/StatusBadge';
 import Badge from '@/components/ui/Badge';
 import { FilterX } from 'lucide-react';
-import { AddIcon, ProductIcon, PromoBundleIcon, PromoFreeGiftIcon, PromoSpecialPriceIcon, PromoQtyIcon, CloseIcon, DeleteIcon, EditIcon, PromotionIcon, SendIcon, WarningIcon } from '@/lib/icons';
+import { AddIcon, PromoBundleIcon, PromoFreeGiftIcon, PromoSpecialPriceIcon, PromoQtyIcon, CloseIcon, DeleteIcon, EditIcon, PromotionIcon, SendIcon, WarningIcon } from '@/lib/icons';
 import PushDealModal from './components/PushDealModal';
 import { useFeatures } from '@/lib/features-context';
 import { useToast } from '@/lib/toast-context';
 import { getStatusHeaderTint } from '@/lib/status-tab-colors';
 import { thumbUrl } from '@/lib/image-thumb';
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -269,20 +270,7 @@ function PromotionCard({
           <div className="px-4 space-y-2">
             {promo.items.slice(0, 4).map((item, idx) => (
               <div key={idx} className="flex items-start gap-3">
-                {/* Square image — clickable lightbox */}
-                <div
-                  className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-slate-700 overflow-hidden flex-shrink-0"
-                  onClick={item.image ? (e) => { e.stopPropagation(); onImageClick(item.image!); } : undefined}
-                  style={item.image ? { cursor: 'zoom-in' } : undefined}
-                >
-                  {item.image ? (
-                    <img src={thumbUrl(item.image, 96)} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <ProductIcon className="w-5 h-5 text-gray-300 dark:text-slate-500" />
-                    </div>
-                  )}
-                </div>
+                <ProductImageThumb src={item.image} alt={item.product_name} size="md" />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start gap-1.5">
                     <p className="text-base text-gray-900 dark:text-slate-100 line-clamp-1 min-w-0">

@@ -3,6 +3,7 @@
 
 import { CloseIcon, PrintIcon } from '@/lib/icons';
 import { formatPrice } from '@/lib/utils/format';
+import ProductName from '@/components/ui/ProductName';
 
 interface ReceiptItem {
   product_name: string;
@@ -148,10 +149,7 @@ export default function Receipt({ data, onClose, onNewSale }: ReceiptProps) {
               <div key={i} className="py-0.5">
                 <div className="flex justify-between">
                   <div className="flex-1 min-w-0">
-                    <span className="truncate block">
-                      {item.product_name}
-                      {item.variation_label ? ` (${item.variation_label})` : ''}
-                    </span>
+                    <ProductName item={item} as="span" lines={1} className="block" />
                   </div>
                   <span className="ml-2 whitespace-nowrap">฿{formatPrice(item.total)}</span>
                 </div>

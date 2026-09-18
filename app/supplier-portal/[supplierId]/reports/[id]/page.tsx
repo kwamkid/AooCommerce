@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { FullPageLoading } from '@/components/ui/Loading';
 import { BackIcon, OrderIcon, ReportIcon, WarehouseIcon, WarningIcon } from '@/lib/icons';
+import { productDisplayName } from '@/lib/product-display';
 
 interface VariationInfo {
   id: string;
@@ -66,8 +67,8 @@ const SOURCE_LABELS: Record<string, string> = {
 
 function getDisplayName(v: VariationInfo | null) {
   if (!v) return '-';
-  const name = v.product?.name || '';
-  return v.variation_label ? `${name} - ${v.variation_label}` : name;
+  // ชื่อสินค้าใช้ตัวกลางเดียวกับทั้งระบบ (lib/product-display.ts)
+  return productDisplayName({ product_name: v.product?.name, variation_label: v.variation_label, sku: v.sku });
 }
 
 export default function PortalReportDetailPage() {

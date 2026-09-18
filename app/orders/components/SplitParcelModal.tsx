@@ -2,11 +2,11 @@
 
 import { useState, useMemo, useCallback, useRef, DragEvent } from 'react';
 import { GripVertical } from 'lucide-react';
-import { AddIcon, DeleteIcon, LoadingIcon, ParcelIcon, ProductIcon } from '@/lib/icons';
+import { AddIcon, DeleteIcon, LoadingIcon, ParcelIcon } from '@/lib/icons';
 import { apiFetch } from '@/lib/api-client';
 import FormSelect from '@/components/ui/FormSelect';
 import Modal from '@/components/ui/Modal';
-import { thumbUrl } from '@/lib/image-thumb';
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
 
 interface OrderItem {
   id: string;
@@ -366,15 +366,7 @@ export default function SplitParcelModal({
                         </div>
 
                         {/* Image */}
-                        <div className="w-11 h-11 rounded-lg bg-gray-100 dark:bg-gray-700 overflow-hidden flex-shrink-0">
-                          {item.image ? (
-                            <img src={thumbUrl(item.image, 96)} alt="" loading="lazy" decoding="async" className="w-full h-full object-contain" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <ProductIcon className="w-5 h-5 text-gray-300" />
-                            </div>
-                          )}
-                        </div>
+                        <ProductImageThumb src={item.image} alt={item.product_name} size="md" />
 
                         {/* Name */}
                         <div className="flex-1 min-w-0">

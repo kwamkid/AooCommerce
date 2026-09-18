@@ -7,7 +7,7 @@ import { formatPrice } from '@/lib/utils/format';
 import Button from '@/components/ui/Button';
 import NumberInput from '@/components/ui/NumberInput';
 import { computeOrderTotals } from '@/lib/order-totals';
-import { thumbUrl } from '@/lib/image-thumb';
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
 
 export interface CartItemComponent {
   variation_id: string;
@@ -232,13 +232,7 @@ export default function CartPanel({
               <div key={item.variation_id} className="bg-white dark:bg-white/5 rounded-lg p-3 shadow-sm dark:shadow-none">
                 <div className="flex items-start gap-2">
                   {/* Product image */}
-                  <div className="w-[52px] h-[52px] rounded-lg bg-gray-100 dark:bg-white/10 overflow-hidden flex-shrink-0 flex items-center justify-center">
-                    {item.image_url ? (
-                      <img src={thumbUrl(item.image_url, 160)} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-gray-400 dark:text-gray-500 text-xs">--</span>
-                    )}
-                  </div>
+                  <ProductImageThumb src={item.image_url} alt={item.product_name} size="md" />
                   <div className="flex-1 min-w-0">
                     <p className="text-gray-900 dark:text-white text-sm font-medium truncate">{item.product_name}</p>
                     {item.variation_label && (

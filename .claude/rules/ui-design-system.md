@@ -126,6 +126,24 @@ import { ProductIcon, CategoryIcon, AddIcon } from '@/lib/icons';
 - คู่ที่ชนกันบ่อย — `ProductIcon` (ตัวสินค้า) ≠ `ParcelIcon` (กล่องที่จะส่ง) · `CategoryIcon` (หมวดหมู่) ≠ `TagIcon` (ป้ายกำกับ) ≠ `PromotionIcon` (โปรโมชั่น) · `CustomerIcon` (ลูกค้า) ≠ `UserIcon` (คนทั่วไป) ≠ `MemberIcon` (สมาชิกในทีม)
 - โลโก้แพลตฟอร์ม (LINE/FB/IG/TikTok/Shopee/Lazada) ใช้ [PlatformIcon](../../components/ui/PlatformIcon.tsx) ไม่ใช่ทะเบียนนี้
 
+## 🛍 การแสดงผลสินค้า — ตัวกลาง [lib/product-display.ts](../../lib/product-display.ts) + 4 component (บังคับ)
+
+**รูป · ชื่อ · SKU/บาร์โค้ด · ราคา ของสินค้า ต้องผ่านของกลางเสมอ** — ห้ามประกอบเองในหน้า
+
+| ต้องการ | ใช้ |
+|---|---|
+| ช่อง "สินค้า" ในตาราง/การ์ด (รูป+ชื่อ+รหัส/SKU) | `<ProductCell item={x} />` |
+| ชื่อสินค้าอย่างเดียว | `<ProductName item={x} />` |
+| ราคา (ลดแล้ว + ราคาปกติขีดฆ่า) | `<ProductPrice item={x} />` |
+| รูปย่ออย่างเดียว | `<ProductImageThumb src={fullUrl} size="md" />` |
+| ข้อความ (PDF · Excel · title) | `productDisplayName(x)` · `productSubtitle(x)` · `sellingPrice(x)` |
+
+- **ตัดบรรทัด**: `<ProductName>`/`<ProductCell>` ตั้งต้น **2 บรรทัด** (`line-clamp-2`) · ช่องที่กว้างจริง ๆ หรือแถวที่ต้องสูงเท่ากันส่ง `lines={1}` · ใบเสร็จ/หน้ารายละเอียดที่ต้องเห็นชื่อเต็มส่ง `lines={0}`
+- **ตัวคั่นชื่อกับตัวเลือก** = `VARIATION_SEPARATOR` (` - `) ตัวเดียวทั้งระบบ — ห้ามเขียน `— ` / ` (…)` เองอีก
+- **รูป**: ส่ง **URL เต็ม** เข้า `src` เสมอ (คอมโพเนนต์ย่อเองด้วย `thumbUrl()`) — กดขยายแล้ว lightbox แสดงรูปเต็มขนาดจาก URL เดิม · ห้ามส่งรูปที่ย่อมาแล้ว
+- **ราคาขายจริง** = `sellingPrice(v)` (มีส่วนลดใช้ส่วนลด) — ESLint บล็อกการเขียน `discount_price > 0 ? …` เองแล้ว · ราคานี้คือราคาที่ push ขึ้น marketplace ด้วย
+- ยกเว้นที่ยังเขียน `<img>` เองได้: หน้าร้านออนไลน์ (`components/storefront/**` มีดีไซน์ของตัวเอง) · ตัวอย่างข้อความในบรอดแคสต์/แชท (จำลองหน้าตาแอปอื่น) · การ์ดสินค้าใน POS (`ProductGrid` เป็นไทล์เต็มใบ ไม่ใช่รูปจิ๋ว)
+
 ## Standard Layout & Styling
 
 ### Page Template (List Page)

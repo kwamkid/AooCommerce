@@ -3,8 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { ReceiveRef, POItem } from './types';
-import { ChevronDownIcon, ChevronUpIcon, ProductIcon, StockReceiveIcon } from '@/lib/icons';
-import { thumbUrl } from '@/lib/image-thumb';
+import { ChevronDownIcon, ChevronUpIcon, StockReceiveIcon } from '@/lib/icons';
+import ProductCell from '@/components/ui/ProductCell';
 
 interface Props {
   receives: ReceiveRef[];
@@ -77,24 +77,15 @@ export default function POReceivesSection({ receives, poItems }: Props) {
                       const poQty = poQtyMap.get(item.variation_id);
                       const isExtraItem = poQty === undefined;
                       const isOverQty = poQty !== undefined && item.quantity > poQty;
-                      const rawLabel = item.variation?.variation_label || '';
-                      const variationLabel = (rawLabel && rawLabel !== item.variation?.product?.code && rawLabel !== item.variation?.sku && !/^\d+$/.test(rawLabel)) ? rawLabel : '';
 
                       return (
                         <div key={item.id} className="flex items-center gap-2 py-1">
-                          {item.variation?.product?.image ? (
-                            <img src={thumbUrl(item.variation.product.image, 96)} alt="" loading="lazy" decoding="async" className="w-7 h-7 rounded object-cover flex-shrink-0" />
-                          ) : (
-                            <div className="w-7 h-7 bg-gray-200 dark:bg-slate-600 rounded flex items-center justify-center flex-shrink-0">
-                              <ProductIcon className="w-3.5 h-3.5 text-gray-400" />
-                            </div>
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <span className="text-xs text-gray-700 dark:text-slate-300 truncate block">
-                              {item.variation?.product?.name || '-'}
-                              {variationLabel && ` - ${variationLabel}`}
-                            </span>
-                          </div>
+                          <ProductCell
+                            item={{ product_name: item.variation?.product?.name, variation_label: item.variation?.variation_label }}
+                            size="xs"
+                            lines={1}
+                            subtitle={false}
+                          />
                           <div className="flex items-center gap-1.5 flex-shrink-0">
                             <span className={`text-xs font-medium ${
                               isExtraItem
