@@ -170,6 +170,16 @@ worker หยิบทั้งใบที่ `failed` (รวม `next_retry_a
 - หน้าเดียวทุกแพลตฟอร์ม [app/marketplace/export](../../../app/marketplace/export/page.tsx) `?account=<id>&product=<id>` — 3 ขั้น (เลือกสินค้า · ตั้งค่า · ส่ง) · ตัวเลือกหมวดใช้ **`components/marketplace/CategoryPicker`** (ตัวเดียวทุกแพลตฟอร์ม · แคชต้นไม้ต่อร้านในหน่วยความจำ ไม่ยิงซ้ำต่อแถว) · ฟอร์มคุณสมบัติ **สร้างจาก schema ที่ route attributes คืนมา** (`FormSelect`/`MultiSelectSearch`/`FormInput`) · "ใช้กับทุกรายการ" · ป้าย/ไอคอนจาก `MARKETPLACE_PLATFORMS[platform].label` + `PlatformIcon` **ห้ามเขียนเงื่อนไขแยก platform ในหน้า** (หน้า `/shopee/export` + `ShopeeExportModal`/`ShopeeBulkExportModal`/`ShopeeCategoryPicker` ลบแล้ว)
 - `lib/shopee/product-export.ts` เหลือเป็น **ชั้นบางสำหรับ call site เดิม** (`sync-one-product.ts` ใช้ `uploadProductImages` · `/api/shopee/deals` ใช้ `exportProductToShopee`) — โค้ดใหม่เรียกชั้นกลางตรง ๆ
 
+### Product export — ยืมข้อมูลจากร้านที่สินค้าตัวนั้นขายอยู่แล้ว (เพิ่ม 2026-09-18)
+
+- **`GET /api/marketplace/products/export/reference?account_id=&product_ids=`** → ต่อสินค้า: ร้านที่ยืมได้ (ชื่อ · ราคารายตัวเลือก · น้ำหนัก · แบรนด์ · คุณสมบัติ) เรียง **ร้านที่ข้อมูลครบสุดก่อน** + `variations` (ตัวเลือก + ราคาขายในระบบ) — **อ่าน `marketplace_product_links` ล้วน ไม่ยิง API ของแพลตฟอร์มเลย**
+- เหตุผล: ชื่อกับราคาที่ตั้งไว้จริงบนร้านอื่นใกล้กับที่ควรใช้บนร้านใหม่มากกว่าข้อมูลกลาง (ชื่อยาวกว่า ผ่านเกณฑ์ความยาวของ TikTok · ราคาบวกค่าธรรมเนียมไว้แล้ว)
+- ชั้นกลางรับผ่าน **`ExportConfig.title`** (ชื่อเฉพาะร้าน) และ **`ExportConfig.prices`** (`variation_id` → ราคา) — ไม่ส่ง = ใช้ของในระบบ · **ไม่แตะข้อมูลสินค้าในระบบทั้งคู่**
+- ⛔ **คุณสมบัติ/แบรนด์ยืมได้แค่ "ชื่อ" ไม่ใช่ id** — ทะเบียนของแต่ละแพลตฟอร์มคนละชุด · จับคู่ด้วยชื่อแบบ normalize แล้วเติมเฉพาะที่ตรง **ห้ามเดา** · ข้ามเจ้ามักไม่ตรงเพราะภาษาต่างกัน (Shopee เก็บชื่ออังกฤษ "Recommended Age" · TikTok เราขอ locale ไทย "อายุที่แนะนำ")
+- **ราคาที่ส่งขึ้นร้าน = ราคาตั้งของประกาศ ราคาเดียว** ทุกเจ้า (TikTok `price.amount` · Shopee `original_price` · Lazada `price`) — ส่วนลดต้องไปทำที่โปรโมชันของร้าน ไม่ใช่ส่งราคาลดมาเป็นราคาตั้ง
+- **`adapter.itemExists(account, externalItemId)`** — ชั้นกลางถามร้านก่อนเมื่อเจอ "ผูกกับร้านนี้แล้ว" · ไม่มีบนร้านแล้ว = ล้าง link ที่ค้างให้อัตโนมัติแล้วสร้างใหม่ (คนไปลบประกาศทิ้งที่หลังบ้าน แล้ว link ฝั่งเราค้างจนส่งใหม่ไม่ได้ตลอดกาล) · **ถามไม่ได้/API ล้ม = ถือว่ายังอยู่เสมอ** (เดาผิดทางนั้นแค่ต้องกดปุ่ม "ยกเลิกการผูก" เอง — `DELETE /api/marketplace/links?account_id=&product_id=` — แต่เดาผิดอีกทางคือประกาศซ้ำบนร้าน)
+- **`adapter.titleRules {min,max}`** — ข้อจำกัดความยาวชื่อของแต่ละเจ้า ส่งให้หน้า wizard ผ่าน **`GET /api/marketplace/products/export?account_id=`** (TikTok 25–510 · Shopee ≤120 · Lazada ≤255) — **หน้าห้ามรู้จัก platform เอง**
+
 ### ข้อมูลผู้ซื้อ (ชื่อ · ที่อยู่ · ข้อความ) — adapter ต่อ platform + ตัวเขียนที่อยู่ตัวกลาง
 
 - **➕ เพิ่ม platform ใหม่ = สร้าง `lib/<platform>/buyer-adapter.ts` + 1 บรรทัดใน `BUYER_ADAPTERS`** — ห้าม `switch` ตาม platform / ห้ามไล่เดาชื่อคีย์ใน route หรือหน้า
