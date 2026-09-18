@@ -4,6 +4,8 @@ paths:
   - "app/api/leads/**/*"
   - "components/chat/LeadSheet.tsx"
   - "app/chat/**/*"
+  - "app/marketing/broadcast/**/*"
+  - "app/marketing/audiences/**/*"
 ---
 # ติดตามลูกค้าในแชท — สถานะกรวยขาย (lead stage) + นัดทักอีกครั้ง
 
@@ -23,7 +25,8 @@ paths:
 | วันนัด + ป้ายบอกนัด + วันรอโอน | [lib/leads/followup-presets.ts](../../../lib/leads/followup-presets.ts) — `followUpPresets()` · `followUpLabel()` · `formatShortThaiDate()` · `waitingDays()` (client-safe) |
 | อ่าน/เขียน lead ฝั่ง server | [lib/leads/service.ts](../../../lib/leads/service.ts) — `getCompanyStages` · `getLeadForContact` · `resolveLeadForContact` · `updateLead` · `markContactedByStaff` · `logLeadEvent` |
 | จอติดตาม | `components/chat/LeadSheet.tsx` — แผ่นเดียวใช้ทุกทางเข้า (หัวห้องแชท · รายชื่อ) |
-| API | `GET/PATCH /api/leads` (`contact_id` + `platform`) |
+| API | `GET/PATCH /api/leads` (`contact_id` + `platform`) · `GET /api/leads/queue` (คิวติดตาม) · `GET /api/leads/stats` (สรุปกรวยขาย) |
+| งานรายวัน | [lib/leads/sweep.ts](../../../lib/leads/sweep.ts) `sweepLeadAutomations()` — **เกาะ cron ตัวเฝ้าเดิม ห้ามตั้ง cron ใบใหม่** |
 
 - **ค่าจริงของขั้นอยู่ในตาราง `lead_stages` ต่อบริษัท** (ร้านแก้ชื่อ/สี/ลำดับได้) — ค่าใน `stages.ts` เป็นชุดตั้งต้น + ค่าสำรองตอนยังโหลดไม่เสร็จ · บริษัทที่ยังไม่มีแถว `getCompanyStages()` seed ให้เอง
 - **สิทธิ์ใช้ของเดิม**: ดู = `chat.view` · แก้/มอบหมาย = `chat.reply` — ห้ามเพิ่ม capability ใหม่
@@ -41,6 +44,23 @@ paths:
 - แผ่นเปิดจาก **รูปโปรไฟล์ในหัวห้อง** (วงแหวนรอบรูป = สีของขั้น) · แตะชิปใต้ชื่อก็เปิดได้
 - ทุกปุ่มในแผ่น **บันทึกทันทีที่แตะ ไม่มีปุ่มบันทึก** · เลือกวันนัดแล้วปิดแผ่นเอง
 
-## ยังไม่ได้ทำ (ตามแผน `memo/plan-chat-funnel-2026-09-18.md`)
-ตัวกรอง/วงแหวนในรายชื่อแชท · หน้าคิวติดตาม · ปัดแถวตั้งนัด · แถบ "ทักอีกที?" หลังส่งข้อความ ·
-ติดสถานะเองตอนส่งลิงก์บิล/จ่ายเงิน/ส่งของ · กระดิ่ง+แจ้งเตือนเช้า · audience `lead_stage`/`follow_up_due`
+## ระบบติดสถานะให้เอง (`source='system'`)
+| เหตุการณ์ | ผล | จุดเรียก |
+|---|---|---|
+| ส่งลิงก์บิลในแชท | → `quoted` + เริ่มนับวันรอโอน + นัดทวง +2 วัน | `POST /api/chat/messages` ที่ส่ง `bill_order_id` → `markBillSentToChat()` |
+| จ่ายเงินแล้ว (ทุกทาง) | → `won` + ล้างนัด + หยุดตัวนับ | `markOrderPaid()` ข้าง `dispatchConversion('Purchase')` ทั้ง 5 จุด (orders POST/PUT ×3 · POS · Beam) |
+| ซื้อแล้วครบ 30 วัน | ตั้งนัดชวนคุยหลังการขาย | `sweepLeadAutomations()` |
+| รอโอนเกิน 7 วัน | ดันเข้าคิววันนี้ให้คนตัดสินใจ (ไม่เปลี่ยนสถานะเอง) | `sweepLeadAutomations()` |
+
+- **บิลไม่ล้างนัด** — ข้อความบิลไปทาง `markBillSentToChat()` ไม่ใช่ `markContactedByStaff()`
+- เพิ่มจุดที่ทำให้บิล "จ่ายแล้ว" ต้องเรียก `markOrderPaid()` ด้วยเสมอ (ใน `after()`)
+
+## กลุ่มผู้รับสำหรับบรอดแคสต์/โฆษณา
+`lead_stage` (เลือกขั้น) · `follow_up_due` (ถึงกำหนดใน N วัน) — ใช้ได้ทั้งบรอดแคสต์และกลุ่มที่ sync ขึ้น Meta
+แก้ครบ 4 จุดแล้ว: `lib/broadcast/audience.ts` → `AUDIENCE_BY_PLATFORM` ใน `/api/broadcasts` →
+CHECK `broadcasts_audience_type_check` → `lib/broadcast/recipients.ts` + `lib/audiences/resolve.ts`
+· นับสองทางเสมอ (ห้องที่ผูก lead ตรง + ทุกห้องของ `leads.customer_id`)
+
+## ยังไม่ได้ทำ
+ปัดแถวในรายชื่อเพื่อตั้งนัดเร็ว · แจ้งเตือน push ตอนเช้า (ตอนนี้มีแค่ตัวเลขบนเมนูจาก `/api/header/summary`) ·
+หน้าแก้ชื่อ/สี/ลำดับขั้นใน settings (แก้ตรงตาราง `lead_stages` ได้อยู่)

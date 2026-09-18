@@ -43,6 +43,17 @@ interface QueueItem {
 
 type Groups = { overdue: QueueItem[]; today: QueueItem[]; upcoming: QueueItem[] };
 
+interface LeadStats {
+  days: number;
+  byStage: { key: string; name: string; color: LeadStage['color']; is_open: boolean; count: number }[];
+  openTotal: number;
+  won: number;
+  lost: number;
+  closeRate: number | null;
+  avgDaysToWin: number | null;
+  resolvedCases: number;
+}
+
 const ASSIGNED_CHIPS = [
   { id: 'all', label: 'ทั้งหมด', activeClass: FILTER_CHIP_PRIMARY_ACTIVE },
   { id: 'me', label: 'ของฉัน', activeClass: FILTER_CHIP_PRIMARY_ACTIVE },
@@ -60,17 +71,22 @@ export default function FollowUpsPage() {
   const [assigned, setAssigned] = useState('all');
   const [loading, setLoading] = useState(true);
   const [busyLead, setBusyLead] = useState<string | null>(null);
+  const [stats, setStats] = useState<LeadStats | null>(null);
 
   const canEdit = can(userProfile, 'chat.reply');
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiFetch(`/api/leads/queue?assigned=${assigned}`);
+      const [res, statsRes] = await Promise.all([
+        apiFetch(`/api/leads/queue?assigned=${assigned}`),
+        apiFetch('/api/leads/stats?days=30'),
+      ]);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'โหลดคิวติดตามไม่สำเร็จ');
       setGroups(data.groups);
       if (Array.isArray(data.stages) && data.stages.length > 0) setStages(data.stages);
+      if (statsRes.ok) setStats(await statsRes.json());
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'โหลดคิวติดตามไม่สำเร็จ', 'error');
     } finally {
@@ -216,6 +232,43 @@ export default function FollowUpsPage() {
             onChange={setAssigned}
           />
         </div>
+
+        {/* สรุป 30 วัน — ตัวเลขที่บอกว่ากรวยขายเดินอยู่ไหม ไม่ใช่แค่ "วันนี้ต้องทักใคร" */}
+        {stats && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm px-4 py-3">
+              <div className="text-xs text-gray-500 dark:text-slate-400">กำลังตามอยู่</div>
+              <div className="text-2xl font-bold tabular-nums text-gray-900 dark:text-white">{stats.openTotal}</div>
+            </div>
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm px-4 py-3">
+              <div className="text-xs text-gray-500 dark:text-slate-400">ปิดการขาย 30 วัน</div>
+              <div className="text-2xl font-bold tabular-nums text-green-600">{stats.won}</div>
+            </div>
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm px-4 py-3">
+              <div className="text-xs text-gray-500 dark:text-slate-400">อัตราปิดการขาย</div>
+              <div className="text-2xl font-bold tabular-nums text-gray-900 dark:text-white">
+                {stats.closeRate === null ? '—' : `${stats.closeRate}%`}
+              </div>
+            </div>
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm px-4 py-3">
+              <div className="text-xs text-gray-500 dark:text-slate-400">ทักแรกถึงซื้อเฉลี่ย</div>
+              <div className="text-2xl font-bold tabular-nums text-gray-900 dark:text-white">
+                {stats.avgDaysToWin === null ? '—' : `${stats.avgDaysToWin} วัน`}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* คนค้างอยู่ขั้นไหนบ้างตอนนี้ */}
+        {stats && stats.byStage.some(s => s.count > 0) && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            {stats.byStage.filter(s => s.count > 0).map(s => (
+              <span key={s.key} className={`text-sm font-medium px-2.5 py-1 rounded ${STAGE_CHIP_CLASS[s.color]}`}>
+                {s.name} · {s.count}
+              </span>
+            ))}
+          </div>
+        )}
 
         {loading ? (
           <LoadingCard />
