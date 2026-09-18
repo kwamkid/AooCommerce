@@ -53,6 +53,9 @@ import { can } from '@/lib/permissions';
 import { filterSavedReplies, splitFrequentReplies, type SavedReply } from '@/lib/chat/saved-replies';
 import { applySavedReplyVars } from '@/lib/chat/saved-reply-vars';
 import { resolveContactName } from '@/lib/chat/contact-name';
+import type { LeadData } from '@/components/chat/LeadSheet';
+import { DEFAULT_LEAD_STAGES, STAGE_CHIP_CLASS, STAGE_RING_CLASS, type LeadStage } from '@/lib/leads/stages';
+import { followUpLabel } from '@/lib/leads/followup-presets';
 // **ไม่ใช้ dynamic()** — ตัวนี้เล็ก (ไม่มี dep หนัก) และถูกกดบ่อยที่สุดในหน้านี้
 // โหลดแยกไฟล์ = กดปุ่มแล้วต้องรอดาวน์โหลด/คอมไพล์ก่อนถึงจะเห็นอะไร ซึ่งคือ "ความหน่วง" ที่เจ้าของเจอ
 import SavedReplyPicker from './components/SavedReplyPicker';
@@ -63,6 +66,8 @@ const SavedReplyModal = dynamic(() => import('@/components/chat/SavedReplyModal'
 const StorefrontLinkModal = dynamic(() => import('@/components/storefront/StorefrontLinkModal'), { ssr: false });
 const LinkCustomerModal = dynamic(() => import('./components/LinkCustomerModal'), { ssr: false });
 const LightboxViewer = dynamic(() => import('./components/LightboxViewer'), { ssr: false });
+// แผ่นติดตามลูกค้า (สถานะกรวยขาย + นัดทักอีกครั้ง) — เปิดจากรูปโปรไฟล์ในหัวห้อง
+const LeadSheet = dynamic(() => import('@/components/chat/LeadSheet'), { ssr: false });
 // ฟอร์มสองตัวนี้ใหญ่มาก (OrderForm ~3,300 บรรทัด · CustomerForm ~700) แต่ใช้แค่ตอนเปิด
 // แผงด้านข้าง — import ตรง ๆ = ติดไปกับ first-load JS ของหน้าแชททุกครั้งที่เปิดหน้า
 const OrderForm = dynamic(() => import('@/components/orders/OrderForm'), { ssr: false, loading: () => <LoadingCard /> });
@@ -137,6 +142,10 @@ function UnifiedChatPageContent() {
 
   // Selected contact state
   const [selectedContact, setSelectedContact] = useState<UnifiedContact | null>(null);
+  // ติดตามลูกค้า — โหลดเฉพาะห้องที่เปิดอยู่ (ไม่ดึงทั้งรายชื่อ)
+  const [leadSheetOpen, setLeadSheetOpen] = useState(false);
+  const [lead, setLead] = useState<LeadData | null>(null);
+  const [leadStages, setLeadStages] = useState<LeadStage[]>(DEFAULT_LEAD_STAGES);
   // refs สำหรับ realtime effect ที่ subscribe ครั้งเดียว — อ่านค่าล่าสุดโดยไม่ต้อง re-subscribe
   const selectedContactRef = useRef<UnifiedContact | null>(null);
   selectedContactRef.current = selectedContact;
@@ -547,6 +556,25 @@ function UnifiedChatPageContent() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [rightPanel]);
+
+  // ── ติดตามลูกค้า (lead) ของห้องที่เปิดอยู่ ──
+  // โหลดตอนสลับห้องเท่านั้น — ไม่ผูกกับข้อความเข้า จึงไม่ทำให้หน้า render ใหม่ทุกข้อความ
+  useEffect(() => {
+    const contactId = selectedContact?.id;
+    const platform = selectedContact?.platform;
+    if (!contactId || !platform) { setLead(null); return; }
+    let cancelled = false;
+    setLead(null);
+    apiFetch(`/api/leads?contact_id=${contactId}&platform=${selectedContact?.source || platform}`)
+      .then(r => r.json())
+      .then(data => {
+        if (cancelled) return;
+        setLead(data.lead || null);
+        if (Array.isArray(data.stages) && data.stages.length > 0) setLeadStages(data.stages);
+      })
+      .catch(() => { /* โหลดไม่ได้ = ไม่โชว์ป้าย ไม่ขวางการคุย */ });
+    return () => { cancelled = true; };
+  }, [selectedContact?.id, selectedContact?.platform, selectedContact?.source]);
 
   // ── ประวัติ "ทักมาจากโฆษณา" ──
   // เปลี่ยนห้อง = ทิ้งของเดิมทันที (และเพิ่ม seq เพื่อทิ้งผลของห้องเก่าที่ยังค้างสายอยู่)
@@ -2986,11 +3014,20 @@ function UnifiedChatPageContent() {
                     const avatarInner = (
                       <ContactAvatar contact={selectedContact} sizeClass="w-9 h-9 md:w-10 md:h-10 text-sm" color={platformColor} />
                     );
+                    // แตะรูป = เปิดแผ่นติดตาม (สถานะ + นัดทักอีกครั้ง) — ทางเข้าหลักของระบบติดตาม
+                    // วงแหวนรอบรูปบอกสถานะปัจจุบันโดยไม่ต้องเปิดอะไร
+                    const leadStage = lead ? leadStages.find(st => st.key === lead.stage) : null;
                     const avatarEl = (
-                      <div className="relative flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setLeadSheetOpen(true)}
+                        aria-label="ติดตามลูกค้า"
+                        title="ติดตามลูกค้า"
+                        className={`relative flex-shrink-0 rounded-full ${leadStage ? `ring-2 ring-offset-1 dark:ring-offset-slate-800 ${STAGE_RING_CLASS[leadStage.color]}` : ''}`}
+                      >
                         {avatarInner}
                         <AccountCornerBadge contact={selectedContact} sizeClass="w-[18px] h-[18px]" />
-                      </div>
+                      </button>
                     );
                     return (<>
                       {avatarEl}
@@ -2999,6 +3036,23 @@ function UnifiedChatPageContent() {
                           <span className="flex-shrink-0"><PlatformIcon contact={selectedContact} size={16} /></span>
                           <span className="truncate">{selectedContact.nickname || selectedContact.display_name}</span>
                         </h3>
+                    {/* สถานะการติดตาม + นัดทักอีกครั้ง — แตะได้ทั้งแถบเพื่อเปิดแผ่น */}
+                    {lead && (() => {
+                      const st = leadStages.find(x => x.key === lead.stage);
+                      const dueLabel = followUpLabel(lead.follow_up_at);
+                      return (
+                        <button type="button" onClick={() => setLeadSheetOpen(true)} className="flex items-center gap-1.5 mt-0.5">
+                          {st && (
+                            <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded ${STAGE_CHIP_CLASS[st.color]}`}>{st.name}</span>
+                          )}
+                          {dueLabel && (
+                            <span className={`text-[11px] px-1.5 py-0.5 rounded-full ${dueLabel.overdue ? 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'}`}>
+                              {dueLabel.text}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })()}
                     {/* ตั้งชื่อเล่นแล้วต้องยังเห็นชื่อจริงบนแพลตฟอร์มด้วย — ไม่งั้นเทียบกับหน้าจอ LINE/FB ไม่ได้ */}
                     {(selectedContact.nickname || selectedContact.account_name) && (
                       <p className="text-xs text-gray-500 dark:text-slate-400 truncate">
@@ -3445,6 +3499,18 @@ function UnifiedChatPageContent() {
           </div>
         )}
       </div>
+
+      {/* แผ่นติดตามลูกค้า — เปิดจากรูปโปรไฟล์ในหัวห้อง */}
+      {leadSheetOpen && selectedContact && (
+        <LeadSheet
+          open={leadSheetOpen}
+          contactId={selectedContact.id}
+          platform={selectedContact.source || selectedContact.platform}
+          contactName={selectedContact.nickname || selectedContact.display_name}
+          onClose={() => setLeadSheetOpen(false)}
+          onChanged={(updated) => setLead(updated)}
+        />
+      )}
 
       {/* Link Customer Modal */}
       {showLinkModal && selectedContact && (

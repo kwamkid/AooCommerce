@@ -1,6 +1,7 @@
 import { checkAuthWithCompany, can } from '@/lib/supabase-admin';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { getChatServiceLazy } from '@/lib/services/chat/registry';
+import { markContactedByStaff } from '@/lib/leads/service';
 
 // GET - Get messages for a contact (any platform)
 export async function GET(request: NextRequest) {
@@ -72,6 +73,17 @@ export async function POST(request: NextRequest) {
     if (!result.success) {
       return NextResponse.json({ error: result.error, errorCode: result.errorCode }, { status: 500 });
     }
+
+    // พนักงานทักไปเองแล้ว = นัดติดตามของคนนี้หมดหน้าที่ — ล้างให้ทุกห้องของเขา
+    // (บรอดแคสต์ไม่ผ่านทางนี้ จึงไม่ล้างนัดทั้งกอง) · ทำหลังตอบผู้ใช้ ห้ามทำให้การส่งข้อความล้ม
+    after(async () => {
+      try {
+        await markContactedByStaff({ companyId, contactId: contact_id, platform, actorId: userId });
+      } catch (e) {
+        console.error('lead mark contacted failed:', e);
+      }
+    });
+
     return NextResponse.json({ success: true, message: result.message });
   } catch (error) {
     console.error('Unified messages POST error:', error);

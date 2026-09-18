@@ -81,6 +81,7 @@
 | `domains/tiktok.md` | status · sign · product import · settlement API | `lib/tiktok/**` |
 | `domains/lazada.md` | IM chat · order sync · product import | `lib/lazada/**` |
 | `domains/settlement.md` | เงินเข้าจริง · ค่าธรรมเนียม 13 ช่อง | `*settlement*` · `fee-types.ts` |
+| `domains/leads.md` | ติดตามลูกค้าในแชท: สถานะกรวยขาย + นัดทักอีกครั้ง (นัดผูกกับคน ไม่ใช่ห้อง) | `lib/leads/**` · `app/api/leads/**` · `app/chat/**` |
 | `domains/chat.md` | แชททุกแพลตฟอร์ม · performance หน้า `/chat` | `app/chat/**` · `lib/services/chat/**` · `lib/chat/**` · `lib/line/**` |
 | `domains/broadcast.md` | บรอดแคสต์ · กลุ่มผู้รับ · เนื้อหา · ตั้งเวลา · รายงาน | `app/marketing/**` · `lib/broadcast/**` |
 | `domains/coupons.md` | คูปองกรอกโค้ด (คนละเรื่องกับโปรโมชัน) · ช่องทางที่ใช้ได้ · **แทนที่ส่วนลดท้ายบิล ไม่ใช่บวก** · ตัดสิทธิ์ตอนสร้างบิลเท่านั้น | `lib/coupons.ts` · `app/api/coupons/**` · `app/marketing/coupons/**` · `components/pos/**` |
