@@ -17,13 +17,25 @@ interface ValidationResult {
   context?: PortalContext;
 }
 
-/** Validate portal access by supplier ID (used by all data endpoints) */
-export async function validatePortalAccess(supplierId: string): Promise<ValidationResult> {
-  // Layer 1: Find supplier by ID
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Validate portal access (used by all data endpoints)
+ *
+ * `ref` เป็นได้ทั้ง `portal_token` (ทางใหม่ — เดาไม่ได้ เหมือนพอร์ทัลตัวแทนฝากขาย)
+ * และ `suppliers.id` (ลิงก์เก่าที่ส่งซัพพลายเออร์ไปแล้ว) — ทั้งคู่เป็น uuid แยกจาก
+ * รูปแบบไม่ได้ จึงค้นทั้งสองคอลัมน์ ซึ่ง unique ทั้งคู่จึงไม่มีทางชนกัน
+ */
+export async function validatePortalAccess(ref: string): Promise<ValidationResult> {
+  if (!ref || !UUID_RE.test(ref)) {
+    return { valid: false, error: 'Portal unavailable' };
+  }
+
+  // Layer 1: Find supplier by portal_token (ทางใหม่) หรือ id (ลิงก์เก่า)
   const { data: supplier } = await supabaseAdmin
     .from('suppliers')
     .select('id, company_id, name, supplier_type, portal_enabled')
-    .eq('id', supplierId)
+    .or(`id.eq.${ref},portal_token.eq.${ref}`)
     .eq('is_active', true)
     .single();
 

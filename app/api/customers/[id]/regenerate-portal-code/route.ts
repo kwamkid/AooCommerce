@@ -1,17 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
-import crypto from 'crypto';
+import { newAccessCode } from '@/lib/portal-access';
 
-function generateAccessCode(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I
-  // 12 chars ≈ 60 bits (rate-limited login too) — see supplier regenerate-code.
-  let code = '';
-  const bytes = crypto.randomBytes(12);
-  for (let i = 0; i < 12; i++) {
-    code += chars[bytes[i] % chars.length];
-  }
-  return `DN-${code}`;
-}
 
 // POST — Generate/regenerate consignment dealer portal access code
 export async function POST(
@@ -45,7 +35,7 @@ export async function POST(
     }
 
     // Generate unique code (retry on collision)
-    let accessCode = generateAccessCode();
+    let accessCode = newAccessCode();
     let retries = 5;
     while (retries > 0) {
       const { data, error } = await supabaseAdmin
@@ -61,7 +51,7 @@ export async function POST(
       }
 
       if (error?.code === '23505') {
-        accessCode = generateAccessCode();
+        accessCode = newAccessCode();
         retries--;
         continue;
       }

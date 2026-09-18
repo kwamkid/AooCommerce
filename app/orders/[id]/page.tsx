@@ -51,6 +51,7 @@ import { orderStatusLabel, paymentStatusLabel, getNextOrderStatus } from '@/lib/
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import { productDisplayName } from '@/lib/product-display';
 import ImageLightbox from '@/components/ui/ImageLightbox';
+import { getBillLink } from '@/lib/bill-link';
 
 interface PaymentRecord {
   id: string;
@@ -1078,9 +1079,10 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                       {/* Bill online link — all non-marketplace */}
                       {!isMarketplaceOrder && (
                         <button
-                          onClick={() => {
+                          onClick={async () => {
                             setShowActionMenu(false);
-                            const billUrl = `${window.location.origin}/bills/${orderId}`;
+                            const billUrl = await getBillLink(orderId);
+                            if (!billUrl) return;
                             copy(billUrl, 'ลิงก์บิลออนไลน์');
                           }}
                           className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5"

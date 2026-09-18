@@ -26,7 +26,7 @@ export async function GET(
         items:purchase_order_items(id, quantity, received_quantity)
       `)
       .eq('company_id', companyId)
-      .eq('supplier_id', supplierId)
+      .eq('supplier_id', result.context.supplierId)
       .neq('status', 'draft')
       .order('created_at', { ascending: false });
 

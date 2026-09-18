@@ -1,19 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
-import crypto from 'crypto';
+import { newAccessCode } from '@/lib/portal-access';
 import { guardFeature } from '@/lib/package-gates-server';
 
-function generateAccessCode(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I to avoid confusion
-  // 12 chars ≈ 60 bits — the portal login endpoint is a public brute-force
-  // surface (rate-limited too), so keep the code well out of guessing range.
-  let code = '';
-  const bytes = crypto.randomBytes(12);
-  for (let i = 0; i < 12; i++) {
-    code += chars[bytes[i] % chars.length];
-  }
-  return `SUP-${code}`;
-}
 
 // POST - Generate/regenerate supplier portal access code
 export async function POST(
@@ -48,7 +37,7 @@ export async function POST(
     }
 
     // Generate unique code (retry on collision)
-    let accessCode = generateAccessCode();
+    let accessCode = newAccessCode();
     let retries = 5;
     while (retries > 0) {
       const { data, error } = await supabaseAdmin
@@ -65,7 +54,7 @@ export async function POST(
 
       if (error?.code === '23505') {
         // Unique constraint violation — regenerate
-        accessCode = generateAccessCode();
+        accessCode = newAccessCode();
         retries--;
         continue;
       }

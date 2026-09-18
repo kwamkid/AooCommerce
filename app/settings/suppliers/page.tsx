@@ -42,6 +42,8 @@ interface Supplier {
   bank_account: string | null;
   notes: string | null;
   access_code: string | null;
+  /** รหัสลับในลิงก์พอร์ทัล — ใช้แทน id เสมอ (id ไล่เดาได้) */
+  portal_token: string | null;
   portal_enabled: boolean;
   portal_enabled_at: string | null;
 }
@@ -290,13 +292,13 @@ export default function SuppliersPage() {
                 key: 'portal',
                 label: 'ลิงก์ซัพออนไลน์',
                 icon: <ExternalLinkIcon className="w-4 h-4" />,
-                onClick: () => window.open(`/supplier-portal/${supplier.id}`, '_blank'),
+                onClick: () => window.open(`/supplier-portal/${supplier.portal_token || supplier.id}`, '_blank'),
               });
               items.push({
                 key: 'copy-link',
                 label: 'คัดลอกลิงก์',
                 icon: <CopyIcon className="w-4 h-4" />,
-                onClick: () => { copy(`${window.location.origin}/supplier-portal/${supplier.id}`, 'ลิงก์'); },
+                onClick: () => { copy(`${window.location.origin}/supplier-portal/${supplier.portal_token || supplier.id}`, 'ลิงก์'); },
               });
               items.push({
                 key: 'copy-code',

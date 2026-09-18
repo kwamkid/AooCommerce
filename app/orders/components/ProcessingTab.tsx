@@ -31,6 +31,7 @@ import { isMarketplaceSource } from '@/lib/marketplace/types';
 import FormSelect from '@/components/ui/FormSelect';
 import { useCarriers } from '@/lib/carrier-lookup';
 import BulkActionBar from '@/components/ui/BulkActionBar';
+import { getBillLink } from '@/lib/bill-link';
 
 interface ProcessingTabProps {
   /** Carrier counts from parent's initial fetch: { "SPX Express": 14, "__none__": 3, ... } */
@@ -979,9 +980,10 @@ export default function ProcessingTab({
       const section3Start = menuItems.length;
       menuItems.push({
         key: 'link', label: 'คัดลอกลิงก์', icon: <LinkIcon className="w-4 h-4" />,
-        onClick: (e) => {
+        onClick: async (e) => {
           e.stopPropagation();
-          const billUrl = `${window.location.origin}/bills/${order.id}`;
+          const billUrl = await getBillLink(order.id);
+          if (!billUrl) return;
           copy(billUrl, 'ลิงก์บิลออนไลน์');
         },
       });

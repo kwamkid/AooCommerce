@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     // 1. Validate order exists and is in pending state (get company_id from order)
     const { data: order, error: orderError } = await supabaseAdmin
       .from('orders')
-      .select('id, order_number, total_amount, payment_status, order_status, customer_id, company_id')
+      .select('id, order_number, total_amount, payment_status, order_status, customer_id, company_id, share_token')
       .eq('id', order_id)
       .single();
 
@@ -151,7 +151,8 @@ export async function POST(request: NextRequest) {
 
     // 6. Build redirect URL
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || request.headers.get('origin') || '';
-    const redirectUrl = `${appUrl}/bills/${order.id}?payment=success`;
+    // ลิงก์บิลใช้ share_token (เดาไม่ได้) — ห้ามกลับไปใช้ order.id
+    const redirectUrl = `${appUrl}/bills/${order.share_token || order.id}?payment=success`;
 
     // 7. Call Beam API to create payment link (with retry if installments not supported)
     const amountInSatang = Math.round((order.total_amount as number) * 100);

@@ -36,6 +36,7 @@ import {
 } from '@/lib/marketplace/handover';
 import BulkActionBar from '@/components/ui/BulkActionBar';
 import Modal from '@/components/ui/Modal';
+import { getBillLink } from '@/lib/bill-link';
 
 /** เพดานของ `/api/shopee/orders/bulk-ship` ต่อหนึ่ง request */
 const SHOPEE_BULK_SHIP_MAX = 50;
@@ -1176,9 +1177,10 @@ export default function ReadyToShipTab({
       const section3Start = menuItems.length;
       menuItems.push({
         key: 'link', label: 'คัดลอกลิงก์', icon: <LinkIcon className="w-4 h-4" />,
-        onClick: (e) => {
+        onClick: async (e) => {
           e.stopPropagation();
-          const billUrl = `${window.location.origin}/bills/${order.id}`;
+          const billUrl = await getBillLink(order.id);
+          if (!billUrl) return;
           copy(billUrl, 'ลิงก์บิลออนไลน์');
         },
       });

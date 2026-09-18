@@ -187,7 +187,7 @@ export default function SupplierPortalPage() {
       const res = await fetch('/api/supplier-portal/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ access_code: trimmed }),
+        body: JSON.stringify({ access_code: trimmed, portal_ref: supplierId }),
       });
       if (!res.ok) {
         setAuthError('รหัสไม่ถูกต้อง กรุณาลองใหม่');
@@ -195,7 +195,8 @@ export default function SupplierPortalPage() {
       }
 
       const data = await res.json();
-      if (data.supplier_id !== supplierId) {
+      // server เป็นคนตอบว่ารหัสตรงกับพอร์ทัลนี้ไหม (URL เป็น portal_token เทียบ id เองไม่ได้)
+      if (!data.ok) {
         setAuthError('รหัสไม่ถูกต้อง กรุณาลองใหม่');
         return;
       }

@@ -29,7 +29,7 @@ export async function GET(
         created_at
       `)
       .eq('company_id', companyId)
-      .eq('supplier_id', supplierId)
+      .eq('supplier_id', result.context.supplierId)
       .in('status', ['confirmed', 'sent'])
       .order('period_year', { ascending: false })
       .order('period_month', { ascending: false });

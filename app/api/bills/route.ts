@@ -15,16 +15,21 @@ const supabaseAdmin = createClient(
   }
 );
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const orderId = searchParams.get('id');
+    // ค่าที่รับมาเป็นได้ทั้ง `share_token` (ทางใหม่ — เดาไม่ได้) และ `id` ของออเดอร์
+    // (ลิงก์เก่าที่ส่งลูกค้าไปแล้ว) · ทั้งคู่เป็น uuid แยกจากรูปแบบไม่ได้ จึงค้นทั้งสอง
+    // คอลัมน์ — ทั้งคู่ unique จึงไม่มีทางชนกัน
+    const ref = searchParams.get('token') || searchParams.get('id');
 
-    if (!orderId) {
+    if (!ref || !UUID_RE.test(ref)) {
       return NextResponse.json({ error: 'Order ID is required' }, { status: 400 });
     }
 
-    // Fetch order by id
+    // Fetch order by share_token (ทางใหม่) หรือ id (ลิงก์เก่า)
     const { data: order, error: orderError } = await supabaseAdmin
       .from('orders')
       .select(`
@@ -44,7 +49,7 @@ export async function GET(request: NextRequest) {
           customer_type
         )
       `)
-      .eq('id', orderId)
+      .or(`id.eq.${ref},share_token.eq.${ref}`)
       .single();
 
     if (orderError || !order) {
@@ -58,7 +63,7 @@ export async function GET(request: NextRequest) {
         await supabaseAdmin
           .from('orders')
           .update({ order_status: 'cancelled', cancellation_reason: 'expired', updated_at: new Date().toISOString() })
-          .eq('id', orderId);
+          .eq('id', order.id);
         order.order_status = 'cancelled';
         order.cancellation_reason = 'expired';
         isExpired = true;

@@ -24,7 +24,7 @@ export async function GET(
       .select('*')
       .eq('id', id)
       .eq('company_id', companyId)
-      .eq('supplier_id', supplierId)
+      .eq('supplier_id', result.context.supplierId)
       .neq('status', 'draft')
       .single();
 

@@ -55,6 +55,7 @@ import { isValidEmail, EMAIL_INVALID_MESSAGE } from '@/lib/email';
 import { normalizePhone } from '@/lib/numeric-input';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import { sellingPrice } from '@/lib/product-display';
+import { getBillLink } from '@/lib/bill-link';
 // ข้อความเดียวกันทั้ง validate ตอนบันทึก และตอนกด "ถัดไป" ในเปลือก wizard
 // (เขียนคนละที่แล้วดริฟต์กันคือวิธีที่ผู้ใช้เจอสองข้อความสำหรับเรื่องเดียวกัน)
 const NO_ITEMS_ERROR = 'กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ';
@@ -350,6 +351,8 @@ export default function OrderForm({
   // showAddressDropdown removed — handled by CustomerSelectionCard
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [savedOrderId, setSavedOrderId] = useState('');
+  // ลิงก์บิลใช้ share_token ที่อยู่ฝั่ง server — ขอมาตอนบันทึกเสร็จ (ห้ามประกอบจาก id)
+  const [savedBillUrl, setSavedBillUrl] = useState('');
   const [savedOrderNumber, setSavedOrderNumber] = useState('');
   // customer id จริงจากผล save — API อาจสร้างลูกค้าใหม่ให้ (order ไม่มี customer เลือก)
   // ต้องรายงานกลับผ่าน onSuccess ไม่งั้นหน้าแชทคิดว่ายังไม่มีลูกค้าแล้วสร้างซ้อนอีกคน (fix-bug.md 2026-08-28)
@@ -2410,6 +2413,8 @@ export default function OrderForm({
         setSavedOrderId(newOrderId);
         setSavedOrderNumber(result.order?.order_number || result.order_number || '');
         setSavedCustomerId(result.order?.customer_id || selectedCustomer?.id);
+        setSavedBillUrl('');
+        getBillLink(newOrderId).then(url => { if (url) setSavedBillUrl(url); });
 
         setShowSuccessModal(true);
       }
@@ -3674,15 +3679,15 @@ export default function OrderForm({
                     <input
                       type="text"
                       readOnly
-                      value={`${typeof window !== 'undefined' ? window.location.origin : ''}/bills/${savedOrderId}`}
+                      value={savedBillUrl}
                       className="flex-1 px-3 py-2 bg-gray-50 dark:bg-slate-700 border border-gray-200 dark:border-slate-700 rounded-lg text-sm text-gray-700 dark:text-slate-300 select-all"
                       onClick={(e) => (e.target as HTMLInputElement).select()}
                     />
                     <button
                       type="button"
                       onClick={() => {
-                        const billUrl = `${window.location.origin}/bills/${savedOrderId}`;
-                        copy(billUrl)
+                        if (!savedBillUrl) return;
+                        copy(savedBillUrl)
                         setBillLinkCopied(true);
                         setTimeout(() => setBillLinkCopied(false), 2000);
                       }}
@@ -3707,9 +3712,9 @@ export default function OrderForm({
                     fullWidth
                     icon={<SendIcon className="w-4 h-4" />}
                     onClick={() => {
-                      const billUrl = `${window.location.origin}/bills/${savedOrderId}`;
+                      if (!savedBillUrl) return;
                       setShowSuccessModal(false);
-                      onSendBillToChat(savedOrderId, savedOrderNumber, billUrl);
+                      onSendBillToChat(savedOrderId, savedOrderNumber, savedBillUrl);
                       if (onSuccess) {
                         onSuccess(savedOrderId, savedCustomerId || selectedCustomer?.id, deliveryName ? { name: deliveryName, phone: deliveryPhone, email: deliveryEmail } : undefined);
                       }

@@ -57,6 +57,7 @@ import { OrderStatusBadge } from '@/components/ui/OrderStatusBadge';
 import { ORDER_STATUS_FLOW, orderStatusLabel } from '@/lib/status-labels';
 import { isMarketplacePlatform } from '@/lib/marketplace-platforms';
 import PageHeader from '@/components/ui/PageHeader';
+import { getBillLink } from '@/lib/bill-link';
 
 // Sort options (id/label so FormSelect can consume directly)
 const SORT_OPTIONS = [
@@ -536,9 +537,10 @@ function OrdersPageContent() {
       primaryActions.push(
         <Tooltip key="copy-link" text="คัดลอกลิงก์บิลออนไลน์">
           <button
-            onClick={(e) => {
+            onClick={async (e) => {
               e.stopPropagation();
-              const billUrl = `${window.location.origin}/bills/${order.id}`;
+              const billUrl = await getBillLink(order.id);
+              if (!billUrl) return;
               copy(billUrl, 'ลิงก์บิลออนไลน์');
             }}
             className="p-2 text-gray-500 hover:text-primary rounded-lg transition-colors"
