@@ -1,14 +1,15 @@
 'use client';
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import PageHeader from '@/components/ui/PageHeader';
-import SearchInput from '@/components/ui/SearchInput';
+import ListFilters from '@/components/ui/ListFilters';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import StatusTabs from '@/components/ui/StatusTabs';
+import { useListFilterParams } from '@/lib/useListFilterParams';
 import { AlertIcon, DocumentIcon, LoadingIcon, MoneyIcon, ProductIcon, ReceiptIcon, RefreshIcon, ReverseIcon, SuccessIcon, TimeIcon, ViewIcon } from '@/lib/icons';
 import { showPdfPreview } from '@/lib/print-pdf';
 import { markPrinted as markPrintedDB } from '@/lib/print-tracking';
@@ -19,7 +20,6 @@ import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import { LoadingCard } from '@/components/ui/StateCard';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { statusLabel } from '@/lib/status-labels';
-import { useDebouncedCallback } from '@/lib/useDebounce';
 import Button from '@/components/ui/Button';
 
 interface Statement {
@@ -62,29 +62,17 @@ const formatDate = (d: string | null | undefined) => {
 
 function StatementsContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { showToast } = useToast();
 
-  const activeStatus = searchParams.get('status') || 'all';
-  const search = searchParams.get('q') || '';
-  const currentPage = parseInt(searchParams.get('page') || '1', 10);
-  const recordsPerPage = parseInt(searchParams.get('limit') || '20', 10);
-
-  const setParams = useCallback((updates: Record<string, string>) => {
-    const params = new URLSearchParams(searchParams.toString());
-    let pageReset = false;
-    for (const [k, v] of Object.entries(updates)) {
-      if (k !== 'page') pageReset = true;
-      if (!v || v === 'all' || v === '' || v === '1' || v === '20') {
-        params.delete(k);
-      } else {
-        params.set(k, v);
-      }
-    }
-    if (pageReset) params.delete('page');
-    const qs = params.toString();
-    router.replace(qs ? `?${qs}` : '/statements', { scroll: false });
-  }, [searchParams, router]);
+  // ตัวกรอง + แบ่งหน้าเก็บใน URL ผ่าน hook กลาง (lib/useListFilterParams)
+  // ⛔ ห้ามเขียน setParams ของตัวเองกลับมาอีก — ตรรกะนี้เคยถูกก๊อปไป 10 กว่าหน้า
+  const filters = useListFilterParams('/statements', {
+    fields: { q: { type: 'text' }, status: { type: 'select', default: 'all' } },
+  });
+  const activeStatus = filters.values.status;
+  const search = filters.values.q;
+  const currentPage = filters.page;
+  const recordsPerPage = filters.limit;
 
   const [statements, setStatements] = useState<Statement[]>([]);
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
@@ -119,15 +107,6 @@ function StatementsContent() {
   }, [activeStatus, search, currentPage, recordsPerPage]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
-
-  // Debounced search
-  const [searchInput, setSearchInput] = useState(search);
-  const debouncedSetSearch = useDebouncedCallback((val: string) => setParams({ q: val }));
-  const handleSearchChange = (val: string) => {
-    setSearchInput(val);
-    debouncedSetSearch(val);
-  };
-  useEffect(() => { setSearchInput(search); }, [search]);
 
   const totalCount = Object.values(statusCounts).reduce((a, b) => a + b, 0);
   const getTabCount = (key: string) => key === 'all' ? totalCount : (statusCounts[key] || 0);
@@ -433,19 +412,19 @@ function StatementsContent() {
           }
         />
 
-        {/* Status Tabs */}
         <StatusTabs
           activeKey={activeStatus}
-          onSelect={(k) => setParams({ status: k })}
+          onSelect={(k) => filters.set({ status: k })}
           tabs={STATUS_TABS.map(t => ({ ...t, count: getTabCount(t.key) }))}
         />
 
-        {/* Search */}
-        <div className="flex items-center gap-2">
-          <div className="flex-1 min-w-0">
-            <SearchInput value={searchInput} onChange={handleSearchChange} placeholder="ค้นหาเลขที่ใบวางบิล, ชื่อตัวแทน..." />
-          </div>
-        </div>
+        <ListFilters
+          search={search}
+          onSearch={value => filters.set({ q: value })}
+          searchPlaceholder="ค้นหาเลขที่ใบวางบิล, ชื่อตัวแทน..."
+          hasActiveFilters={filters.hasActiveFilters}
+          onClear={filters.clearAll}
+        />
 
         {/* Data Table */}
         <DataTable<Statement>
@@ -461,8 +440,8 @@ function StatementsContent() {
           totalPages={totalPages}
           totalRecords={totalRecords}
           recordsPerPage={recordsPerPage}
-          onPageChange={v => setParams({ page: String(v) })}
-          onRecordsPerPageChange={v => setParams({ limit: String(v) })}
+          onPageChange={filters.setPage}
+          onRecordsPerPageChange={filters.setLimit}
           mobileCardRender={(st) => {
             return (
               <>
