@@ -7,12 +7,12 @@ import { useAuth } from '@/lib/auth-context';
 import { useCompany } from '@/lib/company-context';
 import { can } from '@/lib/permissions';
 import { useFeatures } from '@/lib/features-context';
-import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import {
-  readFileToRows, rowsToSheet, getCell, isRowEmpty, isInstructionRow,
-  validateHeaders, type RequiredColumn,
+  getCell, isRowEmpty, isInstructionRow,
+  validateHeaders, type RequiredColumn, type ParsedSheet,
 } from '@/lib/bulk/parse-template';
+import { useBulkApply, type ParseOutcome } from '@/lib/bulk/use-bulk-apply';
 import { addTemplateHeader } from '@/lib/bulk/excel-template';
 import {
   COMPOSITE_COLUMN_HEADER, COMPOSITE_COLUMN_ALIASES, COMPOSITE_TYPE_LABEL, parseComponentCell,
@@ -20,7 +20,7 @@ import {
 import { formatPrice } from '@/lib/utils/format';
 import {
   STATUS_COLUMN_HEADER, STATUS_INSTRUCTION,
-  STATUS_LABEL_ACTIVE, STATUS_LABEL_INACTIVE, parseStatusValue,
+  STATUS_LABEL_ACTIVE, parseStatusValue,
 } from '@/lib/bulk/status-enum';
 
 import Button from '@/components/ui/Button';
@@ -29,13 +29,13 @@ import { LoadingCard, EmptyCard, NoPermissionCard, DoneCard } from '@/components
 import Badge from '@/components/ui/Badge';
 import BulkUploadCard from '@/components/bulk/BulkUploadCard';
 import BulkPreviewBar from '@/components/bulk/BulkPreviewBar';
-import BulkErrorModal, { type BulkErrorReport } from '@/components/bulk/BulkErrorModal';
+import BulkErrorModal from '@/components/bulk/BulkErrorModal';
 import IncludeCostToggle from '@/components/bulk/IncludeCostToggle';
 import { downloadBlob } from '@/lib/utils/download';
 
-import {
-  AlertCircle, PackagePlus, FileSpreadsheet,
-} from 'lucide-react';
+import { FileSpreadsheet } from 'lucide-react';
+import { AlertIcon } from '@/lib/icons';
+import { ProductIcon } from '@/lib/icons';
 
 interface CreateItem {
   code: string;
@@ -72,28 +72,170 @@ interface ResultRow {
   is_composite?: boolean;
 }
 
-interface RunResponse {
-  dry_run: boolean;
-  results: ResultRow[];
-  summary: { total: number; created: number; errors: number };
+// หน้าฝั่ง "สร้างใหม่" นับผลเป็น created — ประกาศไว้เองเพื่ออ่านตัวเลขได้โดยไม่ต้องเช็ค null
+interface CreateSummary { total: number; created: number; errors: number }
+
+/** บริบทที่ตัวแปลงชีตต้องรู้ — มาจาก state/สิทธิ์/ฟีเจอร์ของหน้า */
+interface ParseContext {
+  requiredHeaders: RequiredColumn[];
+  canEditCost: boolean;
+  includeCost: boolean;
+  brandEnabled: boolean;
+  /** ชื่อแบรนด์/หมวดที่มีจริงในระบบ — ใช้ตรวจว่าไฟล์อ้างของที่ไม่มี */
+  brandNames: Set<string>;
+  categoryNames: Set<string>;
+  /** โหลดรายการอ้างอิงเสร็จหรือยัง — **ต้องใช้ตัวนี้ ไม่ใช่ `size > 0`**
+   *  ร้านที่ยังไม่มีแบรนด์สักอันก็ต้องฟ้องทุกค่าที่กรอกมา ไม่ใช่ปล่อยผ่าน */
+  optionsLoaded: boolean;
 }
+
+/**
+ * แปลงชีตเป็นรายการสินค้าที่จะสร้าง — ตัวที่ซับซ้อนสุดในบรรดาหน้า bulk
+ * รวมสินค้าชุด · ตัวเลือก 2 มิติ · ตรวจชื่อแบรนด์/หมวดกับของจริงในระบบ
+ * ⛔ อ่านตามชื่อ header เสมอ (`getCell`) ห้ามอ่านตามตำแหน่งคอลัมน์
+ */
+function parseSheet(sheet: ParsedSheet, ctx: ParseContext): ParseOutcome<CreateItem> {
+  const { requiredHeaders, canEditCost, includeCost, brandEnabled, brandNames, categoryNames, optionsLoaded } = ctx;
+  const headerIssues: string[] = [];
+  const rowIssues: string[] = [];
+  const otherIssues: string[] = [];
+
+  // เก็บ header ที่ขาดให้ครบก่อน ไม่ early-return ทีละตัว
+  const v = validateHeaders(sheet.headers, requiredHeaders);
+  if (!v.ok) for (const m of v.missing) headerIssues.push(`column "${m}" หายไป`);
+
+  const hasCostCol = sheet.headers.some(h => h && (h.includes('ราคาทุน') || h.toLowerCase().includes('cost')));
+  const items: CreateItem[] = [];
+  // รวมชื่อที่ไม่รู้จักเป็นบรรทัดเดียวต่อชื่อ แทนที่จะซ้ำทุกแถวที่ใช้ชื่อนั้น
+  const unknownBrands = new Set<string>();
+  const unknownCategories = new Set<string>();
+
+  for (let i = 0; i < sheet.rows.length; i++) {
+    const row = sheet.rows[i];
+    if (isRowEmpty(row) || isInstructionRow(row)) continue;
+
+    const rowNum = i + 2;
+    const code = getCell(row, 'รหัสสินค้า*', 'รหัสสินค้า', 'code');
+    const name = getCell(row, 'ชื่อสินค้า*', 'ชื่อสินค้า', 'name');
+
+    if (!code && !name) continue;
+    if (!code) { rowIssues.push(`แถว ${rowNum}: ไม่มีรหัสสินค้า`); continue; }
+    if (!name) { rowIssues.push(`แถว ${rowNum}: ไม่มีชื่อสินค้า (รหัส "${code}")`); continue; }
+
+    // แถวสินค้าชุด — คอลัมน์ตัวเลือกกับต้นทุนไม่มีผล (ต้นทุนมาจากชิ้นส่วน)
+    const componentsRaw = getCell(row, ...COMPOSITE_COLUMN_ALIASES);
+    if (componentsRaw) {
+      const { error: componentsError } = parseComponentCell(componentsRaw);
+      if (componentsError) { rowIssues.push(`แถว ${rowNum}: ${componentsError}`); continue; }
+    }
+
+    const numericChecks: Array<{ key: string; label: string }> = [
+      { key: 'ราคาปกติ*', label: 'ราคาปกติ' },
+      { key: 'ราคาขาย', label: 'ราคาขาย' },
+    ];
+    if (canEditCost && includeCost && hasCostCol && !componentsRaw) {
+      numericChecks.push({ key: 'ราคาทุน', label: 'ราคาทุน' });
+    }
+    let badNumeric = false;
+    for (const c of numericChecks) {
+      const raw = getCell(row, c.key, c.label);
+      if (raw && Number.isNaN(Number(raw))) {
+        rowIssues.push(`แถว ${rowNum}: ${c.label} "${raw}" ไม่ใช่ตัวเลข`);
+        badNumeric = true;
+      }
+    }
+    if (badNumeric) continue;
+
+    const item: CreateItem = { code, name: name || code, __rowNum: rowNum };
+    // สถานะ: header ปัจจุบัน "สถานะ" หรือ "ใช้งาน" ของไฟล์รุ่นก่อนมาตรฐาน
+    const parsedActive = parseStatusValue(getCell(row, 'สถานะ', 'ใช้งาน', 'status', 'active', 'is_active'));
+    if (parsedActive === false) item.is_active = false;
+
+    // ตัวเลือกได้ถึง 2 มิติ (เช่น สี + ขนาด) · คอลัมน์ "ตัวเลือก" เดี่ยวของเทมเพลตเก่ายังอ่านได้
+    const type1 = getCell(row, 'ประเภทตัวเลือก 1', 'variation_type_1');
+    const value1 = getCell(row, 'ตัวเลือก 1', 'ตัวเลือก', 'variation_value_1', 'variation_label');
+    const type2 = getCell(row, 'ประเภทตัวเลือก 2', 'variation_type_2');
+    const value2 = getCell(row, 'ตัวเลือก 2', 'variation_value_2');
+
+    const attributes: Record<string, string> = {};
+    if (type1 && value1 && value1 !== '-') attributes[type1] = value1;
+    if (type2 && value2 && value2 !== '-') attributes[type2] = value2;
+
+    if (componentsRaw) {
+      item.components = componentsRaw;   // ป้ายของชุดย่อยสร้างจากชิ้นส่วนเอง
+    } else if (Object.keys(attributes).length > 0) {
+      item.attributes = attributes;
+      item.variation_label = Object.values(attributes).join(' / ');
+    } else if (value1 && value1 !== '-') {
+      item.variation_label = value1;     // เทมเพลตเก่าที่ไม่มีคอลัมน์ประเภท
+    }
+
+    const sku = getCell(row, 'SKU', 'sku');
+    if (sku) item.sku = sku;
+    const barcode = getCell(row, 'Barcode', 'barcode');
+    if (barcode) item.barcode = barcode;
+    const def = getCell(row, 'ราคาปกติ*', 'ราคาปกติ', 'default_price', 'price');
+    if (def !== '') item.default_price = Number(def);
+    const disc = getCell(row, 'ราคาขาย', 'discount_price', 'discount');
+    if (disc !== '') item.discount_price = Number(disc);
+    if (canEditCost && includeCost && hasCostCol && !componentsRaw) {
+      const cost = getCell(row, 'ราคาทุน', 'cost_price', 'cost');
+      if (cost !== '') item.cost_price = Number(cost);
+    }
+    if (brandEnabled) {
+      const brand = getCell(row, 'แบรนด์', 'brand_name', 'brand');
+      if (brand) {
+        item.brand_name = brand;
+        if (optionsLoaded && !brandNames.has(brand)) unknownBrands.add(brand);
+      }
+    }
+    const cat = getCell(row, 'หมวดหมู่', 'category_name', 'category');
+    if (cat) {
+      item.category_name = cat;
+      if (optionsLoaded && !categoryNames.has(cat)) unknownCategories.add(cat);
+    }
+    const desc = getCell(row, 'คำอธิบาย', 'description');
+    if (desc) item.description = desc;
+
+    items.push(item);
+  }
+
+  if (unknownBrands.size > 0) {
+    rowIssues.push(`ไม่พบแบรนด์ในระบบ: ${[...unknownBrands].map(n => `"${n}"`).join(', ')} — สร้างใน "ตั้งค่า > แบรนด์" ก่อน`);
+  }
+  if (unknownCategories.size > 0) {
+    rowIssues.push(`ไม่พบหมวดหมู่ในระบบ: ${[...unknownCategories].map(n => `"${n}"`).join(', ')} — สร้างใน "ตั้งค่า > หมวดหมู่" ก่อน`);
+  }
+  if (items.length === 0 && rowIssues.length === 0 && headerIssues.length === 0) {
+    otherIssues.push('ไม่พบรายการที่กรอกข้อมูล — ตรวจสอบว่ามีรหัสสินค้า + ชื่อสินค้า ในแถวข้อมูล');
+  }
+
+  return { items, issues: { headerIssues, rowIssues, otherIssues } };
+}
+
 
 export default function BulkCreateProductsPage() {
   const router = useRouter();
   const { userProfile } = useAuth();
   const { companyRoles, permissions } = useCompany();
   const { features } = useFeatures();
-  const { showToast } = useToast();
   const brandEnabled = features.product_brand;
 
   const isAdmin = can({ roles: companyRoles, permissions }, 'product.bulk_edit');
   const canEditCost = userProfile?.canViewCost === true;
 
-  const [step, setStep] = useState<'upload' | 'checking' | 'preview' | 'importing' | 'done'>('upload');
-  const [parsedItems, setParsedItems] = useState<CreateItem[]>([]);
-  const [dryRun, setDryRun] = useState<RunResponse | null>(null);
-  const [finalRun, setFinalRun] = useState<RunResponse | null>(null);
-  const [errorReport, setErrorReport] = useState<BulkErrorReport | null>(null);
+  // flow อัปไฟล์ → dry-run → Apply อยู่ที่ hook กลาง (lib/bulk/use-bulk-apply)
+  const {
+    step, parsedItems, dryRun, finalRun, errorReport, clearErrorReport,
+    handleFile, confirmImport: handleConfirmImport, reset: resetAll,
+  } = useBulkApply<CreateItem, ResultRow, CreateSummary>({
+    endpoint: '/api/products/bulk/create/apply',
+    errorMode: 'modal',
+    parse: sheet => parseSheet(sheet, {
+      requiredHeaders, canEditCost, includeCost, brandEnabled,
+      brandNames, categoryNames, optionsLoaded,
+    }),
+  });
 
   // Cost column is permission-gated AND user-toggleable. Default = include when the
   // user has permission. The toggle controls both the download template column AND
@@ -266,249 +408,6 @@ export default function BulkCreateProductsPage() {
     downloadBlob(blob, 'product-create-template.xlsx');
   };
 
-  const handleFile = async (file: File) => {
-    setErrorReport(null);
-
-    const headerIssues: string[] = [];
-    const rowIssues: string[] = [];
-    const otherIssues: string[] = [];
-
-    let raw: string[][];
-    try {
-      raw = await readFileToRows(file);
-    } catch (err) {
-      console.error('read error:', err);
-      setErrorReport({
-        headerIssues: [],
-        rowIssues: [],
-        otherIssues: [
-          `อ่านไฟล์ไม่สำเร็จ: ${err instanceof Error ? err.message : 'unknown'}`,
-          'รองรับเฉพาะไฟล์ .xlsx, .xls, .csv',
-        ],
-      });
-      return;
-    }
-
-    const sheet = rowsToSheet(raw);
-    if (sheet.headers.length === 0 || sheet.rows.length === 0) {
-      setErrorReport({
-        headerIssues: [],
-        rowIssues: [],
-        otherIssues: ['ไฟล์ว่างเปล่า — ต้องมี header (แถว 1) + ข้อมูลอย่างน้อย 1 แถว'],
-      });
-      return;
-    }
-
-    // 1. Validate ALL required column headers — collect missing, don't early-return
-    const v = validateHeaders(sheet.headers, requiredHeaders);
-    if (!v.ok) {
-      for (const m of v.missing) {
-        headerIssues.push(`column "${m}" หายไป`);
-      }
-    }
-
-    const hasCostCol = sheet.headers.some(h => h && (h.includes('ราคาทุน') || h.toLowerCase().includes('cost')));
-    const items: CreateItem[] = [];
-    // Aggregate unknown brand/category names so we show one summary line per unique
-    // value instead of repeating the same error for every row that uses it.
-    const unknownBrands = new Set<string>();
-    const unknownCategories = new Set<string>();
-
-    try {
-      for (let i = 0; i < sheet.rows.length; i++) {
-        const row = sheet.rows[i];
-        if (isRowEmpty(row)) continue;
-        if (isInstructionRow(row)) continue;
-
-        const rowNum = i + 2;
-        const code = getCell(row, 'รหัสสินค้า*', 'รหัสสินค้า', 'code');
-        const name = getCell(row, 'ชื่อสินค้า*', 'ชื่อสินค้า', 'name');
-
-        if (!code && !name) continue;
-        if (!code) {
-          rowIssues.push(`แถว ${rowNum}: ไม่มีรหัสสินค้า`);
-          continue;
-        }
-        if (!name) {
-          rowIssues.push(`แถว ${rowNum}: ไม่มีชื่อสินค้า (รหัส "${code}")`);
-          continue;
-        }
-
-        // Composite product (สินค้าชุด) row — variation-label and cost columns are ignored
-        const componentsRaw = getCell(row, ...COMPOSITE_COLUMN_ALIASES);
-        if (componentsRaw) {
-          const { error: componentsError } = parseComponentCell(componentsRaw);
-          if (componentsError) {
-            rowIssues.push(`แถว ${rowNum}: ${componentsError}`);
-            continue;
-          }
-        }
-
-        const numericChecks: Array<{ key: string; label: string }> = [
-          { key: 'ราคาปกติ*', label: 'ราคาปกติ' },
-          { key: 'ราคาขาย', label: 'ราคาขาย' },
-        ];
-        if (canEditCost && includeCost && hasCostCol && !componentsRaw) {
-          numericChecks.push({ key: 'ราคาทุน', label: 'ราคาทุน' });
-        }
-        let badNumeric = false;
-        for (const c of numericChecks) {
-          const raw = getCell(row, c.key, c.label);
-          if (raw && Number.isNaN(Number(raw))) {
-            rowIssues.push(`แถว ${rowNum}: ${c.label} "${raw}" ไม่ใช่ตัวเลข`);
-            badNumeric = true;
-          }
-        }
-        if (badNumeric) continue;
-
-        const item: CreateItem = { code, name: name || code, __rowNum: rowNum };
-        // Status: read from "สถานะ" (current header) or legacy "ใช้งาน" for files
-        // generated before standardization. parseStatusValue handles both labels.
-        const statusRaw = getCell(row, 'สถานะ', 'ใช้งาน', 'status', 'active', 'is_active');
-        const parsedActive = parseStatusValue(statusRaw);
-        if (parsedActive === false) item.is_active = false;
-        // Variation type/value pairs — supports up to 2 dimensions (e.g. สี + ขนาด).
-        // Backward-compat: old "ตัวเลือก" column maps to ตัวเลือก 1 value.
-        const type1 = getCell(row, 'ประเภทตัวเลือก 1', 'variation_type_1');
-        const value1 = getCell(row, 'ตัวเลือก 1', 'ตัวเลือก', 'variation_value_1', 'variation_label');
-        const type2 = getCell(row, 'ประเภทตัวเลือก 2', 'variation_type_2');
-        const value2 = getCell(row, 'ตัวเลือก 2', 'variation_value_2');
-
-        const attributes: Record<string, string> = {};
-        if (type1 && value1 && value1 !== '-') attributes[type1] = value1;
-        if (type2 && value2 && value2 !== '-') attributes[type2] = value2;
-
-        if (componentsRaw) {
-          // Combo label is generated from its components
-          item.components = componentsRaw;
-        } else if (Object.keys(attributes).length > 0) {
-          item.attributes = attributes;
-          // Build display label from values (e.g. "ขาว / M")
-          item.variation_label = Object.values(attributes).join(' / ');
-        } else if (value1 && value1 !== '-') {
-          // Legacy single-column template (no type given) — keep value as label only
-          item.variation_label = value1;
-        }
-        const sku = getCell(row, 'SKU', 'sku');
-        if (sku) item.sku = sku;
-        const barcode = getCell(row, 'Barcode', 'barcode');
-        if (barcode) item.barcode = barcode;
-        const def = getCell(row, 'ราคาปกติ*', 'ราคาปกติ', 'default_price', 'price');
-        if (def !== '') item.default_price = Number(def);
-        const disc = getCell(row, 'ราคาขาย', 'discount_price', 'discount');
-        if (disc !== '') item.discount_price = Number(disc);
-        if (canEditCost && includeCost && hasCostCol && !componentsRaw) {
-          const cost = getCell(row, 'ราคาทุน', 'cost_price', 'cost');
-          if (cost !== '') item.cost_price = Number(cost);
-        }
-        if (brandEnabled) {
-          const brand = getCell(row, 'แบรนด์', 'brand_name', 'brand');
-          if (brand) {
-            item.brand_name = brand;
-            // `optionsLoaded` (not size > 0) is the right guard — a company
-            // with 0 brands should still flag every brand value as invalid.
-            if (optionsLoaded && !brandNames.has(brand)) unknownBrands.add(brand);
-          }
-        }
-        const cat = getCell(row, 'หมวดหมู่', 'category_name', 'category');
-        if (cat) {
-          item.category_name = cat;
-          if (optionsLoaded && !categoryNames.has(cat)) unknownCategories.add(cat);
-        }
-        const desc = getCell(row, 'คำอธิบาย', 'description');
-        if (desc) item.description = desc;
-
-        items.push(item);
-      }
-    } catch (err) {
-      console.error('parse error:', err);
-      otherIssues.push(`เกิดข้อผิดพลาดตอนอ่านข้อมูล: ${err instanceof Error ? err.message : 'unknown'}`);
-    }
-
-    // Aggregate brand/category lookup failures — 1 line per unique unknown name
-    if (unknownBrands.size > 0) {
-      const names = [...unknownBrands].map(n => `"${n}"`).join(', ');
-      rowIssues.push(`ไม่พบแบรนด์ในระบบ: ${names} — สร้างใน "ตั้งค่า > แบรนด์" ก่อน`);
-    }
-    if (unknownCategories.size > 0) {
-      const names = [...unknownCategories].map(n => `"${n}"`).join(', ');
-      rowIssues.push(`ไม่พบหมวดหมู่ในระบบ: ${names} — สร้างใน "ตั้งค่า > หมวดหมู่" ก่อน`);
-    }
-
-    if (items.length === 0 && rowIssues.length === 0 && headerIssues.length === 0) {
-      otherIssues.push('ไม่พบรายการที่กรอกข้อมูล — ตรวจสอบว่ามีรหัสสินค้า + ชื่อสินค้า ในแถวข้อมูล');
-    }
-
-    if (headerIssues.length > 0 || rowIssues.length > 0 || otherIssues.length > 0) {
-      setErrorReport({ headerIssues, rowIssues, otherIssues });
-      return;
-    }
-
-    setParsedItems(items);
-    setStep('checking');
-
-    try {
-      const res = await apiFetch('/api/products/bulk/create/apply', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items, dry_run: true }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setErrorReport({
-          headerIssues: [],
-          rowIssues: [],
-          otherIssues: [data.error || 'ตรวจสอบไม่สำเร็จ — ลองอีกครั้ง'],
-        });
-        setStep('upload');
-        return;
-      }
-      setDryRun(data);
-      setStep('preview');
-    } catch (err) {
-      console.error('dry-run error:', err);
-      setErrorReport({
-        headerIssues: [],
-        rowIssues: [],
-        otherIssues: ['เชื่อมต่อ server ไม่ได้ — ลองอีกครั้ง'],
-      });
-      setStep('upload');
-    }
-  };
-
-  const handleConfirmImport = async () => {
-    setStep('importing');
-    try {
-      const res = await apiFetch('/api/products/bulk/create/apply', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: parsedItems, dry_run: false }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        showToast(data.error || 'บันทึกไม่สำเร็จ', 'error');
-        setStep('preview');
-        return;
-      }
-      setFinalRun(data);
-      setStep('done');
-      const parts: string[] = [];
-      if (data.summary.created > 0) parts.push(`สร้างใหม่ ${data.summary.created}`);
-      if (data.summary.errors > 0) parts.push(`ล้มเหลว ${data.summary.errors}`);
-      showToast(parts.join(', ') || 'เสร็จสิ้น', data.summary.errors > 0 ? 'error' : 'success');
-    } catch (err) {
-      console.error('import error:', err);
-      showToast('บันทึกไม่สำเร็จ', 'error');
-      setStep('preview');
-    }
-  };
-
-  const resetAll = () => {
-    setStep('upload');
-    setParsedItems([]);
-    setDryRun(null);
-    setFinalRun(null);
-  };
 
   if (!userProfile) return null;
 
@@ -580,17 +479,17 @@ export default function BulkCreateProductsPage() {
           <div className="space-y-4">
             <BulkPreviewBar
               title="ตรวจสอบรายการก่อนสร้าง"
-              icon={<PackagePlus className="w-5 h-5 text-emerald-600" />}
+              icon={<ProductIcon className="w-5 h-5 text-emerald-600" />}
               badges={
                 <>
                   {dryRun.summary.created > 0 && (
                     <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-lg font-medium">
-                      <PackagePlus className="w-3.5 h-3.5" /> สร้างใหม่ {dryRun.summary.created}
+                      <ProductIcon className="w-3.5 h-3.5" /> สร้างใหม่ {dryRun.summary.created}
                     </span>
                   )}
                   {dryRun.summary.errors > 0 && (
                     <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg font-medium">
-                      <AlertCircle className="w-3.5 h-3.5" /> ข้อผิดพลาด {dryRun.summary.errors}
+                      <AlertIcon className="w-3.5 h-3.5" /> ข้อผิดพลาด {dryRun.summary.errors}
                     </span>
                   )}
                 </>
@@ -685,7 +584,7 @@ export default function BulkCreateProductsPage() {
                         <div className="flex items-center justify-between mb-1">
                           <span className="font-mono text-xs text-gray-500">{r.code}</span>
                           {isError && (
-                            <Badge tone="red" size="sm" icon={<AlertCircle className="w-3 h-3" />}>Error</Badge>
+                            <Badge tone="red" size="sm" icon={<AlertIcon className="w-3 h-3" />}>Error</Badge>
                           )}
                         </div>
                         <div className="text-gray-900 dark:text-white font-medium mb-2">{r.name}</div>
@@ -763,7 +662,7 @@ export default function BulkCreateProductsPage() {
 
       <BulkErrorModal
         report={errorReport}
-        onClose={() => setErrorReport(null)}
+        onClose={clearErrorReport}
         onDownloadTemplate={handleDownloadTemplate}
       />
     </Layout>
