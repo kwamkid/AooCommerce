@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
+import { fetchAllRows } from '@/lib/supabase-paging';
 import { guardFeature } from '@/lib/package-gates-server';
 
 // GET - Fetch all active suppliers
@@ -13,12 +14,15 @@ export async function GET(request: NextRequest) {
     const blocked = await guardFeature(auth.companyId, 'supplier');
     if (blocked) return blocked;
 
-    const { data, error } = await supabaseAdmin
+    // ⚠️ Supabase ตัดผลลัพธ์ที่ 1,000 แถว **เงียบ ๆ ไม่มี error** — หน้าที่เอาไปค้นฝั่ง
+    //    เบราว์เซอร์จะ "หาซัพพลายเออร์ไม่เจอ" ทั้งที่มีอยู่จริง · `fetchAllRows` ไล่ทุกหน้าให้
+    const { rows: data, error } = await fetchAllRows((from, to) => supabaseAdmin
       .from('suppliers')
       .select('*')
       .eq('company_id', auth.companyId)
       .eq('is_active', true)
-      .order('name', { ascending: true });
+      .order('name', { ascending: true })
+      .range(from, to));
 
     if (error) throw error;
 

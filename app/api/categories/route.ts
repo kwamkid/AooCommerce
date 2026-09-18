@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
+import { fetchAllRows } from '@/lib/supabase-paging';
 import { masterSlugErrorMessage, validateMasterSlug } from '@/lib/master-slug';
 
 interface CategoryRow {
@@ -21,12 +22,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data, error } = await supabaseAdmin
+    // ⚠️ Supabase ตัดผลลัพธ์ที่ 1,000 แถว **เงียบ ๆ ไม่มี error** — หน้าที่เอาไปค้นฝั่ง
+    //    เบราว์เซอร์จะ "หาหมวดหมู่ไม่เจอ" ทั้งที่มีอยู่จริง · `fetchAllRows` ไล่ทุกหน้าให้
+    const { rows: data, error } = await fetchAllRows((from, to) => supabaseAdmin
       .from('product_categories')
       .select('*')
       .eq('company_id', auth.companyId)
       .eq('is_active', true)
-      .order('sort_order', { ascending: true });
+      .order('sort_order', { ascending: true })
+      .range(from, to));
 
     if (error) throw error;
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
+import { fetchAllRows } from '@/lib/supabase-paging';
 
 interface SalesChannelRow {
   id: string;
@@ -34,17 +35,21 @@ export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const activeOnly = url.searchParams.get('active') === 'true';
 
-  let query = supabaseAdmin
-    .from('sales_channels')
-    .select('id, code, name, channel_type, platform, chat_account_id, warehouse_id, icon, color, is_active, is_system, is_default, sort_order')
-    .eq('company_id', auth.companyId)
-    .or('channel_type.neq.chat,chat_account_id.not.is.null')
-    .order('sort_order', { ascending: true })
-    .order('name', { ascending: true });
+  // ⚠️ Supabase ตัดผลลัพธ์ที่ 1,000 แถว **เงียบ ๆ ไม่มี error** — ช่องทางขายรวมกระจกของ
+  //    ห้องแชททุกเพจ/ทุกบัญชี จึงโตได้เร็วกว่าที่คิด · `fetchAllRows` ไล่ทุกหน้าให้
+  const { rows: data, error } = await fetchAllRows((from, to) => {
+    let query = supabaseAdmin
+      .from('sales_channels')
+      .select('id, code, name, channel_type, platform, chat_account_id, warehouse_id, icon, color, is_active, is_system, is_default, sort_order')
+      .eq('company_id', auth.companyId)
+      .or('channel_type.neq.chat,chat_account_id.not.is.null')
+      .order('sort_order', { ascending: true })
+      .order('name', { ascending: true });
 
-  if (activeOnly) query = query.eq('is_active', true);
+    if (activeOnly) query = query.eq('is_active', true);
 
-  const { data, error } = await query;
+    return query.range(from, to);
+  });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   // Enrich chat-linked rows with has_ig so the UI can show FB+IG icons together.

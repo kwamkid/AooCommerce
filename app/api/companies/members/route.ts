@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
+import { fetchAllRows } from '@/lib/supabase-paging';
 import {
   assertMemberMutationAllowed, resolveCanViewCost, mainRoleOf, isAdminTierRole,
   permissionsFromLegacyRoles, validateRole, validatePermissions,
@@ -37,11 +38,14 @@ export async function GET(request: NextRequest) {
     }
 
     // Get company members
-    const { data: memberRows, error } = await supabaseAdmin
+    // ⚠️ Supabase ตัดผลลัพธ์ที่ 1,000 แถว **เงียบ ๆ ไม่มี error** — ร้านใหญ่/องค์กรที่มีพนักงาน
+    //    เกินพันคนจะมีคนหายไปจากหน้าจัดการสิทธิ์โดยไม่มีอะไรบอก
+    const { rows: memberRows, error } = await fetchAllRows((from, to) => supabaseAdmin
       .from('company_members')
       .select('id, user_id, roles, permissions, is_active, can_view_cost, pc_all_counters, joined_at, created_at')
       .eq('company_id', auth.companyId)
-      .order('joined_at', { ascending: true });
+      .order('joined_at', { ascending: true })
+      .range(from, to));
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -49,13 +53,15 @@ export async function GET(request: NextRequest) {
 
     // Get user profiles for all members
     const userIds = (memberRows || []).map(m => m.user_id);
-    let userMap: Record<string, { id: string; email: string; name: string; phone: string | null; avatar: string | null }> = {};
+    const userMap: Record<string, { id: string; email: string; name: string; phone: string | null; avatar: string | null }> = {};
 
     if (userIds.length > 0) {
-      const { data: profiles } = await supabaseAdmin
+      // `.in()` ก็ชนเพดานเดียวกัน — สมาชิกเกินพันคน โปรไฟล์จะขาดจนชื่อกลายเป็นค่าว่าง
+      const { rows: profiles } = await fetchAllRows<{ id: string; email: string; name: string; phone: string | null; avatar: string | null }>((from, to) => supabaseAdmin
         .from('user_profiles')
         .select('id, email, name, phone, avatar')
-        .in('id', userIds);
+        .in('id', userIds)
+        .range(from, to));
 
       if (profiles) {
         for (const p of profiles) {

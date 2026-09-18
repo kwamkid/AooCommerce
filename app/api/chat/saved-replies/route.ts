@@ -8,6 +8,7 @@
 // (ถ้าต้องขออนุญาตแอดมินก่อนบันทึกข้อความที่เพิ่งพิมพ์ ปุ่ม "บันทึกข้อความนี้" ก็ไร้ความหมาย)
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
+import { fetchAllRows } from '@/lib/supabase-paging';
 import {
   MAX_SAVED_REPLY_IMAGES, MAX_SAVED_REPLY_TITLE,
   sanitizeSavedReplyTitle, hasDisallowedTitleChars, SAVED_REPLY_TITLE_HINT,
@@ -67,15 +68,18 @@ export async function GET(request: NextRequest) {
 
   const activeOnly = new URL(request.url).searchParams.get('active') === 'true';
 
-  let query = supabaseAdmin
-    .from('chat_saved_replies')
-    .select(SELECT)
-    .eq('company_id', auth.companyId)
-    .order('sort_order', { ascending: true })
-    .order('created_at', { ascending: true });
-  if (activeOnly) query = query.eq('is_active', true);
-
-  const { data, error } = await query;
+  // ⚠️ Supabase ตัดผลลัพธ์ที่ 1,000 แถว **เงียบ ๆ ไม่มี error** — คลังข้อความของร้านที่คุยเยอะ
+  //    โตได้เรื่อย ๆ · หายไปเงียบ = พนักงานหาข้อความที่เคยบันทึกไว้ไม่เจอ
+  const { rows: data, error } = await fetchAllRows((from, to) => {
+    let query = supabaseAdmin
+      .from('chat_saved_replies')
+      .select(SELECT)
+      .eq('company_id', auth.companyId)
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true });
+    if (activeOnly) query = query.eq('is_active', true);
+    return query.range(from, to);
+  });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ replies: data || [] });
 }
