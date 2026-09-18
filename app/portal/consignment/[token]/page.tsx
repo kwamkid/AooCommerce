@@ -9,6 +9,7 @@ import NumberInput from '@/components/ui/NumberInput';
 import { FullPageLoading } from '@/components/ui/Loading';
 import StatusBadge from '@/components/ui/StatusBadge';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
+import ImageLightbox from '@/components/ui/ImageLightbox';
 
 interface StockItem {
   variation_id: string;
@@ -181,12 +182,6 @@ export default function ConsignmentPortalPage() {
 
   // Lightbox
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
-  useEffect(() => {
-    if (!lightboxImage) return;
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightboxImage(null); };
-    document.addEventListener('keydown', h);
-    return () => document.removeEventListener('keydown', h);
-  }, [lightboxImage]);
 
   // Selected report for inline form
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
@@ -703,20 +698,8 @@ export default function ConsignmentPortalPage() {
         </div>
       )}
 
-      {/* Lightbox */}
-      {lightboxImage && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-          onClick={() => setLightboxImage(null)}
-        >
-          <img
-            src={lightboxImage}
-            alt=""
-            className="max-w-full max-h-full rounded-lg object-contain shadow-2xl"
-            onClick={e => e.stopPropagation()}
-          />
-        </div>
-      )}
+      {/* ตัวดูรูปกลางของระบบ */}
+      <ImageLightbox src={lightboxImage} onClose={() => setLightboxImage(null)} />
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { Pause, Play, Scissors, ImageIcon } from 'lucide-react';
-import { CloseIcon, DeleteIcon, EditIcon, ErrorIcon, LinkIcon, LoadingIcon, MoneyIcon, ParcelIcon, SuccessIcon } from '@/lib/icons';
+import { DeleteIcon, EditIcon, ErrorIcon, LinkIcon, LoadingIcon, MoneyIcon, ParcelIcon, SuccessIcon } from '@/lib/icons';
 import { generatePackingPdf } from '@/lib/orders-packing-pdf';
 import { generateShippingLabelPdf } from '@/lib/order-shipping-label-pdf';
 import { generateOrderInvoicePdf } from '@/lib/order-invoice-pdf';
@@ -35,6 +35,7 @@ import {
   type HandoverSelection,
 } from '@/lib/marketplace/handover';
 import BulkActionBar from '@/components/ui/BulkActionBar';
+import Modal from '@/components/ui/Modal';
 
 /** เพดานของ `/api/shopee/orders/bulk-ship` ต่อหนึ่ง request */
 const SHOPEE_BULK_SHIP_MAX = 50;
@@ -1458,51 +1459,45 @@ export default function ReadyToShipTab({
         />
       )}
 
-      {/* Slip Preview Modal */}
-      {slipModal && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4"
-          onClick={() => setSlipModal(null)}
-        >
-          <div className="bg-white dark:bg-slate-800 rounded-lg max-w-md w-full max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                สลิปโอนเงิน — {slipModal.orderNumber}
-              </h3>
-              <button onClick={() => setSlipModal(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-slate-300">
-                <CloseIcon className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-auto p-4 flex items-center justify-center">
-              <img
-                src={slipModal.imageUrl}
-                alt="สลิปโอนเงิน"
-                className="max-w-full max-h-[60vh] object-contain rounded-lg"
-              />
-            </div>
-            <div className="flex gap-2 p-4 border-t border-gray-200 dark:border-slate-700">
-              <Button
-                variant="danger"
-                fullWidth
-                onClick={() => handleRejectSlip(slipModal.orderId)}
-                disabled={actionLoading}
-                icon={<ErrorIcon className="w-4 h-4" />}
-              >
-                ปฏิเสธ
-              </Button>
-              <Button
-                variant="success"
-                fullWidth
-                onClick={() => { handleApproveSlip(slipModal.orderId); setSlipModal(null); }}
-                disabled={actionLoading}
-                icon={<SuccessIcon className="w-4 h-4" />}
-              >
-                ยืนยัน
-              </Button>
-            </div>
+      {/* สลิปโอนเงิน — โมดัลกลางของระบบ (มีปุ่มตัดสินใจจึงไม่ใช่ตัวดูรูปเปล่า) */}
+      <Modal
+        open={!!slipModal}
+        onClose={() => setSlipModal(null)}
+        title={slipModal ? `สลิปโอนเงิน — ${slipModal.orderNumber}` : ''}
+        size="md"
+        footer={
+          <div className="flex gap-2 w-full">
+            <Button
+              variant="danger"
+              fullWidth
+              onClick={() => slipModal && handleRejectSlip(slipModal.orderId)}
+              disabled={actionLoading}
+              icon={<ErrorIcon className="w-4 h-4" />}
+            >
+              ปฏิเสธ
+            </Button>
+            <Button
+              variant="success"
+              fullWidth
+              onClick={() => { if (slipModal) { handleApproveSlip(slipModal.orderId); setSlipModal(null); } }}
+              disabled={actionLoading}
+              icon={<SuccessIcon className="w-4 h-4" />}
+            >
+              ยืนยัน
+            </Button>
           </div>
-        </div>
-      )}
+        }
+      >
+        {slipModal && (
+          <div className="flex items-center justify-center">
+            <img
+              src={slipModal.imageUrl}
+              alt="สลิปโอนเงิน"
+              className="max-w-full max-h-[60vh] object-contain rounded-lg"
+            />
+          </div>
+        )}
+      </Modal>
 
       {/* Loading Overlay */}
       <LoadingOverlay

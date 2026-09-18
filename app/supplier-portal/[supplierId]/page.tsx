@@ -3,13 +3,14 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { CalendarIcon, ChecklistIcon, DarkThemeIcon, DocumentIcon, LightThemeIcon, LoadingIcon, LogoutIcon, PasswordIcon, ProductIcon, ReportIcon, SupplierIcon, WarehouseIcon, WarningIcon } from '@/lib/icons';
+import { CalendarIcon, ChecklistIcon, DarkThemeIcon, DocumentIcon, LightThemeIcon, LoadingIcon, LogoutIcon, PasswordIcon, ReportIcon, SupplierIcon, WarehouseIcon, WarningIcon } from '@/lib/icons';
 import FormSelect from '@/components/ui/FormSelect';
 import Button from '@/components/ui/Button';
 import { FullPageLoading } from '@/components/ui/Loading';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { productDisplayName } from '@/lib/product-display';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
+import ImageLightbox from '@/components/ui/ImageLightbox';
 
 interface VariationInfo {
   id: string;
@@ -98,12 +99,6 @@ export default function SupplierPortalPage() {
   const [companyName, setCompanyName] = useState('');
   const [companyLogo, setCompanyLogo] = useState<string | null>(null);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
-  useEffect(() => {
-    if (!lightboxImage) return;
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightboxImage(null); };
-    document.addEventListener('keydown', h);
-    return () => document.removeEventListener('keydown', h);
-  }, [lightboxImage]);
 
   // Dark mode (independent from admin system)
   const [dark, setDark] = useState(true);
@@ -629,20 +624,8 @@ export default function SupplierPortalPage() {
         </div>
       )}
 
-      {/* Lightbox */}
-      {lightboxImage && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-          onClick={() => setLightboxImage(null)}
-        >
-          <img
-            src={lightboxImage}
-            alt=""
-            className="max-w-full max-h-full rounded-lg object-contain shadow-2xl"
-            onClick={e => e.stopPropagation()}
-          />
-        </div>
-      )}
+      {/* ตัวดูรูปกลางของระบบ */}
+      <ImageLightbox src={lightboxImage} onClose={() => setLightboxImage(null)} />
     </div>
     </div>
   );

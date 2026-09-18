@@ -50,6 +50,7 @@ import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { orderStatusLabel, paymentStatusLabel, getNextOrderStatus } from '@/lib/status-labels';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import { productDisplayName } from '@/lib/product-display';
+import ImageLightbox from '@/components/ui/ImageLightbox';
 
 interface PaymentRecord {
   id: string;
@@ -1871,27 +1872,12 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
             }
           }}
         />
-        {/* Slip Preview Modal */}
-        {showSlipModal && paymentRecord?.slip_image_url && (
-          <div
-            className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4"
-            onClick={() => setShowSlipModal(false)}
-          >
-            <div className="relative max-w-lg w-full max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
-              <button
-                onClick={() => setShowSlipModal(false)}
-                className="absolute -top-3 -right-3 bg-white rounded-full p-1.5 shadow-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors z-10"
-              >
-                <CloseIcon className="w-5 h-5 text-gray-600" />
-              </button>
-              <img
-                src={paymentRecord.slip_image_url}
-                alt="สลิปการชำระเงิน"
-                className="w-full max-h-[85vh] object-contain rounded-lg bg-white"
-              />
-            </div>
-          </div>
-        )}
+        {/* สลิปโอนเงิน — ใช้ตัวดูรูปกลางของระบบ */}
+        <ImageLightbox
+          src={showSlipModal ? paymentRecord?.slip_image_url : null}
+          onClose={() => setShowSlipModal(false)}
+          alt="สลิปการชำระเงิน"
+        />
 
         {/* Delivery Edit Modal */}
         <Modal

@@ -142,6 +142,7 @@ import { ProductIcon, CategoryIcon, AddIcon } from '@/lib/icons';
 - **ตัวคั่นชื่อกับตัวเลือก** = `VARIATION_SEPARATOR` (` - `) ตัวเดียวทั้งระบบ — ห้ามเขียน `— ` / ` (…)` เองอีก
 - **รูป**: ส่ง **URL เต็ม** เข้า `src` เสมอ (คอมโพเนนต์ย่อเองด้วย `thumbUrl()`) — กดขยายแล้ว lightbox แสดงรูปเต็มขนาดจาก URL เดิม · ห้ามส่งรูปที่ย่อมาแล้ว
 - **ราคาขายจริง** = `sellingPrice(v)` (มีส่วนลดใช้ส่วนลด) — ESLint บล็อกการเขียน `discount_price > 0 ? …` เองแล้ว · ราคานี้คือราคาที่ push ขึ้น marketplace ด้วย
+- **ดูรูปเต็มจอ** ใช้ [ImageLightbox](../../components/ui/ImageLightbox.tsx) เสมอ (รูปสินค้า · สลิปโอนเงิน · รูปถ่ายการรับสินค้า) — `<ProductImageThumb>` เรียกให้เองอยู่แล้ว · โมดัลที่มี **ปุ่มให้ตัดสินใจ** (อนุมัติ/ปฏิเสธสลิป) ไม่ใช่ lightbox ให้ใช้ `Modal` กลาง · แกลเลอรีที่เลื่อนซ้ายขวา/มีวิดีโอเป็นคนละตัว (`app/chat/components/LightboxViewer` · `ImageUploader`)
 - ยกเว้นที่ยังเขียน `<img>` เองได้: หน้าร้านออนไลน์ (`components/storefront/**` มีดีไซน์ของตัวเอง) · ตัวอย่างข้อความในบรอดแคสต์/แชท (จำลองหน้าตาแอปอื่น) · การ์ดสินค้าใน POS (`ProductGrid` เป็นไทล์เต็มใบ ไม่ใช่รูปจิ๋ว)
 
 ## Standard Layout & Styling
