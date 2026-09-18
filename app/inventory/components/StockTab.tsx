@@ -164,6 +164,11 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
   const [rows, setRows] = useState<StockRow[]>([]);
   const [total, setTotal] = useState(0);
   const [counts, setCounts] = useState<StockStatusCounts | null>(null);
+  /** มูลค่าสต็อกแยกของเรา/ของ supplier ฝากขาย — ของฝากขายไม่ใช่สินทรัพย์เรา จึงห้ามรวมเป็นก้อนเดียว */
+  const [valuation, setValuation] = useState<{
+    own: { quantity: number; value: number | null };
+    consignment: { quantity: number; value: number | null; unpriced_quantity: number };
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
 
@@ -239,6 +244,11 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
       setRows(data.items || []);
       setTotal(data.total || 0);
       setCounts(data.status_counts ?? null);
+
+      // มูลค่าสต็อกเป็นยอดรวมของทั้งคลัง ไม่ขึ้นกับหน้า/ตัวกรองอื่น — ยิงแยกและล้มได้เงียบ ๆ
+      apiFetch(`/api/inventory/valuation${warehouseFilter ? `?warehouse_id=${warehouseFilter}` : ''}`)
+        .then(async r => { if (r.ok) setValuation(await r.json()); })
+        .catch(() => { /* ไม่มีการ์ดมูลค่า ก็ยังใช้หน้านี้ได้ปกติ */ });
     } catch (error) {
       console.error('Error fetching inventory list:', error);
       if (!quiet) showToast('โหลดข้อมูลไม่สำเร็จ', 'error');
@@ -641,6 +651,50 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
 
   return (
     <>
+      {/* มูลค่าสต็อก — แยกสองก้อนเสมอ ⛔ ห้ามรวมเป็นตัวเลขเดียว
+          ของเรา = ต้นทุนที่จ่ายไปแล้ว · ของ supplier = เงินที่ต้องจ่ายถ้าขายได้หมด (ยังไม่ใช่ของเรา) */}
+      {valuation && (valuation.own.quantity > 0 || valuation.consignment.quantity > 0) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="card card-p-md">
+            <div className="flex items-center justify-between gap-2">
+              <span className="subtitle-text text-gray-500 dark:text-slate-400">สต็อกของเรา</span>
+              <Package2 className="w-4 h-4 text-gray-400" />
+            </div>
+            <p className="heading-3 mt-1 text-gray-900 dark:text-white">
+              {valuation.own.value == null
+                ? `${formatNumber(valuation.own.quantity)} ชิ้น`
+                : `฿${formatNumber(Math.round(valuation.own.value))}`}
+            </p>
+            {valuation.own.value != null && (
+              <p className="helper-text">{formatNumber(valuation.own.quantity)} ชิ้น · ต้นทุนที่จ่ายไปแล้ว</p>
+            )}
+          </div>
+          {valuation.consignment.quantity > 0 && (
+            <div className="card card-p-md">
+              <div className="flex items-center justify-between gap-2">
+                <span className="subtitle-text text-gray-500 dark:text-slate-400">ของ Supplier (ฝากขาย)</span>
+                <HelpHint ariaLabel="ของฝากขายคิดมูลค่ายังไง">
+                  ของฝากขายอยู่ในคลังเราและขายได้ แต่ยังเป็นของ supplier — ตัวเลขนี้คือ
+                  <b> เงินที่ต้องจ่ายคืนถ้าขายได้หมด</b> ไม่ใช่สินทรัพย์ของร้าน จึงไม่รวมกับสต็อกของเรา
+                </HelpHint>
+              </div>
+              <p className="heading-3 mt-1 text-gray-900 dark:text-white">
+                {valuation.consignment.value == null
+                  ? `${formatNumber(valuation.consignment.quantity)} ชิ้น`
+                  : `฿${formatNumber(Math.round(valuation.consignment.value))}`}
+              </p>
+              <p className="helper-text">
+                {formatNumber(valuation.consignment.quantity)} ชิ้น
+                {valuation.consignment.value != null ? ' · เงินที่ต้องจ่ายถ้าขายได้หมด' : ''}
+                {valuation.consignment.unpriced_quantity > 0
+                  ? ` · ${formatNumber(valuation.consignment.unpriced_quantity)} ชิ้นยังไม่ได้ตั้งส่วนแบ่ง`
+                  : ''}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
       <StatusTabs
         activeKey={status}
         onSelect={(key) => setParams({ status: key })}
