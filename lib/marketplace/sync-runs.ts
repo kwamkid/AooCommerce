@@ -97,6 +97,8 @@ export interface SyncRunItem {
   product_id: string | null;
   sku: string | null;
   name: string | null;
+  /** เติมตอนอ่านจาก API (ไม่ได้เก็บในสแนปช็อตของรอบ) */
+  image?: string | null;
   external_item_id: string | null;
   external_model_id: string | null;
   shop_before: number | null;

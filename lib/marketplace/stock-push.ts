@@ -254,6 +254,8 @@ export interface StockRowMeta {
   product_id: string;
   sku: string | null;
   name: string | null;
+  /** รูปของตัวเลือก — ไม่มีก็ใช้รูปสินค้า **เฉพาะสินค้าเดี่ยว** (กติกา image priority) */
+  image: string | null;
   external_item_id: string | null;
   external_model_id: string | null;
   sync_enabled: boolean;
@@ -277,6 +279,7 @@ export async function loadStockRowMeta(links: StockLinkRow[]): Promise<Map<strin
       product_id: link.product_id,
       sku: null,
       name: null,
+      image: null,
       external_item_id: link.external_item_id ?? null,
       external_model_id: link.external_model_id ?? null,
       sync_enabled: link.sync_enabled !== false,
@@ -287,7 +290,7 @@ export async function loadStockRowMeta(links: StockLinkRow[]): Promise<Map<strin
   for (let i = 0; i < ids.length; i += 150) {
     const { data } = await supabaseAdmin
       .from('product_variations')
-      .select('id, sku, variation_label, attributes, product_id, products(name)')
+      .select('id, sku, variation_label, attributes, product_id, products(name, image, variation_label)')
       .in('id', ids.slice(i, i + 150));
     const rows = (data || []) as unknown as {
       id: string;
@@ -295,7 +298,10 @@ export async function loadStockRowMeta(links: StockLinkRow[]): Promise<Map<strin
       variation_label: string | null;
       attributes: Record<string, string> | null;
       product_id: string;
-      products: { name: string | null } | { name: string | null }[] | null;
+      products:
+        | { name: string | null; image: string | null; variation_label: string | null }
+        | { name: string | null; image: string | null; variation_label: string | null }[]
+        | null;
     }[];
     for (const row of rows) {
       const target = meta.get(row.id);
@@ -308,6 +314,23 @@ export async function loadStockRowMeta(links: StockLinkRow[]): Promise<Map<strin
         ? productDisplayName({ product_name: product.name, variation_label: row.variation_label, sku: row.sku, attributes: row.attributes })
         : null;
       if (row.product_id) target.product_id = row.product_id;
+      // ⛔ สินค้าที่มีตัวเลือก (products.variation_label = null) ห้าม fallback ไปรูปสินค้า
+      // ตัวเลือกที่ไม่มีรูปของตัวเองต้องไม่ยืมรูปของสีอื่น — รูปตัวเลือกเติมด้านล่าง
+      if (product?.variation_label !== null && product?.image) target.image = product.image;
+    }
+  }
+
+  // รูปของตัวเลือกเอง (ชนะรูปสินค้าเสมอ) — เอาใบแรกตาม sort_order
+  for (let i = 0; i < ids.length; i += 150) {
+    const { data } = await supabaseAdmin
+      .from('product_images')
+      .select('variation_id, image_url, sort_order')
+      .in('variation_id', ids.slice(i, i + 150))
+      .order('sort_order', { ascending: true });
+    for (const row of (data || []) as { variation_id: string | null; image_url: string | null }[]) {
+      if (!row.variation_id || !row.image_url) continue;
+      const target = meta.get(row.variation_id);
+      if (target && !target.image) target.image = row.image_url;
     }
   }
   return meta;
@@ -321,6 +344,7 @@ export interface StockPreviewRow {
   product_id: string;
   sku: string | null;
   name: string | null;
+  image: string | null;
   external_item_id: string | null;
   external_model_id: string | null;
   /** ยอดบนร้าน — null = อ่านไม่เจอ (ประกาศหาย / link เสีย) */
@@ -350,6 +374,7 @@ function buildPreviewRow(
     product_id: meta?.product_id || '',
     sku: meta?.sku ?? null,
     name: meta?.name ?? null,
+    image: meta?.image ?? null,
     external_item_id: meta?.external_item_id ?? null,
     external_model_id: meta?.external_model_id ?? null,
     shop,

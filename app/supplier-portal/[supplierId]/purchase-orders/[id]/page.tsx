@@ -1,12 +1,11 @@
 'use client';
 
-import ProductImageThumb from '@/components/ui/ProductImageThumb';
+import ProductCell from '@/components/ui/ProductCell';
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { FullPageLoading } from '@/components/ui/Loading';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { BackIcon, SuccessIcon, TimeIcon, WarehouseIcon, WarningIcon } from '@/lib/icons';
-import { productDisplayName } from '@/lib/product-display';
 
 interface POItem {
   id: string;
@@ -36,12 +35,6 @@ interface POData {
   receives: { id: string; receive_number: string; status: string; created_at: string }[];
 }
 
-
-function getDisplayName(v: POItem['variation']) {
-  if (!v) return '-';
-  // ชื่อสินค้าใช้ตัวกลางเดียวกับทั้งระบบ (lib/product-display.ts)
-  return productDisplayName({ product_name: v.product?.name, variation_label: v.variation_label, sku: v.sku });
-}
 
 export default function PortalPODetailPage() {
   const params = useParams();
@@ -168,13 +161,17 @@ export default function PortalPODetailPage() {
                 return (
                   <tr key={item.id}>
                     <td className="px-4 py-2">
-                      <div className="flex items-center gap-2">
-                        <ProductImageThumb src={item.variation?.product?.image} alt="" size="xs" />
-                        <div className="min-w-0">
-                          <p className="text-gray-900 dark:text-white truncate">{getDisplayName(item.variation)}</p>
-                          {item.variation?.sku && <p className="text-xs text-gray-500">SKU: {item.variation.sku}</p>}
-                        </div>
-                      </div>
+                      <ProductCell
+                        item={{
+                          product_name: item.variation?.product?.name,
+                          variation_label: item.variation?.variation_label,
+                          sku: item.variation?.sku,
+                          image: item.variation?.product?.image,
+                        }}
+                        size="xs"
+                        lines={1}
+                        disabled
+                      />
                     </td>
                     <td className="px-4 py-2 text-center">{item.quantity}</td>
                     <td className="px-4 py-2 text-center">

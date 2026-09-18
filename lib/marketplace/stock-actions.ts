@@ -72,6 +72,7 @@ export interface StockPreviewRow {
   product_id: string;
   sku: string | null;
   name: string | null;
+  image: string | null;
   external_item_id: string | null;
   external_model_id: string | null;
   /** ยอดบนร้าน — null = อ่านไม่เจอ (ประกาศหาย / link เสีย) */

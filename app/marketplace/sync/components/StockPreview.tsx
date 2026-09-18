@@ -17,6 +17,7 @@ import Radio from '@/components/ui/Radio';
 import Tooltip from '@/components/ui/Tooltip';
 import HelpHint from '@/components/ui/HelpHint';
 import PlatformIcon from '@/components/ui/PlatformIcon';
+import ProductCell from '@/components/ui/ProductCell';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import FilterChips, { FILTER_CHIP_PRIMARY_ACTIVE } from '@/components/ui/FilterChips';
 import DataTable, { type DataTableColumn, type SortDir } from '@/components/ui/DataTable';
@@ -303,11 +304,14 @@ export default function StockPreview({ account, direction, onApplied, onBack, on
       // ที่เหลือจึงไปตกที่คอลัมน์สุดท้าย (สถานะ) แทน
       defaultWidth: 300,
       sortable: true,
+      // รูป/ชื่อ/SKU ผ่านตัวกลางตัวเดียวกับทั้งระบบ — ห้ามประกอบเองที่นี่
       render: (row) => (
-        <div className="min-w-0">
-          <div className="body-text truncate" title={row.name || undefined}>{row.name || 'ไม่มีชื่อ'}</div>
-          {row.sku && <div className="helper-text text-gray-500 truncate">SKU: {row.sku}</div>}
-        </div>
+        <ProductCell
+          item={{ product_name: row.name || 'ไม่มีชื่อ', sku: row.sku, image: row.image }}
+          size="sm"
+          lines={1}
+          disabled
+        />
       ),
     },
     {
@@ -549,8 +553,11 @@ export default function StockPreview({ account, direction, onApplied, onBack, on
               const from = fromValue(row, direction);
               return (
                 <div className="space-y-1.5">
-                  <div className="body-text">{row.name || 'ไม่มีชื่อ'}</div>
-                  {row.sku && <div className="helper-text text-gray-500">SKU: {row.sku}</div>}
+                  <ProductCell
+                    item={{ product_name: row.name || 'ไม่มีชื่อ', sku: row.sku, image: row.image }}
+                    size="sm"
+                    disabled
+                  />
                   <div className="helper-text text-gray-500">
                     ยอดบนร้าน {row.shop === null ? '—' : formatNumber(row.shop)} · ยอดในระบบ {formatNumber(row.ours_available)}
                   </div>

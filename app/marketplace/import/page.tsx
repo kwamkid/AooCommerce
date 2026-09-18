@@ -19,6 +19,7 @@ import Checkbox from '@/components/ui/Checkbox';
 import SearchInput from '@/components/ui/SearchInput';
 import PlatformIcon from '@/components/ui/PlatformIcon';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
+import ProductCell from '@/components/ui/ProductCell';
 import FilterChips, { FILTER_CHIP_PRIMARY_ACTIVE } from '@/components/ui/FilterChips';
 import { InfoChip } from '@/components/ui/StatusBadge';
 import { ImportButton } from '@/components/ui/ExportImportButton';
@@ -525,34 +526,41 @@ function MarketplaceImportContent() {
                     <div className="pt-1">
                       <Checkbox checked={checked} onChange={() => toggleOne(id)} disabled={importing} />
                     </div>
-                    <ProductImageThumb src={item.image} alt={item.name} size="sm" fallbackIcon={<ProductIcon className="w-5 h-5" />} />
-                    <div className="min-w-0 flex-1">
-                      <div className="body-text truncate">{item.name}</div>
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5">
-                        <span className="helper-text text-gray-500">
-                          {item.has_variation ? `${item.model_count} ตัวเลือก` : 'สินค้าเดี่ยว'}
-                        </span>
-                        {item.sku && <span className="helper-text text-gray-500">SKU: {item.sku}</span>}
-                        {item.price > 0 && <span className="helper-text text-gray-500">{formatPrice(item.price)}</span>}
-                        <span className="helper-text text-gray-500">สต็อกบนร้าน {item.total_stock}</span>
-                        {item.status && (
-                          <InfoChip colors="bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-300">
-                            {item.status}
-                          </InfoChip>
-                        )}
-                      </div>
-                      {item.linked_product ? (
-                        <div className="helper-text text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1">
+                    {/* รูป/ชื่อ/SKU ผ่านตัวกลาง — ป้ายเฉพาะหน้านี้ไปที่ช่อง badges/footer */}
+                    <ProductCell
+                      className="min-w-0 flex-1"
+                      item={{ product_name: item.name, sku: item.sku, image: item.image }}
+                      size="sm"
+                      lines={1}
+                      subtitle={false}
+                      disabled
+                      badges={
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <span className="helper-text text-gray-500">
+                            {item.has_variation ? `${item.model_count} ตัวเลือก` : 'สินค้าเดี่ยว'}
+                          </span>
+                          {item.sku && <span className="helper-text text-gray-500">SKU: {item.sku}</span>}
+                          {item.price > 0 && <span className="helper-text text-gray-500">{formatPrice(item.price)}</span>}
+                          <span className="helper-text text-gray-500">สต็อกบนร้าน {item.total_stock}</span>
+                          {item.status && (
+                            <InfoChip colors="bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-300">
+                              {item.status}
+                            </InfoChip>
+                          )}
+                        </div>
+                      }
+                      footer={item.linked_product ? (
+                        <div className="helper-text text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                           <LinkIcon className="w-3.5 h-3.5" />
                           ผูกกับ {item.linked_product.name} แล้ว
                         </div>
                       ) : item.auto_match ? (
-                        <div className="helper-text text-blue-600 dark:text-blue-400 mt-1 flex items-center gap-1">
+                        <div className="helper-text text-blue-600 dark:text-blue-400 flex items-center gap-1">
                           <LinkIcon className="w-3.5 h-3.5" />
                           จะผูกกับ {item.auto_match.name} อัตโนมัติ (SKU ตรงกัน)
                         </div>
                       ) : null}
-                    </div>
+                    />
 
                     <FilterChips<'create' | 'link'>
                       variant="segmented"

@@ -15,6 +15,7 @@ import Alert from '@/components/ui/Alert';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
+import ProductCell from '@/components/ui/ProductCell';
 import StatusBadge, { InfoChip } from '@/components/ui/StatusBadge';
 import { Stat } from '@/components/ui/Chart';
 import { EmptyCard, LoadingCard } from '@/components/ui/StateCard';
@@ -182,10 +183,12 @@ export default function RunResult({ runId, onBack, onOpenRun, onRecheck }: Props
       alwaysVisible: true,
       grow: true,
       render: (item) => (
-        <div className="min-w-0">
-          <div className="body-text truncate">{item.name || 'ไม่มีชื่อ'}</div>
-          {item.sku && <div className="helper-text text-gray-500">SKU: {item.sku}</div>}
-        </div>
+        <ProductCell
+          item={{ product_name: item.name || 'ไม่มีชื่อ', sku: item.sku, image: item.image }}
+          size="sm"
+          lines={1}
+          disabled
+        />
       ),
     },
     {
@@ -369,8 +372,11 @@ export default function RunResult({ runId, onBack, onOpenRun, onRecheck }: Props
               const before = beforeValue(item, run.job);
               return (
                 <div className="space-y-1.5">
-                  <div className="body-text">{item.name || 'ไม่มีชื่อ'}</div>
-                  {item.sku && <div className="helper-text text-gray-500">SKU: {item.sku}</div>}
+                  <ProductCell
+                    item={{ product_name: item.name || 'ไม่มีชื่อ', sku: item.sku, image: item.image }}
+                    size="sm"
+                    disabled
+                  />
                   <div className="helper-text">
                     {before === null ? '—' : formatNumber(before)} → {item.after === null ? '—' : formatNumber(item.after)}
                   </div>

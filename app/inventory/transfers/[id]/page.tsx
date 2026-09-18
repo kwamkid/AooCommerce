@@ -1,6 +1,6 @@
 'use client';
 
-import ProductImageThumb from '@/components/ui/ProductImageThumb';
+import ProductCell from '@/components/ui/ProductCell';
 import { useState, useEffect, useRef } from 'react';
 import { useCopy } from '@/lib/useCopy';
 import { useParams, useRouter } from 'next/navigation';
@@ -581,14 +581,15 @@ export default function TransferDetailPage() {
                         <tr key={item.id} className="border-b border-gray-100 dark:border-slate-700/50">
                           <td className="px-4 py-3 text-gray-400">{idx + 1}</td>
                           <td className="px-4 py-3">
-                            <div className="flex items-center gap-3">
-                              <ProductImageThumb src={item.variation.product.image} alt="" size="sm" />
-                              <div className="min-w-0">
-                                <p className="text-gray-900 dark:text-white truncate">{name.main}</p>
-                                {name.sub && <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{name.sub}</p>}
-                                {item.variation?.sku && <p className="text-xs text-gray-400 dark:text-slate-500">SKU: {item.variation.sku}</p>}
-                              </div>
-                            </div>
+                            <ProductCell
+                              item={{
+                                ...flattenVariationItem(item),
+                                image: item.variation.product.image,
+                              }}
+                              size="sm"
+                              lines={1}
+                              disabled
+                            />
                           </td>
                           <td className="px-4 py-3 text-center text-gray-900 dark:text-white">{item.qty_sent}</td>
                           {showReceived && (

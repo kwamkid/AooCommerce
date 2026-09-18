@@ -3,6 +3,7 @@ import { checkAuthWithCompany, can, supabaseAdmin } from '@/lib/supabase-admin';
 import { getRun, listRuns } from '@/lib/marketplace/sync-runs';
 import { assessRevertability, loadRevertAccount } from '@/lib/marketplace/sync-revert';
 import { guardFeature } from '@/lib/package-gates-server';
+import { loadStockRowMeta } from '@/lib/marketplace/stock-push';
 
 /** ประวัติรอบซิงค์สต็อกของร้าน + รายละเอียดรายรอบ (อ่านอย่างเดียว)
  *
@@ -31,7 +32,20 @@ export async function GET(request: NextRequest) {
 
       const account = await loadRevertAccount(loaded.run.account_id);
       const revertability = await assessRevertability(loaded.run, loaded.items, account);
-      return NextResponse.json({ run: loaded.run, items: loaded.items, revertability });
+      // รูปไม่ได้เก็บไว้ในสแนปช็อตของรอบ (ไม่ใช่ข้อมูลที่ต้องแช่แข็ง) — เติมตอนอ่าน
+      // ด้วยตัวเดียวกับหน้าพรีวิว จะได้กติกา image priority ชุดเดียวกัน
+      const meta = await loadStockRowMeta(
+        loaded.items.map(i => ({
+          id: `${i.run_id}:${i.variation_id}`,
+          variation_id: i.variation_id,
+          product_id: i.product_id || '',
+          external_item_id: i.external_item_id || '',
+          external_model_id: i.external_model_id || '',
+          sync_enabled: true,
+        })),
+      );
+      const items = loaded.items.map(i => ({ ...i, image: meta.get(i.variation_id)?.image ?? null }));
+      return NextResponse.json({ run: loaded.run, items, revertability });
     }
 
     const accountId = searchParams.get('account_id');
