@@ -1,17 +1,15 @@
 'use client';
 
-import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { useCompany } from '@/lib/company-context';
 import { can } from '@/lib/permissions';
-import { useToast } from '@/lib/toast-context';
-import { apiFetch } from '@/lib/api-client';
 import {
-  readFileToRows, rowsToSheet, getCell, isRowEmpty, isInstructionRow,
-  validateHeaders, type RequiredColumn,
+  getCell, isRowEmpty, isInstructionRow,
+  validateHeaders, type RequiredColumn, type ParsedSheet,
 } from '@/lib/bulk/parse-template';
+import { useBulkApply, type ParseOutcome } from '@/lib/bulk/use-bulk-apply';
 import { addTemplateHeader } from '@/lib/bulk/excel-template';
 
 import Button from '@/components/ui/Button';
@@ -19,9 +17,11 @@ import PageHeader from '@/components/ui/PageHeader';
 import { LoadingCard, EmptyCard, NoPermissionCard, DoneCard } from '@/components/ui/StateCard';
 import BulkUploadCard from '@/components/bulk/BulkUploadCard';
 import BulkPreviewBar from '@/components/bulk/BulkPreviewBar';
-import BulkErrorModal, { type BulkErrorReport } from '@/components/bulk/BulkErrorModal';
+import BulkErrorModal from '@/components/bulk/BulkErrorModal';
 
-import { AlertCircle, BadgePlus, FileSpreadsheet } from 'lucide-react';
+import { FileSpreadsheet } from 'lucide-react';
+import { AlertIcon } from '@/lib/icons';
+import { BrandIcon } from '@/lib/icons';
 import { downloadBlob } from '@/lib/utils/download';
 
 interface CreateItem {
@@ -36,28 +36,68 @@ interface ResultRow {
   error?: string;
 }
 
-interface RunResponse {
-  dry_run: boolean;
-  results: ResultRow[];
-  summary: { total: number; created: number; errors: number };
+// หน้าฝั่ง "สร้างใหม่" นับผลเป็น created — ประกาศไว้เองเพื่ออ่านตัวเลขได้โดยไม่ต้องเช็ค null
+interface CreateSummary { total: number; created: number; errors: number }
+
+const REQUIRED_HEADERS: RequiredColumn[] = [
+  { aliases: ['ชื่อแบรนด์*', 'ชื่อแบรนด์', 'name'], label: 'ชื่อแบรนด์' },
+];
+
+/**
+ * แปลงชีตเป็นรายการแบรนด์ที่จะสร้าง — ส่วนเดียวที่ต่างจากหน้า bulk อื่น
+ * คืน `issues` ครบทุกถังเสมอ (hook จะไม่ยิง API ถ้ามีข้อใดข้อหนึ่ง)
+ * ⛔ อ่านตามชื่อ header เสมอ (`getCell`) ห้ามอ่านตามตำแหน่งคอลัมน์
+ */
+function parseSheet(sheet: ParsedSheet): ParseOutcome<CreateItem> {
+  const headerIssues: string[] = [];
+  const rowIssues: string[] = [];
+  const otherIssues: string[] = [];
+
+  const v = validateHeaders(sheet.headers, REQUIRED_HEADERS);
+  // เก็บให้ครบก่อนค่อยโชว์ — ไม่ early-return ทีละข้อ
+  if (!v.ok) for (const m of v.missing) headerIssues.push(`column "${m}" หายไป`);
+
+  const items: CreateItem[] = [];
+  for (let i = 0; i < sheet.rows.length; i++) {
+    const row = sheet.rows[i];
+    if (isRowEmpty(row) || isInstructionRow(row)) continue;
+    const rowNum = i + 2;
+
+    const name = getCell(row, 'ชื่อแบรนด์*', 'ชื่อแบรนด์', 'name');
+    if (!name) {
+      // แถวที่ว่างทั้งแถวข้ามเงียบ ๆ — เตือนเฉพาะแถวที่มีข้อมูลช่องอื่นแต่ลืมชื่อ
+      if (Object.values(row).some(c => c && String(c).trim() !== '')) {
+        rowIssues.push(`แถว ${rowNum}: ไม่มีชื่อแบรนด์`);
+      }
+      continue;
+    }
+    items.push({ name, __rowNum: rowNum });
+  }
+
+  if (items.length === 0 && rowIssues.length === 0 && headerIssues.length === 0) {
+    otherIssues.push('ไม่พบรายการที่กรอกข้อมูล — ตรวจสอบว่ามีชื่อแบรนด์ในแถวข้อมูล');
+  }
+
+  return { items, issues: { headerIssues, rowIssues, otherIssues } };
 }
 
 export default function BulkCreateBrandsPage() {
   const router = useRouter();
   const { userProfile } = useAuth();
   const { companyRoles, permissions } = useCompany();
-  const { showToast } = useToast();
   const isAdmin = can({ roles: companyRoles, permissions }, 'product.bulk_edit');
 
-  const [step, setStep] = useState<'upload' | 'checking' | 'preview' | 'importing' | 'done'>('upload');
-  const [parsedItems, setParsedItems] = useState<CreateItem[]>([]);
-  const [dryRun, setDryRun] = useState<RunResponse | null>(null);
-  const [finalRun, setFinalRun] = useState<RunResponse | null>(null);
-  const [errorReport, setErrorReport] = useState<BulkErrorReport | null>(null);
-
-  const requiredHeaders = useMemo<RequiredColumn[]>(() => [
-    { aliases: ['ชื่อแบรนด์*', 'ชื่อแบรนด์', 'name'], label: 'ชื่อแบรนด์' },
-  ], []);
+  // flow อัปไฟล์ → dry-run → Apply อยู่ที่ hook กลาง (lib/bulk/use-bulk-apply)
+  // `errorMode: 'modal'` = สะสมทุกปัญหาแล้วโชว์ทีเดียวใน BulkErrorModal — ไฟล์หน้านี้
+  // ผู้ใช้พิมพ์เอง ต้องรู้ให้ครบรอบเดียวว่าต้องแก้อะไรบ้าง
+  const {
+    step, parsedItems, dryRun, finalRun, errorReport, clearErrorReport,
+    handleFile, confirmImport: handleConfirmImport, reset: resetAll,
+  } = useBulkApply<CreateItem, ResultRow, CreateSummary>({
+    endpoint: '/api/products/bulk/create-brands/apply',
+    errorMode: 'modal',
+    parse: parseSheet,
+  });
 
   const handleDownloadTemplate = async () => {
     const ExcelJS = (await import('exceljs')).default;
@@ -81,138 +121,6 @@ export default function BulkCreateBrandsPage() {
     const buf = await wb.xlsx.writeBuffer();
     const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     downloadBlob(blob, 'brand-create-template.xlsx');
-  };
-
-  const handleFile = async (file: File) => {
-    setErrorReport(null);
-
-    const headerIssues: string[] = [];
-    const rowIssues: string[] = [];
-    const otherIssues: string[] = [];
-
-    let raw: string[][];
-    try {
-      raw = await readFileToRows(file);
-    } catch (err) {
-      console.error('read error:', err);
-      setErrorReport({
-        headerIssues: [], rowIssues: [],
-        otherIssues: [
-          `อ่านไฟล์ไม่สำเร็จ: ${err instanceof Error ? err.message : 'unknown'}`,
-          'รองรับเฉพาะไฟล์ .xlsx, .xls, .csv',
-        ],
-      });
-      return;
-    }
-
-    const sheet = rowsToSheet(raw);
-    if (sheet.headers.length === 0 || sheet.rows.length === 0) {
-      setErrorReport({
-        headerIssues: [], rowIssues: [],
-        otherIssues: ['ไฟล์ว่างเปล่า — ต้องมี header (แถว 1) + ข้อมูลอย่างน้อย 1 แถว'],
-      });
-      return;
-    }
-
-    const v = validateHeaders(sheet.headers, requiredHeaders);
-    if (!v.ok) {
-      for (const m of v.missing) headerIssues.push(`column "${m}" หายไป`);
-    }
-
-    const items: CreateItem[] = [];
-    try {
-      for (let i = 0; i < sheet.rows.length; i++) {
-        const row = sheet.rows[i];
-        if (isRowEmpty(row) || isInstructionRow(row)) continue;
-        const rowNum = i + 2;
-
-        const name = getCell(row, 'ชื่อแบรนด์*', 'ชื่อแบรนด์', 'name');
-        if (!name) {
-          // Only push error if row has any other content
-          if (Object.values(row).some(c => c && String(c).trim() !== '')) {
-            rowIssues.push(`แถว ${rowNum}: ไม่มีชื่อแบรนด์`);
-          }
-          continue;
-        }
-
-        items.push({ name, __rowNum: rowNum });
-      }
-    } catch (err) {
-      console.error('parse error:', err);
-      otherIssues.push(`เกิดข้อผิดพลาดตอนอ่านข้อมูล: ${err instanceof Error ? err.message : 'unknown'}`);
-    }
-
-    if (items.length === 0 && rowIssues.length === 0 && headerIssues.length === 0) {
-      otherIssues.push('ไม่พบรายการที่กรอกข้อมูล — ตรวจสอบว่ามีชื่อแบรนด์ในแถวข้อมูล');
-    }
-
-    if (headerIssues.length > 0 || rowIssues.length > 0 || otherIssues.length > 0) {
-      setErrorReport({ headerIssues, rowIssues, otherIssues });
-      return;
-    }
-
-    setParsedItems(items);
-    setStep('checking');
-
-    try {
-      const res = await apiFetch('/api/products/bulk/create-brands/apply', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items, dry_run: true }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setErrorReport({
-          headerIssues: [], rowIssues: [],
-          otherIssues: [data.error || 'ตรวจสอบไม่สำเร็จ — ลองอีกครั้ง'],
-        });
-        setStep('upload');
-        return;
-      }
-      setDryRun(data);
-      setStep('preview');
-    } catch (err) {
-      console.error('dry-run error:', err);
-      setErrorReport({
-        headerIssues: [], rowIssues: [],
-        otherIssues: ['เชื่อมต่อ server ไม่ได้ — ลองอีกครั้ง'],
-      });
-      setStep('upload');
-    }
-  };
-
-  const handleConfirmImport = async () => {
-    setStep('importing');
-    try {
-      const res = await apiFetch('/api/products/bulk/create-brands/apply', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: parsedItems, dry_run: false }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        showToast(data.error || 'บันทึกไม่สำเร็จ', 'error');
-        setStep('preview');
-        return;
-      }
-      setFinalRun(data);
-      setStep('done');
-      const parts: string[] = [];
-      if (data.summary.created > 0) parts.push(`สร้างใหม่ ${data.summary.created}`);
-      if (data.summary.errors > 0) parts.push(`ล้มเหลว ${data.summary.errors}`);
-      showToast(parts.join(', ') || 'เสร็จสิ้น', data.summary.errors > 0 ? 'error' : 'success');
-    } catch (err) {
-      console.error('import error:', err);
-      showToast('บันทึกไม่สำเร็จ', 'error');
-      setStep('preview');
-    }
-  };
-
-  const resetAll = () => {
-    setStep('upload');
-    setParsedItems([]);
-    setDryRun(null);
-    setFinalRun(null);
   };
 
   if (!userProfile) return null;
@@ -257,17 +165,17 @@ export default function BulkCreateBrandsPage() {
           <div className="space-y-4">
             <BulkPreviewBar
               title="ตรวจสอบรายการก่อนสร้าง"
-              icon={<BadgePlus className="w-5 h-5 text-emerald-600" />}
+              icon={<BrandIcon className="w-5 h-5 text-emerald-600" />}
               badges={
                 <>
                   {dryRun.summary.created > 0 && (
                     <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-lg font-medium">
-                      <BadgePlus className="w-3.5 h-3.5" /> สร้างใหม่ {dryRun.summary.created}
+                      <BrandIcon className="w-3.5 h-3.5" /> สร้างใหม่ {dryRun.summary.created}
                     </span>
                   )}
                   {dryRun.summary.errors > 0 && (
                     <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg font-medium">
-                      <AlertCircle className="w-3.5 h-3.5" /> ข้อผิดพลาด {dryRun.summary.errors}
+                      <AlertIcon className="w-3.5 h-3.5" /> ข้อผิดพลาด {dryRun.summary.errors}
                     </span>
                   )}
                 </>
@@ -361,7 +269,7 @@ export default function BulkCreateBrandsPage() {
 
       <BulkErrorModal
         report={errorReport}
-        onClose={() => setErrorReport(null)}
+        onClose={clearErrorReport}
         onDownloadTemplate={handleDownloadTemplate}
       />
     </Layout>

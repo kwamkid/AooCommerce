@@ -16,17 +16,23 @@ import { useToast } from '@/lib/toast-context';
 
 export type BulkStep = 'upload' | 'checking' | 'preview' | 'importing' | 'done';
 
+/**
+ * สรุปผลที่ API ตอบกลับ — **สองสายนับคนละอย่าง** จึง required แค่ `errors`
+ * หน้าแก้ไข (price · basic-info) ตอบ `{total, updated, unchanged, errors}`
+ * หน้าสร้างใหม่ (create*) ตอบ `{total, created, errors}` — ไม่มี updated/unchanged
+ * หน้าไหนอ่านตัวเลขของตัวเองแบบไม่ต้องเช็ค null ให้ส่ง summary ของตัวเองเป็น `TSummary`
+ */
 export interface BulkSummary {
-  updated: number;
-  unchanged: number;
   errors: number;
-  /** บางหน้า (สร้างใหม่) รายงานจำนวนที่สร้างแยกจาก updated */
+  total?: number;
   created?: number;
+  updated?: number;
+  unchanged?: number;
 }
 
-export interface BulkRunResponse<TResult> {
+export interface BulkRunResponse<TResult, TSummary = BulkSummary> {
   results: TResult[];
-  summary: BulkSummary;
+  summary: TSummary;
   dry_run?: boolean;
 }
 
@@ -35,22 +41,49 @@ export interface BulkItemBase {
   __rowNum?: number;
 }
 
+export interface ParseOutcome<TItem> {
+  items: TItem[];
+  /** ข้อความตอน parse แล้วไม่เหลือแถวที่ใช้ได้เลย (โหมด toast) */
+  emptyMessage?: string;
+  /**
+   * ปัญหาที่เก็บสะสมระหว่าง parse (โหมด modal ของหน้า "สร้างใหม่")
+   * มีอย่างน้อย 1 ข้อ = **ไม่ยิง API เลย** ยกไปโชว์ใน `BulkErrorModal` ทีเดียว
+   * — ผู้ใช้จะได้แก้ไฟล์รอบเดียวจบ ไม่ใช่โดนเตือนทีละใบจนกว่าจะหมด
+   */
+  issues?: BulkIssues;
+}
+
+export interface BulkIssues {
+  headerIssues: string[];
+  rowIssues: string[];
+  otherIssues: string[];
+}
+
 export interface UseBulkApplyOptions<TItem> {
   /** ปลายทางของทั้ง dry-run และของจริง (ต่างกันแค่ `dry_run`) */
   endpoint: string;
   /** แปลงชีตเป็นรายการที่จะส่งขึ้น API — ส่วนเดียวที่แต่ละหน้าต่างกันจริง */
-  parse: (sheet: ParsedSheet) => { items: TItem[]; emptyMessage?: string };
+  parse: (sheet: ParsedSheet) => ParseOutcome<TItem>;
   /** เทมเพลตที่มีแถวข้อมูลเมตาเหนือ header (บางหน้าของ bulk create) */
   skipMetadataRow?: boolean;
+  /**
+   * รายงานปัญหายังไง — `'toast'` (ค่าเริ่มต้น) เตือนทีละใบ เหมาะกับหน้าแก้ไขที่ไฟล์มาจาก
+   * Export ของระบบเอง จึงพังยาก · `'modal'` สะสมทุกปัญหาแล้วเปิด `BulkErrorModal` ทีเดียว
+   * เหมาะกับหน้าสร้างใหม่ที่ผู้ใช้พิมพ์ไฟล์เอง — ต้องรู้ให้ครบรอบเดียวว่าต้องแก้อะไรบ้าง
+   */
+  errorMode?: 'toast' | 'modal';
   /** ข้อความสรุปหลัง Apply สำเร็จ — ไม่ส่งมาก็ใช้ "อัพเดท N, ล้มเหลว N" */
   summaryText?: (summary: BulkSummary) => string;
 }
 
-export interface BulkApplyState<TItem, TResult> {
+export interface BulkApplyState<TItem, TResult, TSummary = BulkSummary> {
   step: BulkStep;
   parsedItems: TItem[];
-  dryRun: BulkRunResponse<TResult> | null;
-  finalRun: BulkRunResponse<TResult> | null;
+  /** ปัญหาจากรอบ parse ล่าสุด — ส่งเข้า `BulkErrorModal` ตรง ๆ · `null` = ไม่มี */
+  errorReport: BulkIssues | null;
+  clearErrorReport: () => void;
+  dryRun: BulkRunResponse<TResult, TSummary> | null;
+  finalRun: BulkRunResponse<TResult, TSummary> | null;
   confirmOpen: boolean;
   setConfirmOpen: (open: boolean) => void;
   /** พรีวิวหน้าไหน — รีเซ็ตเป็นหน้า 1 เองทุกครั้งที่ dry-run ใหม่ลง */
@@ -66,36 +99,63 @@ export interface BulkApplyState<TItem, TResult> {
 function defaultSummaryText(summary: BulkSummary): string {
   const parts: string[] = [];
   if (summary.created) parts.push(`สร้าง ${summary.created}`);
-  if (summary.updated > 0) parts.push(`อัพเดท ${summary.updated}`);
+  if ((summary.updated ?? 0) > 0) parts.push(`อัพเดท ${summary.updated}`);
   if (summary.errors > 0) parts.push(`ล้มเหลว ${summary.errors}`);
   return parts.join(', ') || 'เสร็จสิ้น';
 }
 
-export function useBulkApply<TItem extends BulkItemBase, TResult>(
+export function useBulkApply<TItem extends BulkItemBase, TResult, TSummary extends BulkSummary = BulkSummary>(
   options: UseBulkApplyOptions<TItem>,
-): BulkApplyState<TItem, TResult> {
-  const { endpoint, parse, summaryText = defaultSummaryText, skipMetadataRow } = options;
+): BulkApplyState<TItem, TResult, TSummary> {
+  const { endpoint, parse, summaryText = defaultSummaryText, skipMetadataRow, errorMode = 'toast' } = options;
   const { showToast } = useToast();
 
   const [step, setStep] = useState<BulkStep>('upload');
   const [parsedItems, setParsedItems] = useState<TItem[]>([]);
-  const [dryRun, setDryRun] = useState<BulkRunResponse<TResult> | null>(null);
-  const [finalRun, setFinalRun] = useState<BulkRunResponse<TResult> | null>(null);
+  const [dryRun, setDryRun] = useState<BulkRunResponse<TResult, TSummary> | null>(null);
+  const [finalRun, setFinalRun] = useState<BulkRunResponse<TResult, TSummary> | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [previewPage, setPreviewPage] = useState(1);
   const [previewPerPage, setPreviewPerPage] = useState(50);
+  const [errorReport, setErrorReport] = useState<BulkIssues | null>(null);
+
+  /** มีปัญหาให้รายงานไหม — ว่างทั้ง 3 ถัง = ผ่าน */
+  const hasIssues = (issues?: BulkIssues) =>
+    !!issues && (issues.headerIssues.length > 0 || issues.rowIssues.length > 0 || issues.otherIssues.length > 0);
+
+  /** รายงานปัญหาไปตามโหมดของหน้านั้น — ที่เดียวที่ตัดสินว่า modal หรือ toast */
+  const report = useCallback((messages: string[]) => {
+    if (errorMode === 'modal') setErrorReport({ headerIssues: [], rowIssues: [], otherIssues: messages });
+    else showToast(messages[0], 'error');
+  }, [errorMode, showToast]);
 
   const handleFile = useCallback(async (file: File) => {
+    setErrorReport(null);
     try {
-      const sheet = rowsToSheet(await readFileToRows(file), { skipMetadataRow });
-      if (sheet.rows.length === 0) {
-        showToast('ไฟล์ไม่มีข้อมูล (header + อย่างน้อย 1 แถว)', 'error');
+      let sheet: ParsedSheet;
+      try {
+        sheet = rowsToSheet(await readFileToRows(file), { skipMetadataRow });
+      } catch (err) {
+        console.error('bulk read error:', err);
+        report([
+          `อ่านไฟล์ไม่สำเร็จ: ${err instanceof Error ? err.message : 'unknown'}`,
+          'รองรับเฉพาะไฟล์ .xlsx, .xls, .csv',
+        ]);
+        return;
+      }
+      if (sheet.headers.length === 0 || sheet.rows.length === 0) {
+        report(['ไฟล์ว่างเปล่า — ต้องมี header (แถว 1) + ข้อมูลอย่างน้อย 1 แถว']);
         return;
       }
 
-      const { items, emptyMessage } = parse(sheet);
+      const { items, emptyMessage, issues } = parse(sheet);
+      // โหมด modal: มีปัญหาแม้ข้อเดียว = ไม่ยิง API ยกไปโชว์รวดเดียว
+      if (hasIssues(issues)) {
+        setErrorReport(issues!);
+        return;
+      }
       if (items.length === 0) {
-        showToast(emptyMessage || 'ไม่พบแถวที่แก้ไขได้ในไฟล์', 'error');
+        report([emptyMessage || 'ไม่พบแถวที่แก้ไขได้ในไฟล์']);
         return;
       }
 
@@ -109,7 +169,7 @@ export function useBulkApply<TItem extends BulkItemBase, TResult>(
       });
       const data = await res.json();
       if (!res.ok) {
-        showToast(data.error || 'ตรวจสอบไม่สำเร็จ', 'error');
+        report([data.error || 'ตรวจสอบไม่สำเร็จ — ลองอีกครั้ง']);
         setStep('upload');
         return;
       }
@@ -126,10 +186,10 @@ export function useBulkApply<TItem extends BulkItemBase, TResult>(
       setStep('preview');
     } catch (err) {
       console.error('bulk parse error:', err);
-      showToast('อ่านไฟล์ไม่สำเร็จ', 'error');
+      report(['เชื่อมต่อ server ไม่ได้ — ลองอีกครั้ง']);
       setStep('upload');
     }
-  }, [endpoint, parse, showToast, skipMetadataRow]);
+  }, [endpoint, parse, report, skipMetadataRow]);
 
   const confirmImport = useCallback(async () => {
     setConfirmOpen(false);
@@ -165,6 +225,7 @@ export function useBulkApply<TItem extends BulkItemBase, TResult>(
 
   return {
     step, parsedItems, dryRun, finalRun,
+    errorReport, clearErrorReport: () => setErrorReport(null),
     confirmOpen, setConfirmOpen,
     previewPage, setPreviewPage, previewPerPage, setPreviewPerPage,
     handleFile, confirmImport, reset,

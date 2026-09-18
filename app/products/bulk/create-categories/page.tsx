@@ -1,17 +1,17 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { useCompany } from '@/lib/company-context';
 import { can } from '@/lib/permissions';
-import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import {
-  readFileToRows, rowsToSheet, getCell, isRowEmpty, isInstructionRow,
-  validateHeaders, type RequiredColumn,
+  getCell, isRowEmpty, isInstructionRow,
+  validateHeaders, type RequiredColumn, type ParsedSheet,
 } from '@/lib/bulk/parse-template';
+import { useBulkApply, type ParseOutcome } from '@/lib/bulk/use-bulk-apply';
 import { addTemplateHeader } from '@/lib/bulk/excel-template';
 
 import Button from '@/components/ui/Button';
@@ -19,9 +19,11 @@ import PageHeader from '@/components/ui/PageHeader';
 import { LoadingCard, EmptyCard, NoPermissionCard, DoneCard } from '@/components/ui/StateCard';
 import BulkUploadCard from '@/components/bulk/BulkUploadCard';
 import BulkPreviewBar from '@/components/bulk/BulkPreviewBar';
-import BulkErrorModal, { type BulkErrorReport } from '@/components/bulk/BulkErrorModal';
+import BulkErrorModal from '@/components/bulk/BulkErrorModal';
 
-import { AlertCircle, FolderPlus, FileSpreadsheet } from 'lucide-react';
+import { FileSpreadsheet } from 'lucide-react';
+import { AlertIcon } from '@/lib/icons';
+import { CategoryIcon } from '@/lib/icons';
 import { downloadBlob } from '@/lib/utils/download';
 
 interface CreateItem {
@@ -38,24 +40,76 @@ interface ResultRow {
   error?: string;
 }
 
-interface RunResponse {
-  dry_run: boolean;
-  results: ResultRow[];
-  summary: { total: number; created: number; errors: number };
+// หน้าฝั่ง "สร้างใหม่" นับผลเป็น created — ประกาศไว้เองเพื่ออ่านตัวเลขได้โดยไม่ต้องเช็ค null
+interface CreateSummary { total: number; created: number; errors: number }
+
+const REQUIRED_HEADERS: RequiredColumn[] = [
+  { aliases: ['ชื่อหมวดหมู่หลัก*', 'ชื่อหมวดหมู่หลัก', 'parent_name'], label: 'ชื่อหมวดหมู่หลัก' },
+  { aliases: ['หมวดหมู่รอง', 'child_name', 'sub_category'], label: 'หมวดหมู่รอง' },
+];
+
+/**
+ * แปลงชีตเป็นรายการหมวดหมู่ที่จะสร้าง — ส่วนเดียวที่ต่างจากหน้า bulk อื่น
+ *
+ * ⚠️ **1 แถว Excel ให้ได้ 0–2 รายการ** (หมวดหลัก + หมวดย่อย) ต่างจากหน้าอื่นที่ 1 แถว = 1 รายการ
+ * และ **ต้อง push หมวดหลักก่อนหมวดย่อยเสมอ** เพราะ RPC อ้าง `parent_name` จากแถวที่เพิ่ง
+ * insert ในรอบเดียวกัน · `existingNames` ที่ส่งเข้ามาใช้ "ข้าม" หมวดที่มีอยู่แล้ว ไม่ใช่ error
+ */
+function parseSheet(sheet: ParsedSheet, existingNames: Set<string>): ParseOutcome<CreateItem> {
+  const headerIssues: string[] = [];
+  const rowIssues: string[] = [];
+  const otherIssues: string[] = [];
+
+  const v = validateHeaders(sheet.headers, REQUIRED_HEADERS);
+  if (!v.ok) for (const m of v.missing) headerIssues.push(`column "${m}" หายไป`);
+
+  const items: CreateItem[] = [];
+  const addedParents = new Set<string>();
+
+  for (let i = 0; i < sheet.rows.length; i++) {
+    const row = sheet.rows[i];
+    if (isRowEmpty(row) || isInstructionRow(row)) continue;
+    const rowNum = i + 2;
+
+    const parent = getCell(row, 'ชื่อหมวดหมู่หลัก*', 'ชื่อหมวดหมู่หลัก', 'parent_name');
+    const child = getCell(row, 'หมวดหมู่รอง', 'child_name', 'sub_category');
+
+    if (!parent && !child) continue;
+    if (!parent) {
+      rowIssues.push(`แถว ${rowNum}: ไม่มีชื่อหมวดหมู่หลัก`);
+      continue;
+    }
+
+    // หมวดหลักที่ยังไม่มีในระบบและยังไม่ถูกใส่ในรอบนี้
+    if (!existingNames.has(parent) && !addedParents.has(parent)) {
+      items.push({ name: parent, __rowNum: rowNum });
+      addedParents.add(parent);
+    }
+    if (child) items.push({ name: child, parent_name: parent, __rowNum: rowNum });
+  }
+
+  if (items.length === 0 && rowIssues.length === 0 && headerIssues.length === 0) {
+    otherIssues.push('ไม่พบรายการที่กรอกข้อมูล — ตรวจสอบว่ามีชื่อหมวดหมู่หลักในแถวข้อมูล');
+  }
+
+  return { items, issues: { headerIssues, rowIssues, otherIssues } };
 }
 
 export default function BulkCreateCategoriesPage() {
   const router = useRouter();
   const { userProfile } = useAuth();
   const { companyRoles, permissions } = useCompany();
-  const { showToast } = useToast();
   const isAdmin = can({ roles: companyRoles, permissions }, 'product.bulk_edit');
 
-  const [step, setStep] = useState<'upload' | 'checking' | 'preview' | 'importing' | 'done'>('upload');
-  const [parsedItems, setParsedItems] = useState<CreateItem[]>([]);
-  const [dryRun, setDryRun] = useState<RunResponse | null>(null);
-  const [finalRun, setFinalRun] = useState<RunResponse | null>(null);
-  const [errorReport, setErrorReport] = useState<BulkErrorReport | null>(null);
+  // flow อัปไฟล์ → dry-run → Apply อยู่ที่ hook กลาง (lib/bulk/use-bulk-apply)
+  const {
+    step, parsedItems, dryRun, finalRun, errorReport, clearErrorReport,
+    handleFile, confirmImport: handleConfirmImport, reset: resetAll,
+  } = useBulkApply<CreateItem, ResultRow, CreateSummary>({
+    endpoint: '/api/products/bulk/create-categories/apply',
+    errorMode: 'modal',
+    parse: sheet => parseSheet(sheet, existingNames),
+  });
 
   // Pre-fetch existing category names so we can skip "create parent" rows when
   // the parent already exists in DB (avoids "already exists" errors on parents
@@ -88,10 +142,6 @@ export default function BulkCreateCategoriesPage() {
     })();
   }, [userProfile]);
 
-  const requiredHeaders = useMemo<RequiredColumn[]>(() => [
-    { aliases: ['ชื่อหมวดหมู่หลัก*', 'ชื่อหมวดหมู่หลัก', 'parent_name'], label: 'ชื่อหมวดหมู่หลัก' },
-    { aliases: ['หมวดหมู่รอง', 'child_name', 'sub_category'], label: 'หมวดหมู่รอง' },
-  ], []);
 
   const handleDownloadTemplate = async () => {
     const ExcelJS = (await import('exceljs')).default;
@@ -116,154 +166,6 @@ export default function BulkCreateCategoriesPage() {
     const buf = await wb.xlsx.writeBuffer();
     const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     downloadBlob(blob, 'category-create-template.xlsx');
-  };
-
-  const handleFile = async (file: File) => {
-    setErrorReport(null);
-
-    const headerIssues: string[] = [];
-    const rowIssues: string[] = [];
-    const otherIssues: string[] = [];
-
-    let raw: string[][];
-    try {
-      raw = await readFileToRows(file);
-    } catch (err) {
-      console.error('read error:', err);
-      setErrorReport({
-        headerIssues: [], rowIssues: [],
-        otherIssues: [
-          `อ่านไฟล์ไม่สำเร็จ: ${err instanceof Error ? err.message : 'unknown'}`,
-          'รองรับเฉพาะไฟล์ .xlsx, .xls, .csv',
-        ],
-      });
-      return;
-    }
-
-    const sheet = rowsToSheet(raw);
-    if (sheet.headers.length === 0 || sheet.rows.length === 0) {
-      setErrorReport({
-        headerIssues: [], rowIssues: [],
-        otherIssues: ['ไฟล์ว่างเปล่า — ต้องมี header (แถว 1) + ข้อมูลอย่างน้อย 1 แถว'],
-      });
-      return;
-    }
-
-    const v = validateHeaders(sheet.headers, requiredHeaders);
-    if (!v.ok) {
-      for (const m of v.missing) headerIssues.push(`column "${m}" หายไป`);
-    }
-
-    // Build items[]: each row contributes 1-2 entities:
-    //   - parent (only if doesn't exist in DB and not added yet in batch)
-    //   - child  (only if child column has value)
-    // Parents are pushed BEFORE children in items[] so the RPC can resolve
-    // parent_name via the just-inserted parent row within the same call.
-    const items: CreateItem[] = [];
-    const addedParents = new Set<string>();
-
-    try {
-      for (let i = 0; i < sheet.rows.length; i++) {
-        const row = sheet.rows[i];
-        if (isRowEmpty(row) || isInstructionRow(row)) continue;
-        const rowNum = i + 2;
-
-        const parent = getCell(row, 'ชื่อหมวดหมู่หลัก*', 'ชื่อหมวดหมู่หลัก', 'parent_name');
-        const child = getCell(row, 'หมวดหมู่รอง', 'child_name', 'sub_category');
-
-        if (!parent && !child) continue;
-        if (!parent) {
-          rowIssues.push(`แถว ${rowNum}: ไม่มีชื่อหมวดหมู่หลัก`);
-          continue;
-        }
-
-        // Push parent if it's new (not in DB, not yet pushed this batch)
-        if (!existingNames.has(parent) && !addedParents.has(parent)) {
-          items.push({ name: parent, __rowNum: rowNum });
-          addedParents.add(parent);
-        }
-
-        // Push child if specified — parent_name is the reference key
-        if (child) {
-          items.push({ name: child, parent_name: parent, __rowNum: rowNum });
-        }
-      }
-    } catch (err) {
-      console.error('parse error:', err);
-      otherIssues.push(`เกิดข้อผิดพลาดตอนอ่านข้อมูล: ${err instanceof Error ? err.message : 'unknown'}`);
-    }
-
-    if (items.length === 0 && rowIssues.length === 0 && headerIssues.length === 0) {
-      otherIssues.push('ไม่พบรายการที่กรอกข้อมูล — ตรวจสอบว่ามีชื่อหมวดหมู่หลักในแถวข้อมูล');
-    }
-
-    if (headerIssues.length > 0 || rowIssues.length > 0 || otherIssues.length > 0) {
-      setErrorReport({ headerIssues, rowIssues, otherIssues });
-      return;
-    }
-
-    setParsedItems(items);
-    setStep('checking');
-
-    try {
-      const res = await apiFetch('/api/products/bulk/create-categories/apply', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items, dry_run: true }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setErrorReport({
-          headerIssues: [], rowIssues: [],
-          otherIssues: [data.error || 'ตรวจสอบไม่สำเร็จ — ลองอีกครั้ง'],
-        });
-        setStep('upload');
-        return;
-      }
-      setDryRun(data);
-      setStep('preview');
-    } catch (err) {
-      console.error('dry-run error:', err);
-      setErrorReport({
-        headerIssues: [], rowIssues: [],
-        otherIssues: ['เชื่อมต่อ server ไม่ได้ — ลองอีกครั้ง'],
-      });
-      setStep('upload');
-    }
-  };
-
-  const handleConfirmImport = async () => {
-    setStep('importing');
-    try {
-      const res = await apiFetch('/api/products/bulk/create-categories/apply', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: parsedItems, dry_run: false }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        showToast(data.error || 'บันทึกไม่สำเร็จ', 'error');
-        setStep('preview');
-        return;
-      }
-      setFinalRun(data);
-      setStep('done');
-      const parts: string[] = [];
-      if (data.summary.created > 0) parts.push(`สร้างใหม่ ${data.summary.created}`);
-      if (data.summary.errors > 0) parts.push(`ล้มเหลว ${data.summary.errors}`);
-      showToast(parts.join(', ') || 'เสร็จสิ้น', data.summary.errors > 0 ? 'error' : 'success');
-    } catch (err) {
-      console.error('import error:', err);
-      showToast('บันทึกไม่สำเร็จ', 'error');
-      setStep('preview');
-    }
-  };
-
-  const resetAll = () => {
-    setStep('upload');
-    setParsedItems([]);
-    setDryRun(null);
-    setFinalRun(null);
   };
 
   if (!userProfile) return null;
@@ -312,17 +214,17 @@ export default function BulkCreateCategoriesPage() {
           <div className="space-y-4">
             <BulkPreviewBar
               title="ตรวจสอบรายการก่อนสร้าง"
-              icon={<FolderPlus className="w-5 h-5 text-emerald-600" />}
+              icon={<CategoryIcon className="w-5 h-5 text-emerald-600" />}
               badges={
                 <>
                   {dryRun.summary.created > 0 && (
                     <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-lg font-medium">
-                      <FolderPlus className="w-3.5 h-3.5" /> สร้างใหม่ {dryRun.summary.created}
+                      <CategoryIcon className="w-3.5 h-3.5" /> สร้างใหม่ {dryRun.summary.created}
                     </span>
                   )}
                   {dryRun.summary.errors > 0 && (
                     <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg font-medium">
-                      <AlertCircle className="w-3.5 h-3.5" /> ข้อผิดพลาด {dryRun.summary.errors}
+                      <AlertIcon className="w-3.5 h-3.5" /> ข้อผิดพลาด {dryRun.summary.errors}
                     </span>
                   )}
                 </>
@@ -434,7 +336,7 @@ export default function BulkCreateCategoriesPage() {
 
       <BulkErrorModal
         report={errorReport}
-        onClose={() => setErrorReport(null)}
+        onClose={clearErrorReport}
         onDownloadTemplate={handleDownloadTemplate}
       />
     </Layout>

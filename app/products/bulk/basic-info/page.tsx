@@ -33,9 +33,7 @@ import {
   STATUS_COLUMN_HEADER, STATUS_INSTRUCTION, parseStatusValue, statusBoolToLabel,
 } from '@/lib/bulk/status-enum';
 
-import {
-  Check, AlertCircle, Pencil, ArrowRight,
-} from 'lucide-react';
+import { AlertIcon, ConfirmIcon, EditIcon, ForwardIcon } from '@/lib/icons';
 
 interface Brand { id: string; name: string }
 interface Category { id: string; name: string }
@@ -61,8 +59,9 @@ interface ResultRow {
   error?: string;
   __rowNum?: number;
 }
-// รูปร่าง response ของทั้ง dry-run และของจริงอยู่ที่ `BulkRunResponse` ใน use-bulk-apply
-// (สัญญาเดียวกันทุกหน้า bulk) — หน้านี้ประกาศแค่ `ResultRow` ที่เป็นของตัวเอง
+// รูปร่าง response อยู่ที่ `BulkRunResponse` ใน use-bulk-apply (สัญญาเดียวกันทุกหน้า bulk)
+// หน้าฝั่ง "แก้ไข" นับผลเป็น updated/unchanged — ประกาศไว้เองเพื่อให้อ่านตัวเลขได้โดยไม่ต้องเช็ค null
+interface UpdateSummary { total: number; updated: number; unchanged: number; errors: number }
 
 const FIELD_LABELS: Record<string, string> = {
   name: 'ชื่อสินค้า',
@@ -159,7 +158,7 @@ export default function BulkBasicInfoPage() {
     step, parsedItems, dryRun, finalRun, confirmOpen, setConfirmOpen,
     previewPage, setPreviewPage, previewPerPage, setPreviewPerPage,
     handleFile, confirmImport: handleConfirmImport, reset: resetAll,
-  } = useBulkApply<ApplyItem, ResultRow>({
+  } = useBulkApply<ApplyItem, ResultRow, UpdateSummary>({
     endpoint: '/api/products/bulk/basic-info/apply',
     parse: sheet => parseSheet(sheet, brandEnabled),
   });
@@ -371,12 +370,12 @@ export default function BulkBasicInfoPage() {
           <div className="space-y-4">
             <BulkPreviewBar
               title="ตรวจสอบรายการก่อนบันทึก"
-              icon={<Pencil className="w-5 h-5 text-blue-600" />}
+              icon={<EditIcon className="w-5 h-5 text-blue-600" />}
               badges={
                 <>
                   {dryRun.summary.updated > 0 && (
                     <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-lg font-medium">
-                      <Pencil className="w-3.5 h-3.5" /> อัพเดท {dryRun.summary.updated}
+                      <EditIcon className="w-3.5 h-3.5" /> อัพเดท {dryRun.summary.updated}
                     </span>
                   )}
                   {dryRun.summary.unchanged > 0 && (
@@ -384,7 +383,7 @@ export default function BulkBasicInfoPage() {
                   )}
                   {dryRun.summary.errors > 0 && (
                     <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg font-medium">
-                      <AlertCircle className="w-3.5 h-3.5" /> ข้อผิดพลาด {dryRun.summary.errors}
+                      <AlertIcon className="w-3.5 h-3.5" /> ข้อผิดพลาด {dryRun.summary.errors}
                     </span>
                   )}
                 </>
@@ -411,10 +410,10 @@ export default function BulkBasicInfoPage() {
                         <tr key={startIdx + i} className="data-tr">
                           <td className="px-5 py-3 align-top">
                             {r.action === 'updated' && (
-                              <Badge tone="blue" size="sm" icon={<Pencil className="w-3 h-3" />}>อัพเดท</Badge>
+                              <Badge tone="blue" size="sm" icon={<EditIcon className="w-3 h-3" />}>อัพเดท</Badge>
                             )}
                             {r.action === 'error' && (
-                              <Badge tone="red" size="sm" icon={<AlertCircle className="w-3 h-3" />}>Error</Badge>
+                              <Badge tone="red" size="sm" icon={<AlertIcon className="w-3 h-3" />}>Error</Badge>
                             )}
                           </td>
                           <td className="px-5 py-3 align-top">
@@ -431,7 +430,7 @@ export default function BulkBasicInfoPage() {
                                   <li key={ci} className="text-sm">
                                     <span className="font-medium text-gray-600 dark:text-slate-400">{FIELD_LABELS[c.field] || c.field}:</span>{' '}
                                     <span className="text-gray-500 line-through mr-1">{formatValue(c.field, c.from)}</span>
-                                    <ArrowRight className="inline w-3 h-3 text-gray-400 mx-1" />
+                                    <ForwardIcon className="inline w-3 h-3 text-gray-400 mx-1" />
                                     <span className="text-emerald-600 font-medium">{formatValue(c.field, c.to, c.to_label)}</span>
                                   </li>
                                 ))}
@@ -451,10 +450,10 @@ export default function BulkBasicInfoPage() {
                       <div className="flex items-center justify-between mb-2">
                         <div className="text-xs text-gray-500 font-mono">{r.code}</div>
                         {r.action === 'updated' && (
-                          <Badge tone="blue" size="sm" icon={<Pencil className="w-3 h-3" />}>อัพเดท</Badge>
+                          <Badge tone="blue" size="sm" icon={<EditIcon className="w-3 h-3" />}>อัพเดท</Badge>
                         )}
                         {r.action === 'error' && (
-                          <Badge tone="red" size="sm" icon={<AlertCircle className="w-3 h-3" />}>Error</Badge>
+                          <Badge tone="red" size="sm" icon={<AlertIcon className="w-3 h-3" />}>Error</Badge>
                         )}
                       </div>
                       <div className="text-gray-900 dark:text-white font-medium mb-2">{r.name}</div>
@@ -467,7 +466,7 @@ export default function BulkBasicInfoPage() {
                             <li key={ci} className="text-xs">
                               <span className="font-medium text-gray-600 dark:text-slate-400">{FIELD_LABELS[c.field] || c.field}:</span>{' '}
                               <span className="text-gray-500 line-through">{formatValue(c.field, c.from)}</span>
-                              <ArrowRight className="inline w-3 h-3 text-gray-400 mx-1" />
+                              <ForwardIcon className="inline w-3 h-3 text-gray-400 mx-1" />
                               <span className="text-emerald-600 font-medium">{formatValue(c.field, c.to, c.to_label)}</span>
                             </li>
                           ))}
@@ -494,7 +493,7 @@ export default function BulkBasicInfoPage() {
               <EmptyCard
                 title="ไม่มีการเปลี่ยนแปลง"
                 subtitle="ข้อมูลในไฟล์ตรงกับระบบแล้ว"
-                icon={<Check className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto" />}
+                icon={<ConfirmIcon className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto" />}
               />
             )}
           </div>
