@@ -76,11 +76,21 @@ type UnifiedContact = {
   referral_media_kind?: string;
   referral_at?: string;
   tags?: { id: string; name: string; color: string }[];
+  /** ติดตามลูกค้า — สถานะ + นัด (ว่าง = ยังไม่เคยติดตาม) */
+  lead?: { stage: string; follow_up_at: string | null; assigned_to: string | null; quote_sent_at: string | null };
 };
 
 type ChatTag = { id: string; name: string; color: string };
 
 // GET - Get unified contacts from all platforms
+/** รวมตัวกรอง contact สองชุด — มีทั้งคู่ = เอาเฉพาะที่อยู่ทั้งสองชุด (AND ไม่ใช่ OR) */
+function intersectContactIds(a: string[] | null, b: string[] | null): string[] | null {
+  if (!a) return b;
+  if (!b) return a;
+  const set = new Set(b);
+  return a.filter(id => set.has(id));
+}
+
 export async function GET(request: NextRequest) {
   try {
     const auth = await checkAuthWithCompany(request);
@@ -103,6 +113,9 @@ export async function GET(request: NextRequest) {
     const accountId = searchParams.get('account_id');
     const platform = searchParams.get('platform'); // 'line' | 'facebook' | ... | null (all)
     const tagId = searchParams.get('tag'); // filter by customer tag
+    // ติดตามลูกค้า: due = ถึงกำหนดวันนี้หรือเลยมาแล้ว · overdue = เลยกำหนดอย่างเดียว · stage = ขั้นในกรวยขาย
+    const followUp = searchParams.get('follow_up');
+    const stageKey = searchParams.get('stage');
     const orderDaysMin = searchParams.get('order_days_min');
     const orderDaysMax = searchParams.get('order_days_max');
     const limit = parseInt(searchParams.get('limit') || '30', 10);
@@ -158,10 +171,38 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // ── ตัวกรองของระบบติดตาม (นัด / ขั้นในกรวยขาย) ──
+    // คนที่มีนัดหรืออยู่ขั้นที่กรองมีไม่มาก จึงหา contact id ทั้งชุดก่อนแล้วค่อยกรอง
+    // (กลไกเดียวกับกรองด้วยแท็ก) — เมื่อมีตัวกรองนี้ก็เลิกตัดแถวที่ SQL เหมือนเคสแท็ก
+    let leadContactIds: { id: string; platform: string }[] | null = null;
+    if (followUp || stageKey) {
+      let leadQuery = supabaseAdmin.from('leads').select('id').eq('company_id', companyId).limit(2000);
+      if (stageKey) leadQuery = leadQuery.eq('stage', stageKey);
+      if (followUp === 'overdue') {
+        leadQuery = leadQuery.not('follow_up_at', 'is', null).lt('follow_up_at', new Date().toISOString());
+      } else if (followUp === 'due') {
+        const endOfToday = new Date(); endOfToday.setHours(23, 59, 59, 999);
+        leadQuery = leadQuery.not('follow_up_at', 'is', null).lte('follow_up_at', endOfToday.toISOString());
+      }
+
+      const { data: leadRows } = await leadQuery;
+      const leadIds = (leadRows || []).map(r => r.id as string);
+      if (leadIds.length === 0) {
+        return NextResponse.json({ contacts: [], summary: { total: 0, totalUnread: 0, hasMore: false, offset, limit } });
+      }
+      const { data: linkRows } = await supabaseAdmin
+        .from('lead_contacts').select('contact_id, platform')
+        .eq('company_id', companyId).in('lead_id', leadIds);
+      leadContactIds = (linkRows || []).map(l => ({ id: l.contact_id as string, platform: l.platform as string }));
+      if (leadContactIds.length === 0) {
+        return NextResponse.json({ contacts: [], summary: { total: 0, totalUnread: 0, hasMore: false, offset, limit } });
+      }
+    }
+
     // ── ดึงมาแค่ "หัวตาราง" ของแต่ละแพลตฟอร์มพอ ──
     // ข้ามการจำกัดเมื่อมีตัวกรองที่ทำในหน่วยความจำหลังดึงข้อมูล (ค้นหา · แท็ก · ช่วงวันสั่งซื้อ)
     // เพราะการตัดแถวก่อนกรองจะทำให้ผลลัพธ์ขาด — เคสพวกนั้นชุดข้อมูลเล็กอยู่แล้ว
-    const canLimit = !search && !tagId && !orderDaysMin;
+    const canLimit = !search && !tagId && !orderDaysMin && !leadContactIds;
     const fetchLimit = canLimit ? offset + limit + 1 : undefined;
 
     // Only force linkedOnly when tag filter matches customers only (no contact-level tags)
@@ -178,7 +219,10 @@ export async function GET(request: NextRequest) {
         accountId,
         includeNullAccountId,
         customerIds: tagCustomerIds,
-        contactIds: tagContactIds?.filter(t => t.platform === p).map(t => t.id) || null,
+        contactIds: intersectContactIds(
+          tagContactIds?.filter(t => t.platform === p).map(t => t.id) || null,
+          leadContactIds?.filter(t => t.platform === p || (p === 'facebook' && t.platform === 'instagram')).map(t => t.id) || null,
+        ),
         fetchLimit,
       })),
     );
@@ -415,7 +459,7 @@ export async function GET(request: NextRequest) {
     // (แผงข้อมูลลูกค้าดึงของตัวเองผ่าน ?customer_id=)
     const needOrderStats = linkedOnly && !orderStatsFetched;
 
-    const [latestMessages, custTagLinksRes, contTagLinksRes, pagedStats] = await Promise.all([
+    const [latestMessages, custTagLinksRes, contTagLinksRes, pagedStats, leadLinksRes] = await Promise.all([
       fetchLatestMessages(companyId, paged),
       pagedCustomerIds.length > 0
         ? supabaseAdmin.from('customer_tag_links').select('customer_id, tag_id').in('customer_id', pagedCustomerIds)
@@ -424,7 +468,34 @@ export async function GET(request: NextRequest) {
         ? supabaseAdmin.from('contact_tag_links').select('contact_id, platform, tag_id').in('contact_id', pagedContactIds)
         : Promise.resolve({ data: [] as any[], error: null }),
       needOrderStats ? fetchOrderStats(companyId, pagedCustomerIds) : Promise.resolve(null),
+      // สถานะติดตาม + นัดของ 30 แถวที่จะส่งกลับ (ไม่ใช่ทั้งบริษัท)
+      pagedContactIds.length > 0
+        ? supabaseAdmin
+            .from('lead_contacts')
+            .select('contact_id, platform, leads(stage, follow_up_at, assigned_to, quote_sent_at)')
+            .eq('company_id', companyId)
+            .in('contact_id', pagedContactIds)
+        : Promise.resolve({ data: [] as any[], error: null }),
     ]);
+
+    // ── ติดตามลูกค้า: ติดสถานะ+นัดให้แต่ละแถว (หน้าแชทวาดวงแหวน/ป้ายจากค่านี้) ──
+    if (leadLinksRes.error) console.error('[chat/contacts] lead_contacts:', leadLinksRes.error.message);
+    const leadByContact = new Map<string, { stage: string; follow_up_at: string | null; assigned_to: string | null; quote_sent_at: string | null }>();
+    for (const row of (leadLinksRes.data || []) as any[]) {
+      const lead = Array.isArray(row.leads) ? row.leads[0] : row.leads;
+      if (!lead) continue;
+      leadByContact.set(`${row.contact_id}:${row.platform}`, {
+        stage: lead.stage,
+        follow_up_at: lead.follow_up_at,
+        assigned_to: lead.assigned_to,
+        quote_sent_at: lead.quote_sent_at,
+      });
+    }
+    for (const contact of paged) {
+      const lead = leadByContact.get(`${contact.id}:${contact.source || contact.platform}`)
+        || leadByContact.get(`${contact.id}:${contact.platform}`);
+      if (lead) contact.lead = lead;
+    }
 
     for (const contact of paged) {
       contact.last_message = latestMessages.get(`${contact.platform}:${contact.id}`) ?? null;

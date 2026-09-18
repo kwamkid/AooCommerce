@@ -58,6 +58,11 @@ interface Props {
   tagIds: string[];
   onTagIdsChange: (ids: string[]) => void;
 
+  /** ขั้นในกรวยขายของบริษัท (กลุ่ม 'ตามสถานะติดตาม') */
+  leadStages?: { key: string; name: string }[];
+  stageKeys?: string[];
+  onStageKeysChange?: (keys: string[]) => void;
+
   contactResults: EntitySearchOption[];
   contactLoading: boolean;
   onContactSearch: (q: string) => void;
@@ -78,6 +83,7 @@ export default function AudienceStep({
   options, disabledOptions, audience, onAudienceChange,
   counts, countsLoading, countsUnavailable, contactTotal, contactLinked,
   days, onDaysChange,
+  leadStages = [], stageKeys = [], onStageKeysChange,
   tags, tagIds, onTagIdsChange,
   contactResults, contactLoading, onContactSearch, pickedContacts, onPickedContactsChange, multiAccount,
   minMessages, onMinMessagesChange, lastChatDays, onLastChatDaysChange,
@@ -230,6 +236,17 @@ export default function AudienceStep({
                   disabled={disabled}
                   options={tags.map(t => ({ id: t.id, label: t.name }))}
                   emptyLabel="เลือกแท็ก..."
+                  icon={<TagIcon className="w-4 h-4" />}
+                />
+              )}
+
+              {selected.needsStages && (
+                <MultiSelectSearch
+                  value={stageKeys}
+                  onChange={ids => onStageKeysChange?.(ids)}
+                  disabled={disabled}
+                  options={leadStages.map(st => ({ id: st.key, label: st.name }))}
+                  emptyLabel="เลือกสถานะติดตาม..."
                   icon={<TagIcon className="w-4 h-4" />}
                 />
               )}

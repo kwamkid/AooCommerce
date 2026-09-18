@@ -55,6 +55,8 @@ export interface AudienceOption {
   needsTags?: boolean;
   /** ต้องเลือกรายชื่อต่อ */
   needsPick?: boolean;
+  /** ต้องเลือกขั้นในกรวยขายต่อ (audience_type='lead_stage') */
+  needsStages?: boolean;
   /**
    * ใช้ได้เฉพาะตอน **ส่งบรอดแคสต์** — ห้ามโผล่ในหน้ากลุ่มเป้าหมายโฆษณา
    *
@@ -116,6 +118,18 @@ export const AUDIENCE_OPTIONS: Partial<Record<BroadcastPlatform, AudienceOption[
       needsTags: true,
     },
     {
+      key: 'lead_stage', group: 'other',
+      label: 'ตามสถานะติดตาม',
+      hint: 'ขั้นในกรวยขาย เช่น "สนใจ" หรือ "รอโอน" — ตั้งจากแผ่นติดตามในห้องแชท',
+      needsStages: true,
+    },
+    {
+      key: 'follow_up_due', group: 'other',
+      label: 'ถึงกำหนดทักใน N วัน',
+      hint: 'คนที่มีนัดติดตามค้างอยู่ — รวมที่เลยกำหนดมาแล้ว',
+      needsDays: true,
+    },
+    {
       key: 'contacts_pick', group: 'other',
       label: 'เลือกรายคน',
       hint: 'ใช้ทดสอบส่งหาตัวเองก่อนยิงจริง หรือส่งกลุ่มเล็กเฉพาะกิจ',
@@ -170,6 +184,18 @@ export const AUDIENCE_OPTIONS: Partial<Record<BroadcastPlatform, AudienceOption[
       needsTags: true,
     },
     {
+      key: 'lead_stage', group: 'other',
+      label: 'ตามสถานะติดตาม',
+      hint: 'ขั้นในกรวยขาย เช่น "สนใจ" หรือ "รอโอน" — ตั้งจากแผ่นติดตามในห้องแชท',
+      needsStages: true,
+    },
+    {
+      key: 'follow_up_due', group: 'other',
+      label: 'ถึงกำหนดทักใน N วัน',
+      hint: 'คนที่มีนัดติดตามค้างอยู่ — รวมที่เลยกำหนดมาแล้ว',
+      needsDays: true,
+    },
+    {
       key: 'contacts_pick', group: 'other',
       label: 'เลือกรายคน',
       hint: 'ใช้ทดสอบส่งหาตัวเองก่อนยิงจริง หรือส่งกลุ่มเล็กเฉพาะกิจ',
@@ -214,6 +240,10 @@ export interface StoredAudienceFilter {
   days?: number;
   min_messages?: number;
   last_chat_days?: number;
+  /** ขั้นในกรวยขายที่เลือก (lead_stage) */
+  stage_keys?: string[];
+  /** ถึงกำหนดทักภายในกี่วัน (follow_up_due) */
+  within_days?: number;
 }
 
 /**
@@ -225,6 +255,14 @@ export function audienceLabel(audienceType: string, filter?: StoredAudienceFilte
   if (audienceType === 'contacts_pick') {
     const n = filter?.contact_ids?.length ?? 0;
     return n > 0 ? `${base} · ${n.toLocaleString()} คน` : base;
+  }
+  if (audienceType === 'lead_stage') {
+    const n = filter?.stage_keys?.length ?? 0;
+    return n > 0 ? `${base} · ${n} ขั้น` : base;
+  }
+  if (audienceType === 'follow_up_due') {
+    const within = Number(filter?.within_days) || 0;
+    return within > 0 ? `${base.replace('N วัน', `${within} วัน`)}` : 'ถึงกำหนดทักแล้ว';
   }
   const days = Number(filter?.days) || 30;
   return base.replace('N วัน', `${days} วัน`);
@@ -256,7 +294,11 @@ export function hasAudienceRefine(audienceType: string): boolean {
  */
 export function buildAudienceFilter(
   audienceType: string,
-  opts: { tagIds?: string[]; contactIds?: string[]; days?: number; minMessages?: number; lastChatDays?: number },
+  opts: {
+    tagIds?: string[]; contactIds?: string[]; days?: number; minMessages?: number; lastChatDays?: number;
+    /** ขั้นในกรวยขายที่เลือก (lead_stage) · ถึงกำหนดทักภายในกี่วัน (follow_up_due) */
+    stageKeys?: string[]; withinDays?: number;
+  },
 ): StoredAudienceFilter {
   if (audienceType === 'contacts_pick') return { contact_ids: opts.contactIds || [] };
   const refine: StoredAudienceFilter = hasAudienceRefine(audienceType)
@@ -266,6 +308,8 @@ export function buildAudienceFilter(
       }
     : {};
   if (audienceType === 'tags') return { tag_ids: opts.tagIds || [], ...refine };
+  if (audienceType === 'lead_stage') return { stage_keys: opts.stageKeys || [], ...refine };
+  if (audienceType === 'follow_up_due') return { within_days: Math.max(0, opts.withinDays ?? 0), ...refine };
   if (audienceType === 'bought_within' || audienceType === 'bought_before') {
     return { days: opts.days || 30, ...refine };
   }

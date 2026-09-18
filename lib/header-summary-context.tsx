@@ -17,6 +17,8 @@ export interface HeaderSummary {
   stockConfig: { stockEnabled: boolean; maxWarehouses: number | null; allowOversell: boolean };
   lowStockCount: number;
   chatUnread: number;
+  /** ติดตามลูกค้า: ถึงกำหนดทักวันนี้ (รวมที่เลยกำหนด) */
+  followUpDueCount?: number;
   ordersReadyCount: number;
   marketplaceHealth: {
     expired_count: number;

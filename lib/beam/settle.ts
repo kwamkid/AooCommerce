@@ -67,6 +67,10 @@ export async function settleGatewayPayment(opts: {
     const { dispatchConversion } = await import('@/lib/ads/dispatch');
     await dispatchConversion({ event: 'Purchase', orderId: opts.record.order_id }).catch(() => null);
 
+    // ปิดการติดตามของลูกค้าคนนี้ — จ่ายผ่าน Beam ก็คือซื้อแล้วเหมือนกัน
+    const { markOrderPaid } = await import('@/lib/leads/service');
+    await markOrderPaid({ companyId: opts.record.company_id, orderId: opts.record.order_id }).catch(() => null);
+
     // บิลจากห้องแชท Facebook ที่เพิ่งจ่ายผ่าน Beam → ชวนกดรับข่าวสารต่อทันที
     // (ไม่ throw อยู่แล้ว · webhook กับ reconcile เรียกซ้อนกันได้ กุญแจ order:<id> กันส่งซ้ำให้)
     const { inviteAfterSale } = await import('@/lib/facebook/optin-invite');

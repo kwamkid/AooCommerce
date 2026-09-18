@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import Layout from '@/components/layout/Layout';
 import { useAuthGuard } from '@/lib/useAuthGuard';
@@ -23,7 +24,7 @@ import { isConsignmentFlow, isDepartmentFlow } from '@/lib/flow-types';
 import { supabase } from '@/lib/supabase';
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { CheckCheck, History, Smile, ArrowDown, UserCheck, UserX, ArrowUpDown, Unlink, FilterX } from 'lucide-react';
-import { AlertIcon, BroadcastIcon, ChatIcon, ChevronLeftIcon, CloseIcon, ConfirmIcon, DeleteIcon, DocumentIcon, EditIcon, EmailIcon, ExternalLinkIcon, FilterIcon, ImageAddIcon, LinkIcon, LoadingIcon, LocationIcon, MessageIcon, OrderIcon, PhoneIcon, ResetIcon, SendIcon, TimeIcon, UserIcon } from '@/lib/icons';
+import { AlertIcon, BroadcastIcon, ChatIcon, ChevronLeftIcon, CloseIcon, ConfirmIcon, DeleteIcon, DocumentIcon, EditIcon, EmailIcon, ExternalLinkIcon, FilterIcon, ImageAddIcon, LinkIcon, LoadingIcon, LocationIcon, MessageIcon, OrderIcon, PhoneIcon, ResetIcon, SendIcon, TimeIcon, UserIcon, ChecklistIcon } from '@/lib/icons';
 import Image from 'next/image';
 import type { CustomerFormData } from '@/components/customers/customer-payload';
 import { buildCustomerPayload } from '@/components/customers/customer-payload';
@@ -55,7 +56,7 @@ import { applySavedReplyVars } from '@/lib/chat/saved-reply-vars';
 import { resolveContactName } from '@/lib/chat/contact-name';
 import type { LeadData } from '@/components/chat/LeadSheet';
 import { DEFAULT_LEAD_STAGES, STAGE_CHIP_CLASS, STAGE_RING_CLASS, type LeadStage } from '@/lib/leads/stages';
-import { followUpLabel } from '@/lib/leads/followup-presets';
+import { followUpLabel, quickFollowUpPresets, formatShortThaiDate } from '@/lib/leads/followup-presets';
 // **ไม่ใช้ dynamic()** — ตัวนี้เล็ก (ไม่มี dep หนัก) และถูกกดบ่อยที่สุดในหน้านี้
 // โหลดแยกไฟล์ = กดปุ่มแล้วต้องรอดาวน์โหลด/คอมไพล์ก่อนถึงจะเห็นอะไร ซึ่งคือ "ความหน่วง" ที่เจ้าของเจอ
 import SavedReplyPicker from './components/SavedReplyPicker';
@@ -129,10 +130,12 @@ function UnifiedChatPageContent() {
   const sortMode = (searchParams.get('sort') || 'time') as 'time' | 'unread';
   const filterLinked = (searchParams.get('linked') || 'all') as 'all' | 'linked' | 'unlinked';
   const filterUnread = searchParams.get('unread') === '1';
+  /** ตัวกรองการติดตาม — '' ทั้งหมด · 'due' ถึงกำหนดวันนี้(รวมที่เลยมาแล้ว) · 'overdue' เฉพาะที่เลยกำหนด */
+  const filterFollowUp = (searchParams.get('followup') || '') as '' | 'due' | 'overdue';
 
   const setFilterParams = useCallback((updates: Record<string, string>) => {
     const params = new URLSearchParams(searchParams.toString());
-    const defaults: Record<string, string> = { account: '', platform: 'all', tag: '', sort: 'time', linked: 'all', unread: '' };
+    const defaults: Record<string, string> = { account: '', platform: 'all', tag: '', sort: 'time', linked: 'all', unread: '', followup: '' };
     for (const [k, v] of Object.entries(updates)) {
       if (v === (defaults[k] ?? '') || v === '') params.delete(k);
       else params.set(k, v);
@@ -146,6 +149,10 @@ function UnifiedChatPageContent() {
   const [leadSheetOpen, setLeadSheetOpen] = useState(false);
   const [lead, setLead] = useState<LeadData | null>(null);
   const [leadStages, setLeadStages] = useState<LeadStage[]>(DEFAULT_LEAD_STAGES);
+  /** เพิ่งทักไปแล้วและเมื่อกี้ยังมีนัดค้าง → โชว์แถบ "ทักอีกที?" เหนือกล่องพิมพ์ */
+  const [askFollowUpAgain, setAskFollowUpAgain] = useState(false);
+  const leadRef = useRef<LeadData | null>(null);
+  leadRef.current = lead;
   // refs สำหรับ realtime effect ที่ subscribe ครั้งเดียว — อ่านค่าล่าสุดโดยไม่ต้อง re-subscribe
   const selectedContactRef = useRef<UnifiedContact | null>(null);
   selectedContactRef.current = selectedContact;
@@ -261,7 +268,7 @@ function UnifiedChatPageContent() {
   // baseline ข้างบนเป็นของผู้ติดต่อคนไหน — กันหยิบ baseline ของคนก่อนหน้ามา diff
   const profileTagsServerKeyRef = useRef<string | null>(null);
 
-  const hasActiveFilter = filterLinked !== 'all' || filterOrderDaysRange !== null || filterTag !== '' || filterUnread || filterAccountId !== '' || sortMode !== 'time';
+  const hasActiveFilter = filterLinked !== 'all' || filterOrderDaysRange !== null || filterTag !== '' || filterUnread || filterAccountId !== '' || sortMode !== 'time' || filterFollowUp !== '';
 
   // Platform color
   /** สีประจำช่องทางของผู้ติดต่อรายใด ๆ — เดิมมีแต่ของห้องที่เปิดอยู่ ใช้กับรายชื่อไม่ได้ */
@@ -414,6 +421,7 @@ function UnifiedChatPageContent() {
           if (filterUnread) params.set('unread_only', 'true');
           if (filterLinked === 'linked') params.set('linked_only', 'true');
           if (filterLinked === 'unlinked') params.set('unlinked_only', 'true');
+          if (filterFollowUp) params.set('follow_up', filterFollowUp);
           if (filterOrderDaysRange) {
             params.set('order_days_min', filterOrderDaysRange.min.toString());
             if (filterOrderDaysRange.max !== null) params.set('order_days_max', filterOrderDaysRange.max.toString());
@@ -439,7 +447,7 @@ function UnifiedChatPageContent() {
         }
       })();
     }
-  }, [authLoading, userProfile, debouncedSearch, filterLinked, filterUnread, filterOrderDaysRange, filterAccountId, filterPlatform, filterTag]);
+  }, [authLoading, userProfile, debouncedSearch, filterLinked, filterUnread, filterOrderDaysRange, filterAccountId, filterPlatform, filterTag, filterFollowUp]);
 
   // เปิดห้องจาก URL — `contact_id` (id ของแถวเรา) หรือ `line_user` (id ฝั่ง LINE)
   // `line_user` มีไว้ให้หน้าที่รู้จักแต่ id ของ LINE เรียกใช้ (CRM ติดตามลูกค้า/ติดตามหนี้)
@@ -565,6 +573,7 @@ function UnifiedChatPageContent() {
     if (!contactId || !platform) { setLead(null); return; }
     let cancelled = false;
     setLead(null);
+    setAskFollowUpAgain(false);
     apiFetch(`/api/leads?contact_id=${contactId}&platform=${selectedContact?.source || platform}`)
       .then(r => r.json())
       .then(data => {
@@ -988,6 +997,7 @@ function UnifiedChatPageContent() {
         if (filterOrderDaysRange.max !== null) params.set('order_days_max', filterOrderDaysRange.max.toString());
       }
       if (filterTag) params.set('tag', filterTag);
+      if (filterFollowUp) params.set('follow_up', filterFollowUp);
       params.set('limit', '30');
       params.set('offset', loadMore ? contacts.length.toString() : '0');
 
@@ -1105,7 +1115,8 @@ function UnifiedChatPageContent() {
     try {
       const response = await apiFetch('/api/chat/messages', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contact_id: contactId, platform, message: messageText })
+        // bill_order_id = บอกหลังบ้านว่าข้อความนี้คือบิล → ติดสถานะ "รอโอน" + ตั้งนัดทวงให้เอง
+        body: JSON.stringify({ contact_id: contactId, platform, message: messageText, bill_order_id: orderId })
       });
       if (!response.ok) { const errData = await response.json().catch(() => ({})); throw new Error(describeSendError(errData.error, response.status)); }
       const result = await response.json();
@@ -1113,6 +1124,9 @@ function UnifiedChatPageContent() {
         setMessages(prev => prev.map(m => m._tempId === tempId ? { ...result.message, contact_id: contactId, _status: 'sent' as const } : m));
       }
       showToast('ส่งบิลให้ลูกค้าสำเร็จ!');
+      // หลังบ้านเพิ่งตั้ง "รอโอน" ให้ — ดึงสถานะใหม่มาแสดงบนหัวห้องโดยไม่ต้องรีเฟรช
+      apiFetch(`/api/leads?contact_id=${contactId}&platform=${platform}`)
+        .then(r => r.json()).then(d => { if (d.lead) setLead(d.lead); }).catch(() => {});
     } catch (error) {
       const reason = describeSendError(error instanceof Error ? error.message : String(error));
       setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'failed' as const, _error: reason } : m));
@@ -1170,6 +1184,10 @@ function UnifiedChatPageContent() {
         if (result.message) {
           setMessages(prev => prev.map(m => m._tempId === tempId ? { ...result.message, contact_id: contactId, _status: 'sent' as const } : m));
         }
+        // ทักไปแล้ว = นัดของคนนี้หมดหน้าที่ (หลังบ้านล้างให้ใน after()) → ถามต่อทันทีว่าจะนัดใหม่ไหม
+        // ถามตรงจังหวะที่ยังคิดถึงลูกค้าคนนี้อยู่ ดีกว่าให้กลับมาเปิดแผ่นเองทีหลัง
+        setLead(prev => (prev?.follow_up_at ? { ...prev, follow_up_at: null } : prev));
+        if (leadRef.current?.follow_up_at) setAskFollowUpAgain(true);
         await deliverAttachments(queued);
       } catch (error) {
         console.error('Error sending message:', error);
@@ -2769,6 +2787,19 @@ function UnifiedChatPageContent() {
                   <EmailIcon className="w-4 h-4" />
                 </button>
               </Tooltip>
+              <Tooltip text={filterFollowUp ? 'เฉพาะคนที่ถึงกำหนดทัก (กดเพื่อยกเลิก)' : 'เฉพาะคนที่ถึงกำหนดทัก'}>
+                <button onClick={() => setFilterParams({ followup: filterFollowUp ? '' : 'due' })}
+                  aria-label="เฉพาะคนที่ถึงกำหนดทัก"
+                  className={`h-[42px] w-[42px] flex-shrink-0 flex items-center justify-center border rounded-lg transition-colors ${filterFollowUp ? 'bg-amber-500 border-amber-500 text-white' : 'border-gray-300 dark:border-slate-500 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'}`}>
+                  <TimeIcon className="w-4 h-4" />
+                </button>
+              </Tooltip>
+              <Tooltip text="คิวติดตามทั้งหมด">
+                <Link href="/chat/follow-ups" aria-label="คิวติดตาม"
+                  className="h-[42px] w-[42px] flex-shrink-0 flex items-center justify-center border border-gray-300 dark:border-slate-500 rounded-lg text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
+                  <ChecklistIcon className="w-4 h-4" />
+                </Link>
+              </Tooltip>
               <div className="relative h-[42px]" data-filter-popover>
                 <Tooltip text="กรองรายชื่อ">
                   <button onClick={() => setShowFilterPopover(!showFilterPopover)}
@@ -2781,7 +2812,7 @@ function UnifiedChatPageContent() {
                   <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-50">
                     <div className="p-3 border-b border-gray-100 dark:border-slate-700 flex items-center justify-between">
                       <span className="text-base font-medium text-gray-900 dark:text-white">กรองรายชื่อ</span>
-                      {hasActiveFilter && (<button onClick={() => { setFilterParams({ linked: 'all', tag: '', account: '', platform: 'all', sort: 'time', unread: '' }); setFilterOrderDaysRange(null); setShowFilterPopover(false); }} className="text-xs text-red-500 hover:text-red-600">ล้างทั้งหมด</button>)}
+                      {hasActiveFilter && (<button onClick={() => { setFilterParams({ linked: 'all', tag: '', account: '', platform: 'all', sort: 'time', unread: '', followup: '' }); setFilterOrderDaysRange(null); setShowFilterPopover(false); }} className="text-xs text-red-500 hover:text-red-600">ล้างทั้งหมด</button>)}
                     </div>
                     <div className="p-3 space-y-4">
                       <div>
@@ -2918,9 +2949,15 @@ function UnifiedChatPageContent() {
                 })().map((contact) => (
                   <button key={contact.id} onClick={() => setSelectedContact(contact)} onMouseEnter={() => prefetchMessages(contact)}
                     className={`w-full px-3 py-4 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors border-b border-gray-100 dark:border-slate-700 ${selectedContact?.id === contact.id ? (contact.platform === 'line' ? 'bg-line/10' : contact.platform === 'shopee' ? 'bg-[#EE4D2D]/10' : contact.platform === 'lazada' ? 'bg-[#0F146E]/10' : contact.platform === 'tiktok' ? 'bg-[#161823]/10' : 'bg-facebook/10') : ''}`}>
-                    {/* Avatar with channel profile badge */}
-                    <div className="relative flex-shrink-0">
+                    {/* Avatar with channel profile badge · วงแหวน = ขั้นในกรวยขาย · จุดแดง = เลยกำหนดทัก */}
+                    <div className={`relative flex-shrink-0 rounded-full ${(() => {
+                      const st = contact.lead ? leadStages.find(x => x.key === contact.lead!.stage) : null;
+                      return st ? `ring-2 ring-offset-1 dark:ring-offset-slate-800 ${STAGE_RING_CLASS[st.color]}` : '';
+                    })()}`}>
                       <ContactAvatar contact={contact} sizeClass="w-12 h-12" color={contactPlatformColor(contact)} />
+                      {contact.lead?.follow_up_at && followUpLabel(contact.lead.follow_up_at)?.overdue && (
+                        <span className="absolute -top-0.5 -left-0.5 w-3 h-3 rounded-full bg-red-500 border-2 border-white dark:border-slate-800" />
+                      )}
                       {/* Channel profile pic badge (bottom-left) */}
                       <AccountCornerBadge contact={contact} sizeClass="w-5 h-5" />
                       {/* Linked customer indicator */}
@@ -2956,6 +2993,20 @@ function UnifiedChatPageContent() {
                       ) : (
                         <div className="text-xs text-gray-400 dark:text-slate-400 mt-0.5">ยังไม่มีข้อความ</div>
                       )}
+                      {/* ติดตามลูกค้า — ขั้น + นัด (ถ้าเคยติดตาม) */}
+                      {contact.lead && (() => {
+                        const st = leadStages.find(x => x.key === contact.lead!.stage);
+                        const dueLabel = followUpLabel(contact.lead!.follow_up_at);
+                        if (!st && !dueLabel) return null;
+                        return (
+                          <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                            {st && <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${STAGE_CHIP_CLASS[st.color]}`}>{st.name}</span>}
+                            {dueLabel && (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${dueLabel.overdue ? 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'}`}>{dueLabel.text}</span>
+                            )}
+                          </div>
+                        );
+                      })()}
                       {/* Tags */}
                       {contact.tags && contact.tags.length > 0 && (
                         <div className="flex flex-wrap gap-0.5 mt-0.5">
@@ -3247,6 +3298,35 @@ function UnifiedChatPageContent() {
                         </div>
                       ))}
                     </div>
+                  </div>
+                )}
+
+                {/* ทักไปแล้ว — ถามต่อทันทีว่าจะนัดทักอีกทีเมื่อไหร่ (จังหวะที่ยังคิดถึงลูกค้าคนนี้อยู่) */}
+                {askFollowUpAgain && selectedContact && (
+                  <div className="mb-2 flex items-center gap-2 flex-wrap rounded-lg bg-orange-50 dark:bg-orange-900/20 px-3 py-2">
+                    <span className="text-sm font-medium text-primary">ส่งแล้ว — ทักอีกทีเมื่อไหร่?</span>
+                    {quickFollowUpPresets().map(p => (
+                      <button key={p.key}
+                        onClick={async () => {
+                          setAskFollowUpAgain(false);
+                          try {
+                            const res = await apiFetch('/api/leads', {
+                              method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ contact_id: selectedContact.id, platform: selectedContact.source || selectedContact.platform, follow_up_at: p.date.toISOString() }),
+                            });
+                            const data = await res.json();
+                            if (!res.ok) throw new Error(data.error || 'ตั้งนัดไม่สำเร็จ');
+                            setLead(data.lead);
+                            showToast(`ทักอีกที ${formatShortThaiDate(p.date)}`);
+                          } catch (e) {
+                            showToast(e instanceof Error ? e.message : 'ตั้งนัดไม่สำเร็จ', 'error');
+                          }
+                        }}
+                        className="text-sm rounded-full border border-primary bg-white dark:bg-slate-800 text-primary px-3 py-1 hover:bg-orange-50">
+                        {p.label}
+                      </button>
+                    ))}
+                    <button onClick={() => setAskFollowUpAgain(false)} className="text-sm text-gray-500 hover:text-gray-700 px-2">ไม่ต้อง</button>
                   </div>
                 )}
 

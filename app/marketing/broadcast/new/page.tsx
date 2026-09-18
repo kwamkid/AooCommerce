@@ -116,6 +116,9 @@ export default function NewBroadcastPage() {
   /** ยังโหลดรายชื่อบัญชีไม่เสร็จ — การ์ดช่องทางวาดโครงแทนข้อความ "ยังไม่มีช่องทาง" */
   const [accountsLoading, setAccountsLoading] = useState(true);
   const [tags, setTags] = useState<TagRow[]>([]);
+  /** ขั้นในกรวยขาย (ระบบติดตามลูกค้า) — ใช้กับกลุ่มผู้รับ 'ตามสถานะติดตาม' */
+  const [leadStages, setLeadStages] = useState<{ key: string; name: string }[]>([]);
+  const [stageKeys, setStageKeys] = useState<string[]>([]);
   /** เลือกได้หลายบัญชี — เนื้อหาชุดเดียวยิงได้หลาย OA/หลายร้าน (aDay Fresh มี LINE 2 บัญชี) */
   const [accountIds, setAccountIds] = useState<string[]>([]);
   const [audience, setAudience] = useState('');
@@ -221,9 +224,10 @@ export default function NewBroadcastPage() {
         const wantsChat = readyPlatforms.some(p => p === 'line' || p === 'facebook' || p === 'instagram');
         const marketplacePlatforms = readyPlatforms.filter(p => p === 'tiktok' || p === 'shopee' || p === 'lazada');
 
-        const [chatRes, tagRes, ...shopResList] = await Promise.all([
+        const [chatRes, tagRes, stageRes, ...shopResList] = await Promise.all([
           wantsChat ? apiFetch('/api/chat-accounts') : Promise.resolve(null),
           apiFetch('/api/customers/tags'),
+          apiFetch('/api/leads'),
           ...marketplacePlatforms.map(p => apiFetch(`/api/marketplace/accounts?platform=${p}`)),
         ]);
 
@@ -268,6 +272,10 @@ export default function NewBroadcastPage() {
           const data = await tagRes.json();
           setTags(data.tags || []);
         }
+        if (stageRes?.ok) {
+          const data = await stageRes.json();
+          setLeadStages((data.stages || []).map((st: { key: string; name: string }) => ({ key: st.key, name: st.name })));
+        }
       } catch {
         showToast('โหลดข้อมูลช่องทางไม่สำเร็จ', 'error');
       } finally {
@@ -299,6 +307,8 @@ export default function NewBroadcastPage() {
         if (Number(f.min_messages) > 0) setMinMessages(Number(f.min_messages));
         if (Number(f.last_chat_days) > 0) setLastChatDays(Number(f.last_chat_days));
         if (Array.isArray(f.tag_ids)) setTagIds(f.tag_ids);
+        if (Array.isArray(f.stage_keys)) setStageKeys(f.stage_keys);
+        if (Number(f.within_days) > 0) setAudienceDays(Number(f.within_days));
         // รู้แค่ id — ชื่อจะขึ้นเป็นชิป "เลือกไว้ N คน" แทนรหัสยาว ๆ ที่อ่านไม่ออก
         if (Array.isArray(f.contact_ids)) {
           setPickedContacts(f.contact_ids.map((id: string) => ({ id, name: '' })));
@@ -342,7 +352,10 @@ export default function NewBroadcastPage() {
     days: audienceDays,
     minMessages,
     lastChatDays,
-  }), [audience, tagIds, pickedContacts, audienceDays, minMessages, lastChatDays]);
+    stageKeys,
+    // กลุ่ม "ถึงกำหนดทักใน N วัน" ใช้ช่องจำนวนวันเดียวกับกลุ่มอื่น
+    withinDays: audienceDays,
+  }), [audience, tagIds, pickedContacts, audienceDays, minMessages, lastChatDays, stageKeys]);
 
   // ─── ประเมินผู้รับ + โควตา ──────────────────────────────────────────
   const previewSeqRef = useRef(0);
@@ -698,6 +711,9 @@ export default function NewBroadcastPage() {
                     tags={tags}
                     tagIds={tagIds}
                     onTagIdsChange={setTagIds}
+                    leadStages={leadStages}
+                    stageKeys={stageKeys}
+                    onStageKeysChange={setStageKeys}
                     contactResults={contactSearch.results}
                     contactLoading={contactSearch.loading}
                     onContactSearch={contactSearch.search}

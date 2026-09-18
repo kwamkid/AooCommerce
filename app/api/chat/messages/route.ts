@@ -1,7 +1,7 @@
 import { checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { NextRequest, NextResponse, after } from 'next/server';
 import { getChatServiceLazy } from '@/lib/services/chat/registry';
-import { markContactedByStaff } from '@/lib/leads/service';
+import { markContactedByStaff, markBillSentToChat } from '@/lib/leads/service';
 
 // GET - Get messages for a contact (any platform)
 export async function GET(request: NextRequest) {
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { contact_id, platform, message, type = 'text', imageUrl, packageId, stickerId, imageSet } = body;
+    const { contact_id, platform, message, type = 'text', imageUrl, packageId, stickerId, imageSet, bill_order_id: billOrderId } = body;
 
     if (!contact_id || !platform) {
       return NextResponse.json({ error: 'contact_id and platform are required' }, { status: 400 });
@@ -78,9 +78,16 @@ export async function POST(request: NextRequest) {
     // (บรอดแคสต์ไม่ผ่านทางนี้ จึงไม่ล้างนัดทั้งกอง) · ทำหลังตอบผู้ใช้ ห้ามทำให้การส่งข้อความล้ม
     after(async () => {
       try {
-        await markContactedByStaff({ companyId, contactId: contact_id, platform, actorId: userId });
+        if (billOrderId) {
+          // ข้อความนี้คือ "ลิงก์บิล" — ไม่ใช่การตอบทั่วไป จึงตั้ง "รอโอน" + นัดทวงแทนการล้างนัด
+          await markBillSentToChat({
+            companyId, contactId: contact_id, platform, orderId: billOrderId, actorId: userId,
+          });
+        } else {
+          await markContactedByStaff({ companyId, contactId: contact_id, platform, actorId: userId });
+        }
       } catch (e) {
-        console.error('lead mark contacted failed:', e);
+        console.error('lead follow-up update failed:', e);
       }
     });
 

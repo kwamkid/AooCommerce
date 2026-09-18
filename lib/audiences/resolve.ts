@@ -167,6 +167,18 @@ export function validateAudienceDefinition(
     filter.contact_ids = contactIds;
   }
 
+  if (audienceType === 'lead_stage') {
+    const keys = (Array.isArray(rawFilter.stage_keys) ? rawFilter.stage_keys : [])
+      .filter((v): v is string => typeof v === 'string' && !!v.trim());
+    if (keys.length === 0) return { ok: false, error: 'กรุณาเลือกสถานะติดตามอย่างน้อยหนึ่งขั้น' };
+    filter.stage_keys = keys;
+  }
+
+  if (audienceType === 'follow_up_due') {
+    const within = Math.floor(Number(rawFilter.within_days));
+    filter.within_days = Number.isFinite(within) && within > 0 ? within : 0;
+  }
+
   if (audienceType === 'bought_within' || audienceType === 'bought_before') {
     const days = Math.floor(Number(rawFilter.days));
     if (!Number.isFinite(days) || days < 1) return { ok: false, error: 'กรุณาระบุจำนวนวัน' };

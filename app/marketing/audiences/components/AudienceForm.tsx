@@ -89,6 +89,9 @@ export default function AudienceForm({ mode, initial, templateKey, onAudienceCha
   const [chatAccounts, setChatAccounts] = useState<ChatSourceAccount[]>([]);
   const [chatLoading, setChatLoading] = useState(true);
   const [tags, setTags] = useState<TagRow[]>([]);
+  /** ขั้นในกรวยขาย — ใช้กับกลุ่ม 'ตามสถานะติดตาม' */
+  const [leadStages, setLeadStages] = useState<{ key: string; name: string }[]>([]);
+  const [stageKeys, setStageKeys] = useState<string[]>(() => initial?.definition?.audience_filter?.stage_keys || []);
   const [adAccounts, setAdAccounts] = useState<AdAccountView[]>([]);
   const [adLoading, setAdLoading] = useState(true);
   const [canManageAdAccounts, setCanManageAdAccounts] = useState(false);
@@ -143,16 +146,22 @@ export default function AudienceForm({ mode, initial, templateKey, onAudienceCha
   useEffect(() => {
     (async () => {
       try {
-        const [chatRes, tagRes, adRes] = await Promise.all([
+        const [chatRes, tagRes, adRes, stageRes] = await Promise.all([
           apiFetch('/api/chat-accounts'),
           apiFetch('/api/customers/tags'),
           apiFetch('/api/ads/accounts?lite=1'),
+          apiFetch('/api/leads'),
         ]);
 
         // ดึงผู้ติดต่อได้เฉพาะ LINE/Facebook — เกณฑ์อยู่ที่ toChatSourceAccounts ที่เดียว
         if (chatRes.ok) setChatAccounts(toChatSourceAccounts((await chatRes.json()).accounts));
 
         if (tagRes.ok) setTags((await tagRes.json()).tags || []);
+
+        if (stageRes.ok) {
+          const data = await stageRes.json();
+          setLeadStages((data.stages || []).map((st: { key: string; name: string }) => ({ key: st.key, name: st.name })));
+        }
 
         // 403 = ไม่มีสิทธิ์ดูบัญชีโฆษณา — ไม่ใช่ error ของหน้านี้ แค่ไม่ชี้ไปหน้าที่เข้าไม่ได้
         if (adRes.ok) {
@@ -261,7 +270,9 @@ export default function AudienceForm({ mode, initial, templateKey, onAudienceCha
     days: audienceDays,
     minMessages,
     lastChatDays,
-  }), [audience, tagIds, pickedContacts, audienceDays, minMessages, lastChatDays]);
+    stageKeys,
+    withinDays: audienceDays,
+  }), [audience, tagIds, pickedContacts, audienceDays, minMessages, lastChatDays, stageKeys]);
 
   const definition = useMemo<AudienceDefinition>(
     () => ({ audience_type: audience, audience_filter: audienceFilter, sources }),
@@ -278,9 +289,10 @@ export default function AudienceForm({ mode, initial, templateKey, onAudienceCha
     if (!audience) return 'เลือกกลุ่มเป้าหมายก่อน';
     if (sources.length === 0) return 'เลือกแหล่งที่มาอย่างน้อยหนึ่งแหล่ง';
     if (selectedOption?.needsTags && tagIds.length === 0) return 'เลือกแท็กก่อน';
+    if (selectedOption?.needsStages && stageKeys.length === 0) return 'เลือกสถานะติดตามก่อน';
     if (selectedOption?.needsPick && pickedContacts.length === 0) return 'เลือกผู้ติดต่อก่อน';
     return null;
-  }, [sources, audience, selectedOption, tagIds, pickedContacts]);
+  }, [sources, audience, selectedOption, tagIds, stageKeys, pickedContacts]);
 
   // ── นับจำนวนคนในกลุ่ม (ตัวเลขใหญ่ในแผงขวา) ───────────────────────────
   const previewSeq = useRef(0);
@@ -399,6 +411,7 @@ export default function AudienceForm({ mode, initial, templateKey, onAudienceCha
     if (!form.validateAll()) return;
     if (sources.length === 0) { showToast('เลือกแหล่งที่มาอย่างน้อยหนึ่งแหล่ง', 'error'); return; }
     if (selectedOption?.needsTags && tagIds.length === 0) { showToast('เลือกแท็กอย่างน้อยหนึ่งอัน', 'error'); return; }
+    if (selectedOption?.needsStages && stageKeys.length === 0) { showToast('เลือกสถานะติดตามอย่างน้อยหนึ่งขั้น', 'error'); return; }
     if (selectedOption?.needsPick && pickedContacts.length === 0) { showToast('เลือกผู้ติดต่ออย่างน้อยหนึ่งคน', 'error'); return; }
 
     setSaving(true);
@@ -517,6 +530,9 @@ export default function AudienceForm({ mode, initial, templateKey, onAudienceCha
             tags={tags}
             tagIds={tagIds}
             onTagIdsChange={setTagIds}
+            leadStages={leadStages}
+            stageKeys={stageKeys}
+            onStageKeysChange={setStageKeys}
             contactResults={contactSearch.results}
             contactLoading={contactSearch.loading}
             onContactSearch={contactSearch.search}

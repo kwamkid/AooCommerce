@@ -29,10 +29,16 @@ export type BroadcastAudienceType =
   // แบ่งตามสถานะการซื้อ — ดู migration broadcasts_audience_purchase_segments
   | 'not_bought' | 'bought' | 'bought_within' | 'bought_before' | 'bought_once'
   // เฉพาะ Facebook — ทักมาจากโฆษณา Click-to-Messenger แล้วยังไม่มีออเดอร์
-  | 'ads_not_bought';
+  | 'ads_not_bought'
+  // ระบบติดตามลูกค้า — ขั้นในกรวยขาย · คนที่ถึงกำหนดต้องทักใน N วัน
+  | 'lead_stage' | 'follow_up_due';
 
 export interface BroadcastAudienceFilter {
   tag_ids?: string[];
+  /** ขั้นในกรวยขายที่เลือก (audience_type='lead_stage') */
+  stage_keys?: string[];
+  /** ถึงกำหนดทักภายในกี่วัน (audience_type='follow_up_due') — 0 = เลยกำหนด/วันนี้ */
+  within_days?: number;
   /** ผู้ติดต่อที่เลือกเอง (audience_type='contacts_pick') — ใช้ทดสอบส่ง/ส่งกลุ่มเล็ก */
   contact_ids?: string[];
   /** จำนวนวันของกลุ่ม `bought_within` / `bought_before` */
@@ -293,7 +299,7 @@ function selectRecipients(
     if (needsCustomer && !c.customer_id) continue;
     if (audienceType === 'ads_not_bought' && (!cfg.referralCol || c[cfg.referralCol] !== 'ADS')) continue;
     if (picked && !picked.has(c.id)) continue;
-    if (audienceType === 'tags') {
+    if (audienceType === 'tags' || audienceType === 'lead_stage' || audienceType === 'follow_up_due') {
       const viaCustomer = !!c.customer_id && !!ctx.allowedCustomerIds?.has(c.customer_id);
       const viaContact = !!ctx.allowedContactIds?.has(c.id);
       if (!viaCustomer && !viaContact) continue;
@@ -382,6 +388,42 @@ export async function resolveChatRecipients(
         .range(from, to),
     );
     allowedContactIds = new Set(contactLinks.map(l => l.contact_id));
+    if (allowedCustomerIds.size === 0 && allowedContactIds.size === 0) return [];
+  }
+
+  // ── กลุ่มจากระบบติดตามลูกค้า ──
+  // lead ผูกกับ "คน" จึงต้องนับสองทาง: ห้องที่ผูกกับ lead ตรง ๆ (lead_contacts) และทุกห้อง
+  // ของลูกค้าคนนั้น (leads.customer_id) — คนเดียวทักหลายช่องทางต้องได้รับครั้งเดียวเสมอ
+  if (audienceType === 'lead_stage' || audienceType === 'follow_up_due') {
+    let leadQuery = supabaseAdmin.from('leads').select('id, customer_id').eq('company_id', companyId).limit(5000);
+
+    if (audienceType === 'lead_stage') {
+      const keys = (filter?.stage_keys || []).filter(Boolean);
+      if (keys.length === 0) return [];   // ไม่ได้เลือกขั้นไหนเลย = ไม่มีผู้รับ (ไม่ใช่ทุกคน)
+      leadQuery = leadQuery.in('stage', keys);
+    } else {
+      const within = Math.max(0, Number(filter?.within_days) || 0);
+      const until = new Date();
+      until.setDate(until.getDate() + within);
+      until.setHours(23, 59, 59, 999);
+      leadQuery = leadQuery.not('follow_up_at', 'is', null).lte('follow_up_at', until.toISOString());
+    }
+
+    const { data: leadRows } = await leadQuery;
+    const leads = (leadRows || []) as { id: string; customer_id: string | null }[];
+    if (leads.length === 0) return [];
+
+    allowedCustomerIds = new Set(leads.map(l => l.customer_id).filter(Boolean) as string[]);
+
+    const { rows: leadLinks } = await fetchAllRows<{ contact_id: string }>((from, to) =>
+      supabaseAdmin
+        .from('lead_contacts')
+        .select('contact_id', { count: 'exact' })
+        .eq('company_id', companyId)
+        .in('lead_id', leads.map(l => l.id))
+        .range(from, to),
+    );
+    allowedContactIds = new Set(leadLinks.map(l => l.contact_id));
     if (allowedCustomerIds.size === 0 && allowedContactIds.size === 0) return [];
   }
 

@@ -11,7 +11,7 @@ import { useFeatures } from '@/lib/features-context';
 import { useHeaderSummary } from '@/lib/header-summary-context';
 import { can, mainRoleOf, ROLE_LEVELS, type Capability, type PermissionSubject } from '@/lib/permissions';
 import { PanelLeftClose, PanelLeftOpen, Facebook } from 'lucide-react';
-import { AudienceIcon, BackIcon, BrandIcon, BroadcastIcon, CategoryIcon, ChatIcon, ChecklistIcon, ChevronDownIcon, ChevronRightIcon, CloseIcon, CompanyIcon, ConfirmIcon, CouponIcon, CustomerIcon, DashboardIcon, DealerIcon, DeptStoreIcon, DocumentIcon, EditIcon, FeatureIcon, LocationIcon, LogoutIcon, MemberIcon, MenuIcon, MessageIcon, OrderIcon, PaymentIcon, PosIcon, ProductIcon, PromotionIcon, ReceiptIcon, ReceiptTextIcon, ReportIcon, ReturnNoteIcon, SettingsIcon, ShippingIcon, StockIssueIcon, StockReceiveIcon, StockTransferIcon, StoreIcon, SupplierIcon, SupplierReturnIcon, WarehouseIcon, WholesaleIcon } from '@/lib/icons';
+import { AudienceIcon, BackIcon, BrandIcon, BroadcastIcon, CategoryIcon, ChatIcon, ChecklistIcon, ChevronDownIcon, ChevronRightIcon, CloseIcon, CompanyIcon, ConfirmIcon, CouponIcon, CustomerIcon, DashboardIcon, DealerIcon, DeptStoreIcon, DocumentIcon, EditIcon, FeatureIcon, LocationIcon, LogoutIcon, MemberIcon, MenuIcon, MessageIcon, OrderIcon, PaymentIcon, PosIcon, ProductIcon, PromotionIcon, ReceiptIcon, ReceiptTextIcon, ReportIcon, ReturnNoteIcon, SettingsIcon, ShippingIcon, StockIssueIcon, StockReceiveIcon, StockTransferIcon, StoreIcon, SupplierIcon, SupplierReturnIcon, TimeIcon, WarehouseIcon, WholesaleIcon } from '@/lib/icons';
 
 interface MenuItem {
   label: string;
@@ -41,6 +41,7 @@ const menuSections: MenuSection[] = [
     title: 'ระบบการขาย',
     items: [
       { label: 'Chat', href: '/chat', icon: <ChatIcon className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['chat.view'] },
+      { label: 'คิวติดตาม', href: '/chat/follow-ups', icon: <TimeIcon className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['chat.view'] },
       { label: 'คำสั่งซื้อ', href: '/orders', icon: <OrderIcon className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['order.view'] },
       { label: 'จัดของ & ส่ง', href: '/reports/delivery-summary', icon: <ShippingIcon className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['order.view'] },
     ]
@@ -121,6 +122,7 @@ export default function Sidebar() {
   const { summary } = useHeaderSummary();
   const lowStockCount = summary?.lowStockCount ?? 0;
   const chatUnreadCount = summary?.chatUnread ?? 0;
+  const followUpDueCount = summary?.followUpDueCount ?? 0;
   const orderReadyCount = summary?.ordersReadyCount ?? 0;
   // Default true ตอน summary ยังไม่มา เพื่อไม่ให้เมนูกระพริบ
   const stockEnabled = summary?.stockConfig?.stockEnabled !== false;
@@ -235,6 +237,17 @@ export default function Sidebar() {
       section.items.forEach(item => {
         if (item.href === '/chat') {
           item.badge = chatUnreadCount;
+        }
+      });
+    });
+  }
+
+  // Inject follow-up due badge — คนที่ถึงกำหนดต้องทักวันนี้
+  if (followUpDueCount > 0) {
+    filteredSections.forEach(section => {
+      section.items.forEach(item => {
+        if (item.href === '/chat/follow-ups') {
+          item.badge = followUpDueCount;
         }
       });
     });

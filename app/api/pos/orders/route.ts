@@ -484,6 +484,8 @@ export async function POST(request: NextRequest) {
     // POS = จ่ายจบหน้าร้านทันที → บอก Meta ว่าปิดการขายได้ (action_source = physical_store
     // ซึ่ง Meta รับย้อนหลังได้ถึง 62 วัน) · จับคู่คนด้วยเบอร์/อีเมลของลูกค้าที่ผูกกับบิล
     after(() => import('@/lib/ads/dispatch').then(m => m.dispatchConversion({ event: 'Purchase', orderId: order.id })).catch(() => null));
+    // ขายแล้ว = ปิดการติดตามของคนนี้ (ถ้าเคยคุยในแชท) — ล้มก็ไม่กระทบการขาย
+    after(() => import('@/lib/leads/service').then(m => m.markOrderPaid({ companyId: auth.companyId!, orderId: order.id })).catch(() => null));
 
     // Fetch WAC cost map for cost snapshot
     // ราคาขายจริงต่อหน่วย (หลังหักส่วนลดของบรรทัด) — supplier ฝากขายบางเจ้าคิดเงินจากราคานี้

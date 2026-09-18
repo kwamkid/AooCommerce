@@ -11,8 +11,18 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import {
   DEFAULT_LEAD_STAGES, DEFAULT_STAGE_KEY, CLOSED_STAGE_KEYS,
+  QUOTED_STAGE_KEY, WON_STAGE_KEY,
   type LeadStage,
 } from './stages';
+import { FOLLOW_UP_HOUR } from './followup-presets';
+
+/** ส่งบิลแล้วกี่วันถึงทวง — ค่าตั้งต้นของระบบ (ร้านปรับได้ภายหลัง) */
+export const DEFAULT_QUOTE_REMIND_DAYS = 2;
+/** นัดหลังการขาย: ส่งของสำเร็จแล้วกี่วันถึงชวนคุยอีกที */
+export const DEFAULT_AFTER_SALE_DAYS = 30;
+/** รอโอนนานเกินกี่วันถึงเด้งให้คนตัดสินใจ (ปิดบิล / ตามยาว) */
+export const QUOTE_DECISION_DAYS = 7;
+const FOLLOW_UP_HOUR_LOCAL = FOLLOW_UP_HOUR;
 
 export type LeadEventSource = 'manual' | 'system';
 
@@ -351,4 +361,107 @@ export async function markContactedByStaff(params: {
     });
   }
   return { cleared: hadFollowUp, leadId: lead.id };
+}
+
+/* ─────────────── ระบบติดสถานะให้เอง (จากเหตุการณ์จริง) ─────────────── */
+
+/**
+ * ส่งลิงก์บิลให้ลูกค้าในแชท → "รอโอน" + เริ่มจับเวลา + ตั้งนัดทวงให้เอง
+ *
+ * เรียกจาก `POST /api/chat/messages` เมื่อข้อความนั้นคือบิล (`bill_order_id`) — ไม่ใช่ข้อความธรรมดา
+ * จึง **ไม่ล้างนัด** แบบการตอบทั่วไป (เราเพิ่งโยนลูกไปฝั่งลูกค้า ต้องตามต่อ)
+ */
+export async function markBillSentToChat(params: {
+  companyId: string;
+  contactId: string;
+  platform: string;
+  orderId: string;
+  customerId?: string | null;
+  actorId?: string | null;
+  /** กี่วันหลังส่งบิลถึงจะทวง (ค่าเริ่ม 2 วัน) */
+  remindAfterDays?: number;
+}): Promise<void> {
+  const { companyId, contactId, platform, orderId, customerId, actorId } = params;
+  const days = params.remindAfterDays ?? DEFAULT_QUOTE_REMIND_DAYS;
+
+  const lead = await resolveLeadForContact({ companyId, contactId, platform, customerId });
+  // ซื้อแล้ว/ปิดเคสไปแล้วก็ยังส่งบิลใบใหม่ได้ — ถือเป็นดีลรอบใหม่ จึงตั้ง "รอโอน" ทับได้
+  const followUp = new Date();
+  followUp.setDate(followUp.getDate() + days);
+  followUp.setHours(FOLLOW_UP_HOUR_LOCAL, 0, 0, 0);
+
+  await supabaseAdmin
+    .from('leads')
+    .update({
+      stage: QUOTED_STAGE_KEY,
+      stage_source: 'system',
+      stage_changed_at: new Date().toISOString(),
+      stage_changed_by: actorId ?? null,
+      closed_reason: null,
+      quote_order_id: orderId,
+      quote_sent_at: new Date().toISOString(),
+      reminded_count: 0,
+      follow_up_at: followUp.toISOString(),
+      follow_up_note: lead.follow_up_note || 'ส่งบิลแล้ว รอโอน',
+      last_outbound_at: new Date().toISOString(),
+    })
+    .eq('id', lead.id)
+    .eq('company_id', companyId);
+
+  await logLeadEvent({
+    companyId, leadId: lead.id, type: 'stage_change',
+    fromStage: lead.stage, toStage: QUOTED_STAGE_KEY,
+    followUpAt: followUp.toISOString(), source: 'system', actorId, contactId, platform,
+    meta: { reason: 'bill_sent', order_id: orderId },
+  });
+}
+
+/**
+ * ลูกค้าจ่ายเงินแล้ว / ออเดอร์เดินต่อ → "ซื้อแล้ว" + ล้างนัด + หยุดตัวนับรอโอน
+ *
+ * หา lead จากห้องแชทที่เปิดบิล (ถ้าบิลมาจากแชท) ไม่งั้นจากลูกค้าเจ้าของบิล —
+ * ไม่เจอ = ไม่ทำอะไร (บิลหน้าร้าน/POS ที่ไม่เคยคุยในแชทไม่ต้องมี lead)
+ *
+ * ⚠️ เรียกใน `after()` เสมอ และห้าม throw ออกไปให้การบันทึกบิลล้ม
+ */
+export async function markOrderPaid(params: { companyId: string; orderId: string }): Promise<void> {
+  const { companyId, orderId } = params;
+
+  const { data: order } = await supabaseAdmin
+    .from('orders')
+    .select('id, company_id, customer_id, chat_contact_id, chat_platform')
+    .eq('id', orderId)
+    .eq('company_id', companyId)
+    .maybeSingle();
+  if (!order) return;
+
+  let lead: LeadRow | null = null;
+  if (order.chat_contact_id && order.chat_platform) {
+    lead = await getLeadForContact(companyId, order.chat_contact_id as string, order.chat_platform as string);
+  }
+  if (!lead && order.customer_id) {
+    lead = await getLeadByCustomer(companyId, order.customer_id as string);
+  }
+  if (!lead || lead.stage === WON_STAGE_KEY) return;
+
+  await supabaseAdmin
+    .from('leads')
+    .update({
+      stage: WON_STAGE_KEY,
+      stage_source: 'system',
+      stage_changed_at: new Date().toISOString(),
+      closed_reason: 'won',
+      follow_up_at: null,
+      quote_order_id: null,
+      quote_sent_at: null,
+      reminded_count: 0,
+    })
+    .eq('id', lead.id)
+    .eq('company_id', companyId);
+
+  await logLeadEvent({
+    companyId, leadId: lead.id, type: 'stage_change',
+    fromStage: lead.stage, toStage: WON_STAGE_KEY, source: 'system',
+    meta: { reason: 'order_paid', order_id: orderId },
+  });
 }

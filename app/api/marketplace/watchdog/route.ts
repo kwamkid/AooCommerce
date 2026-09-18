@@ -3,6 +3,7 @@ import { runWatchdog } from '@/lib/marketplace/watchdog';
 import { reconcilePendingBeamPayments } from '@/lib/beam/settle';
 import { pruneOldLogs } from '@/lib/maintenance/log-retention';
 import { sweepUnsentPurchaseEvents } from '@/lib/meta/conversions';
+import { sweepLeadAutomations } from '@/lib/leads/sweep';
 
 // ตัวเฝ้าสุขภาพ integration — cron ทุก 15 นาที (cron-job.org, header x-cron-secret)
 //
@@ -48,7 +49,12 @@ async function handle(request: NextRequest) {
       console.error('[Watchdog] log retention failed:', e instanceof Error ? e.message : e);
       return null;
     });
-    console.log('[Watchdog] done', JSON.stringify({ beam, capi, result, logs }));
+    // นัดติดตามอัตโนมัติ (ชวนคุยหลังการขาย · รอโอนนานเกินไป) — วันละครั้งเหมือนงานดูแลตัวอื่น
+    const leads = await sweepLeadAutomations().catch((e) => {
+      console.error('[Watchdog] lead sweep failed:', e instanceof Error ? e.message : e);
+      return null;
+    });
+    console.log('[Watchdog] done', JSON.stringify({ beam, capi, result, logs, leads }));
   });
 
   return NextResponse.json({ ok: true, started: true });

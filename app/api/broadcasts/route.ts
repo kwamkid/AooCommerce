@@ -47,6 +47,7 @@ const AUDIENCE_BY_PLATFORM: Record<string, string[]> = {
   line: [
     'all', 'contacts', 'tags', 'contacts_pick',
     'not_bought', 'bought', 'bought_within', 'bought_before', 'bought_once',
+    'lead_stage', 'follow_up_due',
   ],
   tiktok: ['buyers_365d', 'tags'],
   // Facebook มีกลุ่มเดียว — รายชื่อผู้สมัครอยู่ที่ Meta ไม่ใช่ห้องแชทของเรา
@@ -65,6 +66,8 @@ function buildStoredFilter(audienceType: string, f: BroadcastAudienceFilter) {
       };
 
   if (audienceType === 'tags') return { tag_ids: f.tag_ids || [], ...refine };
+  if (audienceType === 'lead_stage') return { stage_keys: f.stage_keys || [], ...refine };
+  if (audienceType === 'follow_up_due') return { within_days: Math.max(0, Math.floor(Number(f.within_days) || 0)), ...refine };
   if (audienceType === 'contacts_pick') return { contact_ids: f.contact_ids || [] };
   if (audienceType === 'bought_within' || audienceType === 'bought_before') {
     return { days: Math.max(1, Number(f.days) || 30), ...refine };

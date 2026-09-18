@@ -27,6 +27,8 @@ export async function GET(request: NextRequest) {
     const stockConfig = await getStockConfig(companyId);
 
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const endOfTodayDate = new Date(); endOfTodayDate.setHours(23, 59, 59, 999);
+    const endOfToday = endOfTodayDate.toISOString();
 
     // badge สต็อกต่ำ = นิยามเดียวกับหน้า /inventory (min_stock > 0 และพร้อมขายรวมทุกคลัง ≤ min)
     // — ของเดิมนับ quantity <= 5 แบบ hard-code เลขจึงไม่ตรงกับหน้าสต็อก
@@ -44,6 +46,7 @@ export async function GET(request: NextRequest) {
       marketplaceAccountsResult,
       marketplaceErrorsResult,
       lowStockResult,
+      followUpDueResult,
     ] = await Promise.all([
       supabaseAdmin
         .from('line_contacts')
@@ -92,6 +95,13 @@ export async function GET(request: NextRequest) {
         .in('action', ['account_auto_deactivated', 'sync_orders_poll', 'webhook_sync_error'])
         .gte('created_at', since),
       lowStockPromise,
+      // ติดตามลูกค้า: ถึงกำหนดทักวันนี้ (รวมที่เลยกำหนด) — ตัวเลขเดียวกับหน้าคิวติดตาม
+      supabaseAdmin
+        .from('leads')
+        .select('id', { count: 'exact', head: true })
+        .eq('company_id', companyId)
+        .not('follow_up_at', 'is', null)
+        .lte('follow_up_at', endOfToday),
     ]);
 
     let chatUnread = 0;
@@ -124,6 +134,7 @@ export async function GET(request: NextRequest) {
       stockConfig,
       lowStockCount: Number(lowStockResult.data) || 0,
       chatUnread,
+      followUpDueCount: followUpDueResult.count || 0,
       badgeTotal,
       ordersReadyCount: ordersReadyResult.count || 0,
       marketplaceHealth: {

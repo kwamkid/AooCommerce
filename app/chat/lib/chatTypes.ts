@@ -46,6 +46,13 @@ export interface UnifiedContact {
   chat_account_id?: string;
   // Customer tags
   tags?: { id: string; name: string; color: string }[];
+  /** ติดตามลูกค้า — สถานะในกรวยขาย + นัดทักอีกครั้ง (ว่าง = ยังไม่เคยติดตาม) */
+  lead?: {
+    stage: string;
+    follow_up_at: string | null;
+    assigned_to: string | null;
+    quote_sent_at: string | null;
+  };
   // Referral/ad tracking
   referral_source?: string;
   referral_ad_id?: string;
