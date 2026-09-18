@@ -10,6 +10,7 @@ import { useCallback, useMemo, useState } from 'react';
 import Badge from '@/components/ui/Badge';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import ListFilterBar from '@/components/ui/ListFilterBar';
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import NumberInput from '@/components/ui/NumberInput';
 import StickyActionBar from '@/components/ui/StickyActionBar';
 import Tooltip from '@/components/ui/Tooltip';
@@ -18,6 +19,7 @@ import { ResetIcon } from '@/lib/icons';
 import { apiFetch } from '@/lib/api-client';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useInlineEditTable } from '@/lib/use-inline-edit-table';
+import { productDisplayName, productSubtitle } from '@/lib/product-display';
 import { useToast } from '@/lib/toast-context';
 import { COMPOSITE_TYPE_LABEL } from '@/lib/bulk/composite-ref';
 
@@ -26,6 +28,8 @@ interface PriceRow {
   product_id: string;
   product_code: string;
   product_name: string;
+  /** รูปหลักของสินค้า — ช่วยให้จำของถูกตัวตอนไล่แก้ราคาทีละหลายสิบแถว */
+  image?: string | null;
   variation_label: string;
   sku: string;
   default_price: number;
@@ -126,16 +130,19 @@ export default function PriceInlineTable({ canEditCost }: Props) {
   const currentPage = Math.min(page, totalPages);
   const paginated = filtered.slice((currentPage - 1) * perPage, currentPage * perPage);
 
-  /** ช่องตัวเลขหนึ่งช่อง — ⛔ NumberInput เท่านั้น ห้าม `<input type="number">` (ล้อเมาส์เปลี่ยนค่าเงียบ ๆ) */
+  /** ช่องตัวเลขหนึ่งช่อง — ⛔ NumberInput เท่านั้น ห้าม `<input type="number">` (ล้อเมาส์เปลี่ยนค่าเงียบ ๆ)
+   *  สีของช่องมาจากคลาสกลาง `.cell-dirty` / `.cell-invalid` (globals.css) ห้ามใส่สีเองที่นี่ */
   const priceCell = (row: PriceRow, key: 'default_price' | 'discount_price' | 'cost_price') => {
     const error = table.errorsOf(row)[key];
+    // ช่องนี้ถูกแก้จริงไหม (ไม่ใช่แค่แถวมีของค้าง) — ย้อมเฉพาะช่องที่เปลี่ยน
+    const changed = table.dirtyRows.find(entry => entry.id === row.variation_id)?.changes[key] !== undefined;
     return (
       <div>
         <NumberInput
           value={(table.field(row, key) as number) ?? 0}
           onChange={value => table.setField(row, key, value as PriceRow[typeof key])}
           min={0}
-          className={error ? 'border-red-400' : undefined}
+          className={error ? 'cell-invalid' : changed ? 'cell-dirty' : undefined}
           aria-label={key}
         />
         {error && <p className="helper-text mt-1 text-red-600 dark:text-red-400">{error}</p>}
@@ -146,14 +153,21 @@ export default function PriceInlineTable({ canEditCost }: Props) {
   const columns: DataTableColumn<PriceRow>[] = [
     {
       key: 'product', label: 'สินค้า', alwaysVisible: true, grow: true, defaultWidth: 260,
-      render: row => (
-        <div className="min-w-0">
-          <p className="truncate" title={row.product_name}>{row.product_name}</p>
-          <p className="page-subtitle truncate">
-            {[row.product_code, row.variation_label, row.sku].filter(Boolean).join(' · ')}
-          </p>
-        </div>
-      ),
+      // ⛔ ชื่อ/บรรทัดรองต้องผ่านของกลาง `lib/product-display.ts` เสมอ — ประกอบเองแล้วได้
+      // ป้าย "-" ของสินค้าที่ไม่มีตัวเลือก และรหัสซ้ำกับ SKU สองรอบ (productSubtitle de-dupe ให้แล้ว)
+      render: row => {
+        const title = productDisplayName(row);
+        const subtitle = productSubtitle(row);
+        return (
+          <div className="flex min-w-0 items-center gap-3">
+            <ProductImageThumb src={row.image || undefined} alt={row.product_name} size="sm" />
+            <div className="min-w-0">
+              <p className="truncate" title={title}>{title}</p>
+              {subtitle && <p className="page-subtitle truncate">{subtitle}</p>}
+            </div>
+          </div>
+        );
+      },
     },
     {
       key: 'default_price', label: 'ราคาปกติ', defaultWidth: 130, align: 'right', stopPropagation: true,

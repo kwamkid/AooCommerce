@@ -192,6 +192,9 @@ export default function StorefrontLinksPage() {
               maxLength={MASTER_SLUG_MAX}
               onChange={event => table.setField(row, 'slug', normalizeMasterSlug(event.target.value))}
               error={error}
+              // สีของช่องมาจากคลาสกลาง (globals.css) — เหลือง = แก้แล้วยังไม่บันทึก · แดง = ผิดกติกา
+              // `className` ของ FormInput ต่อท้ายคลาสของ input เอง จึงทับสีขอบ/พื้นได้
+              className={error ? 'cell-invalid' : table.isDirty(row) ? 'cell-dirty' : ''}
               autoComplete="off"
               spellCheck={false}
               postfix={table.isDirty(row) ? (

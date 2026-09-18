@@ -33,14 +33,14 @@ export async function GET(request: NextRequest) {
       discount_price: number | null;
       cost_price: number | null;
       price_locked: boolean | null;
-      product: { id: string; code: string | null; name: string; is_active: boolean; is_composite: boolean | null } | null;
+      product: { id: string; code: string | null; name: string; image: string | null; is_active: boolean; is_composite: boolean | null } | null;
     };
 
     // Paged — a plain query stops silently at Supabase's 1,000-row cap
     const { rows: data, error } = await fetchAllRows<Row>((from, to) => {
       let q = supabaseAdmin
         .from('product_variations')
-        .select('id, product_id, variation_label, sku, default_price, discount_price, cost_price, price_locked, product:products!inner(id, code, name, is_active, brand_id, category_id, is_composite)')
+        .select('id, product_id, variation_label, sku, default_price, discount_price, cost_price, price_locked, product:products!inner(id, code, name, image, is_active, brand_id, category_id, is_composite)')
         .eq('company_id', companyId)
         .eq('is_active', true)
         .eq('product.is_active', true);
@@ -69,6 +69,9 @@ export async function GET(request: NextRequest) {
           variation_id: v.id,
           product_code: code,
           product_name: v.product?.name || '',
+          // รูปหลักของสินค้า — ตารางแก้ราคาบนเว็บใช้ช่วยให้จำของถูกตัว (ฝั่ง Excel ไม่ได้ใช้)
+          // ใช้รูประดับสินค้าพอ ไม่ไล่รูปรายตัวเลือกเพราะตารางนี้ดูทีละหลายร้อยแถว
+          image: v.product?.image || null,
           variation_label: variationLabel,
           sku,
           default_price: v.default_price ?? 0,
