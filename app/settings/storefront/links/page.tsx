@@ -37,6 +37,7 @@ import {
 } from '@/lib/master-slug';
 import { can } from '@/lib/permissions';
 import { useFetchOnce } from '@/lib/use-fetch-once';
+import { useInlineEditTable } from '@/lib/use-inline-edit-table';
 import { useStorefrontLinks } from '@/lib/useStorefrontLinks';
 import { useToast } from '@/lib/toast-context';
 
@@ -56,8 +57,6 @@ export default function StorefrontLinksPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [rows, setRows] = useState<ProductSlugRow[]>([]);
-  /** ค่าที่แก้ไว้แต่ยังไม่บันทึก — key = product id · ไม่มี key = ยังไม่แตะแถวนั้น */
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(50);
@@ -79,21 +78,21 @@ export default function StorefrontLinksPage() {
 
   useFetchOnce(fetchRows, can(userProfile, 'product.view'));
 
-  /** ค่าที่แสดงในช่อง = ค่าที่แก้ไว้ ถ้ายังไม่แตะก็เป็นค่าจาก DB */
-  const valueOf = useCallback(
-    (row: ProductSlugRow) => (row.id in drafts ? drafts[row.id] : row.slug || ''),
-    [drafts],
-  );
+  // draft ที่ยังไม่บันทึก + ตรวจค่า + ปุ่มคืนค่า อยู่ที่ hook กลาง (lib/use-inline-edit-table)
+  const table = useInlineEditTable<ProductSlugRow>({
+    rows,
+    getId: row => row.id,
+    validateRow: (merged, { others }) => {
+      const error = validateMasterSlug(
+        merged.slug || '',
+        others.map(other => other.slug || '').filter(Boolean),
+      );
+      return error ? { slug: masterSlugErrorMessage(error) } : null;
+    },
+  });
 
-  const setDraft = (row: ProductSlugRow, next: string) => {
-    setDrafts(prev => {
-      const copy = { ...prev };
-      // แก้กลับไปเท่าค่าเดิม = ถือว่าไม่ได้แก้ (ปุ่มบันทึกจะได้ไม่ค้างสว่างทั้งที่ไม่มีอะไรเปลี่ยน)
-      if (next === (row.slug || '')) delete copy[row.id];
-      else copy[row.id] = next;
-      return copy;
-    });
-  };
+  /** ค่าที่แสดงในช่อง = ค่าที่แก้ไว้ ถ้ายังไม่แตะก็เป็นค่าจาก DB */
+  const valueOf = useCallback((row: ProductSlugRow) => table.field(row, 'slug') || '', [table]);
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -103,33 +102,25 @@ export default function StorefrontLinksPage() {
       || (row.code || '').toLowerCase().includes(query));
   }, [rows, search]);
 
-  /** แถวที่แก้แล้วและผ่านกติกา — ใช้ทั้งนับและส่งขึ้น API */
-  const dirtyItems = useMemo(() => Object.entries(drafts).map(([id, slug]) => ({ id, slug })), [drafts]);
-
-  /** แถวที่แก้แล้วแต่ยังผิดกติกา — บันทึกไม่ได้จนกว่าจะแก้ให้ถูก */
-  const invalidCount = useMemo(() => {
-    const taken = rows.map(row => valueOf(row));
-    return dirtyItems.filter(item => {
-      const others = taken.filter((_, index) => rows[index].id !== item.id);
-      return validateMasterSlug(item.slug, others) !== null;
-    }).length;
-  }, [dirtyItems, rows, valueOf]);
+  /** แถวที่แก้แล้ว — ส่งขึ้น API ตรง ๆ */
+  const dirtyItems = useMemo(
+    () => table.dirtyRows.map(entry => ({ id: entry.id, slug: entry.changes.slug || '' })),
+    [table.dirtyRows],
+  );
+  const invalidCount = table.invalidCount;
 
   /** กด "ย่อทั้งหมด" = เติมข้อเสนอลงทุกแถวที่ยาวเกิน (ยังไม่บันทึก) */
   const shortenAll = () => {
-    const next: Record<string, string> = { ...drafts };
-    let count = 0;
-    for (const row of filtered) {
-      const current = row.id in next ? next[row.id] : row.slug || '';
-      if (current.length <= MASTER_SLUG_LONG) continue;
+    const count = table.applyToRows(filtered, row => {
+      const current = row.slug || '';
+      if (current.length <= MASTER_SLUG_LONG) return null;
       const shorter = shortenSlug(current);
-      if (!shorter || shorter === current) continue;
-      if (shorter === (row.slug || '')) delete next[row.id];
-      else next[row.id] = shorter;
-      count += 1;
-    }
-    setDrafts(next);
-    showToast(count ? `ย่อให้ ${count} รายการแล้ว — กดบันทึกเพื่อยืนยัน` : 'ไม่มีลิงก์ที่ยาวเกินเกณฑ์', count ? 'success' : 'error');
+      return shorter && shorter !== current ? { slug: shorter } : null;
+    });
+    showToast(
+      count ? `ย่อให้ ${count} รายการแล้ว — กดบันทึกเพื่อยืนยัน` : 'ไม่มีลิงก์ที่ยาวเกินเกณฑ์',
+      count ? 'success' : 'error',
+    );
   };
 
   const handleSave = async () => {
@@ -145,7 +136,7 @@ export default function StorefrontLinksPage() {
       const result = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(result.error || 'บันทึกไม่สำเร็จ');
       showToast(`บันทึกลิงก์ ${result.updated} รายการแล้ว`);
-      setDrafts({});
+      table.revertAll();
       await fetchRows();
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'บันทึกไม่สำเร็จ', 'error');
@@ -192,23 +183,22 @@ export default function StorefrontLinksPage() {
       key: 'slug', label: 'ลิงก์หน้าร้าน', alwaysVisible: true, defaultWidth: 380, stopPropagation: true,
       render: row => {
         const value = valueOf(row);
-        const others = rows.filter(item => item.id !== row.id).map(item => valueOf(item));
-        const error = row.id in drafts ? validateMasterSlug(value, others) : null;
+        const error = table.errorsOf(row).slug;
         const shorter = value.length > MASTER_SLUG_LONG ? shortenSlug(value) : '';
         return (
           <div className="space-y-1">
             <FormInput
               value={value}
               maxLength={MASTER_SLUG_MAX}
-              onChange={event => setDraft(row, normalizeMasterSlug(event.target.value))}
-              error={error ? masterSlugErrorMessage(error) : undefined}
+              onChange={event => table.setField(row, 'slug', normalizeMasterSlug(event.target.value))}
+              error={error}
               autoComplete="off"
               spellCheck={false}
-              postfix={row.id in drafts ? (
+              postfix={table.isDirty(row) ? (
                 <button
                   type="button"
                   className="text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-slate-300"
-                  onClick={() => setDraft(row, row.slug || '')}
+                  onClick={() => table.revertRow(row)}
                   title="คืนค่าเดิม"
                   aria-label="คืนค่าเดิม"
                 ><ResetIcon className="w-4 h-4" /></button>
@@ -218,7 +208,7 @@ export default function StorefrontLinksPage() {
               <button
                 type="button"
                 className="helper-text font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400"
-                onClick={() => setDraft(row, shorter)}
+                onClick={() => table.setField(row, 'slug', shorter)}
               >
                 ย่อเป็น {shorter}
               </button>
@@ -300,7 +290,7 @@ export default function StorefrontLinksPage() {
         saving={saving}
         dirty={dirtyItems.length > 0}
         disabled={invalidCount > 0}
-        onCancel={dirtyItems.length ? () => setDrafts({}) : undefined}
+        onCancel={dirtyItems.length ? table.revertAll : undefined}
         saveLabel={dirtyItems.length ? `บันทึก ${dirtyItems.length} รายการ` : 'บันทึก'}
       />
     </Layout>
