@@ -14,8 +14,6 @@ import {
   type ShopeePushPayload,
 } from '@/lib/shopee/push-handlers';
 import crypto from 'crypto';
-import { issueOrderDocuments } from '@/lib/documents/issue-order-documents';
-import { deductOrderStockOnce } from '@/lib/stock/order-stock';
 
 // Allow up to 60s — sync runs in background via after() but Vercel
 // still needs the function alive for background work to complete.
@@ -421,20 +419,30 @@ async function handleOrderTracking(
   };
   if (trackingNo) updatePayload.tracking_number = trackingNo;
 
-  // Also advance to shipping if still in processing (tracking = ขนส่งรับพัสดุแล้ว)
-  if (trackingNo) {
-    const { data: currentOrder } = await supabaseAdmin
-      .from('orders')
-      .select('order_status')
-      .eq('id', order.id)
-      .single();
-
-    if (currentOrder && currentOrder.order_status === 'processing') {
-      updatePayload.order_status = 'shipping';
-      updatePayload.external_status = 'SHIPPED';
-    }
-  }
-
+  /**
+   * ⛔ **push นี้แตะได้แค่เลขพัสดุ ห้ามเลื่อนสถานะออเดอร์** (แก้ 18 ก.ย. 2569)
+   *
+   * **"มีเลขพัสดุ" ≠ "ขนส่งรับของไปแล้ว"** — พอกดรับออเดอร์ Shopee ออกเลขพัสดุให้ทันที
+   * แล้ว push code 4 มาเลย แต่สถานะฝั่ง Shopee ยังเป็น `PROCESSED` (รอรถมารับ) และ
+   * Seller Center ยังโชว์ "ที่ต้องจัดส่ง" อยู่ · ของยังอยู่ที่ร้าน
+   *
+   * ของเดิมเลื่อนเป็น `shipping` + เขียนทับ `external_status='SHIPPED'` ตรงนี้ ทำให้
+   * ใบเด้งข้ามแท็บ "ที่ต้องจัดส่ง" ไปอยู่ "กำลังส่ง" ทันทีที่กดรับ — เจอจริง 18 ก.ย. 2569
+   * 8 ใบในเช้าเดียว (260918BJ5QSS2H · 260917AD1KR6AN · 260918B6WV77PD · 260918AWYK8UNY ·
+   * 260918AKT9U7PQ · 2609179YTN41E4 · 2609179VM3HBKC · 260918BHTVPSR0) — ทั้งหมด
+   * **ไม่เคยมี push code 3 ที่ status = SHIPPED จาก Shopee เลยสักใบ** เราดันเอง
+   *
+   * ผลพลอยได้ที่หายไปด้วย: การเขียน SHIPPED ล่วงหน้าทำให้ `syncSingleOrder` รอบถัดไป
+   * เห็น `statusChanged === false` แล้วข้ามบล็อกตัดสต็อก ⇒ ของออกจริงแต่ยอดไม่เคยถูกตัด
+   * (เคยตามแก้ด้วยการตัดสต็อกซ้ำตรงนี้ 18 ก.ย. เช้า — พอไม่ดันสถานะแล้วก็ไม่ต้องมี)
+   *
+   * ⇒ **สถานะและการตัดสต็อกเป็นหน้าที่ของ `syncSingleOrder()` ทางเดียว** (push code 3
+   * ซึ่งอ่านสถานะจริงจาก Shopee แล้ว map ผ่าน `mapShopeeStatus`) · เอกสาร ABB/REC ก็ออก
+   * ตั้งแต่ตอน `processing` + paid อยู่แล้ว ไม่ต้องรอ shipping
+   *
+   * บทเรียนเดียวกับ fix-bug.md 2026-08-29: **ความจริงคือ push ล่าสุดของ Shopee
+   * ห้ามดันสถานะไปข้างหน้าถ้าโลกจริงยังไปไม่ถึง**
+   */
   const { error: orderErr } = await supabaseAdmin
     .from('orders')
     .update(updatePayload)
@@ -443,34 +451,7 @@ async function handleOrderTracking(
   if (orderErr) {
     console.error(`[Shopee Webhook] Failed to update order tracking for ${orderSn}:`, orderErr.message);
   } else {
-    console.log(`[Shopee Webhook] Updated order tracking: ${orderSn} → ${trackingNo}${updatePayload.order_status ? ' (→ shipping)' : ''}`);
-
-    if (updatePayload.order_status) {
-      // Auto-issue document (ABB/REC)
-      await issueOrderDocuments([order.id], account.company_id);
-
-      /**
-       * **ต้องตัดสต็อกที่นี่ด้วย ห้ามฝากไว้ให้ sync รอบถัดไป**
-       *
-       * บล็อกข้างบนเพิ่งเขียน `external_status = 'SHIPPED'` ลงไปแล้ว ⇒ ตัวซิงค์รอบถัดไป
-       * จะเห็น `statusChanged === false` แล้วข้ามทั้งบล็อกที่มี deductOrderStockOnce
-       * (lib/shopee/sync.ts) ⇒ ของออกจากคลังจริงแต่ยอดไม่เคยถูกตัด **ถาวร**
-       * เจอจริง 17 ก.ย. 2026 สองใบในวันเดียว (2609179BH1XS6K · 2609179H7AJ3D7)
-       *
-       * ตัวกลางกันตัดซ้ำจากหลักฐานใน inventory_transactions อยู่แล้ว เรียกซ้อนกับ
-       * sync ได้ไม่เป็นไร
-       */
-      const stock = await deductOrderStockOnce({
-        companyId: account.company_id,
-        orderId: order.id,
-        warehouseId: order.warehouse_id as string | null,
-        reference: `Shopee ${orderSn}`,
-        excludeAccountId: account.id,   // ร้านต้นทางตัดของตัวเองไปแล้ว
-      });
-      if (stock.errors.length > 0) {
-        console.error(`[Shopee Webhook] ตัดสต็อก ${orderSn} ไม่ครบ:`, stock.errors.join(' · '));
-      }
-    }
+    console.log(`[Shopee Webhook] Updated order tracking: ${orderSn} → ${trackingNo}`);
   }
 }
 
