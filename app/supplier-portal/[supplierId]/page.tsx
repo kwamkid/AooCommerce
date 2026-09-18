@@ -9,6 +9,7 @@ import Button from '@/components/ui/Button';
 import { FullPageLoading } from '@/components/ui/Loading';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { productDisplayName } from '@/lib/product-display';
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
 
 interface VariationInfo {
   id: string;
@@ -479,18 +480,7 @@ export default function SupplierPortalPage() {
                   {group.items.map((item, idx) => (
                     <div key={idx} className="flex items-center justify-between px-4 py-3">
                       <div className="flex items-center gap-3 min-w-0">
-                        {item.variation?.product?.image ? (
-                          <img
-                            src={item.variation.product.image}
-                            alt=""
-                            className="w-11 h-11 rounded object-cover flex-shrink-0 cursor-zoom-in"
-                            onClick={() => setLightboxImage(item.variation!.product!.image)}
-                          />
-                        ) : (
-                          <div className="w-11 h-11 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                            <ProductIcon className="w-4 h-4 text-gray-400" />
-                          </div>
-                        )}
+                        <ProductImageThumb src={item.variation?.product?.image} alt={item.variation?.product?.name || ''} size="md" />
                         <div className="min-w-0">
                           <p className="text-sm text-gray-900 dark:text-white truncate">{getDisplayName(item.variation)}</p>
                           {item.variation?.sku && <p className="text-xs text-gray-500 dark:text-slate-400">SKU: {item.variation.sku}</p>}

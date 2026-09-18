@@ -8,6 +8,7 @@ import { productDisplayName } from '@/lib/product-display';
 import NumberInput from '@/components/ui/NumberInput';
 import { FullPageLoading } from '@/components/ui/Loading';
 import StatusBadge from '@/components/ui/StatusBadge';
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
 
 interface StockItem {
   variation_id: string;
@@ -444,18 +445,7 @@ export default function ConsignmentPortalPage() {
                       <tr key={item.variation_id}>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
-                            {item.image_url ? (
-                              <img
-                                src={item.image_url}
-                                alt={item.product_name}
-                                className="w-11 h-11 rounded object-cover flex-shrink-0 cursor-zoom-in"
-                                onClick={() => setLightboxImage(item.image_url)}
-                              />
-                            ) : (
-                              <div className="w-11 h-11 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                                <ProductIcon className="w-4 h-4 text-gray-400 dark:text-slate-500" />
-                              </div>
-                            )}
+                            <ProductImageThumb src={item.image_url} alt={item.product_name} size="md" />
                             <div className="min-w-0">
                               <p className="text-sm text-gray-900 dark:text-white line-clamp-2 leading-snug">
                                 {productDisplayName(item)}

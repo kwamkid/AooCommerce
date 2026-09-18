@@ -8,6 +8,7 @@ import { AddIcon, LoadingIcon, ProductIcon } from '@/lib/icons';
 import { formatNumber } from '@/lib/utils/format';
 import { useDropUp } from '@/lib/useDropUp';
 import { useDebouncedCallback } from '@/lib/useDebounce';
+import { sellingPrice } from '@/lib/product-display';
 
 /** = max-h-72 ของกล่องผลลัพธ์ — ใช้เดาความสูงเฉพาะรอบแรกที่ยังวัดของจริงไม่ได้ */
 const DROPDOWN_MAX_H = 288;
@@ -414,10 +415,8 @@ export default function ProductSearchInput({
                       if (product.max_price && product.max_price > product.default_price) {
                         // Price range for product-level items
                         parts.push(`฿${formatNumber(product.default_price)} - ฿${formatNumber(product.max_price)}`);
-                      } else if (product.discount_price != null && product.discount_price > 0 && product.discount_price < product.default_price) {
-                        parts.push(`฿${formatNumber(product.discount_price)}`);
                       } else {
-                        parts.push(`฿${formatNumber(product.default_price)}`);
+                        parts.push(`฿${formatNumber(sellingPrice(product))}`);
                       }
                     }
                     return parts.join(' | ');

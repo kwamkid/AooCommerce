@@ -15,6 +15,7 @@ import {
   buildSignatureFooter,
   buildProductNameStack,
 } from './pdf-utils';
+import { productDisplayName } from '@/lib/product-display';
 
 // ─── PO PDF ─────────────────────────────────────────
 
@@ -49,9 +50,11 @@ interface POData {
 const PO_THEME = { primary: '#2563eb' }; // Blue for PO
 
 function getItemName(item: POItem): string {
-  const name = item.variation?.product?.name || '-';
-  const varLabel = item.variation?.variation_label;
-  return varLabel ? `${name} - ${varLabel}` : name;
+  return productDisplayName({
+    product_name: item.variation?.product?.name || '-',
+    variation_label: item.variation?.variation_label,
+    sku: item.variation?.sku,
+  });
 }
 
 function getItemSubtitle(item: POItem): string {
@@ -273,8 +276,7 @@ const REPORT_THEMES: Record<string, { primary: string }> = {
 
 function getVarName(v: ReportVariation | null): string {
   if (!v) return '-';
-  const name = v.product?.name || '';
-  return v.variation_label ? `${name} - ${v.variation_label}` : name;
+  return productDisplayName({ product_name: v.product?.name, variation_label: v.variation_label, sku: v.sku });
 }
 
 function getVarSub(v: ReportVariation | null): string {

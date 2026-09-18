@@ -24,6 +24,7 @@ import {
   type OrderStockContext,
 } from '@/lib/stock/order-stock';
 import { issueOrderDocuments } from '@/lib/documents/issue-order-documents';
+import { VARIATION_SEPARATOR } from '@/lib/product-display';
 
 // --- Sync Progress ---
 
@@ -646,7 +647,7 @@ async function createNewOrder(
 
     const sku = item.seller_sku || '';
     const itemName = item.sku_name
-      ? `${item.product_name} - ${item.sku_name}`
+      ? `${item.product_name}${VARIATION_SEPARATOR}${item.sku_name}`
       : item.product_name;
 
     const matched = await findOrCreateVariationBySku(companyId, sku, itemName, price, {

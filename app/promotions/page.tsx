@@ -18,12 +18,11 @@ import { LoadingCard, EmptyCard } from '@/components/ui/StateCard';
 import UiStatusBadge, { InfoChip } from '@/components/ui/StatusBadge';
 import Badge from '@/components/ui/Badge';
 import { FilterX } from 'lucide-react';
-import { AddIcon, PromoBundleIcon, PromoFreeGiftIcon, PromoSpecialPriceIcon, PromoQtyIcon, CloseIcon, DeleteIcon, EditIcon, PromotionIcon, SendIcon, WarningIcon } from '@/lib/icons';
+import { AddIcon, PromoBundleIcon, PromoFreeGiftIcon, PromoSpecialPriceIcon, PromoQtyIcon, DeleteIcon, EditIcon, PromotionIcon, SendIcon, WarningIcon } from '@/lib/icons';
 import PushDealModal from './components/PushDealModal';
 import { useFeatures } from '@/lib/features-context';
 import { useToast } from '@/lib/toast-context';
 import { getStatusHeaderTint } from '@/lib/status-tab-colors';
-import { thumbUrl } from '@/lib/image-thumb';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
 
 // ─── Types ──────────────────────────────────────────────
@@ -140,29 +139,6 @@ function RoleBadge({ role }: { role: string }) {
   return null;
 }
 
-// Lightbox for single image
-function ImageLightbox({ url, onClose }: { url: string; onClose: () => void }) {
-  return (
-    <div
-      className="fixed inset-0 z-[999] bg-black/90 flex items-center justify-center"
-      onClick={onClose}
-      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
-      tabIndex={0}
-      ref={(el) => el?.focus()}
-    >
-      <button
-        onClick={onClose}
-        className="absolute top-4 right-4 p-2.5 bg-white/20 hover:bg-white/30 rounded-full transition-colors text-white z-10"
-      >
-        <CloseIcon className="w-5 h-5" />
-      </button>
-      <div className="max-w-[90vw] max-h-[85vh]" onClick={(e) => e.stopPropagation()}>
-        <img src={url} alt="" className="max-w-full max-h-[85vh] object-contain rounded-lg select-none" draggable={false} />
-      </div>
-    </div>
-  );
-}
-
 // ─── Promotion Card ─────────────────────────────────────
 
 function PromotionCard({
@@ -170,14 +146,12 @@ function PromotionCard({
   onEdit,
   onDelete,
   onPush,
-  onImageClick,
   showMarketplace = false,
 }: {
   promo: PromotionItem;
   onEdit: () => void;
   onDelete: () => void;
   onPush?: () => void;
-  onImageClick: (url: string) => void;
   /** ร้านเปิดฟีเจอร์ marketplace อยู่ไหม — ปิดแล้วห้ามโชว์อะไรที่เป็น Shopee เลย */
   showMarketplace?: boolean;
 }) {
@@ -314,13 +288,7 @@ function PromotionCard({
         <div className="flex-[3] py-3 px-4 flex flex-col justify-center items-end gap-2">
           {/* Promotion image */}
           {promo.image && (
-            <div
-              className="w-20 h-20 rounded-lg bg-gray-100 dark:bg-slate-700 overflow-hidden flex-shrink-0"
-              onClick={(e) => { e.stopPropagation(); onImageClick(promo.image!); }}
-              style={{ cursor: 'zoom-in' }}
-            >
-              <img src={thumbUrl(promo.image, 160)} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
-            </div>
+            <ProductImageThumb src={promo.image} alt={promo.name} size="xl" />
           )}
 
           {/* Price */}
@@ -380,7 +348,6 @@ function PromotionsPageContent() {
   const [loading, setLoading] = useState(true);
   const [loadTime, setLoadTime] = useState<number | null>(null);
   const [pushModalPromo, setPushModalPromo] = useState<PromotionItem | null>(null);
-  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PromotionItem | null>(null);
   const [deletingShopee, setDeletingShopee] = useState(false);
   const { features } = useFeatures();
@@ -551,7 +518,6 @@ function PromotionsPageContent() {
                   ? () => setPushModalPromo(promo)
                   : undefined
               }
-              onImageClick={(url) => setLightboxUrl(url)}
             />
           ))}
         </div>
@@ -582,11 +548,6 @@ function PromotionsPageContent() {
           endDate={pushModalPromo.end_date}
           onClose={() => setPushModalPromo(null)}
         />
-      )}
-
-      {/* Image Lightbox */}
-      {lightboxUrl && (
-        <ImageLightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />
       )}
 
       {/* Delete Confirm Dialog */}

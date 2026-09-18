@@ -18,6 +18,7 @@ import EntitySearchInput, { EntitySearchOption } from '@/components/ui/EntitySea
 import { BrandIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, LoadingIcon, ProductIcon, SupplierIcon } from '@/lib/icons';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import { LoadingCard } from '@/components/ui/StateCard';
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
 
 interface BrandDetail {
   id: string;
@@ -141,13 +142,7 @@ export default function BrandDetailPage() {
             id: p.product_id,
             label: p.name,
             subtitle: p.code + (p.brand_id && p.brand_id !== id ? ' (มี Brand อื่น)' : ''),
-            icon: p.main_image_url || p.image ? (
-              <img src={getImageUrl(p.main_image_url || p.image)} alt="" className="w-10 h-10 rounded object-cover" />
-            ) : (
-              <div className="w-10 h-10 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center">
-                <ProductIcon className="w-5 h-5 text-gray-400" />
-              </div>
-            ),
+            icon: <ProductImageThumb src={getImageUrl(p.main_image_url || p.image)} alt={p.name} size="sm" disabled />,
           }))
       );
     } catch (err) {
@@ -311,17 +306,7 @@ export default function BrandDetailPage() {
                 {paginatedProducts.map(product => (
                   <div key={product.id} className="flex items-center gap-4 px-5 py-3 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
                     {/* Product image */}
-                    {product.image ? (
-                      <img
-                        src={getImageUrl(product.image)}
-                        alt={product.name}
-                        className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
-                      />
-                    ) : (
-                      <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                        <ProductIcon className="w-7 h-7 text-gray-400" />
-                      </div>
-                    )}
+                    <ProductImageThumb src={getImageUrl(product.image)} alt={product.name} size="lg" />
 
                     {/* Product info */}
                     <div className="flex-1 min-w-0">

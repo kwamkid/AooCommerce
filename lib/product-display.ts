@@ -125,3 +125,18 @@ export function priceParts(v: ProductPriceFields): { price: number; original: nu
 export function gpBasePrice(v: ProductPriceFields, base?: string | null): number {
   return base === 'discounted' ? sellingPrice(v) : num(v.default_price);
 }
+
+/** ข้อความเตือนของกฎ "ราคาลดต้องน้อยกว่าราคาปกติ" — ข้อความเดียวทั้งระบบ */
+export const DISCOUNT_PRICE_ERROR = 'ราคาลดเหลือต้องน้อยกว่าราคาปกติ';
+
+/**
+ * ตรวจกฎราคาลดของทั้งระบบ — `discount_price = 0` แปลว่า "ไม่มีส่วนลด" อนุญาตเสมอ
+ * คืน `null` เมื่อผ่าน · คืนข้อความเตือนเมื่อไม่ผ่าน
+ *
+ * ด่านเดียวกันนี้บังคับที่ DB ด้วย (RPC `bulk_create_products` /
+ * `bulk_update_variation_prices`) — แก้ข้อความ/กฎต้องแก้ทั้งสองที่
+ */
+export function discountPriceError(v: ProductPriceFields): string | null {
+  const discount = num(v.discount_price);
+  return discount > 0 && discount >= num(v.default_price) ? DISCOUNT_PRICE_ERROR : null;
+}

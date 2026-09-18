@@ -35,6 +35,7 @@ import {
   type OrderStockContext,
 } from '@/lib/stock/order-stock';
 import { issueOrderDocuments } from '@/lib/documents/issue-order-documents';
+import { VARIATION_SEPARATOR } from '@/lib/product-display';
 
 export interface SyncProgressEvent {
   phase: 'collecting' | 'processing' | 'done';
@@ -500,7 +501,7 @@ async function createNewOrder(
     paidTotal += paidSum;
 
     const itemName = item.variation && item.variation.trim() && item.variation !== '...'
-      ? `${item.name} - ${item.variation}`
+      ? `${item.name}${VARIATION_SEPARATOR}${item.variation}`
       : item.name;
 
     const matched = await findOrCreateVariationBySku(companyId, item.sku || '', itemName, listPrice, {

@@ -1,3 +1,4 @@
+import { sellingPrice } from '@/lib/product-display';
 /**
  * Composite products (สินค้าชุด) — client-safe helpers shared by the product form,
  * `/api/products` and the Excel importer.
@@ -73,7 +74,7 @@ export function comboPrice(parts: { default_price: number; discount_price: numbe
     const d = Number(p.default_price) || 0;
     const disc = Number(p.discount_price) || 0;
     def += d * p.quantity;
-    eff += (disc > 0 ? disc : d) * p.quantity;
+    eff += sellingPrice(p) * p.quantity;
     if (disc > 0) hasDiscount = true;
   }
   return { default_price: def, discount_price: hasDiscount && eff < def ? eff : 0 };

@@ -19,7 +19,7 @@ import { ResetIcon } from '@/lib/icons';
 import { apiFetch } from '@/lib/api-client';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useInlineEditTable } from '@/lib/use-inline-edit-table';
-import { productDisplayName, productSubtitle } from '@/lib/product-display';
+import { discountPriceError, productDisplayName, productSubtitle } from '@/lib/product-display';
 import { useToast } from '@/lib/toast-context';
 import { COMPOSITE_TYPE_LABEL } from '@/lib/bulk/composite-ref';
 
@@ -77,9 +77,8 @@ export default function PriceInlineTable({ canEditCost }: Props) {
       const errors: Record<string, string> = {};
       if (merged.default_price < 0) errors.default_price = 'ราคาต้องไม่ติดลบ';
       if (merged.discount_price < 0) errors.discount_price = 'ราคาต้องไม่ติดลบ';
-      if (merged.discount_price > 0 && merged.discount_price >= merged.default_price) {
-        errors.discount_price = 'ราคาลดเหลือต้องน้อยกว่าราคาปกติ';
-      }
+      const discountError = discountPriceError(merged);
+      if (discountError) errors.discount_price = discountError;
       if (canEditCost && (merged.cost_price ?? 0) < 0) errors.cost_price = 'ต้นทุนต้องไม่ติดลบ';
       return errors;
     },

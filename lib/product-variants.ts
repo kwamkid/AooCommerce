@@ -22,6 +22,7 @@
 // the groups' value order (grid order, like the generated table).
 
 import type { FieldErrors, OptionGroup } from '@/components/products/form/types';
+import { discountPriceError } from '@/lib/product-display';
 
 export const MAX_OPTION_GROUPS = 2;
 export const MAX_OPTION_VALUES = 50;
@@ -367,9 +368,8 @@ export function validateVariantRows(rows: VariantRowCore[], groupNames: string[]
       if (!v.attributes[name]?.trim()) errors[`variation.${i}.${name}`] = 'กรุณากรอก';
     }
     if (!(v.default_price > 0)) errors[`variation.${i}.price`] = 'ต้องมากกว่า 0';
-    if (v.discount_price > 0 && v.discount_price >= v.default_price) {
-      errors[`variation.${i}.discount`] = 'ราคาลดเหลือต้องน้อยกว่าราคาปกติ';
-    }
+    const discountError = discountPriceError(v);
+    if (discountError) errors[`variation.${i}.discount`] = discountError;
   });
 
   const dupCheck = (value: (v: VariantRowCore) => string, errorKey: (i: number) => string, message: (n: number) => string) => {

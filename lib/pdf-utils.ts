@@ -3,6 +3,8 @@
  * Used by inventory-pdf.ts and order-invoice-pdf.ts.
  */
 
+import { productDisplayName } from '@/lib/product-display';
+
 export interface CompanyInfo {
   name: string;
   address?: string;
@@ -210,11 +212,8 @@ export function buildProductNameStack(
   notes?: string | null,
 ): any[] {
   const maxLen = 140;
-  const cleanLabel = variationLabel && variationLabel !== sku && !/^\d+$/.test(variationLabel)
-    ? variationLabel : '';
-  const fullName = cleanLabel
-    ? `${productName} - ${cleanLabel}`
-    : productName;
+  // ชื่อ + ตัวเลือก ใช้กติกาเดียวกับหน้าจอ (lib/product-display.ts)
+  const fullName = productDisplayName({ product_name: productName, variation_label: variationLabel, sku });
   const truncated = fullName.length > maxLen
     ? fullName.slice(0, maxLen) + '...'
     : fullName;

@@ -23,7 +23,7 @@ import { useFeatures } from '@/lib/features-context';
 import { useDebouncedCallback } from '@/lib/useDebounce';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { formatNumber } from '@/lib/utils/format';
-import { cleanVariationLabel } from '@/lib/product-display';
+import { VARIATION_SEPARATOR, cleanVariationLabel } from '@/lib/product-display';
 import AdjustStockModal from './AdjustStockModal';
 import type {
   StockRow, StockStatusCounts, StockTransitRow, StockWarehouseRow, WarehouseItem,
@@ -376,7 +376,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
       product_code: row.product_code,
       attributes: row.attributes,
     });
-    return sub ? `${row.product_name} - ${sub}` : row.product_name;
+    return sub ? `${row.product_name}${VARIATION_SEPARATOR}${sub}` : row.product_name;
   };
 
   const transitRowsOf = (row: StockRow) => (row.in_transit_breakdown as StockTransitRow[]).map(t => ({

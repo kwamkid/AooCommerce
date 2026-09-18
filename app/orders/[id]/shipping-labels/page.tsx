@@ -11,6 +11,7 @@ import QRCode from 'qrcode';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import Layout from '@/components/layout/Layout';
 import { LoadingCard } from '@/components/ui/StateCard';
+import { productDisplayName } from '@/lib/product-display';
 
 interface ShippingAddress {
   id: string;
@@ -271,8 +272,7 @@ export default function ShippingLabelsPage() {
                         <tr key={itemIndex}>
                           <td className="table-cell-no">{itemIndex + 1}</td>
                           <td className="table-cell-product">
-                            {item.product_name}
-                            {item.variation_label && ` (${item.variation_label})`}
+                            {productDisplayName(item)}
                           </td>
                           <td className="table-cell-qty">{item.quantity} ขวด</td>
                         </tr>

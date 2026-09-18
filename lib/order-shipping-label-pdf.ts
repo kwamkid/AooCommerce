@@ -30,6 +30,7 @@ import {
 } from './pdf-utils';
 import { cleanVariationLabel } from './product-display';
 import { resolveCarrierLabel } from './carrier-lookup';
+import { productDisplayName } from '@/lib/product-display';
 
 // ─── Interfaces ──────────────────────────────────────────
 
@@ -388,8 +389,7 @@ export async function generateShippingLabelPdf({ data, company, pageSizeOverride
   ];
 
   data.items.forEach((item, idx) => {
-    const varLabel = cleanVariationLabel({ product_name: item.product_name, variation_label: item.variation_label, sku: item.sku, product_code: item.product_code });
-    const fullName = varLabel ? `${item.product_name} - ${varLabel}` : item.product_name;
+    const fullName = productDisplayName(item);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const nameStack: any[] = [{ text: truncate(fullName), fontSize: 7, color: '#333333' }];
     if (item.sku) nameStack.push({ text: item.sku, fontSize: 6, color: '#999999' });

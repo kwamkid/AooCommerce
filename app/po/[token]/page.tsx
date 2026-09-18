@@ -8,6 +8,7 @@ import { DarkThemeIcon, DocumentIcon, ErrorIcon, LightThemeIcon, PrintIcon, Supp
 import { FullPageLoading } from '@/components/ui/Loading';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { getImageUrl } from '@/lib/utils/image';
+import { cleanVariationLabel } from '@/lib/product-display';
 
 interface POItem {
   product_name: string;
@@ -253,8 +254,8 @@ export default function PublicPOPage() {
                           <div className={`text-sm font-medium truncate ${dark ? 'text-white' : 'text-gray-900'}`}>
                             {item.product_name}
                           </div>
-                          {item.variation_label && item.variation_label !== 'default' && (
-                            <div className={`text-xs ${dark ? 'text-white/40' : 'text-gray-500'}`}>{item.variation_label}</div>
+                          {cleanVariationLabel(item) && (
+                            <div className={`text-xs ${dark ? 'text-white/40' : 'text-gray-500'}`}>{cleanVariationLabel(item)}</div>
                           )}
                         </div>
                       </div>
@@ -279,8 +280,8 @@ export default function PublicPOPage() {
                     <div className={`text-sm font-medium truncate ${dark ? 'text-white' : 'text-gray-900'}`}>
                       {item.product_name}
                     </div>
-                    {item.variation_label && item.variation_label !== 'default' && (
-                      <div className={`text-xs ${dark ? 'text-white/40' : 'text-gray-500'}`}>{item.variation_label}</div>
+                    {cleanVariationLabel(item) && (
+                      <div className={`text-xs ${dark ? 'text-white/40' : 'text-gray-500'}`}>{cleanVariationLabel(item)}</div>
                     )}
                     {item.sku && <div className={`text-xs ${dark ? 'text-white/40' : 'text-gray-500'}`}>SKU: {item.sku}</div>}
                   </div>

@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { productDisplayName } from '@/lib/product-display';
 
 export interface StockConfig {
   stockEnabled: boolean;
@@ -138,7 +139,7 @@ async function variationLabels(companyId: string, ids: string[]): Promise<Record
     id: string; variation_label: string | null; sku: string | null; product: { name?: string } | null;
   }[]) {
     const name = row.product?.name || row.sku || row.id;
-    map[row.id] = row.variation_label ? `${name} - ${row.variation_label}` : name;
+    map[row.id] = productDisplayName({ product_name: name, variation_label: row.variation_label, sku: row.sku });
   }
   return map;
 }

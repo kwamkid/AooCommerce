@@ -6,6 +6,7 @@ import {
   getOrderSplitAttributes,
   splitTikTokOrder,
 } from '@/lib/tiktok/api';
+import { VARIATION_SEPARATOR } from '@/lib/product-display';
 
 interface ParcelInput {
   items: { order_item_id: string; quantity: number }[];
@@ -258,7 +259,7 @@ export async function POST(req: NextRequest) {
         for (const li of (((fullOrder?.external_data as Record<string, unknown>)?.line_items || []) as
           { id?: string; product_name?: string; sku_name?: string }[])) {
           if (!li.id) continue;
-          const name = li.sku_name ? `${li.product_name} - ${li.sku_name}` : (li.product_name || '');
+          const name = li.sku_name ? `${li.product_name}${VARIATION_SEPARATOR}${li.sku_name}` : (li.product_name || '');
           liByName.set(name, [...(liByName.get(name) || []), String(li.id)]);
         }
         for (const oi of missing) {

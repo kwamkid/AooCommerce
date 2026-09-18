@@ -29,7 +29,6 @@ import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { useLiveRefresh } from '@/lib/useLiveRefresh';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
-import { thumbUrl } from '@/lib/image-thumb';
 import { formatDateParts, formatNumber, formatPrice } from '@/lib/utils/format';
 import { BROADCAST_PLATFORMS, isBroadcastPlatform } from '@/lib/broadcast/platforms';
 import {
@@ -40,6 +39,7 @@ import {
   type StoredAudienceFilter,
 } from '@/lib/broadcast/audience';
 import { AddIcon, BroadcastIcon, ErrorIcon, ReportIcon, SendIcon } from '@/lib/icons';
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
 
 interface BroadcastStats {
   replied_count: number;
@@ -150,15 +150,7 @@ function SendDate({ row }: { row: BroadcastRow }) {
 function MessagePreview({ row }: { row: BroadcastRow }) {
   return (
     <div className="flex items-start gap-3">
-      {row.preview_image && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={thumbUrl(row.preview_image, 96)}
-          alt=""
-          loading="lazy"
-          className="w-12 h-12 flex-shrink-0 rounded-md object-cover bg-gray-100 dark:bg-slate-700"
-        />
-      )}
+      {row.preview_image && <ProductImageThumb src={row.preview_image} alt="" size="md" disabled />}
       <div className="min-w-0">
         <p className="data-text text-gray-900 dark:text-white line-clamp-2 break-words whitespace-pre-wrap">
           {row.preview || '-'}

@@ -54,6 +54,7 @@ import Link from 'next/link';
 import { isValidEmail, EMAIL_INVALID_MESSAGE } from '@/lib/email';
 import { normalizePhone } from '@/lib/numeric-input';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
+import { sellingPrice } from '@/lib/product-display';
 // ข้อความเดียวกันทั้ง validate ตอนบันทึก และตอนกด "ถัดไป" ในเปลือก wizard
 // (เขียนคนละที่แล้วดริฟต์กันคือวิธีที่ผู้ใช้เจอสองข้อความสำหรับเรื่องเดียวกัน)
 const NO_ITEMS_ERROR = 'กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ';
@@ -1827,10 +1828,8 @@ export default function OrderForm({
       if (customerLastPrice) {
         unit_price = customerLastPrice.unit_price;
         discount_value = customerLastPrice.discount_percent;
-      } else if (product.discount_price && product.discount_price > 0) {
-        unit_price = product.discount_price;
       } else {
-        unit_price = product.default_price;
+        unit_price = sellingPrice(product);
       }
 
       const newProduct: BranchProduct = {

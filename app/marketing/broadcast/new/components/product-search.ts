@@ -7,7 +7,7 @@ import type { ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import { apiFetch } from '@/lib/api-client';
 import type { ServerSearchPage } from '@/lib/useServerSearch';
 import type { BroadcastProductCard } from '@/lib/broadcast/content';
-import { cleanVariationLabel } from '@/lib/product-display';
+import { hasDiscount, productDisplayName, sellingPrice } from '@/lib/product-display';
 
 export async function fetchProductPage(q: string): Promise<ServerSearchPage<ProductSearchItem>> {
   const res = await apiFetch(`/api/products/search?q=${encodeURIComponent(q)}&limit=40`);
@@ -28,23 +28,16 @@ export async function fetchProductPage(q: string): Promise<ServerSearchPage<Prod
 
 /** การ์ดสินค้าจากผลค้นหา — ใช้ทั้งการ์ดจากสินค้าและ "ไปที่สินค้า" ของทุกจุดที่กดได้ */
 export function productSearchItemToCard(p: ProductSearchItem): BroadcastProductCard {
-  const discounted = !!p.discount_price && p.discount_price > 0;
+  const discounted = hasDiscount(p);
   return {
     product_id: p.product_id,
     variation_id: p.id,
     // ชื่อบนการ์ดต้องแยกตัวเลือกออกจากกัน ไม่งั้นได้การ์ด "YOYO 0+ Newborn Pack" 5 ใบเหมือนกันหมด
-    // ⚠️ แต่ต้องผ่าน `cleanVariationLabel` — ร้านตั้ง variation_label เป็นบาร์โค้ด/sku ได้
+    // ⚠️ ต้องผ่านตัวกลาง `productDisplayName` — ร้านตั้ง variation_label เป็นบาร์โค้ด/sku ได้
     // (ของจริง 42% เป็นตัวเลขล้วน) ปล่อยดิบแล้วการ์ดที่ส่งหาลูกค้าจะมีบาร์โค้ดต่อท้ายชื่อ
-    name: (() => {
-      const label = cleanVariationLabel({
-        variation_label: p.variation_label,
-        sku: p.sku,
-        barcode: p.barcode,
-      });
-      return label ? `${p.name} - ${label}` : p.name;
-    })(),
+    name: productDisplayName({ product_name: p.name, variation_label: p.variation_label, sku: p.sku, barcode: p.barcode }),
     image_url: p.image ?? null,
-    price: discounted ? (p.discount_price as number) : p.default_price ?? 0,
+    price: sellingPrice(p),
     // ราคาปกติเก็บไว้เฉพาะตอนลดจริง — การ์ดถึงจะขึ้นป้าย "ลด N%" กับราคาขีดฆ่าได้
     compare_at_price: discounted ? p.default_price ?? null : null,
     url: null,

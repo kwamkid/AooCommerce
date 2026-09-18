@@ -1,4 +1,5 @@
 import { apiFetch } from '@/lib/api-client';
+import { gpBasePrice } from '@/lib/product-display';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -45,10 +46,7 @@ function buildResult(
   gp_level: 1 | 2 | 3 | 4,
   product: ProductForGp,
 ): GpResolution {
-  const base_price =
-    gp_base_price === 'discounted' && product.discount_price > 0
-      ? product.discount_price
-      : product.default_price;
+  const base_price = gpBasePrice(product, gp_base_price);
   const unit_price = Math.round(base_price * (1 - gp_rate / 100) * 100) / 100;
   return { gp_rate, gp_base_price, gp_level, base_price, unit_price };
 }

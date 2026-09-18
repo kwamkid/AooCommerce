@@ -20,6 +20,7 @@ import {
   getStorefrontCompany, getStorefrontCatalog, getStorefrontDelivery,
 } from '@/lib/storefront-server';
 import { storefrontAbsoluteUrl, type StorefrontProduct } from '@/lib/storefront';
+import { VARIATION_SEPARATOR } from '@/lib/product-display';
 
 export const revalidate = 3600;
 
@@ -105,7 +106,7 @@ export async function GET(
       // ต่อชื่อตัวเลือกเฉพาะสินค้าที่**มีหลายตัวเลือกจริง** — สินค้าตัวเลือกเดียวเป็นของชิ้นเดียว
       // ชื่อสินค้าพอแล้ว · `v.label` ถูกล้างด้วย `cleanVariationLabel` มาตั้งแต่ชั้นข้อมูลแล้ว
       // (บาร์โค้ด/sku/ตัวเลขล้วนถูกตัดทิ้ง) จึงไม่ต้องกรองซ้ำที่นี่
-      const title = clamp(hasVariants && v.label ? `${p.name} - ${v.label}` : p.name, TITLE_MAX);
+      const title = clamp(hasVariants && v.label ? `${p.name}${VARIATION_SEPARATOR}${v.label}` : p.name, TITLE_MAX);
       const gtin = (v.barcode || '').trim();
       const mpn = (v.sku || '').trim();
 

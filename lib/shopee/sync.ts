@@ -30,6 +30,7 @@ import {
   tryAutoMatchBySku,
 } from '@/lib/shopee/product-helpers';
 import { issueOrderDocuments } from '@/lib/documents/issue-order-documents';
+import { VARIATION_SEPARATOR } from '@/lib/product-display';
 
 // --- Sync Progress Types ---
 
@@ -1015,7 +1016,7 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
 
         const sku = item.model_sku || item.item_sku || '';
         const itemName = item.model_name
-          ? `${item.item_name} - ${item.model_name}`
+          ? `${item.item_name}${VARIATION_SEPARATOR}${item.model_name}`
           : item.item_name;
 
         const repairItemDetail = itemDetailMap.get(item.item_id);
@@ -1233,7 +1234,7 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
 
     const sku = item.model_sku || item.item_sku || '';
     const itemName = item.model_name
-      ? `${item.item_name} - ${item.model_name}`
+      ? `${item.item_name}${VARIATION_SEPARATOR}${item.model_name}`
       : item.item_name;
 
     // Try to match by SKU, pass Shopee item info for variation detection
