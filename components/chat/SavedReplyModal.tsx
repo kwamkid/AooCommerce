@@ -16,7 +16,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { MessageSquareText } from 'lucide-react';
+import { MessageIcon } from '@/lib/icons';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import SaveButton from '@/components/ui/SaveButton';
@@ -131,7 +131,7 @@ export default function SavedReplyModal({ open, onClose, reply, initialContent, 
     <Modal
       open={open}
       onClose={onClose}
-      icon={<MessageSquareText className="w-5 h-5" />}
+      icon={<MessageIcon className="w-5 h-5" />}
       title={reply ? 'แก้ไข Saved Reply' : 'บันทึก Saved Reply'}
       size="lg"
       footer={

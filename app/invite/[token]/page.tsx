@@ -10,10 +10,8 @@ import { FullPageLoading } from '@/components/ui/Loading';
 import InAppBrowserNotice from '@/components/auth/InAppBrowserNotice';
 import { AreaBadges, roleLabel } from '@/components/members/AreaSummary';
 import { isAdminTierRole, type Permissions, type RoleLevel } from '@/lib/permissions';
-import {
-  Building2, Shield, AlertCircle, Loader2, CheckCircle,
-  LogIn, Clock, XCircle,
-} from 'lucide-react';
+import { Shield, LogIn } from 'lucide-react';
+import { AlertIcon, CompanyIcon, ErrorIcon, LoadingIcon, SuccessIcon, TimeIcon } from '@/lib/icons';
 
 interface InvitationData {
   id: string;
@@ -133,7 +131,7 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
             </div>
           </div>
           <div className="bg-white/10 backdrop-blur-md rounded-xl shadow-2xl p-8 border border-white/10 text-center">
-            <XCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
+            <ErrorIcon className="w-16 h-16 text-red-400 mx-auto mb-4" />
             <h2 className="text-xl font-semibold text-white mb-2">ไม่พบคำเชิญ</h2>
             <p className="text-gray-400 mb-6">{inviteError}</p>
             <Link
@@ -166,7 +164,7 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
           <div className="bg-white/10 backdrop-blur-md rounded-xl shadow-2xl p-8 border border-white/10 text-center">
             {isExpired && (
               <>
-                <Clock className="w-16 h-16 text-yellow-400 mx-auto mb-4" />
+                <TimeIcon className="w-16 h-16 text-yellow-400 mx-auto mb-4" />
                 <h2 className="text-xl font-semibold text-white mb-2">คำเชิญหมดอายุ</h2>
                 <p className="text-gray-400 mb-2">คำเชิญเข้าร่วม <span className="text-white font-medium">{invitation.company?.name}</span> หมดอายุแล้ว</p>
                 <p className="text-gray-500 text-sm mb-6">กรุณาติดต่อผู้ดูแลระบบเพื่อส่งคำเชิญใหม่</p>
@@ -174,21 +172,21 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
             )}
             {isUsed && (
               <>
-                <CheckCircle className="w-16 h-16 text-green-400 mx-auto mb-4" />
+                <SuccessIcon className="w-16 h-16 text-green-400 mx-auto mb-4" />
                 <h2 className="text-xl font-semibold text-white mb-2">คำเชิญถูกใช้งานแล้ว</h2>
                 <p className="text-gray-400 mb-6">คำเชิญนี้ถูกตอบรับไปแล้ว</p>
               </>
             )}
             {isCancelled && (
               <>
-                <XCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
+                <ErrorIcon className="w-16 h-16 text-red-400 mx-auto mb-4" />
                 <h2 className="text-xl font-semibold text-white mb-2">คำเชิญถูกยกเลิก</h2>
                 <p className="text-gray-400 mb-6">คำเชิญนี้ถูกยกเลิกโดยผู้ดูแลระบบ</p>
               </>
             )}
             {!isExpired && !isUsed && !isCancelled && (
               <>
-                <AlertCircle className="w-16 h-16 text-yellow-400 mx-auto mb-4" />
+                <AlertIcon className="w-16 h-16 text-yellow-400 mx-auto mb-4" />
                 <h2 className="text-xl font-semibold text-white mb-2">ไม่สามารถใช้คำเชิญได้</h2>
                 <p className="text-gray-400 mb-6">{inviteError}</p>
               </>
@@ -217,7 +215,7 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
             </div>
           </div>
           <div className="bg-white/10 backdrop-blur-md rounded-xl shadow-2xl p-8 border border-white/10 text-center">
-            <CheckCircle className="w-16 h-16 text-green-400 mx-auto mb-4" />
+            <SuccessIcon className="w-16 h-16 text-green-400 mx-auto mb-4" />
             <h2 className="text-xl font-semibold text-white mb-2">ตอบรับคำเชิญสำเร็จ!</h2>
             <p className="text-gray-400 mb-2">
               คุณเข้าร่วม <span className="text-white font-medium">{invitation?.company?.name}</span> เรียบร้อยแล้ว
@@ -253,7 +251,7 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
               />
             ) : (
               <div className="w-20 h-20 rounded-lg bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                <Building2 className="w-10 h-10 text-primary" />
+                <CompanyIcon className="w-10 h-10 text-primary" />
               </div>
             )}
             <h2 className="text-xl font-semibold text-white mb-2">{invitation?.company?.name}</h2>
@@ -282,7 +280,7 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
           {/* Error Alert */}
           {error && (
             <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-lg flex items-start space-x-3">
-              <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+              <AlertIcon className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-red-300">{error}</p>
             </div>
           )}
@@ -297,12 +295,12 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
               >
                 {isAccepting ? (
                   <>
-                    <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                    <LoadingIcon className="w-5 h-5 animate-spin mr-2" />
                     กำลังตอบรับ...
                   </>
                 ) : (
                   <>
-                    <CheckCircle className="w-5 h-5 mr-2" />
+                    <SuccessIcon className="w-5 h-5 mr-2" />
                     ตอบรับคำเชิญ
                   </>
                 )}

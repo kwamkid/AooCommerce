@@ -13,7 +13,7 @@ import { LoadingCard } from '@/components/ui/StateCard';
 import PageHeader from '@/components/ui/PageHeader';
 import { formatPrice } from '@/lib/utils/format';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
-import { Loader2, Search, Receipt as ReceiptIcon, Store } from 'lucide-react';
+import { LoadingIcon, ReceiptIcon, SearchIcon, StoreIcon } from '@/lib/icons';
 import FormSelect from '@/components/ui/FormSelect';
 import Pagination from '@/app/components/Pagination';
 import PosOrderCard, { PosOrder, PAYMENT_LABELS } from '../components/PosOrderCard';
@@ -215,7 +215,7 @@ function PosOrdersContent() {
         <div className="data-filter-card">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
                 type="text"
                 value={searchInput}
@@ -234,7 +234,7 @@ function PosOrdersContent() {
                     onChange={handleWarehouseChange}
                     options={availableWarehouses.map(wh => ({ id: wh.id, label: wh.name }))}
                     clearLabel="ทุกสาขา"
-                    icon={<Store className="w-4 h-4" />}
+                    icon={<StoreIcon className="w-4 h-4" />}
                     searchThreshold={99}
                   />
                 </div>
@@ -287,7 +287,7 @@ function PosOrdersContent() {
         {/* Orders list — full width, single column */}
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            <LoadingIcon className="w-6 h-6 animate-spin text-primary" />
           </div>
         ) : orders.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-gray-400">
@@ -349,7 +349,7 @@ export default function PosOrdersPage() {
     <Suspense fallback={
       <Layout>
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-6 h-6 animate-spin text-primary" />
+          <LoadingIcon className="w-6 h-6 animate-spin text-primary" />
         </div>
       </Layout>
     }>

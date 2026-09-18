@@ -24,10 +24,8 @@ import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
-import {
-  Loader2, Plus, Edit2, Trash2, Monitor, Warehouse,
-  CreditCard, Banknote, Building2, MoreHorizontal, ArrowUp, ArrowDown, Info, QrCode, ChevronDown,
-} from 'lucide-react';
+import { MoreHorizontal, ArrowUp, ArrowDown } from 'lucide-react';
+import { AddIcon, BankIcon, ChevronDownIcon, DeleteIcon, EditIcon, InfoIcon, LoadingIcon, MoneyIcon, PaymentIcon, PosIcon, QrIcon, WarehouseIcon } from '@/lib/icons';
 
 interface TerminalItem {
   id: string;
@@ -69,16 +67,16 @@ interface PaymentChannelItem {
 // "other" is no longer creatable, but `getChannelIcon` keeps handling it so
 // legacy rows still display correctly.
 const CHANNEL_TYPE_OPTIONS = [
-  { value: 'bank_transfer', label: 'โอนผ่านธนาคาร', icon: Building2, color: 'text-emerald-500' },
-  { value: 'promptpay',     label: 'PromptPay',       icon: QrCode,    color: 'text-blue-500' },
-  { value: 'card_terminal', label: 'เครื่องรูดบัตร', icon: CreditCard, color: 'text-purple-500' },
+  { value: 'bank_transfer', label: 'โอนผ่านธนาคาร', icon: BankIcon, color: 'text-emerald-500' },
+  { value: 'promptpay',     label: 'PromptPay',       icon: QrIcon,    color: 'text-blue-500' },
+  { value: 'card_terminal', label: 'เครื่องรูดบัตร', icon: PaymentIcon, color: 'text-purple-500' },
 ] as const;
 
 function getChannelIcon(type: string) {
-  if (type === 'cash') return Banknote;
-  if (type === 'promptpay') return QrCode;
-  if (type === 'card_terminal') return CreditCard;
-  if (type === 'bank_transfer') return Building2;
+  if (type === 'cash') return MoneyIcon;
+  if (type === 'promptpay') return QrIcon;
+  if (type === 'card_terminal') return PaymentIcon;
+  if (type === 'bank_transfer') return BankIcon;
   return MoreHorizontal;
 }
 
@@ -86,7 +84,7 @@ function getChannelIcon(type: string) {
 function PromptPayHelpTooltip() {
   return (
     <span className="relative group inline-flex">
-      <Info className="w-4 h-4 text-gray-400 dark:text-slate-500 cursor-help" />
+      <InfoIcon className="w-4 h-4 text-gray-400 dark:text-slate-500 cursor-help" />
       <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 p-3 bg-gray-900 dark:bg-slate-700 text-white text-xs rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 normal-case font-normal">
         <span className="block font-semibold mb-1.5">วิธีสมัคร PromptPay</span>
         <span className="block font-medium text-yellow-300 mb-1">บุคคลธรรมดา:</span>
@@ -592,7 +590,7 @@ export default function PosTerminalsPage() {
               terminals.length > 0 && (
                 <Button
                   variant="primary"
-                  icon={<Plus className="w-4 h-4" />}
+                  icon={<AddIcon className="w-4 h-4" />}
                   onClick={() => { resetForm(); setShowForm(true); }}
                 >
                   เพิ่ม
@@ -603,8 +601,8 @@ export default function PosTerminalsPage() {
               <div ref={addChannelDropdownRef} className="relative print:hidden">
                 <Button
                   variant="primary"
-                  icon={<Plus className="w-4 h-4" />}
-                  iconRight={<ChevronDown className="w-3.5 h-3.5" />}
+                  icon={<AddIcon className="w-4 h-4" />}
+                  iconRight={<ChevronDownIcon className="w-3.5 h-3.5" />}
                   onClick={() => setAddChannelDropdownOpen(o => !o)}
                 >
                   เพิ่ม
@@ -645,8 +643,8 @@ export default function PosTerminalsPage() {
               activeKey={activeTab}
               onSelect={(k) => setActiveTab(k as 'terminals' | 'channels')}
               tabs={[
-                { key: 'terminals', label: 'แคชเชียร์', icon: <Monitor className="w-4 h-4" /> },
-                { key: 'channels', label: 'ช่องทางชำระเงิน', icon: <CreditCard className="w-4 h-4" /> },
+                { key: 'terminals', label: 'แคชเชียร์', icon: <PosIcon className="w-4 h-4" /> },
+                { key: 'channels', label: 'ช่องทางชำระเงิน', icon: <PaymentIcon className="w-4 h-4" /> },
               ]}
             />
 
@@ -655,13 +653,13 @@ export default function PosTerminalsPage() {
               <div>
                 {terminals.length === 0 ? (
                   <EmptyCard
-                    icon={<Monitor className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+                    icon={<PosIcon className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
                     title="ยังไม่มีแคชเชียร์"
                     subtitle="สร้างแคชเชียร์แรกเพื่อเริ่มขายผ่านระบบ"
                     actions={
                       <Button
                         variant="primary"
-                        icon={<Plus className="w-4 h-4" />}
+                        icon={<AddIcon className="w-4 h-4" />}
                         onClick={() => { resetForm(); setShowForm(true); }}
                       >
                         สร้างแคชเชียร์แรก
@@ -681,7 +679,7 @@ export default function PosTerminalsPage() {
                           inactive={!t.is_active}
                           icon={
                             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                              <Monitor className="w-4 h-4 text-primary" />
+                              <PosIcon className="w-4 h-4 text-primary" />
                             </div>
                           }
                           title={
@@ -699,7 +697,7 @@ export default function PosTerminalsPage() {
                               )}
                               {t.warehouse ? (
                                 <span className="inline-flex items-center gap-1">
-                                  <Warehouse className="w-3 h-3" />
+                                  <WarehouseIcon className="w-3 h-3" />
                                   {t.warehouse.name}
                                 </span>
                               ) : (
@@ -719,7 +717,7 @@ export default function PosTerminalsPage() {
                                 className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors"
                                 aria-label="แก้ไข"
                               >
-                                <Edit2 className="w-4 h-4" />
+                                <EditIcon className="w-4 h-4" />
                               </button>
                               <button
                                 onClick={async () => { const ok = await confirm({ title: 'ต้องการลบแคชเชียร์นี้?', variant: 'danger' }); if (ok) handleDelete(t.id); }}
@@ -727,7 +725,7 @@ export default function PosTerminalsPage() {
                                 className="p-1.5 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
                                 aria-label="ลบ"
                               >
-                                {deletingId === t.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                                {deletingId === t.id ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <DeleteIcon className="w-4 h-4" />}
                               </button>
                             </>
                           }
@@ -818,7 +816,7 @@ export default function PosTerminalsPage() {
                                     className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors"
                                     aria-label="แก้ไข"
                                   >
-                                    <Edit2 className="w-4 h-4" />
+                                    <EditIcon className="w-4 h-4" />
                                   </button>
                                 )}
                                 {canDelete && (
@@ -828,7 +826,7 @@ export default function PosTerminalsPage() {
                                     className="p-1.5 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
                                     aria-label="ลบ"
                                   >
-                                    {deletingChannelId === ch.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                                    {deletingChannelId === ch.id ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <DeleteIcon className="w-4 h-4" />}
                                   </button>
                                 )}
                               </>
@@ -905,7 +903,7 @@ export default function PosTerminalsPage() {
         open={showForm}
         onClose={() => !saving && resetForm()}
         title={editingId ? 'แก้ไขแคชเชียร์' : 'เพิ่มแคชเชียร์'}
-        icon={<Monitor className="w-5 h-5 text-primary" />}
+        icon={<PosIcon className="w-5 h-5 text-primary" />}
         size="md"
         disableBackdropClose={saving}
         footer={
@@ -948,7 +946,7 @@ export default function PosTerminalsPage() {
                   onClick={openBranchQuickAdd}
                   className="text-xs text-primary hover:underline inline-flex items-center gap-1"
                 >
-                  <Plus className="w-3 h-3" />
+                  <AddIcon className="w-3 h-3" />
                   เพิ่มสาขา
                 </button>
               </div>
@@ -974,7 +972,7 @@ export default function PosTerminalsPage() {
               options={warehouses.map(wh => ({ id: wh.id, label: wh.name + (wh.code ? ` (${wh.code})` : '') }))}
               placeholder="ไม่ตัดสต็อก"
               clearLabel="ไม่ตัดสต็อก"
-              icon={<Warehouse className="w-4 h-4" />}
+              icon={<WarehouseIcon className="w-4 h-4" />}
               searchThreshold={99}
               portal
             />
@@ -1060,7 +1058,7 @@ export default function PosTerminalsPage() {
                 ) : (
                   <span className="text-sm text-gray-400 dark:text-slate-500">เลือกธนาคาร</span>
                 )}
-                <ChevronDown className="w-4 h-4 ml-auto text-gray-400" />
+                <ChevronDownIcon className="w-4 h-4 ml-auto text-gray-400" />
               </button>
               {bankDropdownOpen && (
                 <div className="absolute z-20 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">

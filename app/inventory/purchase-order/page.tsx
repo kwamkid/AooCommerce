@@ -10,7 +10,7 @@ import { apiFetch } from '@/lib/api-client';
 import type { ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import type { DateValueType } from '@/components/ui/DateRangePicker';
-import { ClipboardList, CheckCircle2, FileText } from 'lucide-react';
+import { ChecklistIcon, DocumentIcon, SuccessIcon } from '@/lib/icons';
 import { LoadingCard } from '@/components/ui/StateCard';
 
 import type { EditItem, Supplier, WarehouseItem } from '../purchase-orders/components/types';
@@ -228,7 +228,7 @@ export default function CreatePurchaseOrderPage() {
         {(items.length > 0 || notes) && (
           <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
             <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
-              <FileText className="w-4 h-4 inline mr-1.5 -mt-0.5" /> หมายเหตุ
+              <DocumentIcon className="w-4 h-4 inline mr-1.5 -mt-0.5" /> หมายเหตุ
             </label>
             <textarea
               value={notes}
@@ -255,11 +255,11 @@ export default function CreatePurchaseOrderPage() {
         open={showConfirm}
         onClose={() => setShowConfirm(false)}
         onConfirm={handleConfirm}
-        icon={<ClipboardList className="w-6 h-6 text-primary" />}
+        icon={<ChecklistIcon className="w-6 h-6 text-primary" />}
         title="ยืนยันสร้างใบสั่งซื้อ"
         description="คุณต้องการสร้างใบสั่งซื้อนี้ใช่หรือไม่?"
         confirmLabel="ยืนยันสร้าง"
-        confirmIcon={<CheckCircle2 className="w-4 h-4" />}
+        confirmIcon={<SuccessIcon className="w-4 h-4" />}
       >
         <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg p-3 space-y-1.5">
           <div className="flex justify-between text-sm">

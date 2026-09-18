@@ -8,7 +8,7 @@ import { LoadingCard } from '@/components/ui/StateCard';
 import PageHeader from '@/components/ui/PageHeader';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
-import { FileText, Printer, ExternalLink } from 'lucide-react';
+import { DocumentIcon, ExternalLinkIcon, PrintIcon } from '@/lib/icons';
 import FormSelect from '@/components/ui/FormSelect';
 import SearchInput from '@/components/ui/SearchInput';
 import { getMonthOptions } from '@/lib/month-options';
@@ -247,7 +247,7 @@ export default function TaxInvoicesPage() {
         return (
           <>
             <Link href={link.href} className="text-xs text-primary hover:underline inline-flex items-center gap-1">
-              {link.label} <ExternalLink className="w-3 h-3" />
+              {link.label} <ExternalLinkIcon className="w-3 h-3" />
             </Link>
             {link.subtitle && (
               <div className="text-xs text-gray-400">{link.subtitle}</div>
@@ -297,7 +297,7 @@ export default function TaxInvoicesPage() {
           className="p-1.5 text-gray-400 hover:text-primary transition-colors"
           title="พิมพ์"
         >
-          <Printer className="w-4 h-4" />
+          <PrintIcon className="w-4 h-4" />
         </button>
       ),
     },
@@ -310,7 +310,7 @@ export default function TaxInvoicesPage() {
     <Layout>
       <div className="space-y-6">
         <PageHeader
-          icon={<FileText />}
+          icon={<DocumentIcon />}
           title="ใบกำกับภาษี"
           subtitle="TAX-YYYYMM-NNNN — เรียงต่อเนื่องตลอดเดือน"
         />
@@ -340,7 +340,7 @@ export default function TaxInvoicesPage() {
           loading={loading}
           getRowId={(inv) => inv.doc_id}
           emptyMessage="ไม่พบใบกำกับภาษี"
-          emptyIcon={<FileText className="w-10 h-10 text-gray-300 dark:text-slate-600" />}
+          emptyIcon={<DocumentIcon className="w-10 h-10 text-gray-300 dark:text-slate-600" />}
           currentPage={page}
           totalPages={totalPages}
           totalRecords={total}
@@ -369,13 +369,13 @@ export default function TaxInvoicesPage() {
                     )}
                   </div>
                   <button onClick={() => handlePrint(inv)} className="p-1.5 text-gray-400 hover:text-primary transition-colors" title="พิมพ์">
-                    <Printer className="w-4 h-4" />
+                    <PrintIcon className="w-4 h-4" />
                   </button>
                 </div>
                 <div className="text-sm text-gray-500 dark:text-slate-400 mt-1">{formatDate(inv.tax_invoice_date)}</div>
                 <div className="mt-1">
                   <Link href={link.href} className="text-sm text-primary hover:underline inline-flex items-center gap-1">
-                    {link.label} <ExternalLink className="w-3 h-3" />
+                    {link.label} <ExternalLinkIcon className="w-3 h-3" />
                   </Link>
                   {link.subtitle && (
                     <span className="text-xs text-gray-400 ml-1">{link.subtitle}</span>

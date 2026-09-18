@@ -10,7 +10,8 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Menu, X, Truck, UserRound } from 'lucide-react';
+import { UserRound } from 'lucide-react';
+import { CloseIcon, MenuIcon, ShippingIcon } from '@/lib/icons';
 
 export interface NavLink {
   href: string;
@@ -21,7 +22,7 @@ export interface NavLink {
 }
 
 const ICONS = {
-  truck: Truck,
+  truck: ShippingIcon,
   user: UserRound,
 };
 
@@ -37,7 +38,7 @@ export default function MobileNav({ links }: { links: NavLink[] }) {
         aria-expanded={open}
         onClick={() => setOpen(o => !o)}
       >
-        {open ? <X strokeWidth={1.8} /> : <Menu strokeWidth={1.8} />}
+        {open ? <CloseIcon strokeWidth={1.8} /> : <MenuIcon strokeWidth={1.8} />}
       </button>
 
       {open && (

@@ -20,14 +20,15 @@ import {
   type AudienceTemplate,
   type AudienceTemplateKey,
 } from '@/lib/audiences/templates';
-import { Megaphone, MessageCircle, ShoppingBag, UserMinus, Users, type LucideIcon } from 'lucide-react';
+import { UserMinus, type LucideIcon } from 'lucide-react';
+import { BroadcastIcon, ChatIcon, PeopleIcon, WholesaleIcon } from '@/lib/icons';
 
 const ICONS: Record<AudienceTemplate['icon'], LucideIcon> = {
-  ShoppingBag,
-  Users,
+  ShoppingBag: WholesaleIcon,
+  Users: PeopleIcon,
   UserMinus,
-  MessageCircle,
-  Megaphone,
+  MessageCircle: ChatIcon,
+  Megaphone: BroadcastIcon,
 };
 
 interface Props {

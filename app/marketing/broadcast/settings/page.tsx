@@ -6,7 +6,7 @@
 
 import { useState, useCallback } from 'react';
 import Link from 'next/link';
-import { Megaphone, Settings, Info, Check } from 'lucide-react';
+import { BroadcastIcon, ConfirmIcon, InfoIcon, SettingsIcon } from '@/lib/icons';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
@@ -76,7 +76,7 @@ export default function BroadcastSettingsPage() {
     <Layout>
       <Container size="4xl">
         <PageHeader
-          icon={<Megaphone />}
+          icon={<BroadcastIcon />}
           title="ตั้งค่าบรอดแคสต์"
           subtitle="เพจ Facebook ต้องผูกบัญชีโฆษณาและตั้งงบก่อน จึงจะเลือกเป็นช่องทางบรอดแคสต์ได้"
           backHref="/marketing/broadcast"
@@ -133,7 +133,7 @@ export default function BroadcastSettingsPage() {
                       <Button
                         variant={page.broadcast_ready ? 'secondary' : 'primary'}
                         size="sm"
-                        icon={page.broadcast_ready ? <Check className="w-4 h-4" /> : <Settings className="w-4 h-4" />}
+                        icon={page.broadcast_ready ? <ConfirmIcon className="w-4 h-4" /> : <SettingsIcon className="w-4 h-4" />}
                       >
                         {page.broadcast_ready ? 'แก้ไข' : 'ตั้งค่า'}
                       </Button>
@@ -146,7 +146,7 @@ export default function BroadcastSettingsPage() {
         )}
 
         <p className="helper-text flex items-start gap-1.5 mt-4">
-          <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          <InfoIcon className="w-4 h-4 flex-shrink-0 mt-0.5" />
           <span>{info.setupHint}</span>
         </p>
       </Container>

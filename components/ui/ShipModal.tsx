@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Send } from 'lucide-react';
+import { SendIcon } from '@/lib/icons';
 import FormSelect from '@/components/ui/FormSelect';
 import Button from '@/components/ui/Button';
 import Modal from './Modal';
@@ -118,7 +118,7 @@ export default function ShipModal({ orderNumber, customerName, onSubmit, onClose
       open={true}
       onClose={onClose}
       title="จัดส่งสินค้า"
-      icon={<Send className="w-5 h-5 text-primary" />}
+      icon={<SendIcon className="w-5 h-5 text-primary" />}
       size="md"
       disableBackdropClose={submitting}
       footer={
@@ -131,7 +131,7 @@ export default function ShipModal({ orderNumber, customerName, onSubmit, onClose
             className="flex-1"
             onClick={handleSubmit}
             loading={submitting}
-            icon={<Send className="w-4 h-4" />}
+            icon={<SendIcon className="w-4 h-4" />}
           >
             จัดส่ง
           </Button>

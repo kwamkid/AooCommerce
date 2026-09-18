@@ -12,7 +12,8 @@ import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { useBfcacheReset } from '@/lib/useBfcacheReset';
 import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
-import { Loader2, Eye, EyeOff, ExternalLink, Check, X, ChevronDown, ChevronUp, CheckCircle2, XCircle, Zap, Plus, Trash2, Edit2, Search, RefreshCw, Facebook as FacebookSolidIcon } from 'lucide-react';
+import { Facebook as FacebookSolidIcon } from 'lucide-react';
+import { AddIcon, ChevronDownIcon, ChevronUpIcon, CloseIcon, ConfirmIcon, DeleteIcon, EditIcon, ErrorIcon, ExternalLinkIcon, FastIcon, HideIcon, LoadingIcon, RefreshIcon, SuccessIcon, ViewIcon } from '@/lib/icons';
 import { formatThaiDateTime } from '@/lib/utils/format';
 import dynamic from 'next/dynamic';
 import ActionMenu from '@/components/ui/ActionMenu';
@@ -920,7 +921,7 @@ export default function ChatChannelsPage() {
           className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-facebook hover:bg-facebook-hover text-white font-medium rounded-lg transition-colors disabled:opacity-50"
         >
           {fbLoading ? (
-            <Loader2 className="w-5 h-5 animate-spin" />
+            <LoadingIcon className="w-5 h-5 animate-spin" />
           ) : (
             <FacebookSolidIcon className="w-5 h-5" fill="currentColor" stroke="none" />
           )}
@@ -986,7 +987,7 @@ export default function ChatChannelsPage() {
                     onClick={() => setShowFields(prev => ({ ...prev, [field.key]: !prev[field.key] }))}
                     className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
                   >
-                    {showFields[field.key] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showFields[field.key] ? <HideIcon className="w-4 h-4" /> : <ViewIcon className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
@@ -1007,9 +1008,9 @@ export default function ChatChannelsPage() {
                   onClick={() => setFormGuideOpen(!formGuideOpen)}
                   className="flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400 hover:text-primary transition-colors"
                 >
-                  <Zap className="w-4 h-4 text-primary" />
+                  <FastIcon className="w-4 h-4 text-primary" />
                   <span>วิธีหา Credentials</span>
-                  {formGuideOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  {formGuideOpen ? <ChevronUpIcon className="w-4 h-4" /> : <ChevronDownIcon className="w-4 h-4" />}
                 </button>
 
                 {formGuideOpen && (
@@ -1019,7 +1020,7 @@ export default function ChatChannelsPage() {
                       <div>
                         <p className="font-medium text-gray-900 dark:text-white text-sm">สร้าง / Login LINE Official Account</p>
                         <a href="https://manager.line.biz/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 mt-1 text-line hover:underline">
-                          <ExternalLink className="w-3 h-3" /> manager.line.biz (LINE OA Manager)
+                          <ExternalLinkIcon className="w-3 h-3" /> manager.line.biz (LINE OA Manager)
                         </a>
                         <p className="mt-1">มี OA อยู่แล้วก็ Login เข้าไปเลือกบัญชีนั้น · ยังไม่มีให้กด &ldquo;สร้าง LINE Official Account&rdquo; ในหน้านี้</p>
                       </div>
@@ -1038,7 +1039,7 @@ export default function ChatChannelsPage() {
                         <p className="font-medium text-gray-900 dark:text-white text-sm">เข้า LINE Developers Console แล้วคัดลอก Channel Secret</p>
                         <p>
                           <a href="https://developers.line.biz/console/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-line hover:underline">
-                            <ExternalLink className="w-3 h-3" /> developers.line.biz/console
+                            <ExternalLinkIcon className="w-3 h-3" /> developers.line.biz/console
                           </a>
                           {' '}&rarr; ถ้าเด้งไปหน้าแรก ให้กด <span className="font-medium">Console</span> มุมขวาบน แล้ว Login ด้วยบัญชี LINE <span className="font-medium">เดียวกับที่ใช้ใน OA Manager</span>
                         </p>
@@ -1082,7 +1083,7 @@ export default function ChatChannelsPage() {
             loading={saving}
             onClick={handleSave}
           />
-          <Button variant="secondary" onClick={resetForm} icon={<X className="w-4 h-4" />}>
+          <Button variant="secondary" onClick={resetForm} icon={<CloseIcon className="w-4 h-4" />}>
             ยกเลิก
           </Button>
         </div>
@@ -1181,7 +1182,7 @@ export default function ChatChannelsPage() {
                       </p>
                     </div>
                     {shopeeApp && !shopeeAppEditing && (
-                      <Button size="sm" variant="secondary" icon={<Edit2 className="w-4 h-4" />} onClick={() => {
+                      <Button size="sm" variant="secondary" icon={<EditIcon className="w-4 h-4" />} onClick={() => {
                         setShopeeAppEditing(true);
                         setShopeeAppForm({
                           partner_id: String(shopeeApp.partner_id), partner_key: '', push_key: '',
@@ -1344,7 +1345,7 @@ export default function ChatChannelsPage() {
                           {shop.chat_expired ? 'เชื่อมต่อแชทใหม่' : 'เชื่อมต่อแชท'}
                         </Button>
                       ) : shopeeToggling === shop.id ? (
-                        <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                        <LoadingIcon className="w-4 h-4 animate-spin text-gray-400" />
                       ) : (
                         <Toggle checked={chatEnabled} onChange={() => handleMarketplaceToggle(platform, shop)} />
                       )}
@@ -1390,7 +1391,7 @@ export default function ChatChannelsPage() {
                         onClick={startAdd}
                         className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
                       >
-                        <Plus className="w-4 h-4" />
+                        <AddIcon className="w-4 h-4" />
                         เพิ่ม {tabConfig.label} Account
                       </button>
                     )
@@ -1411,7 +1412,7 @@ export default function ChatChannelsPage() {
                   onClick={startAdd}
                   className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
                 >
-                  <Plus className="w-4 h-4" />
+                  <AddIcon className="w-4 h-4" />
                   เพิ่ม {tabConfig.label} Account
                 </button>
               );
@@ -1436,7 +1437,7 @@ export default function ChatChannelsPage() {
               variant="secondary"
               onClick={() => { setFbPages([]); setSelectedPageIds(new Set()); setFbSearch(''); }}
               disabled={fbSavingPage}
-              icon={<X className="w-4 h-4" />}
+              icon={<CloseIcon className="w-4 h-4" />}
             >
               ยกเลิก
             </Button>
@@ -1446,7 +1447,7 @@ export default function ChatChannelsPage() {
               }}
               disabled={fbSelectedPages.length === 0 || fbSavingPage}
               loading={fbSavingPage}
-              icon={!fbSavingPage ? <Check className="w-4 h-4" /> : undefined}
+              icon={!fbSavingPage ? <ConfirmIcon className="w-4 h-4" /> : undefined}
               className="!bg-facebook hover:!bg-facebook-hover"
             >
               {fbSavingPage ? 'กำลังเชื่อมต่อ...' : fbSubmitLabel}
@@ -1534,7 +1535,7 @@ export default function ChatChannelsPage() {
                         </span>
                       ) : selectedPageIds.has(page.id) ? (
                         <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
-                          <Check className="w-4 h-4 text-white" />
+                          <ConfirmIcon className="w-4 h-4 text-white" />
                         </div>
                       ) : connectedBy === 'current' ? (
                         <Badge tone="blue" size="sm" className="flex-shrink-0">อัปเดตสิทธิ์</Badge>
@@ -1567,7 +1568,7 @@ export default function ChatChannelsPage() {
         disableBackdropClose
       >
         <div className="p-6 flex flex-col items-center text-center gap-3">
-          <Loader2 className="w-8 h-8 text-primary animate-spin" />
+          <LoadingIcon className="w-8 h-8 text-primary animate-spin" />
           <div>
             <p className="body-text font-medium text-gray-900 dark:text-white">กำลังทดสอบการเชื่อมต่อ</p>
             {(() => {
@@ -1591,7 +1592,7 @@ export default function ChatChannelsPage() {
         hideCloseButton={saving}
         footer={
           <div className="flex gap-2 justify-end p-4">
-            <Button variant="secondary" onClick={resetForm} disabled={saving} icon={<X className="w-4 h-4" />}>
+            <Button variant="secondary" onClick={resetForm} disabled={saving} icon={<CloseIcon className="w-4 h-4" />}>
               ยกเลิก
             </Button>
             <SaveButton onClick={handleSave} loading={saving} />
@@ -1628,7 +1629,7 @@ export default function ChatChannelsPage() {
                   onClick={() => setShowFields(prev => ({ ...prev, [field.key]: !prev[field.key] }))}
                   className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
                 >
-                  {showFields[field.key] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showFields[field.key] ? <HideIcon className="w-4 h-4" /> : <ViewIcon className="w-4 h-4" />}
                 </button>
               </div>
             </div>
@@ -1646,9 +1647,9 @@ export default function ChatChannelsPage() {
                   onClick={() => setFormGuideOpen(!formGuideOpen)}
                   className="flex items-center gap-2 subtitle-text text-gray-500 dark:text-slate-400 hover:text-primary transition-colors"
                 >
-                  <Zap className="w-4 h-4 text-primary" />
+                  <FastIcon className="w-4 h-4 text-primary" />
                   <span>วิธีตั้งค่า Webhook</span>
-                  {formGuideOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  {formGuideOpen ? <ChevronUpIcon className="w-4 h-4" /> : <ChevronDownIcon className="w-4 h-4" />}
                 </button>
 
                 {formGuideOpen && (
@@ -1658,7 +1659,7 @@ export default function ChatChannelsPage() {
                       <div>
                         <p className="font-medium text-gray-900 dark:text-white subtitle-text">เปิด LINE Developers Console</p>
                         <a href="https://developers.line.biz/console/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 mt-1 text-line hover:underline">
-                          <ExternalLink className="w-3 h-3" /> developers.line.biz/console
+                          <ExternalLinkIcon className="w-3 h-3" /> developers.line.biz/console
                         </a>
                         <p className="mt-1">ถ้าเด้งไปหน้าแรก กด <span className="font-medium">Console</span> มุมขวาบนแล้ว Login ด้วยบัญชี LINE เดียวกับ OA Manager &rarr; เลือก Provider &rarr; Channel ของ OA นี้ &rarr; แท็บ Messaging API &rarr; Webhook settings &rarr; Edit</p>
                       </div>
@@ -1750,7 +1751,7 @@ export default function ChatChannelsPage() {
             )}
             {isTesting && (
               <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-full">
-                <Loader2 className="w-4 h-4 text-white animate-spin" />
+                <LoadingIcon className="w-4 h-4 text-white animate-spin" />
               </div>
             )}
           </button>
@@ -1812,7 +1813,7 @@ export default function ChatChannelsPage() {
                 </span>
                 {lineProfileError ? (
                   <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">
-                    <XCircle className="w-3.5 h-3.5" /> {lineProfileError}
+                    <ErrorIcon className="w-3.5 h-3.5" /> {lineProfileError}
                   </span>
                 ) : null}
                 </>
@@ -1843,14 +1844,14 @@ export default function ChatChannelsPage() {
               className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors"
               title="แก้ไขชื่อ"
             >
-              <Edit2 className="w-4 h-4" />
+              <EditIcon className="w-4 h-4" />
             </button>
             <ActionMenu
               items={[
                 {
                   key: 'test',
                   label: isTesting ? 'กำลังทดสอบ...' : 'ทดสอบเชื่อมต่อ',
-                  icon: isTesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />,
+                  icon: isTesting ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <FastIcon className="w-4 h-4" />,
                   onClick: () => handleTest(account),
                   disabled: isTesting,
                 },
@@ -1859,7 +1860,7 @@ export default function ChatChannelsPage() {
                 ...(account.platform === 'facebook' && FB_APP_ID ? [{
                   key: 'reconnect',
                   label: 'เชื่อมต่อใหม่ (ขอสิทธิ์ใหม่)',
-                  icon: <RefreshCw className="w-4 h-4" />,
+                  icon: <RefreshIcon className="w-4 h-4" />,
                   onClick: () => {
                     reconnectPageIdRef.current = (account.credentials.page_id as string) || null;
                     handleFbLogin();
@@ -1870,7 +1871,7 @@ export default function ChatChannelsPage() {
                   key: 'reconnect-marketing',
                   label: 'เชื่อมต่อใหม่ + สิทธิ์ข้อความการตลาด',
                   description: 'ทดลอง · เฉพาะผู้ดูแลระบบ',
-                  icon: <RefreshCw className="w-4 h-4" />,
+                  icon: <RefreshIcon className="w-4 h-4" />,
                   onClick: () => {
                     reconnectPageIdRef.current = (account.credentials.page_id as string) || null;
                     fbExtraScopeRef.current = FB_MARKETING_MESSAGES_SCOPE;
@@ -1880,7 +1881,7 @@ export default function ChatChannelsPage() {
                 {
                   key: 'delete',
                   label: 'ลบ',
-                  icon: <Trash2 className="w-4 h-4" />,
+                  icon: <DeleteIcon className="w-4 h-4" />,
                   onClick: async () => {
                     const ok = await confirm({ title: 'ต้องการลบ Account นี้?', variant: 'danger' });
                     if (ok) handleDelete(account.id);
@@ -1898,7 +1899,7 @@ export default function ChatChannelsPage() {
           <div className="px-4 pb-4 -mt-2">
             {errorMsg ? (
               <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-2">
-                <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                <ErrorIcon className="w-4 h-4 text-red-500 flex-shrink-0" />
                 <span className="text-sm text-red-600 dark:text-red-400">{errorMsg}</span>
               </div>
             ) : !botPicture && info ? (
@@ -1909,7 +1910,7 @@ export default function ChatChannelsPage() {
                   {(info.premium_id || info.basic_id) ? <p className="text-xs text-gray-500">{info.premium_id || info.basic_id}{info.premium_id && info.basic_id ? ` (${info.basic_id})` : ''}</p> : null}
                   {info.page_id ? <p className="text-xs text-gray-500">Page ID: {info.page_id}</p> : null}
                 </div>
-                <CheckCircle2 className="w-5 h-5 flex-shrink-0" style={{ color: config.color }} />
+                <SuccessIcon className="w-5 h-5 flex-shrink-0" style={{ color: config.color }} />
               </div>
             ) : null}
           </div>

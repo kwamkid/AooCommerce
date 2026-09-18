@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Loader2, Monitor, DollarSign, Warehouse, Plus } from 'lucide-react';
+import { AddIcon, LoadingIcon, PosIcon, PriceIcon, WarehouseIcon } from '@/lib/icons';
 import FormSelect from '@/components/ui/FormSelect';
 import Modal from '@/components/ui/Modal';
 import { apiFetch } from '@/lib/api-client';
@@ -168,20 +168,20 @@ export default function SessionModal({
           <>
             {loadingTerminals ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                <LoadingIcon className="w-6 h-6 animate-spin text-primary" />
               </div>
             ) : terminals.length === 0 && !showCreateTerminal ? (
               /* No terminals — prompt to create */
               <div className="space-y-4">
                 <div className="bg-gray-50 dark:bg-white/5 rounded-xl p-4 text-center">
-                  <Monitor className="w-10 h-10 text-gray-400 dark:text-gray-500 mx-auto mb-3" />
+                  <PosIcon className="w-10 h-10 text-gray-400 dark:text-gray-500 mx-auto mb-3" />
                   <p className="text-gray-600 dark:text-gray-300 text-sm mb-1">ยังไม่มีจุดขาย POS</p>
                   <p className="text-gray-400 dark:text-gray-500 text-xs mb-3">สร้างจุดขายเพื่อเริ่มเปิดกะ</p>
                   <button
                     onClick={() => setShowCreateTerminal(true)}
                     className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary-hover text-white text-sm font-medium rounded-lg transition-colors"
                   >
-                    <Plus className="w-4 h-4" />
+                    <AddIcon className="w-4 h-4" />
                     สร้างจุดขาย
                   </button>
                 </div>
@@ -197,7 +197,7 @@ export default function SessionModal({
               <div className="space-y-4">
                 <div className="bg-gray-50 dark:bg-white/5 rounded-xl p-4 space-y-3">
                   <p className="text-gray-900 dark:text-white font-medium text-sm flex items-center gap-2">
-                    <Plus className="w-4 h-4 text-primary" />
+                    <AddIcon className="w-4 h-4 text-primary" />
                     สร้างจุดขายใหม่
                   </p>
 
@@ -221,7 +221,7 @@ export default function SessionModal({
                       options={warehouses.map(wh => ({ id: wh.id, label: `${wh.name}${wh.code ? ` (${wh.code})` : ''}` }))}
                       placeholder="ไม่ตัดสต็อก"
                       clearLabel="ไม่ตัดสต็อก"
-                      icon={<Warehouse className="w-4 h-4" />}
+                      icon={<WarehouseIcon className="w-4 h-4" />}
                       searchThreshold={99}
                     />
                   </div>
@@ -239,7 +239,7 @@ export default function SessionModal({
                     disabled={!newTerminalName.trim() || creatingTerminal}
                     className="flex-1 py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
-                    {creatingTerminal ? <Loader2 className="w-5 h-5 animate-spin" /> : 'สร้าง'}
+                    {creatingTerminal ? <LoadingIcon className="w-5 h-5 animate-spin" /> : 'สร้าง'}
                   </button>
                 </div>
               </div>
@@ -248,7 +248,7 @@ export default function SessionModal({
                 {/* Terminal selector */}
                 <div>
                   <label className="text-gray-500 dark:text-gray-400 text-sm mb-2 block">
-                    <Monitor className="w-4 h-4 inline mr-1" />
+                    <PosIcon className="w-4 h-4 inline mr-1" />
                     เลือกจุดขาย
                   </label>
                   <div className="grid grid-cols-1 gap-2">
@@ -267,7 +267,7 @@ export default function SessionModal({
                           {t.code && <span className="text-gray-500 dark:text-gray-400 text-xs">{t.code}</span>}
                           {t.warehouse ? (
                             <span className="text-gray-500 dark:text-gray-400 text-xs inline-flex items-center gap-1">
-                              <Warehouse className="w-3 h-3" />
+                              <WarehouseIcon className="w-3 h-3" />
                               {t.warehouse.name}
                             </span>
                           ) : (
@@ -283,7 +283,7 @@ export default function SessionModal({
                     onClick={() => setShowCreateTerminal(true)}
                     className="w-full mt-2 p-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-xl text-gray-400 dark:text-gray-500 text-xs flex items-center justify-center gap-1 hover:border-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                   >
-                    <Plus className="w-3 h-3" />
+                    <AddIcon className="w-3 h-3" />
                     เพิ่มจุดขายใหม่
                   </button>
                 </div>
@@ -291,7 +291,7 @@ export default function SessionModal({
                 {/* Opening float */}
                 <div>
                   <label className="text-gray-500 dark:text-gray-400 text-sm mb-2 block">
-                    <DollarSign className="w-4 h-4 inline mr-1" />
+                    <PriceIcon className="w-4 h-4 inline mr-1" />
                     เงินเปิดลิ้นชัก (฿)
                   </label>
                   <input
@@ -320,7 +320,7 @@ export default function SessionModal({
                     disabled={!selectedTerminal || loading}
                     className="flex-1 py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
-                    {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'เปิดกะ'}
+                    {loading ? <LoadingIcon className="w-5 h-5 animate-spin" /> : 'เปิดกะ'}
                   </button>
                 </div>
               </div>
@@ -418,7 +418,7 @@ export default function SessionModal({
                     disabled={loading}
                     className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl disabled:opacity-30 flex items-center justify-center gap-2"
                   >
-                    {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'ปิดกะ'}
+                    {loading ? <LoadingIcon className="w-5 h-5 animate-spin" /> : 'ปิดกะ'}
                   </button>
                 </div>
               </div>

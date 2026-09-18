@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import SuperAdminLayout from './components/SuperAdminLayout';
 import { apiFetch } from '@/lib/api-client';
-import { Users, Building2, Package } from 'lucide-react';
+import { CompanyIcon, PeopleIcon, SubscriptionIcon } from '@/lib/icons';
 import { LoadingCard } from '@/components/ui/StateCard';
 
 interface Stats {
@@ -40,10 +40,10 @@ export default function SuperAdminDashboard() {
         <div className="space-y-6">
           {/* Stat Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard icon={<Users className="w-6 h-6" />} label="Users ทั้งหมด" value={stats.totalUsers} color="blue" />
-            <StatCard icon={<Building2 className="w-6 h-6" />} label="Companies ทั้งหมด" value={stats.totalCompanies} color="green" />
-            <StatCard icon={<Building2 className="w-6 h-6" />} label="Companies ที่ Active" value={stats.activeCompanies} color="emerald" />
-            <StatCard icon={<Package className="w-6 h-6" />} label="Active Subscriptions" value={Object.values(stats.packageCounts).reduce((a, b) => a + b, 0)} color="violet" />
+            <StatCard icon={<PeopleIcon className="w-6 h-6" />} label="Users ทั้งหมด" value={stats.totalUsers} color="blue" />
+            <StatCard icon={<CompanyIcon className="w-6 h-6" />} label="Companies ทั้งหมด" value={stats.totalCompanies} color="green" />
+            <StatCard icon={<CompanyIcon className="w-6 h-6" />} label="Companies ที่ Active" value={stats.activeCompanies} color="emerald" />
+            <StatCard icon={<SubscriptionIcon className="w-6 h-6" />} label="Active Subscriptions" value={Object.values(stats.packageCounts).reduce((a, b) => a + b, 0)} color="violet" />
           </div>
 
           {/* Package Distribution */}
@@ -56,7 +56,7 @@ export default function SuperAdminDashboard() {
                 Object.entries(stats.packageCounts).map(([name, count]) => (
                   <div key={name} className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
                     <div className="flex items-center gap-3">
-                      <Package className="w-5 h-5 text-violet-400" />
+                      <SubscriptionIcon className="w-5 h-5 text-violet-400" />
                       <span className="font-medium text-white">{name}</span>
                     </div>
                     <span className="text-2xl font-bold text-violet-400">{count}</span>
@@ -77,7 +77,7 @@ export default function SuperAdminDashboard() {
                       <img src={c.logo_url} alt="" className="w-8 h-8 rounded-full object-cover" />
                     ) : (
                       <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center">
-                        <Building2 className="w-4 h-4 text-slate-400" />
+                        <CompanyIcon className="w-4 h-4 text-slate-400" />
                       </div>
                     )}
                     <div>

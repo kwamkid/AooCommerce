@@ -1,6 +1,6 @@
 'use client';
 
-import { Loader2 } from 'lucide-react';
+import { LoadingIcon } from '@/lib/icons';
 
 interface ToggleProps {
   checked: boolean;
@@ -40,7 +40,7 @@ export default function Toggle({ checked, onChange, disabled, loading, ...rest }
           checked ? 'translate-x-5' : 'translate-x-0'
         }`}
       >
-        {loading && <Loader2 className="w-3 h-3 text-gray-400 animate-spin" />}
+        {loading && <LoadingIcon className="w-3 h-3 text-gray-400 animate-spin" />}
       </span>
     </button>
   );

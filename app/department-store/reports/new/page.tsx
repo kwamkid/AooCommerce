@@ -3,7 +3,7 @@
 import { Suspense, useCallback } from 'react';
 import Layout from '@/components/layout/Layout';
 import PageHeader from '@/components/ui/PageHeader';
-import { Building2 } from 'lucide-react';
+import { DeptStoreIcon } from '@/lib/icons';
 import DealerOrderForm from '@/components/dealer/DealerOrderForm';
 import { apiFetch } from '@/lib/api-client';
 import { showPdfPreview, mergePdfBlobs } from '@/lib/print-pdf';
@@ -103,7 +103,7 @@ function NewDeptStoreReportContent() {
       <div className="space-y-4">
         <PageHeader
           backHref="/department-store/reports"
-          icon={<Building2 />}
+          icon={<DeptStoreIcon />}
           title="คีย์ยอดห้าง"
         />
 

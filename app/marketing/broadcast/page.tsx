@@ -39,7 +39,7 @@ import {
   BROADCAST_ATTRIBUTION_DAYS,
   type StoredAudienceFilter,
 } from '@/lib/broadcast/audience';
-import { BarChart3, Megaphone, Plus, Send, XCircle } from 'lucide-react';
+import { AddIcon, BroadcastIcon, ErrorIcon, ReportIcon, SendIcon } from '@/lib/icons';
 
 interface BroadcastStats {
   replied_count: number;
@@ -303,7 +303,7 @@ export default function BroadcastListPage() {
       description: 'บรอดแคสต์ใบนี้จะไม่ถูกส่งเมื่อถึงเวลา — สร้างใหม่ได้เสมอ',
       variant: 'danger',
       confirmLabel: 'ยกเลิกการตั้งเวลา',
-      confirmIcon: <XCircle className="w-4 h-4" />,
+      confirmIcon: <ErrorIcon className="w-4 h-4" />,
     });
     if (!ok) return;
     setBusyId(row.id);
@@ -327,7 +327,7 @@ export default function BroadcastListPage() {
     const items: ActionItem[] = [{
       key: 'report',
       label: 'ดูรายงาน',
-      icon: <BarChart3 className="w-4 h-4" />,
+      icon: <ReportIcon className="w-4 h-4" />,
       primary: true,
       onClick: () => router.push(`/marketing/broadcast/${r.id}`),
     }];
@@ -335,7 +335,7 @@ export default function BroadcastListPage() {
       items.push({
         key: 'resume',
         label: 'ส่งต่อ',
-        icon: <Send className="w-4 h-4" />,
+        icon: <SendIcon className="w-4 h-4" />,
         disabled: busyId === r.id,
         onClick: () => handleResume(r),
       });
@@ -344,7 +344,7 @@ export default function BroadcastListPage() {
       items.push({
         key: 'cancel',
         label: 'ยกเลิกการตั้งเวลา',
-        icon: <XCircle className="w-4 h-4" />,
+        icon: <ErrorIcon className="w-4 h-4" />,
         danger: true,
         dividerBefore: true,
         disabled: busyId === r.id,
@@ -475,7 +475,7 @@ export default function BroadcastListPage() {
       {confirmDialog}
       <Container size="full">
         <PageHeader
-          icon={<Megaphone />}
+          icon={<BroadcastIcon />}
           title="บรอดแคสต์"
           subtitle="ส่งข้อความหาลูกค้าหลายคนพร้อมกัน — ทุกใบถูกบันทึกไว้ในห้องแชทของลูกค้าด้วย"
           actions={
@@ -485,7 +485,7 @@ export default function BroadcastListPage() {
               <Button variant="secondary" onClick={() => router.push('/marketing/broadcast/settings')}>
                 ตั้งค่า
               </Button>
-              <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => router.push('/marketing/broadcast/new')}>
+              <Button variant="primary" icon={<AddIcon className="w-4 h-4" />} onClick={() => router.push('/marketing/broadcast/new')}>
                 สร้างบรอดแคสต์
               </Button>
             </>
@@ -494,11 +494,11 @@ export default function BroadcastListPage() {
 
         {hasAny === false ? (
           <EmptyCard
-            icon={<Megaphone className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+            icon={<BroadcastIcon className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
             title="ยังไม่เคยส่งบรอดแคสต์"
             subtitle="ส่งข้อความหาลูกค้าที่แอดเพื่อน LINE OA ของร้านได้จากที่นี่"
             actions={
-              <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => router.push('/marketing/broadcast/new')}>
+              <Button variant="primary" icon={<AddIcon className="w-4 h-4" />} onClick={() => router.push('/marketing/broadcast/new')}>
                 สร้างบรอดแคสต์
               </Button>
             }
@@ -526,7 +526,7 @@ export default function BroadcastListPage() {
               onRowClick={(r) => router.push(`/marketing/broadcast/${r.id}`)}
               mobileCardRender={renderMobileCard}
               emptyMessage="ไม่มีบรอดแคสต์ในช่วงวันที่เลือก"
-              emptyIcon={<Megaphone className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+              emptyIcon={<BroadcastIcon className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
               currentPage={page}
               totalPages={Math.max(1, Math.ceil(total / recordsPerPage))}
               totalRecords={total}

@@ -42,10 +42,8 @@ import {
   type BroadcastBlockType, type BroadcastCardRatio, type BroadcastProductCard,
   BROADCAST_VARS,
 } from '@/lib/broadcast/content';
-import {
-  GalleryHorizontalEnd, GripVertical, Image as ImageIcon, MessageSquareText, Package, PenLine, Plus,
-  RectangleVertical, Square, Trash2,
-} from 'lucide-react';
+import { GalleryHorizontalEnd, GripVertical, PenLine, RectangleVertical, Square } from 'lucide-react';
+import { AddIcon, DeleteIcon, ImageIcon, MessageIcon, ProductIcon } from '@/lib/icons';
 import ActionPicker from './ActionPicker';
 import {
   faceFromProduct, faceOf, measureImageDims, newBlock, newCard, newId, revokeEditorUrls,
@@ -76,7 +74,7 @@ interface BlocksEditorProps {
 
 /** ไอคอนประจำชนิดบล็อก — คู่กับชื่อบนหัวแถบของบล็อก (รูปเต็มจอ = กรอบแนวตั้ง · การ์ด = แถวเลื่อนแนวนอน) */
 const BLOCK_ICONS: Record<BroadcastBlockType, ReactNode> = {
-  text: <MessageSquareText className="w-4 h-4" />,
+  text: <MessageIcon className="w-4 h-4" />,
   image: <ImageIcon className="w-4 h-4" />,
   rich: <RectangleVertical className="w-4 h-4" />,
   cards: <GalleryHorizontalEnd className="w-4 h-4" />,
@@ -217,7 +215,7 @@ function CardsEditor({ block, onChange, picker }: {
                 onClick={addCard}
                 className="w-24 flex-shrink-0 rounded-lg border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 hover:border-primary hover:text-primary transition-colors flex flex-col items-center justify-center gap-1 helper-text"
               >
-                <Plus className="w-5 h-5" />
+                <AddIcon className="w-5 h-5" />
                 เพิ่มการ์ด
               </button>
             )}
@@ -233,7 +231,7 @@ function CardsEditor({ block, onChange, picker }: {
             {block.cards.length > 1 && (
               <Button
                 variant="ghost"
-                icon={<Trash2 className="w-4 h-4" />}
+                icon={<DeleteIcon className="w-4 h-4" />}
                 aria-label="เอาการ์ดนี้ออก"
                 className="ml-auto"
                 onClick={() => removeCard(selected)}
@@ -247,7 +245,7 @@ function CardsEditor({ block, onChange, picker }: {
             activeKey={selected.source}
             onSelect={key => patchCard(selected.id, { source: key === 'custom' ? 'custom' : 'product' })}
             tabs={[
-              { key: 'product', label: 'สินค้าในร้าน', icon: <Package className="w-4 h-4" /> },
+              { key: 'product', label: 'สินค้าในร้าน', icon: <ProductIcon className="w-4 h-4" /> },
               { key: 'custom', label: 'ทำการ์ดเอง', icon: <PenLine className="w-4 h-4" /> },
             ]}
           />
@@ -363,7 +361,7 @@ function CardsEditor({ block, onChange, picker }: {
                   </div>
                   <Button
                     variant="ghost"
-                    icon={<Trash2 className="w-4 h-4" />}
+                    icon={<DeleteIcon className="w-4 h-4" />}
                     aria-label="ลบปุ่ม"
                     onClick={() => patchFace(selected, { buttons: face.buttons.filter(x => x.id !== b.id) })}
                   />
@@ -374,7 +372,7 @@ function CardsEditor({ block, onChange, picker }: {
               <Button
                 variant="secondary"
                 size="sm"
-                icon={<Plus className="w-4 h-4" />}
+                icon={<AddIcon className="w-4 h-4" />}
                 className="mt-2"
                 onClick={() => patchFace(selected, { buttons: [...face.buttons, { id: newId(), label: '', action: EMPTY_ACTION }] })}
               >
@@ -475,7 +473,7 @@ function SortableBlock({ block, index, onChange, onImageChange, onRemove, picker
         </span>
         <Button
           variant="ghost"
-          icon={<Trash2 className="w-4 h-4" />}
+          icon={<DeleteIcon className="w-4 h-4" />}
           aria-label="เอาบล็อกนี้ออก"
           onClick={onRemove}
         />
@@ -565,7 +563,7 @@ export default function BlocksEditor({
               placement="auto"
               align="start"
               triggerClassName="btn btn-md btn-secondary"
-              trigger={<span className="inline-flex items-center gap-2"><Plus className="w-4 h-4" />เพิ่มบล็อก</span>}
+              trigger={<span className="inline-flex items-center gap-2"><AddIcon className="w-4 h-4" />เพิ่มบล็อก</span>}
               items={BLOCK_TYPES.map(type => ({
                 key: type,
                 label: BLOCK_TYPE_LABELS[type],

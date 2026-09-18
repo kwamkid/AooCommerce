@@ -10,7 +10,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { apiFetch } from '@/lib/api-client';
-import { Loader2, ChevronRight, ChevronDown, ChevronLeft, X, Check } from 'lucide-react';
+import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, ConfirmIcon, LoadingIcon } from '@/lib/icons';
 
 export interface MarketplaceCategoryOption {
   id: string;
@@ -246,8 +246,8 @@ export default function CategoryPicker({
           >
             <span className="truncate flex-1">{cat.name}</span>
             {!cat.is_leaf
-              ? <ChevronRight className="w-4 h-4 flex-shrink-0 opacity-40" />
-              : isSelected && <Check className="w-4 h-4 flex-shrink-0 text-green-500" />}
+              ? <ChevronRightIcon className="w-4 h-4 flex-shrink-0 opacity-40" />
+              : isSelected && <ConfirmIcon className="w-4 h-4 flex-shrink-0 text-green-500" />}
           </button>
         );
       })
@@ -274,10 +274,10 @@ export default function CategoryPicker({
               onClick={(e) => { e.stopPropagation(); onChange(null, ''); setSelectedPath([]); }}
               className="p-0.5 hover:bg-gray-200 dark:hover:bg-slate-600 rounded"
             >
-              <X className="w-3.5 h-3.5" />
+              <CloseIcon className="w-3.5 h-3.5" />
             </span>
           )}
-          <ChevronDown className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`} />
+          <ChevronDownIcon className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`} />
         </span>
       </button>
 
@@ -296,7 +296,7 @@ export default function CategoryPicker({
               <div className="flex items-center justify-between px-3 pb-2 border-b border-gray-200 dark:border-slate-700">
                 <h3 className="heading-4">เลือกหมวดหมู่ {label}</h3>
                 <button type="button" onClick={() => setOpen(false)} className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded">
-                  <X className="w-5 h-5 text-gray-500" />
+                  <CloseIcon className="w-5 h-5 text-gray-500" />
                 </button>
               </div>
             </div>
@@ -314,7 +314,7 @@ export default function CategoryPicker({
 
             {loading && (
               <div className="flex items-center justify-center gap-2 py-8 body-text text-gray-500 dark:text-slate-400">
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <LoadingIcon className="w-4 h-4 animate-spin" />
                 กำลังโหลดหมวดหมู่...
               </div>
             )}
@@ -350,8 +350,8 @@ export default function CategoryPicker({
                     >
                       <span className="truncate flex-1">{fullNameOf(cat.id)}</span>
                       {cat.is_leaf
-                        ? <Check className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
-                        : <ChevronRight className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />}
+                        ? <ConfirmIcon className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
+                        : <ChevronRightIcon className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />}
                     </button>
                   ))
                 )}
@@ -382,7 +382,7 @@ export default function CategoryPicker({
                       onClick={() => setMobileLevel(mobileLevel - 1)}
                       className="flex items-center gap-2 px-3 py-2.5 body-text text-primary font-medium border-b border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700/50"
                     >
-                      <ChevronLeft className="w-4 h-4" />
+                      <ChevronLeftIcon className="w-4 h-4" />
                       <span>{mobileBreadcrumb}</span>
                     </button>
                   )}

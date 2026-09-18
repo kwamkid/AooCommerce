@@ -23,10 +23,8 @@ import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
-import {
-  Users, Mail, UserPlus, Trash2, Edit2, CheckCircle, Clock, Phone,
-  Plus, Link2, Loader2, DollarSign, Table2,
-} from 'lucide-react';
+import { Table2 } from 'lucide-react';
+import { AddIcon, DeleteIcon, EditIcon, EmailIcon, LinkIcon, LoadingIcon, PeopleIcon, PhoneIcon, PriceIcon, SuccessIcon, TimeIcon, UserAddIcon } from '@/lib/icons';
 import Checkbox from '@/components/ui/Checkbox';
 import Modal from '@/components/ui/Modal';
 import UserAvatar from '@/components/ui/UserAvatar';
@@ -482,7 +480,7 @@ export default function MembersPage() {
     <div className="flex flex-wrap items-center gap-1">
       <AreaBadges role={role} permissions={perms} />
       {canViewCost && !isAdminTierRole(role) && (
-        <Badge tone="emerald" size="sm" icon={<DollarSign className="w-3 h-3" />} title="ดูต้นทุนได้">
+        <Badge tone="emerald" size="sm" icon={<PriceIcon className="w-3 h-3" />} title="ดูต้นทุนได้">
           ต้นทุน
         </Badge>
       )}
@@ -541,7 +539,7 @@ export default function MembersPage() {
             activeKey={activeTab}
             onSelect={(k) => setActiveTab(k as 'members' | 'matrix')}
             tabs={[
-              { key: 'members', label: 'สมาชิก', icon: <Users className="w-4 h-4" />, count: activeMembers.length },
+              { key: 'members', label: 'สมาชิก', icon: <PeopleIcon className="w-4 h-4" />, count: activeMembers.length },
               { key: 'matrix', label: 'ใครเห็นอะไร', icon: <Table2 className="w-4 h-4" /> },
             ]}
           />
@@ -553,7 +551,7 @@ export default function MembersPage() {
             <div className="p-5 sm:p-6 border-b border-gray-200 dark:border-slate-700">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <h3 className="heading-3 flex items-center">
-                  <Users className="w-5 h-5 mr-2 text-primary" />
+                  <PeopleIcon className="w-5 h-5 mr-2 text-primary" />
                   สมาชิกปัจจุบัน ({activeMembers.length})
                 </h3>
                 <div className="flex items-center gap-3">
@@ -565,7 +563,7 @@ export default function MembersPage() {
                   {isOwnerOrAdmin && (
                     <Button
                       onClick={openAddModal}
-                      icon={<Plus className="w-5 h-5" />}
+                      icon={<AddIcon className="w-5 h-5" />}
                       className="whitespace-nowrap"
                     >
                       เพิ่ม<span className="hidden md:inline">สมาชิก</span>
@@ -596,12 +594,12 @@ export default function MembersPage() {
                         </p>
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 data-secondary text-gray-500 dark:text-slate-400">
                           <span className="flex items-center truncate">
-                            <Mail className="w-3.5 h-3.5 mr-1 flex-shrink-0" />
+                            <EmailIcon className="w-3.5 h-3.5 mr-1 flex-shrink-0" />
                             {member.user?.email}
                           </span>
                           {member.user?.phone && (
                             <span className="flex items-center">
-                              <Phone className="w-3.5 h-3.5 mr-1 flex-shrink-0" />
+                              <PhoneIcon className="w-3.5 h-3.5 mr-1 flex-shrink-0" />
                               {member.user.phone}
                             </span>
                           )}
@@ -625,7 +623,7 @@ export default function MembersPage() {
                             className="p-2 text-gray-400 hover:text-primary hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                             title="แก้ไขข้อมูลและสิทธิ์"
                           >
-                            <Edit2 className="w-4 h-4" />
+                            <EditIcon className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleRemoveMember(member.id)}
@@ -634,9 +632,9 @@ export default function MembersPage() {
                             title="ลบสมาชิก"
                           >
                             {deletingId === member.id ? (
-                              <Loader2 className="w-4 h-4 animate-spin text-red-500" />
+                              <LoadingIcon className="w-4 h-4 animate-spin text-red-500" />
                             ) : (
-                              <Trash2 className="w-4 h-4" />
+                              <DeleteIcon className="w-4 h-4" />
                             )}
                           </button>
                         </div>
@@ -647,7 +645,7 @@ export default function MembersPage() {
               ))}
               {filteredMembers.length === 0 && (
                 <div className="p-8 text-center text-gray-500 dark:text-slate-400">
-                  <Users className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                  <PeopleIcon className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                   <p className="text-sm">{searchTerm ? 'ไม่พบสมาชิกที่ค้นหา' : 'ยังไม่มีสมาชิก'}</p>
                 </div>
               )}
@@ -659,7 +657,7 @@ export default function MembersPage() {
             <Card padding="none">
               <div className="p-5 sm:p-6 border-b border-gray-200 dark:border-slate-700">
                 <h3 className="heading-3 flex items-center">
-                  <Clock className="w-5 h-5 mr-2 text-primary" />
+                  <TimeIcon className="w-5 h-5 mr-2 text-primary" />
                   คำเชิญที่รอการตอบรับ ({invitations.length})
                 </h3>
               </div>
@@ -669,7 +667,7 @@ export default function MembersPage() {
                     <div className="flex items-start sm:items-center justify-between gap-3">
                       <div className="flex items-center space-x-3 sm:space-x-4">
                         <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-gray-200 dark:bg-slate-600 flex items-center justify-center text-gray-500 dark:text-slate-400">
-                          {invitation.email ? <Mail className="w-5 h-5" /> : <Link2 className="w-5 h-5" />}
+                          {invitation.email ? <EmailIcon className="w-5 h-5" /> : <LinkIcon className="w-5 h-5" />}
                         </div>
                         <div>
                           <p className="data-primary text-gray-900 dark:text-white">
@@ -702,7 +700,7 @@ export default function MembersPage() {
                               className="p-2 text-gray-400 hover:text-primary hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                               title="คัดลอกลิงก์คำเชิญ"
                             >
-                              <Link2 className="w-4 h-4" />
+                              <LinkIcon className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => handleCancelInvitation(invitation.id)}
@@ -711,9 +709,9 @@ export default function MembersPage() {
                               title="ยกเลิกคำเชิญ"
                             >
                               {deletingId === invitation.id ? (
-                                <Loader2 className="w-4 h-4 animate-spin text-red-500" />
+                                <LoadingIcon className="w-4 h-4 animate-spin text-red-500" />
                               ) : (
-                                <Trash2 className="w-4 h-4" />
+                                <DeleteIcon className="w-4 h-4" />
                               )}
                             </button>
                           </div>
@@ -764,7 +762,7 @@ export default function MembersPage() {
         open={showAddModal}
         onClose={() => setShowAddModal(false)}
         title="เพิ่มสมาชิก"
-        icon={<UserPlus className="w-5 h-5 text-primary" />}
+        icon={<UserAddIcon className="w-5 h-5 text-primary" />}
         size="2xl"
         footer={!generatedLink ? (
           <div className="flex justify-end gap-2">
@@ -774,7 +772,7 @@ export default function MembersPage() {
             <Button
               variant="primary"
               loading={isGeneratingLink}
-              icon={<Link2 className="w-4 h-4" />}
+              icon={<LinkIcon className="w-4 h-4" />}
               onClick={handleCreateLink}
             >
               สร้างลิงก์
@@ -787,7 +785,7 @@ export default function MembersPage() {
             </Button>
             <Button
               variant="primary"
-              icon={<Plus className="w-4 h-4" />}
+              icon={<AddIcon className="w-4 h-4" />}
               onClick={() => {
                 setGeneratedLink('');
                 setInviteValue(newInviteValue());
@@ -816,7 +814,7 @@ export default function MembersPage() {
         ) : (
           <div className="p-5 space-y-4">
             <div className="text-center py-2">
-              <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
+              <SuccessIcon className="w-12 h-12 text-green-500 mx-auto mb-3" />
               <p className="text-sm font-medium text-gray-900 dark:text-white mb-1">สร้างลิงก์เชิญสำเร็จ</p>
               <p className="text-sm text-gray-500 dark:text-slate-400">คัดลอกลิงก์ด้านล่างเพื่อส่งให้สมาชิก</p>
             </div>
@@ -862,7 +860,7 @@ export default function MembersPage() {
                 </div>
                 <div>
                   <label className="field-label">
-                    <Phone className="w-4 h-4 inline mr-1 -mt-0.5" />
+                    <PhoneIcon className="w-4 h-4 inline mr-1 -mt-0.5" />
                     เบอร์โทร
                   </label>
                   <input

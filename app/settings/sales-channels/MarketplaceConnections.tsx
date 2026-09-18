@@ -12,7 +12,8 @@ import { apiFetch } from '@/lib/api-client';
 import Tooltip from '@/components/ui/Tooltip';
 import HelpHint from '@/components/ui/HelpHint';
 import Popover from '@/components/ui/Popover';
-import { AlertTriangle, ChevronDown, Clock, ImagePlus, Link2, Loader2, RefreshCw, RotateCw, Settings2, ShoppingBag, Trash2, Warehouse } from 'lucide-react';
+import { RotateCw, Settings2 } from 'lucide-react';
+import { ChevronDownIcon, DeleteIcon, ImageAddIcon, LinkIcon, LoadingIcon, RefreshIcon, TimeIcon, WarehouseIcon, WarningIcon, WholesaleIcon } from '@/lib/icons';
 import Button from '@/components/ui/Button';
 import FormSelect from '@/components/ui/FormSelect';
 import Alert from '@/components/ui/Alert';
@@ -61,7 +62,7 @@ function OnboardingWarningButton({ steps, onOpenSetup }: { steps: OnboardingStep
               : 'text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30'
           }`}
         >
-          <AlertTriangle className="w-4 h-4" />
+          <WarningIcon className="w-4 h-4" />
         </button>
       </Tooltip>
       <Popover open={open} onClose={() => setOpen(false)} anchorRef={anchorRef} width={300} estimatedHeight={170} ariaLabel="สิ่งที่ร้านนี้ยังตั้งไม่ครบ">
@@ -384,7 +385,7 @@ export default function MarketplaceConnections({
       ...[1, 7, 30].map(days => ({
         key: `orders-${days}`,
         label: `ดึงออเดอร์ย้อนหลัง ${days} วัน`,
-        icon: <Clock className="w-4 h-4" />,
+        icon: <TimeIcon className="w-4 h-4" />,
         disabled: busy,
         onClick: () => runOrderSync(days),
       })),
@@ -402,7 +403,7 @@ export default function MarketplaceConnections({
         key: 'reconnect',
         label: 'เชื่อมต่อใหม่',
         description: 'ใช้เมื่อ token หมดอายุ หรือต้องขอสิทธิ์เพิ่ม',
-        icon: <Link2 className="w-4 h-4" />,
+        icon: <LinkIcon className="w-4 h-4" />,
         dividerBefore: platform !== 'shopee',
         onClick: () => handleReconnect(platform),
       },
@@ -559,7 +560,7 @@ export default function MarketplaceConnections({
         key: 'resync',
         label: 'ดึงจากแพลตฟอร์ม',
         description: fetchDesc,
-        icon: <RefreshCw className="w-5 h-5" />,
+        icon: <RefreshIcon className="w-5 h-5" />,
         busy: resyncingId === m.id,
         onClick: () => handleResyncInfo(m.id),
       },
@@ -578,7 +579,7 @@ export default function MarketplaceConnections({
       key: 'upload',
       label: 'อัปโหลดรูปเอง',
       description: 'ลากไฟล์มาวางหรือเลือกจากเครื่อง — ได้รูปตรงที่สุด',
-      icon: <ImagePlus className="w-5 h-5" />,
+      icon: <ImageAddIcon className="w-5 h-5" />,
       onClick: () => setLogoModal(prev => (prev ? { ...prev, step: 'upload' } : prev)),
     });
     if (m.currentUrl) {
@@ -586,7 +587,7 @@ export default function MarketplaceConnections({
         key: 'clear',
         label: 'ลบรูปโลโก้',
         description: 'กลับไปใช้ไอคอนแพลตฟอร์มแทน',
-        icon: <Trash2 className="w-5 h-5" />,
+        icon: <DeleteIcon className="w-5 h-5" />,
         danger: true,
         onClick: () => handleClearLogo(m.id),
       });
@@ -605,7 +606,7 @@ export default function MarketplaceConnections({
       <span className="relative block w-10 h-10 flex-shrink-0 group">
         {/* icon รองพื้น + img ทับ + onError ซ่อนตัวเอง — URL ตายไม่โชว์รูปแตก */}
         <span className={`w-10 h-10 rounded-lg ${tile} flex items-center justify-center ${logo ? '' : 'border border-dashed border-gray-300 dark:border-slate-600'}`}>
-          <ShoppingBag className={iconCls} />
+          <WholesaleIcon className={iconCls} />
         </span>
         {logo && (
           <img
@@ -618,12 +619,12 @@ export default function MarketplaceConnections({
         {/* ยังไม่มีโลโก้ → ป้าย + มุมขวาล่าง เห็นตลอดเวลา ไม่ต้อง hover */}
         {!logo && resyncingId !== account.id && (
           <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-primary text-white flex items-center justify-center shadow-sm">
-            <ImagePlus className="w-2.5 h-2.5" />
+            <ImageAddIcon className="w-2.5 h-2.5" />
           </span>
         )}
         {/* ระหว่างดึงข้อมูล spinner ต้องค้างให้เห็น ไม่ใช่รอ hover */}
         <span className={`absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center transition-opacity ${resyncingId === account.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-          <ChevronDown className={`w-4 h-4 text-white ${resyncingId === account.id ? 'animate-pulse' : ''}`} />
+          <ChevronDownIcon className={`w-4 h-4 text-white ${resyncingId === account.id ? 'animate-pulse' : ''}`} />
         </span>
       </span>
     );
@@ -787,7 +788,7 @@ export default function MarketplaceConnections({
     return (
       <div className="flex items-center gap-1.5">
         <Tooltip text="คลังที่ร้านนี้ใช้ตัด/ซิงค์สต็อก" box="inline-flex">
-          <Warehouse className="w-3.5 h-3.5 text-gray-400" aria-label="คลังที่ตัด/ซิงค์สต็อก" />
+          <WarehouseIcon className="w-3.5 h-3.5 text-gray-400" aria-label="คลังที่ตัด/ซิงค์สต็อก" />
         </Tooltip>
         <div className="w-48">
           <FormSelect
@@ -997,7 +998,7 @@ export default function MarketplaceConnections({
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-slate-400">
                   <span>Shop ID: {account.shop_id}</span>
                   <span className="flex items-center gap-1">
-                    <Clock className="w-3 h-3" />
+                    <TimeIcon className="w-3 h-3" />
                     Sync ล่าสุด: {formatThaiDateTime(account.last_sync_at)}
                   </span>
                   <span>เชื่อมต่อเมื่อ: {formatThaiDateTime(account.created_at)}</span>
@@ -1056,7 +1057,7 @@ export default function MarketplaceConnections({
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-slate-400">
                   <span>Shop ID: {account.shop_id}</span>
                   <span className="flex items-center gap-1">
-                    <Clock className="w-3 h-3" />
+                    <TimeIcon className="w-3 h-3" />
                     Sync ล่าสุด: {formatThaiDateTime(account.last_sync_at)}
                   </span>
                   <span>เชื่อมต่อเมื่อ: {formatThaiDateTime(account.created_at)}</span>
@@ -1183,7 +1184,7 @@ export default function MarketplaceConnections({
                 />
               ) : (
                 <div className="w-14 h-14 rounded-lg border border-dashed border-gray-300 dark:border-slate-600 flex items-center justify-center text-gray-400">
-                  <ShoppingBag className="w-6 h-6" />
+                  <WholesaleIcon className="w-6 h-6" />
                 </div>
               )}
               <p className="subtitle-text text-gray-500">
@@ -1206,7 +1207,7 @@ export default function MarketplaceConnections({
                 }`}
               >
                 <span className={`mt-0.5 ${opt.danger ? 'text-red-600' : 'text-gray-500'}`}>
-                  {opt.busy ? <Loader2 className="w-5 h-5 animate-spin" /> : opt.icon}
+                  {opt.busy ? <LoadingIcon className="w-5 h-5 animate-spin" /> : opt.icon}
                 </span>
                 <span className="min-w-0">
                   <span className={`block body-text font-medium ${opt.danger ? 'text-red-600' : 'text-gray-900 dark:text-white'}`}>

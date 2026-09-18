@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Award, ChevronDown, ChevronUp } from 'lucide-react';
+import { BrandIcon, ChevronDownIcon, ChevronUpIcon } from '@/lib/icons';
 import BrandGpCommissions, { GpBaseRadio, type BrandGpRow } from '@/components/customers/BrandGpCommissions';
 import PostfixInput from '@/components/ui/PostfixInput';
 
@@ -95,7 +95,7 @@ export default function GpOverridePanel(props: Props) {
         className="w-full flex items-center justify-between px-4 py-2.5 border-t border-amber-200 dark:border-amber-800/50 hover:bg-amber-50/60 dark:hover:bg-amber-900/10 transition-colors text-left"
       >
         <span className="text-sm font-medium text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
-          <Award className="w-4 h-4" />
+          <BrandIcon className="w-4 h-4" />
           {termLabel} เฉพาะแบรนด์
           {brandCount > 0 && (
             <span className="text-xs font-normal text-gray-400 dark:text-slate-500">
@@ -104,8 +104,8 @@ export default function GpOverridePanel(props: Props) {
           )}
         </span>
         {gpExpanded
-          ? <ChevronUp className="w-4 h-4 text-gray-400" />
-          : <ChevronDown className="w-4 h-4 text-gray-400" />
+          ? <ChevronUpIcon className="w-4 h-4 text-gray-400" />
+          : <ChevronDownIcon className="w-4 h-4 text-gray-400" />
         }
       </button>
 

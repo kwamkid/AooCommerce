@@ -15,7 +15,8 @@ import {
   type FeatureFlags,
   type DeliveryFieldMode, DELIVERY_FIELD_MODE_LABELS, DELIVERY_FIELD_MODE_HINTS, deliveryFieldMode, deliveryFieldFromMode,
 } from '@/lib/features';
-import { CalendarDays, ShoppingCart, Monitor, Handshake, Tag, Factory, PackageCheck, Loader2, Truck, Warehouse, Lock, MapPin, Clock, Store, Megaphone, Target, Settings } from 'lucide-react';
+import { CalendarDays, PackageCheck, Lock } from 'lucide-react';
+import { AudienceIcon, BrandIcon, BroadcastIcon, FeatureIcon, LoadingIcon, LocationIcon, OrderIcon, PosIcon, SettingsIcon, ShippingIcon, StoreIcon, SupplierIcon, TimeIcon, WarehouseIcon } from '@/lib/icons';
 import { featureLockReason, type PackageGates } from '@/lib/package-features';
 import FilterChips, { FILTER_CHIP_PRIMARY_ACTIVE, type FilterChip } from '@/components/ui/FilterChips';
 import Card from '@/components/ui/Card';
@@ -134,7 +135,7 @@ export default function FeaturesPage() {
           key: 'marketplace_sync',
           label: 'ซิงค์ Marketplace',
           description: 'เชื่อม Shopee · Lazada · TikTok Shop — ดึงออเดอร์และส่งสต็อกขึ้นร้าน',
-          icon: <ShoppingCart className="w-5 h-5" />,
+          icon: <OrderIcon className="w-5 h-5" />,
           color: 'text-orange-500',
           settingsHref: '/settings/sales-channels',
         },
@@ -142,7 +143,7 @@ export default function FeaturesPage() {
           key: 'pos',
           label: 'Cashier (POS)',
           description: 'ขายหน้าร้านผ่านเครื่องแคชเชียร์ ตัดสต็อกทันทีที่จ่ายเงิน',
-          icon: <Monitor className="w-5 h-5" />,
+          icon: <PosIcon className="w-5 h-5" />,
           color: 'text-teal-600',
           settingsHref: '/settings/pos-terminals',
         },
@@ -150,7 +151,7 @@ export default function FeaturesPage() {
           key: 'storefront',
           label: 'หน้าร้านออนไลน์',
           description: 'ลิงก์ร้านของตัวเอง ลูกค้าสั่งเองได้ พร้อมตะกร้าและชำระเงิน',
-          icon: <Store className="w-5 h-5" />,
+          icon: <StoreIcon className="w-5 h-5" />,
           color: 'text-sky-600',
           settingsHref: '/settings/storefront',
         },
@@ -158,7 +159,7 @@ export default function FeaturesPage() {
           key: 'counter_sales',
           label: 'หน้าขาย PC ประจำห้าง',
           description: 'ให้ PC ที่เคาน์เตอร์บันทึกยอดขายหน้างานเข้าระบบเอง',
-          icon: <Store className="w-5 h-5" />,
+          icon: <StoreIcon className="w-5 h-5" />,
           color: 'text-indigo-600',
         },
       ],
@@ -170,7 +171,7 @@ export default function FeaturesPage() {
           key: 'consignment',
           label: 'ลูกค้าตัวแทน',
           description: 'ฝากขาย (ม.78(3)) · ขายขาดเงินสด · ขายขาดเครดิต — วางบิลรอบเดือน',
-          icon: <Handshake className="w-5 h-5" />,
+          icon: <FeatureIcon className="w-5 h-5" />,
           color: 'text-amber-600',
           settingsHref: '/settings/consignment',
         },
@@ -191,7 +192,7 @@ export default function FeaturesPage() {
           key: 'stock',
           label: 'ระบบคลังสินค้า',
           description: 'ติดตามสต็อก รับเข้า ย้ายคลัง แยกตามสาขา',
-          icon: <Warehouse className="w-5 h-5" />,
+          icon: <WarehouseIcon className="w-5 h-5" />,
           color: 'text-emerald-600',
           settingsHref: '/settings/warehouses',
         },
@@ -199,7 +200,7 @@ export default function FeaturesPage() {
           key: 'product_brand',
           label: 'แบรนด์สินค้า',
           description: 'จัดกลุ่มสินค้าตามแบรนด์ และตั้ง GP% รายแบรนด์ได้',
-          icon: <Tag className="w-5 h-5" />,
+          icon: <BrandIcon className="w-5 h-5" />,
           color: 'text-pink-600',
           settingsHref: '/settings/brands',
         },
@@ -207,7 +208,7 @@ export default function FeaturesPage() {
           key: 'supplier',
           label: 'ซัพพลายเออร์ / ใบสั่งซื้อ',
           description: 'ผู้ผลิต ใบสั่งซื้อ (PO) และรายงานฝั่งซื้อ',
-          icon: <Factory className="w-5 h-5" />,
+          icon: <SupplierIcon className="w-5 h-5" />,
           color: 'text-slate-600',
           settingsHref: '/settings/suppliers',
         },
@@ -220,14 +221,14 @@ export default function FeaturesPage() {
           key: 'broadcast',
           label: 'บรอดแคสต์',
           description: 'ส่งข้อความการตลาดเข้าห้องแชท LINE · Facebook',
-          icon: <Megaphone className="w-5 h-5" />,
+          icon: <BroadcastIcon className="w-5 h-5" />,
           color: 'text-rose-600',
         },
         {
           key: 'audience',
           label: 'กลุ่มเป้าหมาย + Audience Sync',
           description: 'สร้างกลุ่มลูกค้าแล้วส่งขึ้นแพลตฟอร์มโฆษณาเพื่อยิงแอด',
-          icon: <Target className="w-5 h-5" />,
+          icon: <AudienceIcon className="w-5 h-5" />,
           color: 'text-fuchsia-600',
           settingsHref: '/settings/ad-accounts',
         },
@@ -250,7 +251,7 @@ export default function FeaturesPage() {
 
         {!featuresLoaded ? (
           <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-7 h-7 animate-spin text-primary" />
+            <LoadingIcon className="w-7 h-7 animate-spin text-primary" />
           </div>
         ) : (
           <>
@@ -287,7 +288,7 @@ export default function FeaturesPage() {
                         <Button
                           variant="secondary"
                           size="sm"
-                          icon={<Settings className="w-4 h-4" />}
+                          icon={<SettingsIcon className="w-4 h-4" />}
                           onClick={() => router.push(feat.settingsHref!)}
                         >
                           ตั้งค่า
@@ -434,7 +435,7 @@ function DeliveryFieldsCard({
     <Card className={`transition-all ${anyOn ? 'ring-1 ring-primary/20' : ''}`}>
       <div className="flex items-center gap-4">
         <div className={`flex-shrink-0 ${anyOn ? 'text-blue-600' : 'text-gray-400 dark:text-slate-500'}`}>
-          <Truck className="w-5 h-5" />
+          <ShippingIcon className="w-5 h-5" />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-base font-medium text-gray-900 dark:text-white">การจัดส่งของร้าน</p>
@@ -459,7 +460,7 @@ function DeliveryFieldsCard({
         />
 
         <DeliveryFieldRow
-          icon={<Clock className={iconClass(flags.delivery_slot.enabled, 'text-indigo-600')} />}
+          icon={<TimeIcon className={iconClass(flags.delivery_slot.enabled, 'text-indigo-600')} />}
           title="ช่วงเวลาส่ง"
           description={
             slotLock
@@ -475,7 +476,7 @@ function DeliveryFieldsCard({
         />
 
         <DeliveryFieldRow
-          icon={<MapPin className={iconClass(flags.delivery_zone, 'text-emerald-600')} />}
+          icon={<LocationIcon className={iconClass(flags.delivery_zone, 'text-emerald-600')} />}
           title="พื้นที่จัดส่ง + ค่าส่ง"
           description={zoneLock ?? 'ระบบดูที่อยู่ลูกค้าแล้วเติมค่าส่งให้เองตามพื้นที่ที่ตั้งไว้ (เช่น กทม.ชั้นใน ฿100) · นอกทุกพื้นที่ = ไม่รับส่ง · ตั้งพื้นที่ได้ที่ ตั้งค่า → การจัดส่ง'}
           chips={ZONE_CHIPS}

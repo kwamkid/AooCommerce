@@ -32,7 +32,7 @@ import { useMarketplaceGuard } from '@/lib/useMarketplaceGuard';
 import { useDebouncedCallback } from '@/lib/useDebounce';
 import { formatPrice } from '@/lib/utils/format';
 import { MARKETPLACE_PLATFORMS } from '@/lib/marketplace/platforms';
-import { ChevronLeft, ChevronRight, Link2, Package, Plus, Store } from 'lucide-react';
+import { AddIcon, ChevronLeftIcon, ChevronRightIcon, LinkIcon, ProductIcon, StoreIcon } from '@/lib/icons';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 
 const PAGE_SIZE = 20;
@@ -359,7 +359,7 @@ function MarketplaceImportContent() {
     return (
       <Container size="5xl">
         <PageHeader
-          icon={platform ? <PlatformIcon id={platform} /> : <Store />}
+          icon={platform ? <PlatformIcon id={platform} /> : <StoreIcon />}
           title={`นำเข้าสินค้าจาก ${label}`}
           subtitle={shopName}
           backHref={BACK_HREF}
@@ -406,7 +406,7 @@ function MarketplaceImportContent() {
   return (
     <Container size="5xl">
       <PageHeader
-        icon={platform ? <PlatformIcon id={platform} /> : <Store />}
+        icon={platform ? <PlatformIcon id={platform} /> : <StoreIcon />}
         title={`นำเข้าสินค้าจาก ${label}`}
         subtitle={shopName || undefined}
         backHref={BACK_HREF}
@@ -502,7 +502,7 @@ function MarketplaceImportContent() {
           </Alert>
         ) : visibleItems.length === 0 ? (
           <EmptyCard
-            icon={<Package className="w-8 h-8" />}
+            icon={<ProductIcon className="w-8 h-8" />}
             title="ไม่พบสินค้า"
             subtitle={appliedSearch ? 'ลองเปลี่ยนคำค้น — ระบบค้นเฉพาะสินค้าในหน้านี้' : `ร้าน ${label} นี้ยังไม่มีสินค้าที่เผยแพร่อยู่`}
           />
@@ -525,7 +525,7 @@ function MarketplaceImportContent() {
                     <div className="pt-1">
                       <Checkbox checked={checked} onChange={() => toggleOne(id)} disabled={importing} />
                     </div>
-                    <ProductImageThumb src={item.image} alt={item.name} size="sm" fallbackIcon={<Package className="w-5 h-5" />} />
+                    <ProductImageThumb src={item.image} alt={item.name} size="sm" fallbackIcon={<ProductIcon className="w-5 h-5" />} />
                     <div className="min-w-0 flex-1">
                       <div className="body-text truncate">{item.name}</div>
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5">
@@ -543,12 +543,12 @@ function MarketplaceImportContent() {
                       </div>
                       {item.linked_product ? (
                         <div className="helper-text text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1">
-                          <Link2 className="w-3.5 h-3.5" />
+                          <LinkIcon className="w-3.5 h-3.5" />
                           ผูกกับ {item.linked_product.name} แล้ว
                         </div>
                       ) : item.auto_match ? (
                         <div className="helper-text text-blue-600 dark:text-blue-400 mt-1 flex items-center gap-1">
-                          <Link2 className="w-3.5 h-3.5" />
+                          <LinkIcon className="w-3.5 h-3.5" />
                           จะผูกกับ {item.auto_match.name} อัตโนมัติ (SKU ตรงกัน)
                         </div>
                       ) : null}
@@ -560,8 +560,8 @@ function MarketplaceImportContent() {
                       onChange={(v) => setAction(id, v)}
                       disabled={importing}
                       chips={[
-                        { id: 'create', label: 'สร้างใหม่', icon: <Plus className="w-3.5 h-3.5" />, activeClass: FILTER_CHIP_PRIMARY_ACTIVE },
-                        { id: 'link', label: 'ผูกกับของเดิม', icon: <Link2 className="w-3.5 h-3.5" />, activeClass: FILTER_CHIP_PRIMARY_ACTIVE },
+                        { id: 'create', label: 'สร้างใหม่', icon: <AddIcon className="w-3.5 h-3.5" />, activeClass: FILTER_CHIP_PRIMARY_ACTIVE },
+                        { id: 'link', label: 'ผูกกับของเดิม', icon: <LinkIcon className="w-3.5 h-3.5" />, activeClass: FILTER_CHIP_PRIMARY_ACTIVE },
                       ]}
                     />
                   </div>
@@ -570,7 +570,7 @@ function MarketplaceImportContent() {
                     <div className="pl-11">
                       {cfg.target_product_id ? (
                         <div className="inner-panel inner-panel-body flex items-center gap-2.5">
-                          <ProductImageThumb src={cfg.target_image || null} alt={cfg.target_name || ''} size="xs" fallbackIcon={<Package className="w-4 h-4" />} />
+                          <ProductImageThumb src={cfg.target_image || null} alt={cfg.target_name || ''} size="xs" fallbackIcon={<ProductIcon className="w-4 h-4" />} />
                           <span className="body-text truncate flex-1 min-w-0">{cfg.target_name}</span>
                           <Button size="sm" variant="ghost" onClick={() => setPickerFor(id)}>เปลี่ยน</Button>
                         </div>
@@ -587,11 +587,11 @@ function MarketplaceImportContent() {
 
             {(history.length > 0 || nextCursor) && (
               <div className="flex items-center justify-center gap-4 pt-2">
-                <Button size="sm" variant="secondary" disabled={history.length === 0 || loading} onClick={goPrev} icon={<ChevronLeft className="w-4 h-4" />}>
+                <Button size="sm" variant="secondary" disabled={history.length === 0 || loading} onClick={goPrev} icon={<ChevronLeftIcon className="w-4 h-4" />}>
                   ก่อนหน้า
                 </Button>
                 <span className="subtitle-text text-gray-500">หน้า {history.length + 1}</span>
-                <Button size="sm" variant="secondary" disabled={!nextCursor || loading} onClick={goNext} iconRight={<ChevronRight className="w-4 h-4" />}>
+                <Button size="sm" variant="secondary" disabled={!nextCursor || loading} onClick={goNext} iconRight={<ChevronRightIcon className="w-4 h-4" />}>
                   ถัดไป
                 </Button>
               </div>

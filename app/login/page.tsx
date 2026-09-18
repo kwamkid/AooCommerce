@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { AlertIcon, LoadingIcon } from '@/lib/icons';
 import { AuthSplitShell, GoogleLogo } from '@/components/auth/AuthHero';
 import InAppBrowserNotice from '@/components/auth/InAppBrowserNotice';
 import { FullPageLoading } from '@/components/ui/Loading';
@@ -55,7 +55,7 @@ export default function LoginPage() {
 
           {error && (
             <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+              <AlertIcon className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-red-600 dark:text-red-300">{error}</p>
             </div>
           )}
@@ -65,7 +65,7 @@ export default function LoginPage() {
             disabled={isLoading}
             className="w-full py-3 bg-white dark:bg-slate-700 hover:bg-gray-50 dark:hover:bg-slate-600 text-gray-700 dark:text-white font-semibold rounded-lg border border-gray-300 dark:border-slate-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
           >
-            {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <GoogleLogo />}
+            {isLoading ? <LoadingIcon className="w-5 h-5 animate-spin" /> : <GoogleLogo />}
             {isLoading ? 'กำลังเปิด Google...' : 'เข้าสู่ระบบด้วย Google'}
           </button>
 

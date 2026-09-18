@@ -17,21 +17,8 @@ import Modal from '@/components/ui/Modal';
 import { LoadingCard, EmptyCard } from '@/components/ui/StateCard';
 import UiStatusBadge, { InfoChip } from '@/components/ui/StatusBadge';
 import Badge from '@/components/ui/Badge';
-import {
-  Plus,
-  Edit2,
-  Trash2,
-  Package,
-  Gift,
-  Percent,
-  Tag,
-  FilterX,
-  Image as ImageIcon,
-  Send,
-  Calendar,
-  X,
-  AlertTriangle,
-} from 'lucide-react';
+import { FilterX } from 'lucide-react';
+import { AddIcon, ProductIcon, PromoBundleIcon, PromoFreeGiftIcon, PromoSpecialPriceIcon, PromoQtyIcon, CloseIcon, DeleteIcon, EditIcon, PromotionIcon, SendIcon, WarningIcon } from '@/lib/icons';
 import PushDealModal from './components/PushDealModal';
 import { useFeatures } from '@/lib/features-context';
 import { useToast } from '@/lib/toast-context';
@@ -99,10 +86,10 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
-  bundle_set: <Package className="w-4 h-4" />,
-  buy_get_free: <Gift className="w-4 h-4" />,
-  buy_get_discount: <Tag className="w-4 h-4" />,
-  qty_discount: <Percent className="w-4 h-4" />,
+  bundle_set: <PromoBundleIcon className="w-4 h-4" />,
+  buy_get_free: <PromoFreeGiftIcon className="w-4 h-4" />,
+  buy_get_discount: <PromoSpecialPriceIcon className="w-4 h-4" />,
+  qty_discount: <PromoQtyIcon className="w-4 h-4" />,
 };
 
 const TYPE_COLORS: Record<string, { bg: string; text: string; icon: string }> = {
@@ -132,9 +119,9 @@ function StatusBadge({ status }: { status: string }) {
 
 function PromoActionMenu({ onEdit, onDelete, onPush }: { onEdit: () => void; onDelete: () => void; onPush?: () => void }) {
   const items: SharedActionItem[] = [
-    { key: 'edit', label: 'แก้ไข', icon: <Edit2 className="w-3.5 h-3.5" />, onClick: onEdit },
-    ...(onPush ? [{ key: 'push', label: 'ส่งไป Shopee', icon: <Send className="w-3.5 h-3.5" />, onClick: onPush }] : []),
-    { key: 'delete', label: 'ลบ', icon: <Trash2 className="w-3.5 h-3.5" />, danger: true, onClick: onDelete },
+    { key: 'edit', label: 'แก้ไข', icon: <EditIcon className="w-3.5 h-3.5" />, onClick: onEdit },
+    ...(onPush ? [{ key: 'push', label: 'ส่งไป Shopee', icon: <SendIcon className="w-3.5 h-3.5" />, onClick: onPush }] : []),
+    { key: 'delete', label: 'ลบ', icon: <DeleteIcon className="w-3.5 h-3.5" />, danger: true, onClick: onDelete },
   ];
   return <SharedActionMenu items={items} />;
 }
@@ -166,7 +153,7 @@ function ImageLightbox({ url, onClose }: { url: string; onClose: () => void }) {
         onClick={onClose}
         className="absolute top-4 right-4 p-2.5 bg-white/20 hover:bg-white/30 rounded-full transition-colors text-white z-10"
       >
-        <X className="w-5 h-5" />
+        <CloseIcon className="w-5 h-5" />
       </button>
       <div className="max-w-[90vw] max-h-[85vh]" onClick={(e) => e.stopPropagation()}>
         <img src={url} alt="" className="max-w-full max-h-[85vh] object-contain rounded-lg select-none" draggable={false} />
@@ -249,7 +236,7 @@ function PromotionCard({
                   className="w-5 h-5"
                 />
                 {isOutOfSync && (
-                  <AlertTriangle className="w-2.5 h-2.5 text-amber-500 absolute -top-1 -right-1" />
+                  <WarningIcon className="w-2.5 h-2.5 text-amber-500 absolute -top-1 -right-1" />
                 )}
               </div>
               <div className="absolute bottom-full right-0 mb-1.5 hidden group-hover:block z-[999]">
@@ -257,7 +244,7 @@ function PromotionCard({
                   <div className="font-medium mb-1">Sync กับ Shopee</div>
                   {isOutOfSync && (
                     <div className="flex items-center gap-1 text-amber-400 mb-1">
-                      <AlertTriangle className="w-3 h-3" />
+                      <WarningIcon className="w-3 h-3" />
                       <span>มีการแก้ไขที่ยังไม่ sync</span>
                     </div>
                   )}
@@ -292,7 +279,7 @@ function PromotionCard({
                     <img src={thumbUrl(item.image, 96)} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
-                      <Package className="w-5 h-5 text-gray-300 dark:text-slate-500" />
+                      <ProductIcon className="w-5 h-5 text-gray-300 dark:text-slate-500" />
                     </div>
                   )}
                 </div>
@@ -505,9 +492,9 @@ function PromotionsPageContent() {
     <Container size="full">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <PageHeader title="โปรโมชั่น" subtitle="จัดการโปรโมชั่นสินค้า" />
+        <PageHeader icon={<PromotionIcon />} title="โปรโมชั่น" subtitle="จัดการโปรโมชั่นสินค้า" />
         <Link href="/promotions/new" className="btn btn-md btn-primary">
-          <Plus className="w-4 h-4" />
+          <AddIcon className="w-4 h-4" />
           <span>สร้างโปรโมชั่น</span>
         </Link>
       </div>
@@ -636,7 +623,7 @@ function PromotionsPageContent() {
               return (
                 <div className={`border rounded-lg p-3 mb-4 ${hasOngoing ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'}`}>
                   <div className="flex items-start gap-2">
-                    <AlertTriangle className={`w-4 h-4 mt-0.5 flex-shrink-0 ${hasOngoing ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'}`} />
+                    <WarningIcon className={`w-4 h-4 mt-0.5 flex-shrink-0 ${hasOngoing ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'}`} />
                     <div>
                       <p className={`text-sm font-medium ${hasOngoing ? 'text-red-800 dark:text-red-300' : 'text-amber-800 dark:text-amber-300'}`}>
                         {hasOngoing

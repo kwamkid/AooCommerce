@@ -8,12 +8,8 @@ import { useAuthGuard } from '@/lib/useAuthGuard';
 import SearchInput from '@/components/ui/SearchInput';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
-import {
-  ClipboardList, Loader2, RefreshCw, CheckCircle2,
-  AlertCircle, Clock, BadgeCheck, Copy, Receipt,
-  Plus, Package, XCircle, Trash2, Eye, FileText, Printer,
-  Banknote, Undo2, UserPlus,
-} from 'lucide-react';
+import { BadgeCheck } from 'lucide-react';
+import { AddIcon, AlertIcon, ChecklistIcon, CopyIcon, DeleteIcon, DocumentIcon, LoadingIcon, MoneyIcon, PrintIcon, ReceiptIcon, RefreshIcon, ReverseIcon, SuccessIcon, TimeIcon, UserAddIcon } from '@/lib/icons';
 import { showPdfPreview, mergePdfBlobs } from '@/lib/print-pdf';
 import { markPrinted as markPrintedDB } from '@/lib/print-tracking';
 import Pagination from '@/app/components/Pagination';
@@ -520,7 +516,7 @@ function ConsignmentReportsContent() {
       items.push({
         key: 'print_receipt',
         label: 'ใบเสร็จรับเงิน',
-        icon: <Receipt className="w-4 h-4" />,
+        icon: <ReceiptIcon className="w-4 h-4" />,
         onClick: async () => {
           try {
             const stRes = await apiFetch(`/api/statements/${report.statement_id}`);
@@ -545,7 +541,7 @@ function ConsignmentReportsContent() {
       items.push({
         key: 'statement',
         label: 'ใบวางบิล',
-        icon: isPrinting && printingType === 'statement' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Receipt className="w-4 h-4" />,
+        icon: isPrinting && printingType === 'statement' ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <ReceiptIcon className="w-4 h-4" />,
         suffix: dot('statement'),
         onClick: () => handlePrintStatement(report.id, report.statement_id!),
         disabled: isPrinting,
@@ -557,7 +553,7 @@ function ConsignmentReportsContent() {
       items.push({
         key: 'invoice',
         label: report.doc_type === 'tax_invoice' ? 'ใบกำกับภาษี/ใบแจ้งหนี้' : 'ใบแจ้งหนี้',
-        icon: isPrinting && printingType === 'invoice' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />,
+        icon: isPrinting && printingType === 'invoice' ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <DocumentIcon className="w-4 h-4" />,
         suffix: dot('invoice'),
         onClick: () => handlePrintInvoice(report.id),
         disabled: isPrinting,
@@ -569,7 +565,7 @@ function ConsignmentReportsContent() {
       items.push({
         key: 'print_all',
         label: isPrinting ? 'กำลังสร้าง...' : 'พิมพ์ทั้งหมด',
-        icon: isPrinting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />,
+        icon: isPrinting ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <PrintIcon className="w-4 h-4" />,
         primary: true,
         onClick: () => handlePrintAll(report),
         disabled: isPrinting,
@@ -583,7 +579,7 @@ function ConsignmentReportsContent() {
       items.push({
         key: 'reverse_payment',
         label: 'ยกเลิกการชำระ',
-        icon: <Undo2 className="w-4 h-4" />,
+        icon: <ReverseIcon className="w-4 h-4" />,
         onClick: () => setReverseConfirm(report),
         danger: true,
         dividerBefore: true,
@@ -595,7 +591,7 @@ function ConsignmentReportsContent() {
       items.push({
         key: 'copy_link',
         label: 'คัดลอกลิงก์ตัวแทน',
-        icon: <Copy className="w-4 h-4" />,
+        icon: <CopyIcon className="w-4 h-4" />,
         onClick: () => copyPortalReportLink(report),
         dividerBefore: true,
       });
@@ -606,7 +602,7 @@ function ConsignmentReportsContent() {
       items.push({
         key: 'void',
         label: 'ยกเลิก (Void)',
-        icon: <Trash2 className="w-4 h-4" />,
+        icon: <DeleteIcon className="w-4 h-4" />,
         danger: true,
         dividerBefore: true,
         onClick: () => setVoidConfirm(report),
@@ -618,7 +614,7 @@ function ConsignmentReportsContent() {
       items.push({
         key: 'cancel',
         label: 'ยกเลิกรายงาน',
-        icon: <Trash2 className="w-4 h-4" />,
+        icon: <DeleteIcon className="w-4 h-4" />,
         danger: true,
         dividerBefore: report.status === 'draft' && !report.report_token,
         onClick: () => setCancelConfirm(report),
@@ -632,7 +628,7 @@ function ConsignmentReportsContent() {
     <Layout>
       <Container size="full" gap="sm">
         <PageHeader
-          icon={<ClipboardList />}
+          icon={<ChecklistIcon />}
           title="ยอดขายตัวแทน"
           actions={
             <>
@@ -641,14 +637,14 @@ function ConsignmentReportsContent() {
                 onClick={() => fetchReports(true)}
                 disabled={isRefreshing}
                 title="รีเฟรช"
-                icon={<RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />}
+                icon={<RefreshIcon className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />}
               />
-              <Button variant="secondary" icon={<UserPlus className="w-4 h-4" />} onClick={() => router.push('/customers/new?type=consignment_dealer')}>
+              <Button variant="secondary" icon={<UserAddIcon className="w-4 h-4" />} onClick={() => router.push('/customers/new?type=consignment_dealer')}>
                 เพิ่มตัวแทน
               </Button>
               <Button
                 variant="primary"
-                icon={<Plus className="w-5 h-5" />}
+                icon={<AddIcon className="w-5 h-5" />}
                 onClick={() => router.push('/consignment/reports/new')}
               >
                 คีย์ยอดตัวแทน
@@ -724,7 +720,7 @@ function ConsignmentReportsContent() {
                 return (
                   <Tooltip text={`${r.doc_type === 'tax_invoice' ? 'ใบกำกับภาษี/ใบแจ้งหนี้' : 'ใบแจ้งหนี้'}: ${isPrintedDoc(r, 'invoice') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}\nใบวางบิล: ${r.statement_id ? (isPrintedDoc(r, 'statement') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์') : 'ยังไม่มี'}`}>
                     <div className="relative flex items-center justify-center gap-1">
-                      {isPrinting && <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin absolute" />}
+                      {isPrinting && <LoadingIcon className="w-3.5 h-3.5 text-gray-400 animate-spin absolute" />}
                       <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'invoice') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
                       <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'statement') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
                     </div>
@@ -747,7 +743,7 @@ function ConsignmentReportsContent() {
                 const ov = r.due_date && new Date(r.due_date) < new Date() && r.status !== 'paid';
                 return r.due_date ? (
                   <span className={`data-text flex items-center gap-1 ${ov ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-600 dark:text-slate-300'}`}>
-                    {ov && <AlertCircle className="w-3.5 h-3.5" />}
+                    {ov && <AlertIcon className="w-3.5 h-3.5" />}
                     {formatDate(r.due_date)}
                   </span>
                 ) : <span className="data-muted text-gray-400 dark:text-slate-500">-</span>;
@@ -763,11 +759,11 @@ function ConsignmentReportsContent() {
                     </Button>
                   )}
                   {['billed', 'overdue'].includes(r.status) && r.statement_id && (
-                    <Button variant="indigo" icon={<Banknote className="w-4 h-4" />} onClick={() => setPaymentConfirm(r)}>
+                    <Button variant="indigo" icon={<MoneyIcon className="w-4 h-4" />} onClick={() => setPaymentConfirm(r)}>
                       <span className="hidden xl:inline">ลูกค้าชำระแล้ว</span>
                     </Button>
                   )}
-                  {r.status === 'paid' && <CheckCircle2 className="w-5 h-5 text-green-500" />}
+                  {r.status === 'paid' && <SuccessIcon className="w-5 h-5 text-green-500" />}
                   <ActionMenu items={buildMenuItems(r)} />
                 </div>
               ),
@@ -800,7 +796,7 @@ function ConsignmentReportsContent() {
                   <span className="data-number text-gray-900 dark:text-white">฿{formatAmount(report.our_amount)}</span>
                 </div>
                 <div className="flex items-center gap-3 text-xs text-gray-400 dark:text-slate-500">
-                  <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{formatPeriod(report.period_year, report.period_month)}</span>
+                  <span className="flex items-center gap-1"><TimeIcon className="w-3 h-3" />{formatPeriod(report.period_year, report.period_month)}</span>
                   <span>{report.total_qty_sold} ชิ้น</span>
                 </div>
                 <div className="mt-3 flex items-center gap-2" onClick={e => e.stopPropagation()}>
@@ -810,11 +806,11 @@ function ConsignmentReportsContent() {
                     </Button>
                   )}
                   {['billed', 'overdue'].includes(report.status) && report.statement_id && (
-                    <Button variant="indigo" icon={<Banknote className="w-4 h-4" />} className="flex-1 justify-center" onClick={() => setPaymentConfirm(report)}>
+                    <Button variant="indigo" icon={<MoneyIcon className="w-4 h-4" />} className="flex-1 justify-center" onClick={() => setPaymentConfirm(report)}>
                       ลูกค้าชำระแล้ว
                     </Button>
                   )}
-                  {report.status === 'paid' && <span className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-green-600"><CheckCircle2 className="w-4 h-4" /> ชำระแล้ว</span>}
+                  {report.status === 'paid' && <span className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-green-600"><SuccessIcon className="w-4 h-4" /> ชำระแล้ว</span>}
                   {['invoiced', 'billed', 'paid'].includes(report.status) && (
                     <div className="flex items-center gap-1">
                       <span className={`w-2 h-2 rounded-full ${isPrintedDoc(report, 'invoice') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
@@ -837,7 +833,7 @@ function ConsignmentReportsContent() {
         icon={<BadgeCheck className="w-6 h-6 text-emerald-600" />}
         title="พร้อมวางบิล"
         confirmLabel={billLoading ? 'กำลังดำเนินการ...' : 'ยืนยันพร้อมวางบิล'}
-        confirmIcon={billLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <BadgeCheck className="w-4 h-4" />}
+        confirmIcon={billLoading ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <BadgeCheck className="w-4 h-4" />}
         loading={billLoading}
       >
         {billConfirm && (
@@ -856,10 +852,10 @@ function ConsignmentReportsContent() {
         open={!!paymentConfirm}
         onClose={() => !paymentLoading && setPaymentConfirm(null)}
         onConfirm={() => paymentConfirm && handleRecordPayment(paymentConfirm)}
-        icon={<Banknote className="w-6 h-6 text-primary" />}
+        icon={<MoneyIcon className="w-6 h-6 text-primary" />}
         title="ลูกค้าชำระแล้ว"
         confirmLabel={paymentLoading ? 'กำลังบันทึก...' : 'ยืนยันการชำระ'}
-        confirmIcon={paymentLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+        confirmIcon={paymentLoading ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <SuccessIcon className="w-4 h-4" />}
         loading={paymentLoading}
       >
         {paymentConfirm && (
@@ -878,10 +874,10 @@ function ConsignmentReportsContent() {
         open={!!reverseConfirm}
         onClose={() => !reverseLoading && setReverseConfirm(null)}
         onConfirm={() => reverseConfirm && handleReversePayment(reverseConfirm)}
-        icon={<Undo2 className="w-6 h-6 text-red-500" />}
+        icon={<ReverseIcon className="w-6 h-6 text-red-500" />}
         title="ยกเลิกการชำระ"
         confirmLabel={reverseLoading ? 'กำลังดำเนินการ...' : 'ยืนยันยกเลิก'}
-        confirmIcon={reverseLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Undo2 className="w-4 h-4" />}
+        confirmIcon={reverseLoading ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <ReverseIcon className="w-4 h-4" />}
         variant="danger"
         loading={reverseLoading}
       >
@@ -901,10 +897,10 @@ function ConsignmentReportsContent() {
         open={!!cancelConfirm}
         onClose={() => !cancelLoading && setCancelConfirm(null)}
         onConfirm={() => cancelConfirm && handleCancelReport(cancelConfirm)}
-        icon={<Trash2 className="w-6 h-6 text-red-500" />}
+        icon={<DeleteIcon className="w-6 h-6 text-red-500" />}
         title="ยกเลิกรายงาน"
         confirmLabel={cancelLoading ? 'กำลังดำเนินการ...' : 'ยืนยันยกเลิก'}
-        confirmIcon={cancelLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+        confirmIcon={cancelLoading ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <DeleteIcon className="w-4 h-4" />}
         variant="danger"
         loading={cancelLoading}
       >
@@ -921,10 +917,10 @@ function ConsignmentReportsContent() {
         open={!!voidConfirm}
         onClose={() => !voidLoading && setVoidConfirm(null)}
         onConfirm={() => voidConfirm && handleVoidReport(voidConfirm)}
-        icon={<Trash2 className="w-6 h-6 text-red-500" />}
+        icon={<DeleteIcon className="w-6 h-6 text-red-500" />}
         title="ยกเลิกรายงาน (Void)"
         confirmLabel={voidLoading ? 'กำลังดำเนินการ...' : 'ยืนยันยกเลิก'}
-        confirmIcon={voidLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+        confirmIcon={voidLoading ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <DeleteIcon className="w-4 h-4" />}
         variant="danger"
         loading={voidLoading}
       >

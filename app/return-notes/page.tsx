@@ -7,7 +7,7 @@ import PageHeader from '@/components/ui/PageHeader';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api-client';
-import { RotateCcw, Search, Plus } from 'lucide-react';
+import { AddIcon, ReturnNoteIcon, SearchIcon } from '@/lib/icons';
 import Button from '@/components/ui/Button';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import { useAuthGuard } from '@/lib/useAuthGuard';
@@ -75,13 +75,13 @@ export default function ReturnNotesPage() {
     <Layout>
       <div className="space-y-6">
         <PageHeader
-          icon={<RotateCcw />}
+          icon={<ReturnNoteIcon />}
           title="ใบรับคืนสินค้า"
           subtitle="RN-YYYYMM-NNNN -- คืนสินค้าจากตัวแทน/ห้าง"
           actions={
             <Button
               variant="primary"
-              icon={<Plus className="w-4 h-4" />}
+              icon={<AddIcon className="w-4 h-4" />}
               onClick={() => router.push('/return-notes/new')}
             >
               สร้างใบรับคืน
@@ -92,7 +92,7 @@ export default function ReturnNotesPage() {
         <div className="data-filter-card">
           <div className="flex items-center gap-2 flex-wrap">
             <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 type="text"
                 value={search}

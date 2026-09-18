@@ -21,7 +21,7 @@ import HelpHint from '@/components/ui/HelpHint';
 import { ProgressBar } from '@/components/ui/Chart';
 import { Skeleton, SkeletonText } from '@/components/ui/Skeleton';
 import PlatformIcon from '@/components/ui/PlatformIcon';
-import { Users } from 'lucide-react';
+import { PeopleIcon } from '@/lib/icons';
 import { formatNumber } from '@/lib/utils/format';
 import { META_AUDIENCE_MIN_MATCHED } from '@/lib/ads/meta-ui';
 import type { AudiencePreview } from './types';
@@ -140,7 +140,7 @@ export default function AudienceRail({ preview, loading, error, hint }: Props) {
                   <span className="mt-1 flex-shrink-0">
                     {s.kind === 'chat' && s.platform
                       ? <PlatformIcon id={s.platform as 'line' | 'facebook'} size={14} title={s.label} />
-                      : <Users className="w-3.5 h-3.5 text-gray-400 dark:text-slate-500" />}
+                      : <PeopleIcon className="w-3.5 h-3.5 text-gray-400 dark:text-slate-500" />}
                   </span>
                   <div className="min-w-0">
                     <p className="subtitle-text">{s.label} · {formatNumber(s.total)} คน</p>

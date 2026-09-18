@@ -16,18 +16,7 @@ import { LoadingCard } from '@/components/ui/StateCard';
 import { PaymentStatusBadge } from '@/components/ui/OrderStatusBadge';
 import Badge from '@/components/ui/Badge';
 import { downloadBlob } from '@/lib/utils/download';
-import {
-  BarChart3,
-  Calendar,
-  TrendingUp,
-  Users,
-  Package,
-  ChevronDown,
-  ChevronRight,
-  Banknote,
-  Clock,
-  CheckCircle
-} from 'lucide-react';
+import { CalendarIcon, ChevronDownIcon, ChevronRightIcon, MoneyIcon, PeopleIcon, ProductIcon, ReportIcon, SuccessIcon, TimeIcon, TrendUpIcon } from '@/lib/icons';
 
 // Types
 interface SalesSummary {
@@ -274,7 +263,7 @@ export default function SalesReportPage() {
       {/* Header */}
       <PageHeader
         className="mb-6"
-        icon={<BarChart3 />}
+        icon={<ReportIcon />}
         title="รายงานยอดขาย"
         subtitle="วิเคราะห์ยอดขายตามช่วงเวลา"
         actions={
@@ -307,9 +296,9 @@ export default function SalesReportPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">แยกตาม</label>
             <div className="flex flex-wrap gap-2">
               {[
-                { value: 'date', label: 'วัน', icon: Calendar },
-                { value: 'customer', label: 'ลูกค้า', icon: Users },
-                { value: 'product', label: 'สินค้า', icon: Package }
+                { value: 'date', label: 'วัน', icon: CalendarIcon },
+                { value: 'customer', label: 'ลูกค้า', icon: PeopleIcon },
+                { value: 'product', label: 'สินค้า', icon: ProductIcon }
               ].map((option) => (
                 <button
                   key={option.value}
@@ -335,7 +324,7 @@ export default function SalesReportPage() {
           <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-4">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                <TrendingUp className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                <TrendUpIcon className="w-6 h-6 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
                 <p className="text-sm text-gray-500 dark:text-slate-400">ยอดขายสุทธิ</p>
@@ -347,7 +336,7 @@ export default function SalesReportPage() {
           <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-4">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <CheckCircle className="w-6 h-6 text-green-600" />
+                <SuccessIcon className="w-6 h-6 text-green-600" />
               </div>
               <div>
                 <p className="text-sm text-gray-500 dark:text-slate-400">ชำระแล้ว</p>
@@ -359,7 +348,7 @@ export default function SalesReportPage() {
           <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-4">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                <Clock className="w-6 h-6 text-orange-600" />
+                <TimeIcon className="w-6 h-6 text-orange-600" />
               </div>
               <div>
                 <p className="text-sm text-gray-500 dark:text-slate-400">รอชำระ</p>
@@ -371,7 +360,7 @@ export default function SalesReportPage() {
           <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-4">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                <Banknote className="w-6 h-6 text-purple-600" />
+                <MoneyIcon className="w-6 h-6 text-purple-600" />
               </div>
               <div>
                 <p className="text-sm text-gray-500 dark:text-slate-400">Order ({summary.totalOrders})</p>
@@ -388,7 +377,7 @@ export default function SalesReportPage() {
           <LoadingCard />
         ) : groupedData.length === 0 ? (
           <div className="p-8 text-center">
-            <BarChart3 className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+            <ReportIcon className="w-12 h-12 mx-auto mb-3 text-gray-300" />
             <p className="text-gray-500 dark:text-slate-400">ไม่พบข้อมูลในช่วงเวลานี้</p>
           </div>
         ) : (
@@ -437,7 +426,7 @@ export default function SalesReportPage() {
                     >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4 text-gray-400" />
+                          <CalendarIcon className="w-4 h-4 text-gray-400" />
                           <span className="font-medium text-gray-900 dark:text-white">{item.date ? formatDate(item.date) : 'ไม่ระบุ'}</span>
                         </div>
                       </td>
@@ -447,9 +436,9 @@ export default function SalesReportPage() {
                       <td className="px-6 py-4 text-right text-orange-600">{formatPrice(item.pendingAmount)}</td>
                       <td className="px-6 py-4">
                         {expandedRows.has(item.date || `date-${index}`) ? (
-                          <ChevronDown className="w-5 h-5 text-gray-400" />
+                          <ChevronDownIcon className="w-5 h-5 text-gray-400" />
                         ) : (
-                          <ChevronRight className="w-5 h-5 text-gray-400" />
+                          <ChevronRightIcon className="w-5 h-5 text-gray-400" />
                         )}
                       </td>
                     </tr>
@@ -487,9 +476,9 @@ export default function SalesReportPage() {
                       <td className="px-6 py-4 text-right text-orange-600">{formatPrice(item.pendingAmount)}</td>
                       <td className="px-6 py-4">
                         {expandedRows.has(item.customerId || `customer-${index}`) ? (
-                          <ChevronDown className="w-5 h-5 text-gray-400" />
+                          <ChevronDownIcon className="w-5 h-5 text-gray-400" />
                         ) : (
-                          <ChevronRight className="w-5 h-5 text-gray-400" />
+                          <ChevronRightIcon className="w-5 h-5 text-gray-400" />
                         )}
                       </td>
                     </tr>
@@ -567,7 +556,7 @@ export default function SalesReportPage() {
             {groupBy === 'date' && groupedData.map((item: GroupedDataByDate, index: number) => (
               <div key={item.date || `date-${index}`} className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
                 <div className="flex items-center gap-2 mb-3">
-                  <Calendar className="w-4 h-4 text-gray-400" />
+                  <CalendarIcon className="w-4 h-4 text-gray-400" />
                   <span className="font-medium text-gray-900 dark:text-white">{item.date ? formatDate(item.date) : 'ไม่ระบุ'}</span>
                   <span className="ml-auto text-sm text-gray-500 dark:text-slate-400">{item.orderCount} orders</span>
                 </div>

@@ -1,7 +1,8 @@
 'use client';
 
 import { type ReactNode, Fragment, useState, useEffect, useRef, useCallback } from 'react';
-import { Loader2, Package, ArrowUp, ArrowDown, ArrowUpDown, Check, X, GripVertical, RotateCcw, ChevronRight } from 'lucide-react';
+import { ArrowUp, ArrowDown, ArrowUpDown, GripVertical } from 'lucide-react';
+import { ChevronRightIcon, CloseIcon, ConfirmIcon, LoadingIcon, ProductIcon, ResetIcon } from '@/lib/icons';
 import {
   DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent,
   closestCenter, MeasuringStrategy,
@@ -530,12 +531,12 @@ export default function DataTable<T>({
             <tbody className="data-tbody">
               {loading ? (
                 <tr><td colSpan={bodyColSpan} className="py-16 text-center">
-                  <Loader2 className="w-6 h-6 text-primary animate-spin mx-auto" />
+                  <LoadingIcon className="w-6 h-6 text-primary animate-spin mx-auto" />
                 </td></tr>
               ) : data.length === 0 ? (
                 <tr><td colSpan={bodyColSpan} className="py-16 text-center">
                   <div className="flex flex-col items-center gap-2">
-                    {emptyIcon || <Package className="w-10 h-10 text-gray-300 dark:text-slate-600" />}
+                    {emptyIcon || <ProductIcon className="w-10 h-10 text-gray-300 dark:text-slate-600" />}
                     <p className="text-gray-500 dark:text-slate-400 data-text">{emptyMessage}</p>
                   </div>
                 </td></tr>
@@ -559,7 +560,7 @@ export default function DataTable<T>({
                             aria-label={isOpen ? 'ซ่อนตัวเลือก' : 'แสดงตัวเลือก'}
                             className="inline-flex items-center justify-center w-7 h-7 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:text-slate-500 dark:hover:text-slate-200 dark:hover:bg-slate-700 transition-colors"
                           >
-                            <ChevronRight className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+                            <ChevronRightIcon className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
                           </button>
                         )}
                       </td>
@@ -632,7 +633,7 @@ export default function DataTable<T>({
               aria-label="รีเซ็ตคอลัมน์"
               className="flex-shrink-0 p-2 text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
             >
-              <RotateCcw className="w-4 h-4" />
+              <ResetIcon className="w-4 h-4" />
             </button>
             <ColumnSettingsDropdown configs={configs} visible={visibleColumns} toggle={toggleColumn} dropUp />
           </div>
@@ -654,7 +655,7 @@ export default function DataTable<T>({
               aria-label="Reset columns"
               className="flex-shrink-0 p-2 text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
             >
-              <RotateCcw className="w-4 h-4" />
+              <ResetIcon className="w-4 h-4" />
             </button>
             <ColumnSettingsDropdown configs={configs} visible={visibleColumns} toggle={toggleColumn} dropUp />
           </Pagination>
@@ -682,10 +683,10 @@ export default function DataTable<T>({
       {/* Mobile Cards */}
       <div className="md:hidden bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
         {loading ? (
-          <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 text-primary animate-spin" /></div>
+          <div className="flex justify-center py-16"><LoadingIcon className="w-6 h-6 text-primary animate-spin" /></div>
         ) : data.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-16">
-            {emptyIcon || <Package className="w-10 h-10 text-gray-300 dark:text-slate-600" />}
+            {emptyIcon || <ProductIcon className="w-10 h-10 text-gray-300 dark:text-slate-600" />}
             <p className="text-gray-500 dark:text-slate-400">{emptyMessage}</p>
           </div>
         ) : (
@@ -905,7 +906,7 @@ function EditCell<T>({ row, config, onDone }: { row: T; config: EditConfig<T>; o
       )}
       {/* dropdown บันทึกเองตอนเลือก จึงไม่มีปุ่มยืนยัน เหลือแค่ตัวหมุนตอนกำลังบันทึก */}
       {config.type === 'select' ? (
-        saving && <Loader2 className="w-4 h-4 flex-shrink-0 animate-spin text-emerald-600" />
+        saving && <LoadingIcon className="w-4 h-4 flex-shrink-0 animate-spin text-emerald-600" />
       ) : (
         <button
           type="button"
@@ -914,7 +915,7 @@ function EditCell<T>({ row, config, onDone }: { row: T; config: EditConfig<T>; o
           className="flex-shrink-0 p-1 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded"
           aria-label="บันทึก"
         >
-          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+          {saving ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <ConfirmIcon className="w-4 h-4" />}
         </button>
       )}
       <button
@@ -924,7 +925,7 @@ function EditCell<T>({ row, config, onDone }: { row: T; config: EditConfig<T>; o
         className="flex-shrink-0 p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700 rounded"
         aria-label="ยกเลิก"
       >
-        <X className="w-4 h-4" />
+        <CloseIcon className="w-4 h-4" />
       </button>
       {error && (
         <span className="absolute mt-8 text-xs text-red-600 dark:text-red-400 bg-white dark:bg-slate-800 px-2 py-1 rounded shadow-sm border border-red-200">

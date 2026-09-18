@@ -28,7 +28,8 @@ import { supabase } from '@/lib/supabase';
 import imageCompression from 'browser-image-compression';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
-import { Loader2, Unlink2, Package2, Merge, Search, Trash2, HelpCircle } from 'lucide-react';
+import { Unlink2, Merge, HelpCircle } from 'lucide-react';
+import { DeleteIcon, LoadingIcon, ProductIcon, SearchIcon } from '@/lib/icons';
 import FormSelect from '@/components/ui/FormSelect';
 import CategoryPicker from '@/components/marketplace/CategoryPicker';
 import { MARKETPLACE_PLATFORMS } from '@/lib/marketplace/platforms';
@@ -822,7 +823,7 @@ export default function EditProductPage() {
               />
               <Button
                 variant="danger"
-                icon={<Trash2 className="w-4 h-4" />}
+                icon={<DeleteIcon className="w-4 h-4" />}
                 onClick={handleDeleteProduct}
                 title="ลบสินค้า"
               >
@@ -848,7 +849,7 @@ export default function EditProductPage() {
             }}
             tabs={[
               // ให้แท็บแรกมีไอคอนด้วย จะได้ไม่เป็นแท็บเดียวที่ข้อความชิดซ้ายกว่าเพื่อน
-              { key: 'info', label: 'ข้อมูลสินค้า', icon: <Package2 className="w-4 h-4" /> },
+              { key: 'info', label: 'ข้อมูลสินค้า', icon: <ProductIcon className="w-4 h-4" /> },
               ...shopAccounts.map(([accountId, account]) => ({
                 key: accountId,
                 label: account.name,
@@ -953,13 +954,13 @@ export default function EditProductPage() {
                     value={mergeSearch}
                     onChange={e => setMergeSearch(e.target.value)}
                     placeholder="ค้นหาด้วย ชื่อ, รหัส, SKU..."
-                    icon={<Search className="w-4 h-4" />}
+                    icon={<SearchIcon className="w-4 h-4" />}
                     autoFocus
                   />
 
                   {mergeLoadingProducts ? (
                     <div className="flex items-center justify-center py-8">
-                      <Loader2 className="w-6 h-6 text-primary animate-spin" />
+                      <LoadingIcon className="w-6 h-6 text-primary animate-spin" />
                     </div>
                   ) : (
                     <div className="space-y-1 max-h-[50vh] overflow-y-auto">

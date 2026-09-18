@@ -8,7 +8,8 @@ import PageHeader from '@/components/ui/PageHeader';
 import { LoadingCard } from '@/components/ui/StateCard';
 import OrderForm from '@/components/orders/OrderForm';
 import { apiFetch } from '@/lib/api-client';
-import { Copy, Repeat, Package, CornerDownRight } from 'lucide-react';
+import { Repeat, CornerDownRight } from 'lucide-react';
+import { CopyIcon, ProductIcon } from '@/lib/icons';
 import { formatPrice } from '@/lib/utils/format';
 import { thumbUrl } from '@/lib/image-thumb';
 import { useAuthGuard } from '@/lib/useAuthGuard';
@@ -298,7 +299,7 @@ function NewOrderContent() {
               </span>
             ) : !isExchange && sourceOrderNumber ? (
               <span className="flex items-center gap-1">
-                <Copy className="w-3.5 h-3.5" />
+                <CopyIcon className="w-3.5 h-3.5" />
                 คัดลอกจาก #{sourceOrderNumber}
               </span>
             ) : undefined
@@ -329,7 +330,7 @@ function NewOrderContent() {
                     <img src={thumbUrl(item.image, 96)} alt={item.product_name} loading="lazy" decoding="async" className="w-10 h-10 object-contain rounded-md bg-gray-50 dark:bg-slate-700/50 flex-shrink-0" />
                   ) : (
                     <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/20 rounded flex items-center justify-center flex-shrink-0">
-                      <Package className="w-4 h-4 text-orange-400" />
+                      <ProductIcon className="w-4 h-4 text-orange-400" />
                     </div>
                   )}
                   <div className="flex-1 min-w-0">

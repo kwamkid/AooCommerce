@@ -10,7 +10,7 @@
 
 import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { MessageCircle } from 'lucide-react';
+import { ChatIcon } from '@/lib/icons';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
 import Button from '@/components/ui/Button';
@@ -64,7 +64,7 @@ function ConnectedContent() {
           )}
           <div className="mx-auto max-w-lg rounded-lg bg-gray-50 dark:bg-gray-800/60 px-4 py-3 text-left">
             <p className="body-text font-medium text-gray-900 dark:text-white flex items-center gap-2">
-              <MessageCircle className="w-5 h-5 text-primary" /> จะเชื่อมต่อแชทของ {label} ด้วยไหม
+              <ChatIcon className="w-5 h-5 text-primary" /> จะเชื่อมต่อแชทของ {label} ด้วยไหม
             </p>
             <p className="subtitle-text text-gray-600 dark:text-gray-400 mt-1">
               แชทของ {label} เป็นแอปแยกจากออเดอร์ (ชื่อ &ldquo;AooCommerce Chat&rdquo;) จึงต้องล็อกอิน {label} อีกครั้งเพื่ออนุญาตแอปนี้

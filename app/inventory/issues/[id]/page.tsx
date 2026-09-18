@@ -8,7 +8,7 @@ import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { generateInventoryPdf } from '@/lib/inventory-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
-import { Warehouse, Package, ArrowLeft, User, CheckCircle2, XCircle, Printer } from 'lucide-react';
+import { BackIcon, ErrorIcon, PrintIcon, SuccessIcon, UserIcon, WarehouseIcon } from '@/lib/icons';
 import { LoadingCard } from '@/components/ui/StateCard';
 import { flattenVariationItem, productDisplayName } from '../../components/types';
 import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
@@ -160,16 +160,16 @@ export default function IssueDetailPage() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <button onClick={() => router.push('/inventory/issues')} className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300">
-            <ArrowLeft className="w-4 h-4" /> กลับ
+            <BackIcon className="w-4 h-4" /> กลับ
           </button>
-          <Button size="sm" loading={generatingPdf} onClick={handlePrint} icon={<Printer className="w-4 h-4" />}>
+          <Button size="sm" loading={generatingPdf} onClick={handlePrint} icon={<PrintIcon className="w-4 h-4" />}>
             พิมพ์
           </Button>
         </div>
 
         {/* Status */}
         <div className={`rounded-lg px-4 py-3 flex items-center gap-2 ${data.status === 'completed' ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'}`}>
-          {data.status === 'completed' ? <CheckCircle2 className="w-5 h-5 text-green-700 dark:text-green-400" /> : <XCircle className="w-5 h-5 text-red-700 dark:text-red-400" />}
+          {data.status === 'completed' ? <SuccessIcon className="w-5 h-5 text-green-700 dark:text-green-400" /> : <ErrorIcon className="w-5 h-5 text-red-700 dark:text-red-400" />}
           <span className={`text-sm font-medium ${data.status === 'completed' ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
             {data.status === 'completed' ? 'เบิกออกสำเร็จ' : 'ยกเลิก'}
           </span>
@@ -181,14 +181,14 @@ export default function IssueDetailPage() {
             <div>
               <label className="data-label text-gray-500 dark:text-slate-400 uppercase mb-1 block">คลังสินค้า</label>
               <div className="flex items-center gap-2">
-                <Warehouse className="w-4 h-4 text-gray-400" />
+                <WarehouseIcon className="w-4 h-4 text-gray-400" />
                 <span className="data-primary text-gray-900 dark:text-white">{data.warehouse?.name || '-'}</span>
               </div>
             </div>
             <div>
               <label className="data-label text-gray-500 dark:text-slate-400 uppercase mb-1 block">สร้างโดย</label>
               <div className="flex items-center gap-2">
-                <User className="w-4 h-4 text-gray-400" />
+                <UserIcon className="w-4 h-4 text-gray-400" />
                 <span className="data-text text-gray-700 dark:text-slate-300">{data.created_by_user?.name || '-'}</span>
               </div>
             </div>

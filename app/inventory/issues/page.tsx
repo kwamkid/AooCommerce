@@ -19,9 +19,7 @@ import { EmptyCard, LoadingCard } from '@/components/ui/StateCard';
 import StatusBadge from '@/components/ui/StatusBadge';
 import DocListFilters, { type DocListUser, type DocListWarehouse } from '../components/DocListFilters';
 import { useDocListParams } from '../components/useDocListParams';
-import {
-  Loader2, ArrowUpFromLine, Plus, Warehouse, Eye, Printer, X,
-} from 'lucide-react';
+import { AddIcon, CloseIcon, LoadingIcon, PrintIcon, StockIssueIcon, ViewIcon, WarehouseIcon } from '@/lib/icons';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 
 interface Issue {
@@ -138,13 +136,13 @@ function IssueListContent() {
     {
       key: 'view',
       label: 'ดูรายละเอียด',
-      icon: <Eye className="w-4 h-4" />,
+      icon: <ViewIcon className="w-4 h-4" />,
       onClick: () => router.push(`/inventory/issues/${r.id}`),
     },
     {
       key: 'print',
       label: 'พิมพ์',
-      icon: printingId === r.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />,
+      icon: printingId === r.id ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <PrintIcon className="w-4 h-4" />,
       onClick: () => handlePrint(r.id),
       disabled: printingId === r.id,
     },
@@ -160,7 +158,7 @@ function IssueListContent() {
         <Button
           variant="primary"
           onClick={() => router.push('/inventory/issue')}
-          icon={<Plus className="w-4 h-4" />}
+          icon={<AddIcon className="w-4 h-4" />}
           aria-label="เบิกออกสินค้า"
           className="whitespace-nowrap flex-shrink-0"
         >
@@ -196,18 +194,18 @@ function IssueListContent() {
 
       {rows.length === 0 ? (
         <EmptyCard
-          icon={<ArrowUpFromLine className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+          icon={<StockIssueIcon className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
           title={hasActiveFilters ? 'ไม่พบรายการที่ตรงกับตัวกรอง' : 'ยังไม่มีรายการเบิกออก'}
           subtitle={hasActiveFilters ? 'ลองขยายช่วงวันที่หรือล้างตัวกรอง' : undefined}
           actions={hasActiveFilters
-            ? <Button variant="secondary" icon={<X className="w-4 h-4" />} onClick={clearAll}>ล้างตัวกรอง</Button>
+            ? <Button variant="secondary" icon={<CloseIcon className="w-4 h-4" />} onClick={clearAll}>ล้างตัวกรอง</Button>
             : undefined}
         />
       ) : (
         <div className="relative">
           {fetching && (
             <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/60 dark:bg-slate-900/60 pointer-events-none">
-              <Loader2 className="w-8 h-8 text-primary animate-spin" />
+              <LoadingIcon className="w-8 h-8 text-primary animate-spin" />
             </div>
           )}
           <DataTable<Issue>
@@ -226,7 +224,7 @@ function IssueListContent() {
                 key: 'warehouse', label: 'คลัง',
                 render: (r) => (
                   <div className="flex items-center gap-1.5">
-                    <Warehouse className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                    <WarehouseIcon className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                     <span className="data-text text-gray-700 dark:text-slate-300">{r.warehouse?.name || '-'}</span>
                   </div>
                 ),
@@ -261,7 +259,7 @@ function IssueListContent() {
             getRowId={(r) => r.id}
             onRowClick={(r) => router.push(`/inventory/issues/${r.id}`)}
             emptyMessage="ไม่พบรายการที่ค้นหา"
-            emptyIcon={<ArrowUpFromLine className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+            emptyIcon={<StockIssueIcon className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
             currentPage={page}
             totalPages={totalPages}
             totalRecords={total}
@@ -282,7 +280,7 @@ function IssueListContent() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 mb-1">
-                  <Warehouse className="w-3.5 h-3.5 text-gray-400" />
+                  <WarehouseIcon className="w-3.5 h-3.5 text-gray-400" />
                   <span className="data-text text-gray-700 dark:text-slate-300">{r.warehouse?.name || '-'}</span>
                 </div>
                 <div className="flex items-center justify-between">

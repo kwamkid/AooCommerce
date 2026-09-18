@@ -1,7 +1,7 @@
 'use client';
 
 import { forwardRef } from 'react';
-import { Upload, Download } from 'lucide-react';
+import { DownloadIcon, UploadIcon } from '@/lib/icons';
 import Button, { type ButtonVariant, type ButtonSize } from './Button';
 
 /**
@@ -25,7 +25,7 @@ interface ImportExportButtonProps extends Omit<React.ComponentProps<typeof Butto
 export const ExportButton = forwardRef<HTMLButtonElement, ImportExportButtonProps>(
   function ExportButton({ label = 'Export', variant = 'secondary', size = 'md', children, ...rest }, ref) {
     return (
-      <Button ref={ref} variant={variant} size={size} icon={<Upload className="w-4 h-4" />} {...rest}>
+      <Button ref={ref} variant={variant} size={size} icon={<UploadIcon className="w-4 h-4" />} {...rest}>
         {children ?? label}
       </Button>
     );
@@ -35,7 +35,7 @@ export const ExportButton = forwardRef<HTMLButtonElement, ImportExportButtonProp
 export const ImportButton = forwardRef<HTMLButtonElement, ImportExportButtonProps>(
   function ImportButton({ label = 'Import', variant = 'secondary', size = 'md', children, ...rest }, ref) {
     return (
-      <Button ref={ref} variant={variant} size={size} icon={<Download className="w-4 h-4" />} {...rest}>
+      <Button ref={ref} variant={variant} size={size} icon={<DownloadIcon className="w-4 h-4" />} {...rest}>
         {children ?? label}
       </Button>
     );

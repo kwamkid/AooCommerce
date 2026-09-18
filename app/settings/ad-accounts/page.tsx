@@ -9,7 +9,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Megaphone } from 'lucide-react';
+import { BroadcastIcon, LoadingIcon } from '@/lib/icons';
 import Layout from '@/components/layout/Layout';
 import Alert from '@/components/ui/Alert';
 import Button from '@/components/ui/Button';
@@ -439,7 +439,7 @@ export default function AdAccountsPage() {
       {confirmDialog}
       <Container size="full">
         <PageHeader
-          icon={<Megaphone />}
+          icon={<BroadcastIcon />}
           title="บัญชีโฆษณา"
           subtitle="เชื่อมบัญชีโฆษณา Meta เพื่อส่ง event การซื้อและ sync กลุ่มเป้าหมายไปยิงโฆษณา"
           actions={headerAction}
@@ -468,7 +468,7 @@ export default function AdAccountsPage() {
           <LoadingCard />
         ) : accounts.length === 0 && mode !== 'manual' ? (
           <EmptyCard
-            icon={<Megaphone className="w-10 h-10" />}
+            icon={<BroadcastIcon className="w-10 h-10" />}
             title="ยังไม่ได้เชื่อมบัญชีโฆษณา"
             subtitle="เชื่อมแล้วระบบจะส่ง Purchase ให้ Meta อัตโนมัติ และ sync กลุ่มเป้าหมายไปใช้ยิงโฆษณาได้ · ต้องเป็นแอดมินของ Business ที่ถือบัญชีโฆษณานั้น"
             actions={
@@ -564,7 +564,7 @@ export default function AdAccountsPage() {
         disableBackdropClose
       >
         <div className="flex flex-col items-center text-center gap-3">
-          <Loader2 className="w-8 h-8 text-primary animate-spin" />
+          <LoadingIcon className="w-8 h-8 text-primary animate-spin" />
           <div>
             <p className="body-text font-medium text-gray-900 dark:text-white">กำลังทดสอบการเชื่อมต่อ</p>
             {testingAccount && (

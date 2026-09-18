@@ -10,7 +10,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { Save } from 'lucide-react';
+import { SaveIcon } from '@/lib/icons';
 import Button from './Button';
 
 interface SaveButtonProps {
@@ -38,7 +38,7 @@ export default function SaveButton({
       disabled={disabled}
       fullWidth={fullWidth}
       className={className}
-      icon={<Save className="w-4 h-4" />}
+      icon={<SaveIcon className="w-4 h-4" />}
     >
       {children ?? 'บันทึก'}
     </Button>

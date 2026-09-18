@@ -16,7 +16,8 @@
 // ขายได้จริง) แทนราคาป้าย — จำค่าไว้ต่อเครื่องผู้ใช้ใน localStorage
 
 import { useCallback, useEffect, useState } from 'react';
-import { ChevronDown, Copy, RefreshCw, Wallet } from 'lucide-react';
+import { Wallet } from 'lucide-react';
+import { ChevronDownIcon, CopyIcon, RefreshIcon } from '@/lib/icons';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import HelpHint from '@/components/ui/HelpHint';
@@ -256,7 +257,7 @@ export default function MarketplaceOrderCard({
             aria-label="คัดลอกเลขออเดอร์ของแพลตฟอร์ม"
           >
             {data.external_order_id}
-            <Copy className="w-4 h-4" />
+            <CopyIcon className="w-4 h-4" />
           </button>
         )}
       </div>
@@ -276,7 +277,7 @@ export default function MarketplaceOrderCard({
           </div>
           <Button
             variant="secondary"
-            icon={<RefreshCw className="w-4 h-4" />}
+            icon={<RefreshIcon className="w-4 h-4" />}
             loading={syncing}
             onClick={handleSync}
           >
@@ -293,7 +294,7 @@ export default function MarketplaceOrderCard({
             <Button
               variant="ghost"
               size="sm"
-              icon={<RefreshCw className="w-4 h-4" />}
+              icon={<RefreshIcon className="w-4 h-4" />}
               loading={syncing}
               onClick={handleSync}
             >
@@ -355,7 +356,7 @@ export default function MarketplaceOrderCard({
                   aria-label={openGroups[g.key] ? `ซ่อนรายละเอียด ${g.label}` : `ดูรายละเอียด ${g.label}`}
                   aria-expanded={!!openGroups[g.key]}
                 >
-                  <ChevronDown className={`w-4 h-4 transition-transform ${openGroups[g.key] ? 'rotate-0' : '-rotate-90'}`} />
+                  <ChevronDownIcon className={`w-4 h-4 transition-transform ${openGroups[g.key] ? 'rotate-0' : '-rotate-90'}`} />
                 </button>
                 <div className="flex-1 min-w-0">
                   <AmountRow
@@ -459,7 +460,7 @@ export default function MarketplaceOrderCard({
                 onClick={() => setShowLines(v => !v)}
                 className="flex items-center gap-2 text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-slate-100 transition-colors w-full"
               >
-                <ChevronDown className={`w-4 h-4 transition-transform ${showLines ? 'rotate-0' : '-rotate-90'}`} />
+                <ChevronDownIcon className={`w-4 h-4 transition-transform ${showLines ? 'rotate-0' : '-rotate-90'}`} />
                 <span>รายการจากแพลตฟอร์ม ({data.lines.length})</span>
               </button>
               {showLines && (

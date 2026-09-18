@@ -15,7 +15,8 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { Camera, ExternalLink, RefreshCw, Unlink2 } from 'lucide-react';
+import { Unlink2 } from 'lucide-react';
+import { CameraIcon, ExternalLinkIcon, RefreshIcon } from '@/lib/icons';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import SaveButton from '@/components/ui/SaveButton';
@@ -163,12 +164,12 @@ export default function MarketplaceListingCard({
                   aria-label={`ดูบน ${label}`}
                   className="inline-flex items-center justify-center w-[42px] h-[42px] rounded-lg text-gray-500 hover:text-primary hover:bg-gray-100 dark:text-slate-400 dark:hover:bg-slate-700 transition-colors"
                 >
-                  <ExternalLink className="w-4 h-4" />
+                  <ExternalLinkIcon className="w-4 h-4" />
                 </a>
               </Tooltip>
             )}
             <Tooltip text="ซิงค์กับร้านนี้">
-              <Button variant="ghost" icon={<RefreshCw className="w-4 h-4" />} onClick={onSync} aria-label="ซิงค์กับร้านนี้" />
+              <Button variant="ghost" icon={<RefreshIcon className="w-4 h-4" />} onClick={onSync} aria-label="ซิงค์กับร้านนี้" />
             </Tooltip>
             {onUnlink && <Tooltip text="ยกเลิกการเชื่อมกับร้านนี้">
               <Button variant="ghost" icon={<Unlink2 className="w-4 h-4" />} onClick={onUnlink} aria-label="ยกเลิกการเชื่อมกับร้านนี้" />
@@ -183,7 +184,7 @@ export default function MarketplaceListingCard({
             <ProductImageThumb src={image} alt={name} size="lg" className="!w-24 !h-24" />
             <div className="min-w-0">
               {onChangeImage && (
-                <Button variant="secondary" size="sm" icon={<Camera className="w-4 h-4" />} onClick={onChangeImage} loading={imageUploading}>
+                <Button variant="secondary" size="sm" icon={<CameraIcon className="w-4 h-4" />} onClick={onChangeImage} loading={imageUploading}>
                   เปลี่ยนรูป
                 </Button>
               )}

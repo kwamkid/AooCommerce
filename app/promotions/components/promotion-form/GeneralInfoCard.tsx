@@ -5,15 +5,7 @@ import PriceDiscountCombo, { type PriceMode } from '@/components/ui/PriceDiscoun
 import PostfixInput from '@/components/ui/PostfixInput';
 import DateRangePicker from '@/components/ui/DateRangePicker';
 import ImageUploader from '@/components/ui/ImageUploader';
-import {
-  Package,
-  Gift,
-  Tag,
-  Percent,
-  AlertTriangle,
-  Loader2,
-  Send,
-} from 'lucide-react';
+import { WarningIcon } from '@/lib/icons';
 import { apiFetch } from '@/lib/api-client';
 import {
   type FormState,
@@ -136,7 +128,7 @@ export default function GeneralInfoCard({ hook }: Props) {
                 {errors.dateRange && <p className="text-red-500 text-sm mt-1">{errors.dateRange}</p>}
                 {hasOngoingDeal && (
                   <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
-                    <AlertTriangle className="w-3 h-3" />
+                    <WarningIcon className="w-3 h-3" />
                     Shopee deal กำลัง ongoing — แก้วันที่ไม่ได้
                   </p>
                 )}
@@ -171,7 +163,7 @@ export default function GeneralInfoCard({ hook }: Props) {
                   )}
                   {hasOngoingDeal && (
                     <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
-                      <AlertTriangle className="w-3 h-3" />
+                      <WarningIcon className="w-3 h-3" />
                       Shopee deal กำลัง ongoing — แก้ส่วนลด/ราคาไม่ได้
                     </p>
                   )}

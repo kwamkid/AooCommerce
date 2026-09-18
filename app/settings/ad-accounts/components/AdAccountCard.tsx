@@ -6,7 +6,7 @@
 // ข้อกำหนด Custom Audience ก็ยิง event ได้ตามปกติ — รวบเป็นชิปเดียวแล้วผู้ใช้จะไล่ไม่ถูกว่าติดตรงไหน
 'use client';
 
-import { Check, Edit2, RefreshCw, Trash2, XCircle, Zap } from 'lucide-react';
+import { ConfirmIcon, DeleteIcon, EditIcon, ErrorIcon, FastIcon, RefreshIcon } from '@/lib/icons';
 import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
 import Alert from '@/components/ui/Alert';
 import Badge, { type BadgeTone } from '@/components/ui/Badge';
@@ -113,8 +113,8 @@ function ProbeLine({ ok, label }: { ok: boolean; label: string }) {
   return (
     <li className="flex items-center gap-2">
       {ok
-        ? <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-        : <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />}
+        ? <ConfirmIcon className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+        : <ErrorIcon className="w-4 h-4 text-red-500 flex-shrink-0" />}
       <span>{label}</span>
     </li>
   );
@@ -154,7 +154,7 @@ export default function AdAccountCard({
     {
       key: 'test',
       label: testing ? 'กำลังทดสอบ...' : 'ทดสอบการเชื่อมต่อ',
-      icon: <Zap className="w-4 h-4" />,
+      icon: <FastIcon className="w-4 h-4" />,
       onClick: onTest,
       disabled: testing,
       primary: true,
@@ -162,13 +162,13 @@ export default function AdAccountCard({
     ...(canReconnect ? [{
       key: 'reconnect',
       label: 'เชื่อมต่อใหม่ (ขอสิทธิ์ใหม่)',
-      icon: <RefreshCw className="w-4 h-4" />,
+      icon: <RefreshIcon className="w-4 h-4" />,
       onClick: onReconnect,
     }] : []),
     {
       key: 'delete',
       label: 'ยกเลิกการเชื่อมต่อ',
-      icon: <Trash2 className="w-4 h-4" />,
+      icon: <DeleteIcon className="w-4 h-4" />,
       onClick: onDelete,
       danger: true,
       dividerBefore: true,
@@ -243,7 +243,7 @@ export default function AdAccountCard({
                 aria-label="แก้ชื่อบัญชีโฆษณา"
                 className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors"
               >
-                <Edit2 className="w-4 h-4" />
+                <EditIcon className="w-4 h-4" />
               </button>
             </Tooltip>
             <ActionMenu items={menuItems} />

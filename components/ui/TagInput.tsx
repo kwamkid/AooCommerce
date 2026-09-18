@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Plus } from 'lucide-react';
+import { AddIcon } from '@/lib/icons';
 import TagBadge, { Tag, TAG_COLORS } from './TagBadge';
 import { apiFetch } from '@/lib/api-client';
 
@@ -151,7 +151,7 @@ export default function TagInput({
               disabled={creating}
               className="w-full text-left px-3 py-2 text-base hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2 transition-colors text-primary border-t border-gray-100 dark:border-slate-700"
             >
-              <Plus className="w-3.5 h-3.5" />
+              <AddIcon className="w-3.5 h-3.5" />
               <span>สร้างแท็ก &quot;{search.trim()}&quot;</span>
             </button>
           )}

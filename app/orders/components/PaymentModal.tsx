@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Camera } from 'lucide-react';
+import { CameraIcon } from '@/lib/icons';
 import Button from '@/components/ui/Button';
 import ImageDropzone from '@/components/ui/ImageDropzone';
 import { apiFetch } from '@/lib/api-client';
@@ -201,7 +201,7 @@ export default function PaymentModal({
                   value={slipFile}
                   onChange={setSlipFile}
                   onBusyChange={setCompressingSlip}
-                  icon={<Camera className="w-8 h-8" />}
+                  icon={<CameraIcon className="w-8 h-8" />}
                   label="เลือกรูป / ถ่ายรูปสลิป"
                   hint="ลากรูปมาวาง หรือวางจากคลิปบอร์ดก็ได้"
                   alt="สลิป"

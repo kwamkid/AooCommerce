@@ -1,6 +1,7 @@
 'use client';
 
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { ChevronLeftIcon, ChevronRightIcon } from '@/lib/icons';
 import { ReactNode } from 'react';
 import FormSelect from '@/components/ui/FormSelect';
 
@@ -102,7 +103,7 @@ export default function Pagination({
             <ChevronsLeft className="w-4 h-4" />
           </button>
           <button onClick={() => setPage(Math.max(1, currentPage - 1))} disabled={currentPage === 1} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าก่อน">
-            <ChevronLeft className="w-4 h-4" />
+            <ChevronLeftIcon className="w-4 h-4" />
           </button>
           <div className="flex items-center gap-1">
             {getPageNumbers(currentPage, totalPages).map((page, index) => {
@@ -119,7 +120,7 @@ export default function Pagination({
             })}
           </div>
           <button onClick={() => setPage(Math.min(totalPages, currentPage + 1))} disabled={currentPage === totalPages} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าถัดไป">
-            <ChevronRight className="w-4 h-4" />
+            <ChevronRightIcon className="w-4 h-4" />
           </button>
           <button onClick={() => setPage(totalPages)} disabled={currentPage === totalPages} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" title="หน้าสุดท้าย">
             <ChevronsRight className="w-4 h-4" />

@@ -9,7 +9,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { AddIcon, DeleteIcon } from '@/lib/icons';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import ChipsInput from '@/components/ui/ChipsInput';
@@ -191,7 +191,7 @@ export default function VariantOptionsEditor({
               <Button
                 variant="ghost"
                 size="sm"
-                icon={<Trash2 className="w-4 h-4" />}
+                icon={<DeleteIcon className="w-4 h-4" />}
                 onClick={() => removeGroup(i)}
                 aria-label={`ลบตัวเลือกที่ ${i + 1}`}
               >
@@ -210,7 +210,7 @@ export default function VariantOptionsEditor({
                   aria-label="เพิ่มชื่อตัวเลือกใหม่"
 
                 >
-                  <Plus className="w-3.5 h-3.5" />
+                  <AddIcon className="w-3.5 h-3.5" />
                   เพิ่มใหม่
                 </Button>
               </div>
@@ -241,7 +241,7 @@ export default function VariantOptionsEditor({
       ))}
 
       {groups.length < MAX_OPTION_GROUPS && (
-        <Button variant="secondary" icon={<Plus className="w-4 h-4" />} onClick={addGroup}>
+        <Button variant="secondary" icon={<AddIcon className="w-4 h-4" />} onClick={addGroup}>
           {groups.length === 0 ? 'เพิ่มตัวเลือก' : `เพิ่มตัวเลือกที่ ${groups.length + 1}`}
         </Button>
       )}

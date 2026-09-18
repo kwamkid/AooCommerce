@@ -9,7 +9,8 @@ import { LoadingCard } from '@/components/ui/StateCard';
 import PageHeader from '@/components/ui/PageHeader';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
-import { ReceiptText, Printer, ExternalLink, MoreHorizontal, FileUp } from 'lucide-react';
+import { MoreHorizontal, FileUp } from 'lucide-react';
+import { ExternalLinkIcon, PrintIcon, ReceiptTextIcon } from '@/lib/icons';
 import FormSelect from '@/components/ui/FormSelect';
 import SearchInput from '@/components/ui/SearchInput';
 import { getMonthOptions } from '@/lib/month-options';
@@ -141,7 +142,7 @@ export default function AbbreviatedInvoicesPage() {
       label: 'คำสั่งซื้อ',
       render: (inv) => (
         <Link href={`/orders/${inv.id}`} className="text-sm text-primary hover:underline inline-flex items-center gap-1">
-          {inv.order_number || '-'} <ExternalLink className="w-3 h-3" />
+          {inv.order_number || '-'} <ExternalLinkIcon className="w-3 h-3" />
         </Link>
       ),
     },
@@ -184,7 +185,7 @@ export default function AbbreviatedInvoicesPage() {
         return (
           <div className="flex items-center justify-center gap-1">
             <button onClick={() => handlePrint(inv)} className="p-1.5 text-gray-400 hover:text-primary transition-colors" title="พิมพ์">
-              <Printer className="w-4 h-4" />
+              <PrintIcon className="w-4 h-4" />
             </button>
             {canIssueFullInvoice && (
               <ActionMenu
@@ -214,7 +215,7 @@ export default function AbbreviatedInvoicesPage() {
     <Layout>
       <div className="space-y-6">
         <PageHeader
-          icon={<ReceiptText />}
+          icon={<ReceiptTextIcon />}
           title="ใบกำกับอย่างย่อ"
           subtitle="ABB-YYYYMM-NNNN — ออกอัตโนมัติสำหรับออเดอร์ปลีก"
         />
@@ -251,7 +252,7 @@ export default function AbbreviatedInvoicesPage() {
           getRowId={(inv) => inv.doc_id}
           rowClassName={(inv) => inv.tax_invoice_voided_at ? 'opacity-60' : ''}
           emptyMessage="ไม่พบใบกำกับอย่างย่อ"
-          emptyIcon={<ReceiptText className="w-10 h-10 text-gray-300 dark:text-slate-600" />}
+          emptyIcon={<ReceiptTextIcon className="w-10 h-10 text-gray-300 dark:text-slate-600" />}
           currentPage={page}
           totalPages={totalPages}
           totalRecords={total}
@@ -273,7 +274,7 @@ export default function AbbreviatedInvoicesPage() {
                   </div>
                   <div className="flex items-center gap-1">
                     <button onClick={() => handlePrint(inv)} className="p-1.5 text-gray-400 hover:text-primary transition-colors" title="พิมพ์">
-                      <Printer className="w-4 h-4" />
+                      <PrintIcon className="w-4 h-4" />
                     </button>
                     {canIssueFullInvoice && (
                       <ActionMenu
@@ -295,7 +296,7 @@ export default function AbbreviatedInvoicesPage() {
                 <div className="text-sm text-gray-500 dark:text-slate-400 mt-1">{formatDate(inv.tax_invoice_date)}</div>
                 <div className="mt-1">
                   <Link href={`/orders/${inv.id}`} className="text-sm text-primary hover:underline inline-flex items-center gap-1">
-                    {inv.order_number || '-'} <ExternalLink className="w-3 h-3" />
+                    {inv.order_number || '-'} <ExternalLinkIcon className="w-3 h-3" />
                   </Link>
                 </div>
                 {inv.tax_invoice_replaced_abbrev_number && (

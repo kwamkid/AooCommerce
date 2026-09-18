@@ -1,6 +1,6 @@
 'use client';
 
-import { Package, Gift, Tag, Percent } from 'lucide-react';
+import { PromoBundleIcon, PromoFreeGiftIcon, PromoSpecialPriceIcon, PromoQtyIcon } from '@/lib/icons';
 import type { PriceMode } from '@/components/ui/PriceDiscountCombo';
 import type { DateValueType } from '@/components/ui/DateRangePicker';
 
@@ -99,10 +99,10 @@ export interface SyncResult {
 // ─── Constants ──────────────────────────────────────────
 
 export const TYPE_OPTIONS = [
-  { id: 'bundle_set', label: 'เซ็ตรวม', icon: <Package className="w-7 h-7" />, desc: 'รวมหลายสินค้าเป็น 1 เซ็ต กำหนดราคาเซ็ต, ลด % หรือ ลดบาท' },
-  { id: 'buy_get_free', label: 'ซื้อ X แถม Y ฟรี', icon: <Gift className="w-7 h-7" />, desc: 'ซื้อสินค้าหลัก แถมของแถมฟรี เช่น ซื้อครีม แถมสบู่' },
-  { id: 'buy_get_discount', label: 'ซื้อ X ได้ Y ราคาพิเศษ', icon: <Tag className="w-7 h-7" />, desc: 'ซื้อสินค้าหลัก ได้สินค้าเสริมราคาพิเศษ เช่น ซื้อมือถือ ได้เคสราคา 99 บาท' },
-  { id: 'qty_discount', label: 'ซื้อเยอะลดเยอะ', icon: <Percent className="w-7 h-7" />, desc: 'ซื้อจำนวนมากยิ่งลดมาก เช่น 2 ชิ้นลด 10%, 3 ชิ้นลด 20%' },
+  { id: 'bundle_set', label: 'เซ็ตรวม', icon: <PromoBundleIcon className="w-7 h-7" />, desc: 'รวมหลายสินค้าเป็น 1 เซ็ต กำหนดราคาเซ็ต, ลด % หรือ ลดบาท' },
+  { id: 'buy_get_free', label: 'ซื้อ X แถม Y ฟรี', icon: <PromoFreeGiftIcon className="w-7 h-7" />, desc: 'ซื้อสินค้าหลัก แถมของแถมฟรี เช่น ซื้อครีม แถมสบู่' },
+  { id: 'buy_get_discount', label: 'ซื้อ X ได้ Y ราคาพิเศษ', icon: <PromoSpecialPriceIcon className="w-7 h-7" />, desc: 'ซื้อสินค้าหลัก ได้สินค้าเสริมราคาพิเศษ เช่น ซื้อมือถือ ได้เคสราคา 99 บาท' },
+  { id: 'qty_discount', label: 'ซื้อเยอะลดเยอะ', icon: <PromoQtyIcon className="w-7 h-7" />, desc: 'ซื้อจำนวนมากยิ่งลดมาก เช่น 2 ชิ้นลด 10%, 3 ชิ้นลด 20%' },
 ];
 
 export const DISCOUNT_TYPE_OPTIONS = [

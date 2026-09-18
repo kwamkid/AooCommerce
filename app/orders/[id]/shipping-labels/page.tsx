@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
-import { ArrowLeft, Printer } from 'lucide-react';
+import { PrintIcon } from '@/lib/icons';
 import Button from '@/components/ui/Button';
 import { PageSkeleton } from '@/components/ui/Skeleton';
 import QRCode from 'qrcode';
@@ -183,7 +183,7 @@ export default function ShippingLabelsPage() {
           <span className="text-sm text-gray-600 dark:text-slate-400">
             {labels.length} ใบปะหน้า
           </span>
-          <Button variant="primary" icon={<Printer className="w-5 h-5" />} onClick={handlePrint}>
+          <Button variant="primary" icon={<PrintIcon className="w-5 h-5" />} onClick={handlePrint}>
             พิมพ์ทั้งหมด
           </Button>
         </div>

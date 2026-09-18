@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import OrderProgress from '@/components/ui/OrderProgress';
 import { getOrderHeadline } from '@/lib/order-progress';
 import Link from 'next/link';
-import { CheckCircle2, Copy, Check, Upload, CreditCard, Clock, Store, ReceiptText, Gift, EyeOff, FileText } from 'lucide-react';
+import { ConfirmIcon, CopyIcon, DocumentIcon, GiftIcon, HideIcon, PaymentIcon, ReceiptTextIcon, StoreIcon, SuccessIcon, TimeIcon, UploadIcon } from '@/lib/icons';
 import { formatStorePrice, storefrontHref } from '@/lib/storefront';
 import { rememberOrder } from '@/lib/storefront-orders';
 import SlipDropzone from '@/components/storefront/SlipDropzone';
@@ -166,7 +166,7 @@ export default function OrderClient({ shop, initialOrder }: { shop: string; init
         <OrderProgress order={order} />
       </div>
       <div className="sf-order-head">
-        <CheckCircle2 className="sf-order-check" strokeWidth={1.6} aria-hidden="true" />
+        <SuccessIcon className="sf-order-check" strokeWidth={1.6} aria-hidden="true" />
         <div>
           <h1>{verifying ? 'ได้รับสลิปแล้ว ขอบคุณครับ' : 'ขอบคุณสำหรับคำสั่งซื้อ'}</h1>
           <p>
@@ -188,7 +188,7 @@ export default function OrderClient({ shop, initialOrder }: { shop: string; init
               {gateway && (gateway.available_channels?.length ?? 0) > 0 && (
                 <button type="button" className="sf-cta" style={{ width: '100%', marginBottom: 16 }}
                   onClick={payByGateway} disabled={gatewayLoading}>
-                  <CreditCard strokeWidth={2} aria-hidden="true" />
+                  <PaymentIcon strokeWidth={2} aria-hidden="true" />
                   {gatewayLoading ? 'กำลังเปิดหน้าชำระเงิน…' : 'ชำระผ่านบัตร / QR / e-Wallet'}
                 </button>
               )}
@@ -228,8 +228,8 @@ export default function OrderClient({ shop, initialOrder }: { shop: string; init
                               <span className="sf-copybtn-value">{number}</span>
                               <span className="sf-copybtn-action">
                                 {copied === `b${i}`
-                                  ? <><Check strokeWidth={2.25} aria-hidden="true" />คัดลอกแล้ว</>
-                                  : <><Copy strokeWidth={1.75} aria-hidden="true" />คัดลอก</>}
+                                  ? <><ConfirmIcon strokeWidth={2.25} aria-hidden="true" />คัดลอกแล้ว</>
+                                  : <><CopyIcon strokeWidth={1.75} aria-hidden="true" />คัดลอก</>}
                               </span>
                             </button>
                           )}
@@ -256,8 +256,8 @@ export default function OrderClient({ shop, initialOrder }: { shop: string; init
                         <span className="sf-copybtn-value">{order.total_amount.toFixed(2)}</span>
                         <span className="sf-copybtn-action">
                           {copied === 'amount'
-                            ? <><Check strokeWidth={2.25} aria-hidden="true" />คัดลอกแล้ว</>
-                            : <><Copy strokeWidth={1.75} aria-hidden="true" />คัดลอก</>}
+                            ? <><ConfirmIcon strokeWidth={2.25} aria-hidden="true" />คัดลอกแล้ว</>
+                            : <><CopyIcon strokeWidth={1.75} aria-hidden="true" />คัดลอก</>}
                         </span>
                       </button>
                     </div>
@@ -271,7 +271,7 @@ export default function OrderClient({ shop, initialOrder }: { shop: string; init
                   />
                   <button type="button" className="sf-cta" style={{ width: '100%' }}
                     onClick={notifyPayment} disabled={sending || !slip}>
-                    <Upload strokeWidth={2} aria-hidden="true" />
+                    <UploadIcon strokeWidth={2} aria-hidden="true" />
                     {sending ? 'กำลังส่ง…' : 'แจ้งชำระเงิน'}
                   </button>
                 </>
@@ -288,14 +288,14 @@ export default function OrderClient({ shop, initialOrder }: { shop: string; init
 
           {order.payment_status === 'verifying' && (
             <section className="sf-fieldset">
-              <h2><Clock strokeWidth={1.75} aria-hidden="true" /> รอร้านตรวจสอบสลิป</h2>
+              <h2><TimeIcon strokeWidth={1.75} aria-hidden="true" /> รอร้านตรวจสอบสลิป</h2>
               <p className="sf-hint">ร้านได้รับสลิปแล้ว จะยืนยันให้เร็วที่สุด</p>
             </section>
           )}
 
           {order.payment_status === 'paid' && (
             <section className="sf-fieldset sf-paid-box">
-              <h2><CheckCircle2 strokeWidth={1.75} aria-hidden="true" /> ชำระเงินเรียบร้อย</h2>
+              <h2><SuccessIcon strokeWidth={1.75} aria-hidden="true" /> ชำระเงินเรียบร้อย</h2>
               <p className="sf-hint">ร้านกำลังเตรียมของให้คุณ</p>
             </section>
           )}
@@ -328,7 +328,7 @@ export default function OrderClient({ shop, initialOrder }: { shop: string; init
                 {(order.gift_card_requested || order.gift_message) && (
                   <div className="sf-extra">
                     <div className="sf-extra-head">
-                      <span className="sf-extra-icon sf-extra-gift"><Gift strokeWidth={1.75} aria-hidden="true" /></span>
+                      <span className="sf-extra-icon sf-extra-gift"><GiftIcon strokeWidth={1.75} aria-hidden="true" /></span>
                       <strong>การ์ดอวยพร</strong>
                     </div>
                     {order.gift_message
@@ -346,7 +346,7 @@ export default function OrderClient({ shop, initialOrder }: { shop: string; init
                 {order.gift_hide_price && (
                   <div className="sf-extra">
                     <div className="sf-extra-head">
-                      <span className="sf-extra-icon sf-extra-hide"><EyeOff strokeWidth={1.75} aria-hidden="true" /></span>
+                      <span className="sf-extra-icon sf-extra-hide"><HideIcon strokeWidth={1.75} aria-hidden="true" /></span>
                       <strong>ไม่แนบใบเสร็จและราคาไปกับของ</strong>
                     </div>
                     <p className="sf-hint">ใบเสร็จส่งให้ผู้สั่งแทน</p>
@@ -355,7 +355,7 @@ export default function OrderClient({ shop, initialOrder }: { shop: string; init
                 {order.tax_invoice_requested && (
                   <div className="sf-extra">
                     <div className="sf-extra-head">
-                      <span className="sf-extra-icon sf-extra-tax"><FileText strokeWidth={1.75} aria-hidden="true" /></span>
+                      <span className="sf-extra-icon sf-extra-tax"><DocumentIcon strokeWidth={1.75} aria-hidden="true" /></span>
                       <strong>ใบกำกับภาษีเต็มรูปแบบ</strong>
                     </div>
                     <p className="sf-hint">
@@ -395,10 +395,10 @@ export default function OrderClient({ shop, initialOrder }: { shop: string; init
             {/* ช้อปต่อเป็นปุ่มหลัก (อยากให้ลูกค้าซื้อต่อ) — ห้ามใช้ลูกศรซ้าย
                 มันอ่านเป็นปุ่ม "ย้อนกลับ" ไม่ใช่ "ไปดูสินค้าอีก" */}
             <Link href={storefrontHref(shop)} className="sf-cta">
-              <Store strokeWidth={2} aria-hidden="true" />ช้อปต่อ
+              <StoreIcon strokeWidth={2} aria-hidden="true" />ช้อปต่อ
             </Link>
             <Link href={storefrontHref(shop, '/orders')} className="sf-btn-ghost sf-btn-tint">
-              <ReceiptText strokeWidth={1.75} aria-hidden="true" />คำสั่งซื้อของฉัน
+              <ReceiptTextIcon strokeWidth={1.75} aria-hidden="true" />คำสั่งซื้อของฉัน
             </Link>
           </div>
         </aside>

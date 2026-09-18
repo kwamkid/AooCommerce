@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRightIcon } from '@/lib/icons';
 import { useStoredOrders } from '@/lib/storefront-orders';
 import { formatStorePrice, storefrontHref } from '@/lib/storefront';
 
@@ -54,7 +54,7 @@ export default function OrdersClient({ shop }: { shop: string }) {
                   )}
                 </div>
                 <div className="sf-cart-total">{formatStorePrice(o.total)}</div>
-                <ChevronRight strokeWidth={1.75} aria-hidden="true" />
+                <ChevronRightIcon strokeWidth={1.75} aria-hidden="true" />
               </Link>
             ))}
           </div>

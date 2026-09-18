@@ -1,6 +1,7 @@
 'use client';
 
-import { ShoppingBag, Store, Package, ShoppingCart, Building, Check } from 'lucide-react';
+import { Building } from 'lucide-react';
+import { ConfirmIcon, ConsignmentIcon, OrderIcon, StoreIcon, WholesaleIcon } from '@/lib/icons';
 import WizardShell from '@/components/onboarding/WizardShell';
 import { useWizardState, WIZARD_KEYS } from '@/components/onboarding/wizard-storage';
 
@@ -11,15 +12,15 @@ interface ChannelOption {
   label: string;
   sublabel: string;
   description: string;
-  icon: typeof ShoppingBag;
+  icon: typeof WholesaleIcon;
   color: string;
 }
 
 const CHANNELS: ChannelOption[] = [
-  { key: 'retail',      label: 'ขายปลีก',    sublabel: 'B2C',         description: 'ขายตรงให้ลูกค้าทั่วไป',           icon: ShoppingBag,  color: 'text-orange-600 dark:text-orange-400' },
-  { key: 'wholesale',   label: 'ขายส่ง',     sublabel: 'B2B',         description: 'ขายให้ตัวแทน หรือ องค์กร',          icon: Store,        color: 'text-blue-600 dark:text-blue-400' },
-  { key: 'consignment', label: 'ฝากขาย',     sublabel: 'Consignment', description: 'ส่งของให้ตัวแทน หรือ ห้าง',         icon: Package,      color: 'text-amber-600 dark:text-amber-400' },
-  { key: 'marketplace', label: 'Marketplace', sublabel: 'Online',      description: 'Shopee, TikTok, Lazada, ฯลฯ',     icon: ShoppingCart, color: 'text-purple-600 dark:text-purple-400' },
+  { key: 'retail',      label: 'ขายปลีก',    sublabel: 'B2C',         description: 'ขายตรงให้ลูกค้าทั่วไป',           icon: WholesaleIcon,  color: 'text-orange-600 dark:text-orange-400' },
+  { key: 'wholesale',   label: 'ขายส่ง',     sublabel: 'B2B',         description: 'ขายให้ตัวแทน หรือ องค์กร',          icon: StoreIcon,        color: 'text-blue-600 dark:text-blue-400' },
+  { key: 'consignment', label: 'ฝากขาย',     sublabel: 'Consignment', description: 'ส่งของให้ตัวแทน หรือ ห้าง',         icon: ConsignmentIcon,      color: 'text-amber-600 dark:text-amber-400' },
+  { key: 'marketplace', label: 'Marketplace', sublabel: 'Online',      description: 'Shopee, TikTok, Lazada, ฯลฯ',     icon: OrderIcon, color: 'text-purple-600 dark:text-purple-400' },
   { key: 'pos',         label: 'หน้าร้าน',   sublabel: 'POS',         description: 'ขายหน้าร้าน หรือ มีสาขา',            icon: Building,     color: 'text-emerald-600 dark:text-emerald-400' },
 ];
 
@@ -61,7 +62,7 @@ export default function OnboardingChannelsPage() {
             >
               {isSelected && (
                 <div className="absolute top-3 right-3 w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center">
-                  <Check className="w-4 h-4" />
+                  <ConfirmIcon className="w-4 h-4" />
                 </div>
               )}
               <Icon className={`w-7 h-7 mb-3 ${color}`} />

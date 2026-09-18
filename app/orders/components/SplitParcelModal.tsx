@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useMemo, useCallback, useRef, DragEvent } from 'react';
-import { Package, Plus, Trash2, Loader2, GripVertical } from 'lucide-react';
+import { GripVertical } from 'lucide-react';
+import { AddIcon, DeleteIcon, LoadingIcon, ParcelIcon, ProductIcon } from '@/lib/icons';
 import { apiFetch } from '@/lib/api-client';
 import FormSelect from '@/components/ui/FormSelect';
 import Modal from '@/components/ui/Modal';
@@ -282,7 +283,7 @@ export default function SplitParcelModal({
               disabled={!isValid || loading}
               className="text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg flex items-center gap-2"
             >
-              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+              {loading && <LoadingIcon className="w-4 h-4 animate-spin" />}
               แบ่งกล่อง
             </button>
           </div>
@@ -322,7 +323,7 @@ export default function SplitParcelModal({
               {/* Parcel header */}
               <div className="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-700/50">
                 <div className="flex items-center gap-2">
-                  <Package className="w-5 h-5 text-gray-500" />
+                  <ParcelIcon className="w-5 h-5 text-gray-500" />
                   <span className="text-base font-semibold text-gray-700 dark:text-gray-200">
                     กล่องที่ {parcelIdx + 1}
                   </span>
@@ -336,7 +337,7 @@ export default function SplitParcelModal({
                     className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500"
                     title="ลบกล่อง"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <DeleteIcon className="w-4 h-4" />
                   </button>
                 )}
               </div>
@@ -370,7 +371,7 @@ export default function SplitParcelModal({
                             <img src={thumbUrl(item.image, 96)} alt="" loading="lazy" decoding="async" className="w-full h-full object-contain" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center">
-                              <Package className="w-5 h-5 text-gray-300" />
+                              <ProductIcon className="w-5 h-5 text-gray-300" />
                             </div>
                           )}
                         </div>
@@ -463,7 +464,7 @@ export default function SplitParcelModal({
               onClick={addParcel}
               className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-200 dark:border-gray-600 rounded-lg text-gray-400 hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300 dark:hover:border-gray-500 transition-colors text-sm"
             >
-              <Plus className="w-4 h-4" />
+              <AddIcon className="w-4 h-4" />
               <span>เพิ่มกล่อง</span>
             </button>
           )}

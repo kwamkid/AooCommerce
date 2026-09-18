@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Printer, Loader2, CheckSquare, Square } from 'lucide-react';
+import { CheckSquare, Square } from 'lucide-react';
+import { LoadingIcon, PrintIcon } from '@/lib/icons';
 import Modal from '@/components/ui/Modal';
 
 interface PrintOption {
@@ -74,7 +75,7 @@ export default function PrintAfterActionModal({
             disabled={printing || selected.size === 0}
             className="flex items-center gap-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50"
           >
-            {printing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
+            {printing ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <PrintIcon className="w-4 h-4" />}
             พิมพ์ที่เลือก
           </button>
         </div>

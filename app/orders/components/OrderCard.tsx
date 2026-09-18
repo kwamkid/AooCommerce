@@ -4,13 +4,7 @@ import { formatPrice } from '@/lib/utils/format';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import { useCopy } from '@/lib/useCopy';
 import { useToast } from '@/lib/toast-context';
-import {
-  Phone,
-  Clock,
-  Package,
-  Truck,
-  RotateCcw,
-} from 'lucide-react';
+import { ParcelIcon, PhoneIcon, ResetIcon, ShippingIcon, TimeIcon } from '@/lib/icons';
 import {
   Order,
   ORDER_STATUS_CONFIG,
@@ -128,15 +122,15 @@ export default function OrderCard({
               {relativeTime(order.created_at)}
             </span>
             {deadline && ['ready_to_ship', 'processing'].includes(order.order_status) && (
-              <InfoChip colors={deadline.color} className="flex-shrink-0" icon={<Clock className="w-3 h-3" />}>{deadline.label}</InfoChip>
+              <InfoChip colors={deadline.color} className="flex-shrink-0" icon={<TimeIcon className="w-3 h-3" />}>{deadline.label}</InfoChip>
             )}
             {/* คำขอคืน/ยกเลิกจาก marketplace — สถานะชั่วคราวที่ต้องรีบตอบใน Seller Center
                 (ไม่ใช่ order_status ของเรา: คำขออาจถูกปฏิเสธแล้ว order จบปกติ) */}
             {order.external_status === 'TO_RETURN' && (
-              <InfoChip colors="bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400" className="flex-shrink-0" icon={<RotateCcw className="w-3 h-3" />}>คืนสินค้า</InfoChip>
+              <InfoChip colors="bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400" className="flex-shrink-0" icon={<ResetIcon className="w-3 h-3" />}>คืนสินค้า</InfoChip>
             )}
             {order.external_status === 'IN_CANCEL' && (
-              <InfoChip colors="bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400" className="flex-shrink-0" icon={<RotateCcw className="w-3 h-3" />}>ขอยกเลิก</InfoChip>
+              <InfoChip colors="bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400" className="flex-shrink-0" icon={<ResetIcon className="w-3 h-3" />}>ขอยกเลิก</InfoChip>
             )}
             {shouldShowStatus && (
               <OrderStatusBadge status={order.order_status} expired={order.cancellation_reason === 'expired'} />
@@ -151,7 +145,7 @@ export default function OrderCard({
               </Badge>
             )}
             {order.is_split && order.parcel_count && order.parcel_count > 1 && (
-              <Badge tone="purple" size="sm" icon={<Package className="w-3 h-3" />}>{order.parcel_count} กล่อง</Badge>
+              <Badge tone="purple" size="sm" icon={<ParcelIcon className="w-3 h-3" />}>{order.parcel_count} กล่อง</Badge>
             )}
           </div>
         </div>
@@ -166,7 +160,7 @@ export default function OrderCard({
             />
           )}
           {order.shipping_carrier && (
-            <InfoChip colors="bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300" icon={<Truck className="w-3 h-3" />}>{getCarrierLabel(order.shipping_carrier)}</InfoChip>
+            <InfoChip colors="bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300" icon={<ShippingIcon className="w-3 h-3" />}>{getCarrierLabel(order.shipping_carrier)}</InfoChip>
           )}
         </div>
       </div>
@@ -235,7 +229,7 @@ export default function OrderCard({
                 onClick={(e) => e.stopPropagation()}
                 className="text-gray-400 hover:text-emerald-500 transition-colors flex-shrink-0"
               >
-                <Phone className="w-3.5 h-3.5" />
+                <PhoneIcon className="w-3.5 h-3.5" />
               </a>
             )}
           </div>

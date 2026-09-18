@@ -11,19 +11,8 @@ import UserAvatar from '@/components/ui/UserAvatar';
 import PushNotificationToggle from '@/components/ui/PushNotificationToggle';
 import { useFeatures } from '@/lib/features-context';
 import { useHeaderSummary } from '@/lib/header-summary-context';
-import {
-  Bell,
-  User,
-  LogOut,
-  Settings,
-  ChevronDown,
-  AlertCircle,
-  Clock,
-  CheckCircle,
-  ScrollText,
-  ShoppingBag,
-  Smartphone,
-} from 'lucide-react';
+import { ScrollText, Smartphone } from 'lucide-react';
+import { AlertIcon, ChevronDownIcon, LogoutIcon, NotificationIcon, SettingsIcon, SuccessIcon, TimeIcon, UserIcon } from '@/lib/icons';
 import {
   QUOTA_PLATFORM_LABELS,
   QUOTA_SCOPE_LABELS,
@@ -127,13 +116,13 @@ export default function Header() {
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case 'warning':
-        return <AlertCircle className="w-5 h-5 text-yellow-500" />;
+        return <AlertIcon className="w-5 h-5 text-yellow-500" />;
       case 'info':
-        return <Clock className="w-5 h-5 text-blue-500" />;
+        return <TimeIcon className="w-5 h-5 text-blue-500" />;
       case 'success':
-        return <CheckCircle className="w-5 h-5 text-green-500" />;
+        return <SuccessIcon className="w-5 h-5 text-green-500" />;
       default:
-        return <Bell className="w-5 h-5" />;
+        return <NotificationIcon className="w-5 h-5" />;
     }
   };
 
@@ -169,7 +158,7 @@ export default function Header() {
               }}
               className="relative p-2 text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
             >
-              <Bell className="w-5 h-5" />
+              <NotificationIcon className="w-5 h-5" />
               {unreadCount > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                   {unreadCount > 99 ? '99+' : unreadCount}
@@ -257,7 +246,7 @@ export default function Header() {
               <span className="hidden lg:block font-medium text-sm">
                 {userProfile?.name}
               </span>
-              <ChevronDown className="w-4 h-4 hidden lg:block" />
+              <ChevronDownIcon className="w-4 h-4 hidden lg:block" />
             </button>
 
             {/* User Dropdown */}
@@ -285,7 +274,7 @@ export default function Header() {
                   <button
                     className="w-full flex items-center space-x-3 px-3 py-2 text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                   >
-                    <User className="w-4 h-4" />
+                    <UserIcon className="w-4 h-4" />
                     <span className="text-sm">โปรไฟล์</span>
                   </button>
 
@@ -293,7 +282,7 @@ export default function Header() {
                     <button
                       className="w-full flex items-center space-x-3 px-3 py-2 text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                     >
-                      <Settings className="w-4 h-4" />
+                      <SettingsIcon className="w-4 h-4" />
                       <span className="text-sm">ตั้งค่าระบบ</span>
                     </button>
                   )}
@@ -330,7 +319,7 @@ export default function Header() {
                     onClick={() => signOut()}
                     className="w-full flex items-center space-x-3 px-3 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                   >
-                    <LogOut className="w-4 h-4" />
+                    <LogoutIcon className="w-4 h-4" />
                     <span className="text-sm">ออกจากระบบ</span>
                   </button>
                 </div>

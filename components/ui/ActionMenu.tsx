@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { MoreVertical } from 'lucide-react';
+import { MoreIcon } from '@/lib/icons';
 import { useDropUp } from '@/lib/useDropUp';
 
 export interface ActionItem {
@@ -99,7 +99,7 @@ export default function ActionMenu({ items, trigger, triggerClassName, placement
         }}
         className={triggerClassName ?? 'p-1.5 text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-100 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700'}
       >
-        {trigger ?? <MoreVertical className="w-4 h-4" />}
+        {trigger ?? <MoreIcon className="w-4 h-4" />}
       </button>
 
       {open && anchor && createPortal(

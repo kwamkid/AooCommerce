@@ -4,7 +4,7 @@ import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
-import { Printer, Sun, Moon, Package2, Factory, FileText, XCircle } from 'lucide-react';
+import { DarkThemeIcon, DocumentIcon, ErrorIcon, LightThemeIcon, PrintIcon, ProductIcon, SupplierIcon } from '@/lib/icons';
 import { FullPageLoading } from '@/components/ui/Loading';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { getImageUrl } from '@/lib/utils/image';
@@ -89,7 +89,7 @@ export default function PublicPOPage() {
     return (
       <div className={`min-h-screen flex items-center justify-center ${dark ? 'bg-[#1A1A2E]' : 'bg-gray-50'}`}>
         <div className="text-center">
-          <FileText className={`w-16 h-16 mx-auto mb-4 ${dark ? 'text-slate-600' : 'text-gray-300'}`} />
+          <DocumentIcon className={`w-16 h-16 mx-auto mb-4 ${dark ? 'text-slate-600' : 'text-gray-300'}`} />
           <p className={`text-xl mb-2 ${dark ? 'text-white' : 'text-gray-700'}`}>ไม่พบใบสั่งซื้อ</p>
           <p className={`text-sm ${dark ? 'text-gray-400' : 'text-gray-500'}`}>{error || 'ลิงก์ไม่ถูกต้องหรือหมดอายุ'}</p>
         </div>
@@ -117,13 +117,13 @@ export default function PublicPOPage() {
               className={`p-2 rounded-lg transition-colors ${dark ? 'hover:bg-white/10 text-white/70' : 'hover:bg-gray-100 text-gray-600'}`}
               title="พิมพ์"
             >
-              <Printer className="w-4 h-4" />
+              <PrintIcon className="w-4 h-4" />
             </button>
             <button
               onClick={() => setDark(!dark)}
               className={`p-2 rounded-lg transition-colors ${dark ? 'hover:bg-white/10 text-white/70' : 'hover:bg-gray-100 text-gray-600'}`}
             >
-              {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              {dark ? <LightThemeIcon className="w-4 h-4" /> : <DarkThemeIcon className="w-4 h-4" />}
             </button>
           </div>
         </div>
@@ -135,7 +135,7 @@ export default function PublicPOPage() {
         {/* Cancelled banner */}
         {po.status === 'cancelled' && (
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/30 rounded-lg p-4 flex items-center gap-3">
-            <XCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+            <ErrorIcon className="w-5 h-5 text-red-500 flex-shrink-0" />
             <p className="text-sm text-red-700 dark:text-red-300 font-medium">ใบสั่งซื้อนี้ถูกยกเลิกแล้ว</p>
           </div>
         )}
@@ -149,7 +149,7 @@ export default function PublicPOPage() {
                 <Image src={company.logo} alt="" width={48} height={48} className="rounded-xl object-cover flex-shrink-0" />
               ) : (
                 <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${dark ? 'bg-white/10' : 'bg-gray-100'}`}>
-                  <FileText className="w-6 h-6 text-gray-400" />
+                  <DocumentIcon className="w-6 h-6 text-gray-400" />
                 </div>
               )}
               <div>
@@ -193,7 +193,7 @@ export default function PublicPOPage() {
         {supplier && (
           <div className={`rounded-xl border p-4 ${dark ? 'bg-white/5 border-white/10' : 'bg-white border-gray-200'}`}>
             <div className="flex items-center gap-2 mb-3">
-              <Factory className="w-4 h-4 text-primary" />
+              <SupplierIcon className="w-4 h-4 text-primary" />
               <h3 className={`text-sm font-semibold ${dark ? 'text-white' : 'text-gray-900'}`}>ข้อมูล Supplier</h3>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
@@ -254,7 +254,7 @@ export default function PublicPOPage() {
                           <img src={thumbUrl(getImageUrl(item.image), 96)} alt="" loading="lazy" decoding="async" className="w-9 h-9 rounded-lg object-cover flex-shrink-0" />
                         ) : (
                           <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${dark ? 'bg-white/10' : 'bg-gray-100'}`}>
-                            <Package2 className="w-4 h-4 text-gray-400" />
+                            <ProductIcon className="w-4 h-4 text-gray-400" />
                           </div>
                         )}
                         <div className="min-w-0">

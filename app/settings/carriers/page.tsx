@@ -22,9 +22,8 @@ import { useAuth } from '@/lib/auth-context';
 import { can } from '@/lib/permissions';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
-import {
-  Truck, Plus, Pencil, Trash2, Lock, ArrowUp, ArrowDown, ExternalLink,
-} from 'lucide-react';
+import { Lock, ArrowUp, ArrowDown } from 'lucide-react';
+import { AddIcon, DeleteIcon, EditIcon, ExternalLinkIcon, ShippingIcon } from '@/lib/icons';
 
 interface Carrier {
   id: string;
@@ -94,7 +93,7 @@ function CarrierIcon({ carrierCode, carrierName }: { carrierCode: string; carrie
   }
   return (
     <div className="w-8 h-8 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg flex items-center justify-center">
-      <Truck className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+      <ShippingIcon className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
     </div>
   );
 }
@@ -301,11 +300,11 @@ export default function CarriersSettingsPage() {
     <Layout>
       <Container size="full">
         <PageHeader
-          icon={<Truck />}
+          icon={<ShippingIcon />}
           title="ขนส่ง"
           subtitle="จัดการรายชื่อบริษัทขนส่งและลิงก์ติดตามพัสดุ"
           actions={
-            <Button variant="primary" icon={<Plus className="w-5 h-5" />} onClick={openCreate}>
+            <Button variant="primary" icon={<AddIcon className="w-5 h-5" />} onClick={openCreate}>
               เพิ่ม
             </Button>
           }
@@ -363,7 +362,7 @@ export default function CarriersSettingsPage() {
                       className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors"
                       aria-label="แก้ไข"
                     >
-                      <Pencil className="w-4 h-4" />
+                      <EditIcon className="w-4 h-4" />
                     </button>
                     {!c.is_system && (
                       <button
@@ -371,7 +370,7 @@ export default function CarriersSettingsPage() {
                         className="p-1.5 text-gray-400 hover:text-red-600 transition-colors"
                         aria-label="ลบ"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <DeleteIcon className="w-4 h-4" />
                       </button>
                     )}
                   </>
@@ -388,7 +387,7 @@ export default function CarriersSettingsPage() {
                 <div className="w-5 flex-shrink-0" aria-hidden="true" />
               )}
               <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
-                <Truck className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                <ShippingIcon className="w-4 h-4 text-purple-600 dark:text-purple-400" />
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="font-medium text-gray-900 dark:text-white">เชื่อมต่อ Shippop</h3>
@@ -409,7 +408,7 @@ export default function CarriersSettingsPage() {
                     className="inline-flex items-center gap-1 font-medium hover:underline"
                   >
                     สมัคร Shippop
-                    <ExternalLink className="w-3.5 h-3.5" />
+                    <ExternalLinkIcon className="w-3.5 h-3.5" />
                   </a>
                 </div>
               </Alert>
@@ -422,7 +421,7 @@ export default function CarriersSettingsPage() {
           open={modalMode !== null}
           onClose={() => !submitting && setModalMode(null)}
           title={modalMode === 'edit' ? 'แก้ไขขนส่ง' : 'เพิ่มขนส่ง'}
-          icon={<Truck className="w-5 h-5 text-primary" />}
+          icon={<ShippingIcon className="w-5 h-5 text-primary" />}
           size="md"
           disableBackdropClose={submitting}
           footer={
@@ -544,7 +543,7 @@ export default function CarriersSettingsPage() {
           confirmLabel="ลบ"
           variant="danger"
           loading={deleting}
-          icon={<Trash2 className="w-6 h-6 text-red-600" />}
+          icon={<DeleteIcon className="w-6 h-6 text-red-600" />}
         />
       </Container>
     </Layout>

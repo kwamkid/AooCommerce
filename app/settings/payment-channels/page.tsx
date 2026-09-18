@@ -30,7 +30,8 @@ import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
 import { THAI_BANKS, getBankByCode } from '@/lib/constants/banks';
 import { BEAM_CHANNELS, BEAM_CHANNEL_CATEGORIES, CUSTOMER_TYPES, FEE_PAYERS } from '@/lib/constants/payment-gateway';
-import { Banknote, Building2, Globe, Plus, Edit2, Trash2, Eye, EyeOff, ChevronDown, ChevronUp, ArrowUp, ArrowDown, QrCode, ExternalLink, Check } from 'lucide-react';
+import { ArrowUp, ArrowDown } from 'lucide-react';
+import { AddIcon, ChevronDownIcon, ChevronUpIcon, CompanyIcon, ConfirmIcon, DeleteIcon, EditIcon, ExternalLinkIcon, HideIcon, MoneyIcon, QrIcon, ViewIcon, WebIcon } from '@/lib/icons';
 
 // Types
 interface PaymentChannel {
@@ -61,7 +62,7 @@ const MockCheckbox = ({ on }: { on: boolean }) => (
   <span className={`inline-flex w-4 h-4 rounded border items-center justify-center flex-shrink-0 ${
     on ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-gray-300 dark:border-slate-500 bg-white dark:bg-slate-700'
   }`}>
-    {on && <Check className="w-3 h-3" strokeWidth={3} />}
+    {on && <ConfirmIcon className="w-3 h-3" strokeWidth={3} />}
   </span>
 );
 const MockChip = ({ label }: { label: string }) => (
@@ -472,8 +473,8 @@ export default function PaymentChannelsPage() {
           <div ref={addDropdownRef} className="relative print:hidden">
             <Button
               variant="primary"
-              icon={<Plus className="w-4 h-4" />}
-              iconRight={<ChevronDown className="w-3.5 h-3.5" />}
+              icon={<AddIcon className="w-4 h-4" />}
+              iconRight={<ChevronDownIcon className="w-3.5 h-3.5" />}
               onClick={() => setAddDropdownOpen(o => !o)}
             >
               เพิ่ม
@@ -484,14 +485,14 @@ export default function PaymentChannelsPage() {
                   onClick={() => { setAddDropdownOpen(false); resetPromptPayForm(); setShowPromptPayForm(true); }}
                   className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5"
                 >
-                  <QrCode className="w-4 h-4 text-blue-500" />
+                  <QrIcon className="w-4 h-4 text-blue-500" />
                   PromptPay QR
                 </button>
                 <button
                   onClick={() => { setAddDropdownOpen(false); resetBankForm(); setShowBankForm(true); }}
                   className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5"
                 >
-                  <Building2 className="w-4 h-4 text-emerald-500" />
+                  <CompanyIcon className="w-4 h-4 text-emerald-500" />
                   บัญชีธนาคาร
                 </button>
               </div>
@@ -538,7 +539,7 @@ export default function PaymentChannelsPage() {
                     } : undefined}
                     icon={
                       <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                        <Banknote className="w-4 h-4 text-green-600" />
+                        <MoneyIcon className="w-4 h-4 text-green-600" />
                       </div>
                     }
                     title="เงินสด"
@@ -568,7 +569,7 @@ export default function PaymentChannelsPage() {
                     } : undefined}
                     icon={
                       <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <QrCode className="w-4 h-4 text-blue-600" />
+                        <QrIcon className="w-4 h-4 text-blue-600" />
                       </div>
                     }
                     title="PromptPay QR"
@@ -579,7 +580,7 @@ export default function PaymentChannelsPage() {
                         className="p-1.5 text-gray-400 hover:text-red-600 transition-colors"
                         aria-label="ลบ"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <DeleteIcon className="w-4 h-4" />
                       </button>
                     }
                   />
@@ -622,14 +623,14 @@ export default function PaymentChannelsPage() {
                           className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors"
                           aria-label="แก้ไข"
                         >
-                          <Edit2 className="w-4 h-4" />
+                          <EditIcon className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleDeleteBank(channel.id, bank?.name_th || cfg.bank_code)}
                           className="p-1.5 text-gray-400 hover:text-red-600 transition-colors"
                           aria-label="ลบ"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <DeleteIcon className="w-4 h-4" />
                         </button>
                       </>
                     }
@@ -658,7 +659,7 @@ export default function PaymentChannelsPage() {
                         className="flex items-center gap-3 flex-1 text-left"
                       >
                         <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                          <Globe className="w-4 h-4 text-purple-600" />
+                          <WebIcon className="w-4 h-4 text-purple-600" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <h3 className="font-medium text-gray-900 dark:text-white">ชำระออนไลน์</h3>
@@ -666,9 +667,9 @@ export default function PaymentChannelsPage() {
                         </div>
                         <img src="/beam_payment_gateway/beam_logo.svg" alt="Beam" className="h-4 opacity-40 dark:invert dark:opacity-60 flex-shrink-0" />
                         {isCollapsed ? (
-                          <ChevronDown className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                          <ChevronDownIcon className="w-5 h-5 text-gray-400 flex-shrink-0" />
                         ) : (
-                          <ChevronUp className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                          <ChevronUpIcon className="w-5 h-5 text-gray-400 flex-shrink-0" />
                         )}
                       </button>
                       <Toggle
@@ -697,7 +698,7 @@ export default function PaymentChannelsPage() {
                                   className="inline-flex items-center gap-1 font-medium hover:underline"
                                 >
                                   สมัคร Beam Checkout
-                                  <ExternalLink className="w-3.5 h-3.5" />
+                                  <ExternalLinkIcon className="w-3.5 h-3.5" />
                                 </a>
                               </div>
                             </Alert>
@@ -723,7 +724,7 @@ export default function PaymentChannelsPage() {
                                   className="text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
                                   aria-label={showApiKey ? 'ซ่อน API Key' : 'แสดง API Key'}
                                 >
-                                  {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                  {showApiKey ? <HideIcon className="w-4 h-4" /> : <ViewIcon className="w-4 h-4" />}
                                 </button>
                               }
                             />
@@ -774,7 +775,7 @@ export default function PaymentChannelsPage() {
                                         className="text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
                                         aria-label={showWebhookSecret ? 'ซ่อน HMAC key' : 'แสดง HMAC key'}
                                       >
-                                        {showWebhookSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                        {showWebhookSecret ? <HideIcon className="w-4 h-4" /> : <ViewIcon className="w-4 h-4" />}
                                       </button>
                                     }
                                   />
@@ -853,7 +854,7 @@ export default function PaymentChannelsPage() {
                                               <span className="body-text text-gray-900 dark:text-white flex-1 truncate">{ch.name_th}</span>
                                               {isEnabled && (
                                                 <button type="button" onClick={() => setExpandedChannel(isExpanded ? null : ch.code)} className="p-1 text-gray-400 hover:text-gray-600 dark:text-slate-400">
-                                                  {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                                  {isExpanded ? <ChevronUpIcon className="w-4 h-4" /> : <ChevronDownIcon className="w-4 h-4" />}
                                                 </button>
                                               )}
                                             </div>
@@ -1040,7 +1041,7 @@ export default function PaymentChannelsPage() {
               ) : (
                 <span className="text-sm text-gray-400 dark:text-slate-500">เลือกธนาคาร</span>
               )}
-              <ChevronDown className="w-4 h-4 ml-auto text-gray-400" />
+              <ChevronDownIcon className="w-4 h-4 ml-auto text-gray-400" />
             </button>
             {bankDropdownOpen && (
               <div className="absolute z-20 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">

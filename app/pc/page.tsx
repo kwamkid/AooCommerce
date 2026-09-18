@@ -13,9 +13,8 @@ import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { formatPrice, formatNumber } from '@/lib/utils/format';
-import {
-  LogOut, Store, ShoppingBag, ListChecks, Boxes, CalendarRange, Trash2, PackagePlus,
-} from 'lucide-react';
+import { ListChecks, Boxes, CalendarRange } from 'lucide-react';
+import { DeleteIcon, LogoutIcon, ProductIcon, StoreIcon, WholesaleIcon } from '@/lib/icons';
 import ThemeToggle from '@/components/ThemeToggle';
 import PosSaleScreen, { type PosSaleScreenHandle, type CheckoutPayload } from '@/components/pos/PosSaleScreen';
 import { type CartItem } from '@/components/pos/CartPanel';
@@ -60,7 +59,7 @@ type PcView = 'sale' | 'today' | 'stock' | 'month';
 const bangkokToday = () => new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10);
 
 const VIEW_TABS: { key: PcView; label: string; icon: React.ElementType }[] = [
-  { key: 'sale', label: 'ขาย', icon: ShoppingBag },
+  { key: 'sale', label: 'ขาย', icon: WholesaleIcon },
   { key: 'today', label: 'วันนี้', icon: ListChecks },
   { key: 'stock', label: 'สต็อก', icon: Boxes },
   { key: 'month', label: 'เดือนนี้', icon: CalendarRange },
@@ -222,7 +221,7 @@ export default function PcPage() {
     return (
       <div className="min-h-screen bg-gray-100 dark:bg-[#0F172A] flex items-center justify-center p-6">
         <div className="w-full max-w-md text-center space-y-4">
-          <EmptyCard icon={<Store className="w-10 h-10 text-gray-300" />} title="ยังไม่ได้รับมอบหมายสาขา" subtitle="ติดต่อแอดมินร้านเพื่อมอบหมายจุดขายให้คุณ" />
+          <EmptyCard icon={<StoreIcon className="w-10 h-10 text-gray-300" />} title="ยังไม่ได้รับมอบหมายสาขา" subtitle="ติดต่อแอดมินร้านเพื่อมอบหมายจุดขายให้คุณ" />
           <Button variant="secondary" onClick={() => signOut()}>ออกจากระบบ</Button>
         </div>
       </div>
@@ -267,7 +266,7 @@ export default function PcPage() {
             className="p-2 text-gray-500 dark:text-gray-400 hover:text-red-500 transition-colors"
             title="ออกจากระบบ"
           >
-            <LogOut className="w-4 h-4" />
+            <LogoutIcon className="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -354,7 +353,7 @@ export default function PcPage() {
                             <p className="font-semibold text-gray-900 dark:text-white">฿{formatPrice(sale.amount)}</p>
                             {canDelete && (
                               <button onClick={() => handleDeleteSale(sale)} className="p-2 text-gray-400 hover:text-red-500 transition-colors">
-                                <Trash2 className="w-4 h-4" />
+                                <DeleteIcon className="w-4 h-4" />
                               </button>
                             )}
                           </div>
@@ -398,7 +397,7 @@ export default function PcPage() {
 
                   <div className="bg-white dark:bg-[#1E293B] rounded-xl">
                     <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 dark:border-gray-700/50">
-                      <PackagePlus className="w-4 h-4 text-gray-500" />
+                      <ProductIcon className="w-4 h-4 text-gray-500" />
                       <h3 className="heading-4 text-gray-900 dark:text-white">เติมของเดือนนี้</h3>
                     </div>
                     {summary.replenishments_month.length === 0 ? (

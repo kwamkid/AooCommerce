@@ -6,7 +6,7 @@
 // (โครงการ์ด, บรรทัดสถานะ 3 แบบ, จำนวนสินค้าเชื่อมต่อ, ปุ่มลบ, ปุ่มขยาย) อยู่ที่นี่ที่เดียว
 
 import { ReactNode } from 'react';
-import { CheckCircle2, AlertTriangle, XCircle, ChevronDown, ChevronUp, Package, Trash2 } from 'lucide-react';
+import { ChevronDownIcon, ChevronUpIcon, DeleteIcon, ErrorIcon, ProductIcon, SuccessIcon, WarningIcon } from '@/lib/icons';
 import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
 import FormSelect from '@/components/ui/FormSelect';
 import type { MarketplaceAccount } from './useMarketplaceAccounts';
@@ -39,20 +39,20 @@ function ConnectionStatusLine({ account }: { account: MarketplaceAccount }) {
   if (account.connection_status === 'connected') {
     return (
       <span className="text-green-600 dark:text-green-400 flex items-center gap-1">
-        <CheckCircle2 className="w-3 h-3" /> เชื่อมต่อแล้ว
+        <SuccessIcon className="w-3 h-3" /> เชื่อมต่อแล้ว
       </span>
     );
   }
   if (account.connection_status === 'expired') {
     return (
       <span className="text-yellow-600 dark:text-yellow-400 flex items-center gap-1">
-        <AlertTriangle className="w-3 h-3" /> Token หมดอายุ
+        <WarningIcon className="w-3 h-3" /> Token หมดอายุ
       </span>
     );
   }
   return (
     <span className="text-gray-400 flex items-center gap-1">
-      <XCircle className="w-3 h-3" /> ยกเลิกแล้ว
+      <ErrorIcon className="w-3 h-3" /> ยกเลิกแล้ว
     </span>
   );
 }
@@ -101,7 +101,7 @@ export default function MarketplaceAccountCard({
               <>
                 <span className="mx-1">·</span>
                 <span className="flex items-center gap-1">
-                  <Package className="w-3 h-3" />
+                  <ProductIcon className="w-3 h-3" />
                   {account.linked_product_count} สินค้าเชื่อมต่อ
                 </span>
               </>
@@ -116,7 +116,7 @@ export default function MarketplaceAccountCard({
               className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
               aria-label={expanded ? 'ย่อ' : 'ขยาย'}
             >
-              {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              {expanded ? <ChevronUpIcon className="w-4 h-4" /> : <ChevronDownIcon className="w-4 h-4" />}
             </button>
           )}
           {/* ยกเลิกการเชื่อมต่อเป็นงานอันตราย — เก็บไว้ใน ⋮ เหมือนแท็บช่องทางของฉัน
@@ -128,7 +128,7 @@ export default function MarketplaceAccountCard({
               {
                 key: 'disconnect',
                 label: disconnecting ? 'กำลังยกเลิก…' : 'ยกเลิกการเชื่อมต่อ',
-                icon: <Trash2 className="w-4 h-4" />,
+                icon: <DeleteIcon className="w-4 h-4" />,
                 danger: true,
                 dividerBefore: (menuItems?.length || 0) > 0,
                 disabled: disconnecting,

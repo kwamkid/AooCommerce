@@ -6,19 +6,8 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import {
-  ArrowLeft,
-  Bell,
-  Copy,
-  Download,
-  ExternalLink,
-  Maximize2,
-  MonitorDown,
-  MoreVertical,
-  Share,
-  SquarePlus,
-  Zap,
-} from 'lucide-react';
+import { Maximize2, MonitorDown, Share, SquarePlus } from 'lucide-react';
+import { BackIcon, CopyIcon, DownloadIcon, ExternalLinkIcon, FastIcon, MoreIcon, NotificationIcon } from '@/lib/icons';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import Alert from '@/components/ui/Alert';
@@ -126,7 +115,7 @@ export default function InstallClient() {
 
   const promptButton = (
     <div className="space-y-2">
-      <Button size="lg" variant="primary" fullWidth icon={<Download className="w-5 h-5" />} loading={busy} onClick={handlePrompt}>
+      <Button size="lg" variant="primary" fullWidth icon={<DownloadIcon className="w-5 h-5" />} loading={busy} onClick={handlePrompt}>
         ติดตั้งแอปเลย
       </Button>
       <p className="text-sm text-gray-500 dark:text-slate-400 text-center">หรือทำเองตามขั้นตอนด้านล่าง</p>
@@ -139,7 +128,7 @@ export default function InstallClient() {
         <div className="max-w-lg mx-auto px-4 pt-safe-3 pb-3 flex items-center justify-between gap-3">
           <Image src="/logo.svg" alt="AooCommerce" width={120} height={32} className="h-8 w-auto" priority />
           <Link href="/dashboard">
-            <Button variant="ghost" size="sm" icon={<ArrowLeft className="w-4 h-4" />}>
+            <Button variant="ghost" size="sm" icon={<BackIcon className="w-4 h-4" />}>
               กลับเข้าระบบ
             </Button>
           </Link>
@@ -168,10 +157,10 @@ export default function InstallClient() {
           </div>
 
           <div className="mt-5 space-y-3">
-            <Benefit icon={<Bell className="w-5 h-5" />}>
+            <Benefit icon={<NotificationIcon className="w-5 h-5" />}>
               แจ้งเตือนแชทใหม่และออเดอร์ใหม่ถึงมือถือทันที แม้ปิดจออยู่
             </Benefit>
-            <Benefit icon={<Zap className="w-5 h-5" />}>
+            <Benefit icon={<FastIcon className="w-5 h-5" />}>
               เปิดได้จากไอคอนบนหน้าจอโฮม ไม่ต้องพิมพ์ลิงก์หรือหาแท็บ
             </Benefit>
             <Benefit icon={<Maximize2 className="w-5 h-5" />}>
@@ -209,7 +198,7 @@ export default function InstallClient() {
                   <Button
                     variant="secondary"
                     size="sm"
-                    icon={<ExternalLink />}
+                    icon={<ExternalLinkIcon />}
                     onClick={() => { window.location.href = currentUrlForExternalBrowser(); }}
                   >
                     เปิดด้วยเบราว์เซอร์
@@ -278,7 +267,7 @@ export default function InstallClient() {
                     </Step>
                     <Step n={2}>
                       กดเมนู <strong>⋮</strong>{' '}
-                      <MoreVertical className="w-4 h-4 inline-block align-text-bottom text-gray-500" /> มุมขวาบน
+                      <MoreIcon className="w-4 h-4 inline-block align-text-bottom text-gray-500" /> มุมขวาบน
                     </Step>
                     <Step n={3}>
                       กด <strong>&ldquo;ติดตั้งแอป&rdquo;</strong> หรือ{' '}
@@ -338,7 +327,7 @@ export default function InstallClient() {
             {shareUrl || '/install'}
           </div>
           <div className="mt-3 flex justify-end">
-            <Button variant="secondary" icon={<Copy className="w-4 h-4" />} onClick={handleShare}>
+            <Button variant="secondary" icon={<CopyIcon className="w-4 h-4" />} onClick={handleShare}>
               คัดลอกลิงก์
             </Button>
           </div>

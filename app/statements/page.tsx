@@ -9,11 +9,7 @@ import SearchInput from '@/components/ui/SearchInput';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import StatusTabs from '@/components/ui/StatusTabs';
-import {
-  FileText, Loader2, RefreshCw, CheckCircle2,
-  AlertCircle, Clock, Package, Eye, Receipt,
-  Printer, Banknote, Undo2,
-} from 'lucide-react';
+import { AlertIcon, DocumentIcon, LoadingIcon, MoneyIcon, ProductIcon, ReceiptIcon, RefreshIcon, ReverseIcon, SuccessIcon, TimeIcon, ViewIcon } from '@/lib/icons';
 import { showPdfPreview } from '@/lib/print-pdf';
 import { markPrinted as markPrintedDB } from '@/lib/print-tracking';
 import Tooltip from '@/components/ui/Tooltip';
@@ -260,13 +256,13 @@ function StatementsContent() {
       {
         key: 'view',
         label: 'ดูรายละเอียด',
-        icon: <Eye className="w-4 h-4" />,
+        icon: <ViewIcon className="w-4 h-4" />,
         onClick: () => router.push(`/statements/${st.id}`),
       },
       {
         key: 'print_statement',
         label: 'ใบวางบิล',
-        icon: isPrinting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Receipt className="w-4 h-4" />,
+        icon: isPrinting ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <ReceiptIcon className="w-4 h-4" />,
         suffix: dot('statement'),
         onClick: () => handlePrintStatement(st),
         disabled: isPrinting,
@@ -281,7 +277,7 @@ function StatementsContent() {
       items.push({
         key: 'reverse_payment',
         label: 'ยกเลิกการชำระ',
-        icon: <Undo2 className="w-4 h-4" />,
+        icon: <ReverseIcon className="w-4 h-4" />,
         onClick: () => setReverseConfirm(st),
         dividerBefore: true,
         danger: true,
@@ -361,7 +357,7 @@ function StatementsContent() {
         return (
           <Tooltip text={`ใบวางบิล: ${isPrintedDoc(st, 'statement') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}`}>
             <div className="relative flex items-center justify-center gap-1">
-              {isPrinting && <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin absolute" />}
+              {isPrinting && <LoadingIcon className="w-3.5 h-3.5 text-gray-400 animate-spin absolute" />}
               <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(st, 'statement') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
             </div>
           </Tooltip>
@@ -375,7 +371,7 @@ function StatementsContent() {
         const isOverdue = st.due_date && new Date(st.due_date) < new Date() && st.status !== 'paid';
         return st.due_date ? (
           <span className={`data-text flex items-center gap-1 ${isOverdue ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-600 dark:text-slate-300'}`}>
-            {isOverdue && <AlertCircle className="w-3.5 h-3.5" />}
+            {isOverdue && <AlertIcon className="w-3.5 h-3.5" />}
             {formatDate(st.due_date)}
           </span>
         ) : <span className="data-muted text-gray-400 dark:text-slate-500">-</span>;
@@ -405,12 +401,12 @@ function StatementsContent() {
       render: (st) => (
         <div className="flex items-center justify-end gap-1">
           {['sent', 'partially_paid', 'overdue'].includes(st.status) && (
-            <Button variant="indigo" icon={<Banknote className="w-4 h-4" />} onClick={() => setPaymentConfirm(st)}>
+            <Button variant="indigo" icon={<MoneyIcon className="w-4 h-4" />} onClick={() => setPaymentConfirm(st)}>
               <span className="hidden lg:inline">ลูกค้าชำระแล้ว</span>
             </Button>
           )}
           {st.status === 'paid' && (
-            <CheckCircle2 className="w-5 h-5 text-green-500" />
+            <SuccessIcon className="w-5 h-5 text-green-500" />
           )}
           <ActionMenu items={buildMenuItems(st)} />
         </div>
@@ -423,7 +419,7 @@ function StatementsContent() {
       <div className="space-y-4">
         {/* Header */}
         <PageHeader
-          icon={<FileText />}
+          icon={<DocumentIcon />}
           title="ใบวางบิล"
           actions={
             <button
@@ -432,7 +428,7 @@ function StatementsContent() {
               className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-700 hover:text-gray-700 dark:hover:text-white transition-colors disabled:opacity-50"
               title="รีเฟรช"
             >
-              <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <RefreshIcon className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
             </button>
           }
         />
@@ -460,7 +456,7 @@ function StatementsContent() {
           getRowId={(st) => st.id}
           onRowClick={(st) => router.push(`/statements/${st.id}`)}
           emptyMessage="ไม่พบใบวางบิล"
-          emptyIcon={<Package className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+          emptyIcon={<ProductIcon className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
           currentPage={currentPage}
           totalPages={totalPages}
           totalRecords={totalRecords}
@@ -482,19 +478,19 @@ function StatementsContent() {
                   <span className="data-number text-gray-900 dark:text-white">{formatAmount(st.total_amount)}</span>
                 </div>
                 <div className="flex items-center gap-3 text-xs text-gray-400 dark:text-slate-500">
-                  <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{formatPeriod(st.period_year, st.period_month)}</span>
+                  <span className="flex items-center gap-1"><TimeIcon className="w-3 h-3" />{formatPeriod(st.period_year, st.period_month)}</span>
                   {st.outstanding_amount > 0 && <span>คงเหลือ {formatAmount(st.outstanding_amount)}</span>}
                 </div>
                 {/* Action buttons */}
                 <div className="mt-3 flex items-center gap-2" onClick={e => e.stopPropagation()}>
                   {['sent', 'partially_paid', 'overdue'].includes(st.status) && (
-                    <Button variant="indigo" icon={<Banknote className="w-4 h-4" />} className="flex-1 justify-center" onClick={() => setPaymentConfirm(st)}>
+                    <Button variant="indigo" icon={<MoneyIcon className="w-4 h-4" />} className="flex-1 justify-center" onClick={() => setPaymentConfirm(st)}>
                       ลูกค้าชำระแล้ว
                     </Button>
                   )}
                   {st.status === 'paid' && (
                     <span className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-green-600">
-                      <CheckCircle2 className="w-4 h-4" /> ชำระแล้ว
+                      <SuccessIcon className="w-4 h-4" /> ชำระแล้ว
                     </span>
                   )}
                   {/* Print indicator (mobile) */}
@@ -514,11 +510,11 @@ function StatementsContent() {
         open={!!paymentConfirm}
         onClose={() => !paymentLoading && setPaymentConfirm(null)}
         onConfirm={() => paymentConfirm && handleRecordPayment(paymentConfirm)}
-        icon={<Banknote className="w-6 h-6 text-primary" />}
+        icon={<MoneyIcon className="w-6 h-6 text-primary" />}
         title="ลูกค้าชำระแล้ว"
         description={paymentConfirm ? `ยืนยันการชำระเงินของ ${paymentConfirm.customer?.name || '-'}\nรายงาน ${paymentConfirm.statement_number}\nงวด ${formatPeriod(paymentConfirm.period_year, paymentConfirm.period_month)}\nจำนวน ฿${formatAmount(paymentConfirm.outstanding_amount)}\n\nระบบจะออกใบกำกับภาษี/ใบเสร็จรับเงินอัตโนมัติ` : ''}
         confirmLabel={paymentLoading ? 'กำลังบันทึก...' : 'ยืนยันการชำระ'}
-        confirmIcon={paymentLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+        confirmIcon={paymentLoading ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <SuccessIcon className="w-4 h-4" />}
         loading={paymentLoading}
       />
 
@@ -527,11 +523,11 @@ function StatementsContent() {
         open={!!reverseConfirm}
         onClose={() => !reverseLoading && setReverseConfirm(null)}
         onConfirm={() => reverseConfirm && handleReversePayment(reverseConfirm)}
-        icon={<Undo2 className="w-6 h-6 text-red-500" />}
+        icon={<ReverseIcon className="w-6 h-6 text-red-500" />}
         title="ยกเลิกการชำระ"
         description={reverseConfirm ? `ยกเลิกการชำระเงินของ ${reverseConfirm.customer?.name || '-'}\nรายงาน ${reverseConfirm.statement_number}\nงวด ${formatPeriod(reverseConfirm.period_year, reverseConfirm.period_month)}\nจำนวน ฿${formatAmount(reverseConfirm.paid_amount)}\n\nใบกำกับภาษี/ใบเสร็จที่ออกไปจะถูกยกเลิก (void)` : ''}
         confirmLabel={reverseLoading ? 'กำลังดำเนินการ...' : 'ยืนยันยกเลิก'}
-        confirmIcon={reverseLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Undo2 className="w-4 h-4" />}
+        confirmIcon={reverseLoading ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <ReverseIcon className="w-4 h-4" />}
         variant="danger"
         loading={reverseLoading}
       />

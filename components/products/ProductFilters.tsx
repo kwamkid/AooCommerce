@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { Tag, FolderTree, X as XIcon } from 'lucide-react';
+import { CloseIcon, BrandIcon, CategoryIcon } from '@/lib/icons';
 import Card from '@/components/ui/Card';
 import FormSelect from '@/components/ui/FormSelect';
 import SearchInput from '@/components/ui/SearchInput';
@@ -125,7 +125,7 @@ export default function ProductFilters({
             placeholder="ทุกหมวดหมู่"
             emptyLabel="ทุกหมวดหมู่ (ไม่กรอง)"
             searchPlaceholder="ค้นหาหมวดหมู่..."
-            icon={<FolderTree className="w-4 h-4" />}
+            icon={<CategoryIcon className="w-4 h-4" />}
           />
         </div>
       )}
@@ -139,7 +139,7 @@ export default function ProductFilters({
             placeholder="ทุกแบรนด์"
             emptyLabel="ทุกแบรนด์ (ไม่กรอง)"
             searchPlaceholder="ค้นหาแบรนด์..."
-            icon={<Tag className="w-4 h-4" />}
+            icon={<BrandIcon className="w-4 h-4" />}
           />
         </div>
       )}
@@ -189,7 +189,7 @@ export default function ProductFilters({
           title="ล้างตัวกรอง"
           className="h-10 w-10 flex items-center justify-center rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-500 hover:text-red-600 hover:border-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors md:flex-shrink-0"
         >
-          <XIcon className="w-4 h-4" />
+          <CloseIcon className="w-4 h-4" />
         </button>
       )}
     </div>

@@ -1,5 +1,5 @@
 import type { HTMLAttributes, ReactNode } from 'react';
-import { X } from 'lucide-react';
+import { CloseIcon } from '@/lib/icons';
 
 export type BadgeTone = 'gray' | 'red' | 'amber' | 'emerald' | 'blue' | 'indigo' | 'purple' | 'orange';
 export type BadgeShape = 'pill' | 'square';
@@ -52,7 +52,7 @@ export default function Badge({
           className="badge-remove"
           onClick={(e) => { e.stopPropagation(); onRemove(); }}
         >
-          <X className="w-3 h-3" />
+          <CloseIcon className="w-3 h-3" />
         </button>
       )}
     </span>

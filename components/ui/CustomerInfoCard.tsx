@@ -1,6 +1,7 @@
 'use client';
 
-import { Loader2, UserCheck } from 'lucide-react';
+import { UserCheck } from 'lucide-react';
+import { LoadingIcon } from '@/lib/icons';
 
 /** Customer data needed for the info card */
 export interface CustomerInfoData {
@@ -50,7 +51,7 @@ export default function CustomerInfoCard({
   return (
     <div className="flex items-center gap-2">
       {loading
-        ? <Loader2 className="w-5 h-5 text-primary flex-shrink-0 animate-spin" />
+        ? <LoadingIcon className="w-5 h-5 text-primary flex-shrink-0 animate-spin" />
         : <UserCheck className="w-5 h-5 text-primary flex-shrink-0" />
       }
       <div className="flex-1 min-w-0">
@@ -60,7 +61,7 @@ export default function CustomerInfoCard({
         </div>
         {loading && (
           <div className="text-xs text-gray-400 dark:text-slate-500 mt-0.5 flex items-center gap-1">
-            <Loader2 className="w-3 h-3 animate-spin" /> กำลังโหลดราคา...
+            <LoadingIcon className="w-3 h-3 animate-spin" /> กำลังโหลดราคา...
           </div>
         )}
         {showSecondary && (

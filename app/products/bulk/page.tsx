@@ -7,15 +7,7 @@ import Badge from '@/components/ui/Badge';
 import { useCompany } from '@/lib/company-context';
 import { can } from '@/lib/permissions';
 import { useFeatures } from '@/lib/features-context';
-import {
-  FileText,
-  DollarSign,
-  Package,
-  AlertCircle,
-  PackagePlus,
-  FolderPlus,
-  BadgePlus,
-} from 'lucide-react';
+import { AlertIcon, BrandIcon, CategoryIcon, DocumentIcon, InventoryIcon, PriceIcon, ProductIcon } from '@/lib/icons';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import { LoadingCard } from '@/components/ui/StateCard';
 
@@ -32,19 +24,19 @@ interface BulkAction {
 const CREATE_ACTIONS: BulkAction[] = [
   {
     href: '/products/bulk/create',
-    icon: <PackagePlus className="w-7 h-7" />,
+    icon: <ProductIcon className="w-7 h-7" />,
     title: 'เพิ่มสินค้าใหม่',
     desc: 'สร้างสินค้าหลายตัวพร้อมกัน (รองรับ variations)',
   },
   {
     href: '/products/bulk/create-categories',
-    icon: <FolderPlus className="w-7 h-7" />,
+    icon: <CategoryIcon className="w-7 h-7" />,
     title: 'เพิ่มหมวดหมู่ใหม่',
     desc: 'สร้างหมวดหมู่หลายรายการพร้อมกัน (รองรับหมวดหมู่ย่อย)',
   },
   {
     href: '/products/bulk/create-brands',
-    icon: <BadgePlus className="w-7 h-7" />,
+    icon: <BrandIcon className="w-7 h-7" />,
     title: 'เพิ่มแบรนด์ใหม่',
     desc: 'สร้างแบรนด์หลายรายการพร้อมกัน',
   },
@@ -53,19 +45,19 @@ const CREATE_ACTIONS: BulkAction[] = [
 const EDIT_ACTIONS: BulkAction[] = [
   {
     href: '/products/bulk/basic-info',
-    icon: <FileText className="w-7 h-7" />,
+    icon: <DocumentIcon className="w-7 h-7" />,
     title: 'แก้ไขข้อมูลสินค้า',
     desc: 'ชื่อสินค้า, รหัส, สถานะ, แบรนด์, หมวดหมู่, คำอธิบาย',
   },
   {
     href: '/products/bulk/price',
-    icon: <DollarSign className="w-7 h-7" />,
+    icon: <PriceIcon className="w-7 h-7" />,
     title: 'แก้ไขราคา',
     desc: 'ราคาปกติ, ราคาขาย, ราคาทุน',
   },
   {
     href: '/inventory/bulk-stock-update',
-    icon: <Package className="w-7 h-7" />,
+    icon: <InventoryIcon className="w-7 h-7" />,
     title: 'แก้ไขสต็อก',
     desc: 'จำนวนสต็อกแยกตามคลัง (1 หรือหลายคลังพร้อมกัน)',
     requiresStock: true,
@@ -113,7 +105,7 @@ export default function BulkProductsHub() {
     return (
       <Layout>
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-8 text-center">
-          <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+          <AlertIcon className="w-12 h-12 text-red-400 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">ไม่มีสิทธิ์เข้าถึง</h3>
           <p className="text-gray-500 dark:text-slate-400">เฉพาะเจ้าของ ผู้ดูแลระบบ ผู้จัดการ และคลังสินค้าเท่านั้น</p>
         </div>

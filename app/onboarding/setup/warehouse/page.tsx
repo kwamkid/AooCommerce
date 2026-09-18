@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { PHONE_INPUT_PROPS, onPhoneChange } from '@/lib/numeric-input';
 import { useRouter } from 'next/navigation';
-import { Warehouse, Check, Loader2 } from 'lucide-react';
+import { ConfirmIcon, LoadingIcon, WarehouseIcon } from '@/lib/icons';
 import WizardShell from '@/components/onboarding/WizardShell';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
 import { useWizardState, WIZARD_KEYS } from '@/components/onboarding/wizard-storage';
@@ -68,7 +68,7 @@ export default function OnboardingWarehousePage() {
   if (!pkgLoaded || !stockEnabled) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-slate-900 flex items-center justify-center">
-        <Loader2 className="w-7 h-7 animate-spin text-primary" />
+        <LoadingIcon className="w-7 h-7 animate-spin text-primary" />
       </div>
     );
   }
@@ -82,10 +82,10 @@ export default function OnboardingWarehousePage() {
         <div onClick={() => patch({ useWarehouse: true })} className={cardClass(useWarehouse)}>
           {useWarehouse && (
             <div className="absolute top-3 right-3 w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center">
-              <Check className="w-4 h-4" />
+              <ConfirmIcon className="w-4 h-4" />
             </div>
           )}
-          <Warehouse className="w-7 h-7 mb-3 text-emerald-600 dark:text-emerald-400" />
+          <WarehouseIcon className="w-7 h-7 mb-3 text-emerald-600 dark:text-emerald-400" />
           <div className="font-semibold text-gray-900 dark:text-white">ใช้ระบบคลัง</div>
           <div className="text-sm text-gray-600 dark:text-slate-400 mt-1.5">ติดตามสต็อกแยกตามสาขา รับเข้า ย้ายคลัง</div>
         </div>
@@ -93,7 +93,7 @@ export default function OnboardingWarehousePage() {
         <div onClick={() => patch({ useWarehouse: false })} className={cardClass(!useWarehouse)}>
           {!useWarehouse && (
             <div className="absolute top-3 right-3 w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center">
-              <Check className="w-4 h-4" />
+              <ConfirmIcon className="w-4 h-4" />
             </div>
           )}
           <div className="w-7 h-7 mb-3 rounded-full border-2 border-gray-300 dark:border-slate-600" />

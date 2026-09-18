@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { GoogleMark, LineMark } from '@/components/storefront/BrandMarks';
 import Link from 'next/link';
-import { UserRound, LogOut, Bell, ChevronRight, ExternalLink, AlertTriangle } from 'lucide-react';
+import { UserRound } from 'lucide-react';
+import { ChevronRightIcon, ExternalLinkIcon, LogoutIcon, NotificationIcon, WarningIcon } from '@/lib/icons';
 import { loginWithGoogle, loginWithLINE } from '@/lib/auth/login-methods';
 import { clearSession } from '@/lib/auth/session-manager';
 import { supabase } from '@/lib/supabase';
@@ -158,7 +159,7 @@ export default function AccountClient({ shop, shopName, lineLogin, lineChannelId
 
         {isStaff && (
           <div className="sf-warn">
-            <AlertTriangle strokeWidth={1.75} aria-hidden="true" />
+            <WarningIcon strokeWidth={1.75} aria-hidden="true" />
             <div>
               <strong>คุณกำลังใช้บัญชีพนักงานของร้านนี้</strong>
               <p className="sf-hint">
@@ -176,7 +177,7 @@ export default function AccountClient({ shop, shopName, lineLogin, lineChannelId
           </button>
           <button type="button" className="sf-btn-ghost" style={{ width: '100%', marginTop: 10, justifyContent: 'center' }}
             onClick={signOut}>
-            <LogOut strokeWidth={1.75} aria-hidden="true" /> ออกจากระบบ / ใช้บัญชีอื่น
+            <LogoutIcon strokeWidth={1.75} aria-hidden="true" /> ออกจากระบบ / ใช้บัญชีอื่น
           </button>
         </div>
       </div>
@@ -188,7 +189,7 @@ export default function AccountClient({ shop, shopName, lineLogin, lineChannelId
     <div className="sf-container">
       {isStaff && (
         <div className="sf-warn">
-          <AlertTriangle strokeWidth={1.75} aria-hidden="true" />
+          <WarningIcon strokeWidth={1.75} aria-hidden="true" />
           <div>
             <strong>บัญชีนี้เป็นพนักงานของร้านนี้ด้วย</strong>
             <p className="sf-hint">กำลังดูในมุมมองลูกค้า — ออกจากระบบเพื่อทดสอบแบบผู้เยี่ยมชมทั่วไป</p>
@@ -214,7 +215,7 @@ export default function AccountClient({ shop, shopName, lineLogin, lineChannelId
           </div>
         </div>
         <button type="button" className="sf-btn-ghost" onClick={signOut}>
-          <LogOut strokeWidth={1.75} aria-hidden="true" /> ออกจากระบบ
+          <LogoutIcon strokeWidth={1.75} aria-hidden="true" /> ออกจากระบบ
         </button>
       </div>
 
@@ -223,7 +224,7 @@ export default function AccountClient({ shop, shopName, lineLogin, lineChannelId
           ส่งเข้า OA ร้านไม่ได้ · สิ่งที่เพิ่มเพื่อนแล้วได้จริงคือคุยกับร้านได้ */}
       {lineOa && (
         <div className="sf-notice">
-          <Bell strokeWidth={1.75} aria-hidden="true" />
+          <NotificationIcon strokeWidth={1.75} aria-hidden="true" />
           <div>
             <strong>คุยกับร้านทาง LINE</strong>
             <p className="sf-hint">
@@ -232,7 +233,7 @@ export default function AccountClient({ shop, shopName, lineLogin, lineChannelId
             </p>
           </div>
           <a href={lineOa.add_friend_url} target="_blank" rel="noopener noreferrer" className="sf-cta">
-            เพิ่มเพื่อน <ExternalLink strokeWidth={2} aria-hidden="true" />
+            เพิ่มเพื่อน <ExternalLinkIcon strokeWidth={2} aria-hidden="true" />
           </a>
         </div>
       )}
@@ -265,7 +266,7 @@ export default function AccountClient({ shop, shopName, lineLogin, lineChannelId
                   return <span className={`sf-status-badge sf-status-${st.tone}`}>{st.label}</span>;
                 })()}
               </div>
-              <ChevronRight strokeWidth={1.75} aria-hidden="true" />
+              <ChevronRightIcon strokeWidth={1.75} aria-hidden="true" />
             </Link>
           ))}
         </div>

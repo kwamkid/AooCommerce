@@ -1,7 +1,7 @@
 'use client';
 
 import { NUMERIC_TEXT_INPUT_PROPS, sanitizeNumericInput } from '@/lib/numeric-input';
-import { Percent, Tag } from 'lucide-react';
+import { PercentIcon, DiscountIcon } from '@/lib/icons';
 import Tooltip from '@/components/ui/Tooltip';
 
 export type PriceMode = 'percent' | 'fixed_discount' | 'fixed_price';
@@ -71,7 +71,7 @@ export default function PriceDiscountCombo({
                 : 'bg-gray-50 dark:bg-slate-700 text-gray-400 dark:text-slate-500 hover:bg-gray-100 dark:hover:bg-slate-600'
             }`}
           >
-            <Percent className={iconSize} />
+            <PercentIcon className={iconSize} />
           </button>
         </Tooltip>
         <Tooltip text="ราคาพิเศษ — กำหนดราคาขายตรง เช่น 99 บาท" box="inline-flex">
@@ -90,7 +90,7 @@ export default function PriceDiscountCombo({
                 : 'bg-gray-50 dark:bg-slate-700 text-gray-400 dark:text-slate-500 hover:bg-gray-100 dark:hover:bg-slate-600'
             }`}
           >
-            <Tag className={iconSize} />
+            <DiscountIcon className={iconSize} />
           </button>
         </Tooltip>
       </div>

@@ -5,7 +5,7 @@
 // ชุดเดียวกับหน้า API Monitor และ push แจ้งเตือน — จึงไม่มีทางพูดคนละเรื่อง)
 // ท้าย dropdown = สวิตช์แจ้งเตือนของเครื่องนี้ สาย 'superadmin' + ปุ่มทดสอบ
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Bell, ShieldCheck } from 'lucide-react';
+import { NotificationIcon, SecurityIcon } from '@/lib/icons';
 import { apiFetch } from '@/lib/api-client';
 import PushNotificationToggle from '@/components/ui/PushNotificationToggle';
 import type { WatchdogIssue } from '@/lib/marketplace/watchdog';
@@ -72,7 +72,7 @@ export default function SuperAdminNotificationBell() {
         aria-label="การแจ้งเตือน"
         className="relative p-2 rounded-lg text-slate-400 hover:text-violet-400 hover:bg-white/10 active:bg-white/15 transition-colors"
       >
-        <Bell className="w-5 h-5" />
+        <NotificationIcon className="w-5 h-5" />
         {issues.length > 0 && (
           <span
             className={`absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 text-white text-[10px] font-bold rounded-full flex items-center justify-center ${
@@ -100,7 +100,7 @@ export default function SuperAdminNotificationBell() {
           <div className="max-h-80 overflow-y-auto">
             {loaded && issues.length === 0 ? (
               <p className="px-4 py-6 text-sm text-emerald-400/90 flex items-center justify-center gap-2">
-                <ShieldCheck className="w-4 h-4" /> ทุกร้านซิงค์ตามปกติ
+                <SecurityIcon className="w-4 h-4" /> ทุกร้านซิงค์ตามปกติ
               </p>
             ) : (
               issues.map(issue => (

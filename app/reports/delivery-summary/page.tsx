@@ -42,24 +42,8 @@ import { LoadingCard, EmptyCard } from '@/components/ui/StateCard';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import { OrderStatusBadge as BaseOrderStatusBadge, PaymentStatusBadge as BasePaymentStatusBadge } from '@/components/ui/OrderStatusBadge';
 import { showPdfPreview, preOpenPrintWindow } from '@/lib/print-pdf';
-import {
-  Truck,
-  MapPin,
-  Phone,
-  User,
-  Package,
-  ChevronDown,
-  ChevronRight,
-  Copy,
-  Check,
-  StickyNote,
-  GripVertical,
-  FileText,
-  ClipboardList,
-  Printer,
-  Loader2,
-  Wallet,
-} from 'lucide-react';
+import { StickyNote, GripVertical, Wallet } from 'lucide-react';
+import { ChecklistIcon, ChevronDownIcon, ChevronRightIcon, ConfirmIcon, CopyIcon, DocumentIcon, LoadingIcon, LocationIcon, PhoneIcon, PrintIcon, ProductIcon, ShippingIcon, UserIcon } from '@/lib/icons';
 import FormSelect from '@/components/ui/FormSelect';
 import BulkActionBar from '@/components/ui/BulkActionBar';
 import { parallelLimit } from '@/lib/parallel';
@@ -151,7 +135,7 @@ function OrderStatusBadge({ status, clickable = false }: { status: string; click
     <BaseOrderStatusBadge
       status={status}
       className={clickable ? CLICKABLE_CLS : ''}
-      trailing={clickable ? <ChevronRight className="w-3 h-3" /> : undefined}
+      trailing={clickable ? <ChevronRightIcon className="w-3 h-3" /> : undefined}
     />
   );
 }
@@ -161,7 +145,7 @@ function PaymentStatusBadge({ status, clickable = false }: { status: string; cli
     <BasePaymentStatusBadge
       status={status}
       className={clickable ? CLICKABLE_CLS : ''}
-      trailing={clickable ? <ChevronRight className="w-3 h-3" /> : undefined}
+      trailing={clickable ? <ChevronRightIcon className="w-3 h-3" /> : undefined}
     />
   );
 }
@@ -274,7 +258,7 @@ function SortableDeliveryCard({
               rel="noopener noreferrer"
               className={`flex items-start gap-2 group ${mapLink ? 'cursor-pointer' : 'cursor-default'}`}
             >
-              <MapPin className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+              <LocationIcon className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
               <div>
                 <div className={`font-medium text-sm text-gray-900 dark:text-white ${mapLink ? 'group-hover:text-blue-600' : ''}`}>
                   {delivery.shippingAddress.addressName}
@@ -288,7 +272,7 @@ function SortableDeliveryCard({
             <div className="flex flex-wrap gap-4 text-sm">
               {(delivery.shippingAddress.contactPerson || delivery.customer.contactPerson) && (
                 <div className="flex items-center gap-1.5 text-gray-600 dark:text-slate-400">
-                  <User className="w-3.5 h-3.5" />
+                  <UserIcon className="w-3.5 h-3.5" />
                   {delivery.shippingAddress.contactPerson || delivery.customer.contactPerson}
                 </div>
               )}
@@ -297,7 +281,7 @@ function SortableDeliveryCard({
                   href={`tel:${delivery.shippingAddress.phone || delivery.customer.phone}`}
                   className="flex items-center gap-1.5 text-gray-600 hover:text-blue-600 dark:text-blue-400"
                 >
-                  <Phone className="w-3.5 h-3.5" />
+                  <PhoneIcon className="w-3.5 h-3.5" />
                   {delivery.shippingAddress.phone || delivery.customer.phone}
                 </a>
               )}
@@ -326,7 +310,7 @@ function SortableDeliveryCard({
           {/* Right Column: Products */}
           <div className="md:border-l md:border-gray-100 dark:md:border-slate-700 md:pl-4">
             <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase mb-2">
-              <Package className="w-3.5 h-3.5" />
+              <ProductIcon className="w-3.5 h-3.5" />
               สินค้า
             </div>
             <div className="space-y-1.5">
@@ -809,7 +793,7 @@ export default function DeliverySummaryPage() {
       <div className="space-y-4">
         {/* Header */}
         <PageHeader
-          icon={<Truck />}
+          icon={<ShippingIcon />}
           title="จัดของ & ส่ง"
           subtitle="เตรียมสินค้าและจัดส่งตามวันที่"
         />
@@ -850,8 +834,8 @@ export default function DeliverySummaryPage() {
               activeKey={activeTab}
               onSelect={(key) => setActiveTab(key as 'packing' | 'delivery')}
               tabs={[
-                { key: 'packing', label: 'จัดของ', icon: <ClipboardList className="w-4 h-4" />, count: orders.length },
-                { key: 'delivery', label: 'จัดส่ง', icon: <Truck className="w-4 h-4" />, count: reportData?.totals.totalDeliveries },
+                { key: 'packing', label: 'จัดของ', icon: <ChecklistIcon className="w-4 h-4" />, count: orders.length },
+                { key: 'delivery', label: 'จัดส่ง', icon: <ShippingIcon className="w-4 h-4" />, count: reportData?.totals.totalDeliveries },
               ]}
             />
 
@@ -862,7 +846,7 @@ export default function DeliverySummaryPage() {
                   variant="secondary"
                   onClick={handleCopyText}
                   disabled={!reportData || reportData.byDate.length === 0}
-                  icon={copySuccess ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                  icon={copySuccess ? <ConfirmIcon className="w-4 h-4 text-green-500" /> : <CopyIcon className="w-4 h-4" />}
                 >
                   <span className="hidden lg:inline">{copySuccess ? 'คัดลอกแล้ว!' : 'สรุปการส่ง'}</span>
                 </Button>
@@ -887,7 +871,7 @@ export default function DeliverySummaryPage() {
               <LoadingCard />
             ) : orders.length === 0 ? (
               <EmptyCard
-                icon={<Package className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+                icon={<ProductIcon className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
                 title="ไม่มีบิลที่ต้องจัดในวันที่เลือก"
               />
             ) : (
@@ -920,18 +904,18 @@ export default function DeliverySummaryPage() {
                       <>
                         <Button variant="indigo" onClick={() => printOne(order.id, 'packing')} disabled={printingOrderId === order.id}>
                           {printingOrderId === order.id
-                          ? <Loader2 className="w-4 h-4 animate-spin" />
-                          : <ClipboardList className="w-4 h-4" />}
+                          ? <LoadingIcon className="w-4 h-4 animate-spin" />
+                          : <ChecklistIcon className="w-4 h-4" />}
                           ใบจัดของ
                         </Button>
                         <ActionMenu
                           items={[
                             {
-                              key: 'label', label: 'ใบปะหน้า', icon: <Printer className="w-4 h-4" />,
+                              key: 'label', label: 'ใบปะหน้า', icon: <PrintIcon className="w-4 h-4" />,
                               onClick: () => printOne(order.id, 'label'),
                             },
                             {
-                              key: 'open', label: 'เปิดคำสั่งซื้อ', icon: <ChevronRight className="w-4 h-4" />,
+                              key: 'open', label: 'เปิดคำสั่งซื้อ', icon: <ChevronRightIcon className="w-4 h-4" />,
                               onClick: () => router.push(`/orders/${order.id}`),
                             },
                           ]}
@@ -954,7 +938,7 @@ export default function DeliverySummaryPage() {
             {/* Delivery List by Date */}
             {reportData.byDate.length === 0 ? (
               <EmptyCard
-                icon={<Truck className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+                icon={<ShippingIcon className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
                 title="ไม่มีรายการจัดส่งในช่วงวันที่เลือก"
               />
             ) : (
@@ -1013,14 +997,14 @@ export default function DeliverySummaryPage() {
                   className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
                 >
                   <div className="flex items-center gap-2">
-                    <Package className="w-5 h-5 text-primary" />
+                    <ProductIcon className="w-5 h-5 text-primary" />
                     <span className="font-medium text-gray-900 dark:text-white">สรุปสินค้าทั้งหมด</span>
                     <span className="text-sm text-gray-500 dark:text-slate-400">({reportData.productSummary.length} รายการ)</span>
                   </div>
                   {showProductSummary ? (
-                    <ChevronDown className="w-5 h-5 text-gray-400" />
+                    <ChevronDownIcon className="w-5 h-5 text-gray-400" />
                   ) : (
-                    <ChevronRight className="w-5 h-5 text-gray-400" />
+                    <ChevronRightIcon className="w-5 h-5 text-gray-400" />
                   )}
                 </button>
                 {showProductSummary && (
@@ -1090,13 +1074,13 @@ export default function DeliverySummaryPage() {
                   {statusUpdateModal.statusType === 'order' ? (
                     <>
                       <OrderStatusBadge status={statusUpdateModal.delivery?.orderStatus || ''} />
-                      <ChevronRight className="w-4 h-4 text-gray-400" />
+                      <ChevronRightIcon className="w-4 h-4 text-gray-400" />
                       <OrderStatusBadge status={statusUpdateModal.nextStatus} />
                     </>
                   ) : (
                     <>
                       <PaymentStatusBadge status={statusUpdateModal.delivery?.paymentStatus || ''} />
-                      <ChevronRight className="w-4 h-4 text-gray-400" />
+                      <ChevronRightIcon className="w-4 h-4 text-gray-400" />
                       <PaymentStatusBadge status={statusUpdateModal.nextStatus} />
                     </>
                   )}
@@ -1129,7 +1113,7 @@ export default function DeliverySummaryPage() {
         <Button
           variant="secondary"
           loading={generatingSlipPdf}
-          icon={<FileText className="w-4 h-4" />}
+          icon={<DocumentIcon className="w-4 h-4" />}
           onClick={handleExportOrderSlipPdf}
         >
           <span className="hidden md:inline">ใบคำสั่งซื้อ</span> ({selectedIds.size})
@@ -1137,7 +1121,7 @@ export default function DeliverySummaryPage() {
         <Button
           variant="primary"
           loading={generatingPdf}
-          icon={<ClipboardList className="w-4 h-4" />}
+          icon={<ChecklistIcon className="w-4 h-4" />}
           onClick={handleExportPackingPdf}
         >
           <span className="hidden md:inline">ใบจัดของ</span> ({selectedIds.size})

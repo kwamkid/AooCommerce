@@ -1,6 +1,7 @@
 'use client';
 
-import { Coins, QrCode, Building2, Check, Plus, Trash2 } from 'lucide-react';
+import { Coins } from 'lucide-react';
+import { AddIcon, CompanyIcon, ConfirmIcon, DeleteIcon, QrIcon } from '@/lib/icons';
 import WizardShell from '@/components/onboarding/WizardShell';
 import FormSelect from '@/components/ui/FormSelect';
 import { useWizardState, WIZARD_KEYS } from '@/components/onboarding/wizard-storage';
@@ -62,7 +63,7 @@ function ToggleRow({
             on ? 'bg-primary text-white' : 'border-2 border-gray-300 dark:border-slate-600'
           }`}
         >
-          {on && <Check className="w-3.5 h-3.5" />}
+          {on && <ConfirmIcon className="w-3.5 h-3.5" />}
         </div>
         <div className="flex-shrink-0">{icon}</div>
         <div className="flex-1 min-w-0">
@@ -210,7 +211,7 @@ export default function OnboardingPaymentPage() {
         />
 
         <ToggleRow
-          icon={<QrCode className="w-6 h-6 text-blue-600" />}
+          icon={<QrIcon className="w-6 h-6 text-blue-600" />}
           title="พร้อมเพย์"
           subtitle="QR PromptPay สำหรับโอนชำระ"
           on={promptpayOn}
@@ -243,7 +244,7 @@ export default function OnboardingPaymentPage() {
         </ToggleRow>
 
         <ToggleRow
-          icon={<Building2 className="w-6 h-6 text-indigo-600" />}
+          icon={<CompanyIcon className="w-6 h-6 text-indigo-600" />}
           title="โอนเข้าบัญชีธนาคาร"
           subtitle="รับโอนเงินเข้าบัญชี"
           on={bankOn}
@@ -277,7 +278,7 @@ export default function OnboardingPaymentPage() {
                     onClick={() => removeBank(idx)}
                     className="p-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <DeleteIcon className="w-4 h-4" />
                   </button>
                 )}
               </div>
@@ -298,7 +299,7 @@ export default function OnboardingPaymentPage() {
             onClick={addBank}
             className="text-sm text-primary hover:text-primary-hover flex items-center gap-1"
           >
-            <Plus className="w-4 h-4" />
+            <AddIcon className="w-4 h-4" />
             เพิ่มบัญชีอีก
           </button>
         </ToggleRow>

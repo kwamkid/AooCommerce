@@ -3,7 +3,7 @@
 import ItemsTable from '@/components/ui/ItemsTable';
 import FormSelect from '@/components/ui/FormSelect';
 import NumberInput from '@/components/ui/NumberInput';
-import { Plus, X } from 'lucide-react';
+import { AddIcon, CloseIcon } from '@/lib/icons';
 import { DISCOUNT_TYPE_OPTIONS } from './types';
 import type { UsePromotionFormReturn } from './usePromotionForm';
 
@@ -64,7 +64,7 @@ export default function QtyDiscountSection({ hook }: Props) {
             onClick={handleAddTier}
             className="flex items-center gap-1 px-3 py-1.5 text-base font-medium text-primary hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <AddIcon className="w-3.5 h-3.5" />
             เพิ่มขั้น
           </button>
         </div>
@@ -107,7 +107,7 @@ export default function QtyDiscountSection({ hook }: Props) {
                   onClick={() => handleRemoveTier(tier.key)}
                   className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-500 transition-colors"
                 >
-                  <X className="w-4 h-4" />
+                  <CloseIcon className="w-4 h-4" />
                 </button>
               </div>
             ))}

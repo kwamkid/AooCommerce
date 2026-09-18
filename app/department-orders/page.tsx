@@ -16,12 +16,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
-import {
-  Building2, Plus, Loader2, RefreshCw,
-  Package, Truck, CheckCircle2,
-  Send, Copy, UserPlus, Ban, Trash2,
-  ClipboardList, FileText, Printer, X,
-} from 'lucide-react';
+import { AddIcon, ChecklistIcon, CloseIcon, CopyIcon, DeleteIcon, DeptStoreIcon, DocumentIcon, LoadingIcon, PrintIcon, RefreshIcon, SendIcon, ShippingIcon, SuccessIcon, UserAddIcon } from '@/lib/icons';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import Tooltip from '@/components/ui/Tooltip';
 import DataTable from '@/components/ui/DataTable';
@@ -834,7 +829,7 @@ function DepartmentOrdersContent() {
         {
           key: 'packing',
           label: 'ใบจัดของ',
-          icon: isPrinting && printingType === 'packing' ? <Loader2 className="w-4 h-4 animate-spin" /> : <ClipboardList className="w-4 h-4" />,
+          icon: isPrinting && printingType === 'packing' ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <ChecklistIcon className="w-4 h-4" />,
           suffix: dot('packing'),
           onClick: () => handlePrintPacking(r.id),
           disabled: isPrinting,
@@ -842,7 +837,7 @@ function DepartmentOrdersContent() {
         {
           key: 'label',
           label: 'ใบปะหน้า',
-          icon: isPrinting && printingType === 'label' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Truck className="w-4 h-4" />,
+          icon: isPrinting && printingType === 'label' ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <ShippingIcon className="w-4 h-4" />,
           suffix: dot('label'),
           onClick: () => handlePrintLabel(r.id),
           disabled: isPrinting,
@@ -850,7 +845,7 @@ function DepartmentOrdersContent() {
         {
           key: 'all',
           label: isPrinting && printingType === 'all' ? 'กำลังสร้าง...' : 'พิมพ์ทั้งหมด',
-          icon: isPrinting && printingType === 'all' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />,
+          icon: isPrinting && printingType === 'all' ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <PrintIcon className="w-4 h-4" />,
           primary: true,
           onClick: () => handlePrintAll(r.id, true),
           disabled: isPrinting,
@@ -858,7 +853,7 @@ function DepartmentOrdersContent() {
         {
           key: 'cancel',
           label: 'ยกเลิก',
-          icon: <Trash2 className="w-4 h-4" />,
+          icon: <DeleteIcon className="w-4 h-4" />,
           onClick: () => setCancelId(r.id),
           danger: true,
           dividerBefore: true,
@@ -870,14 +865,14 @@ function DepartmentOrdersContent() {
         {
           key: 'tax',
           label: 'ใบกำกับภาษี',
-          icon: isPrinting && printingType === 'tax' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />,
+          icon: isPrinting && printingType === 'tax' ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <DocumentIcon className="w-4 h-4" />,
           onClick: () => handlePrintTax(r.id),
           disabled: isPrinting,
         },
         {
           key: 'dn',
           label: 'ใบส่งสินค้า',
-          icon: isPrinting && printingType === 'dn' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />,
+          icon: isPrinting && printingType === 'dn' ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <DocumentIcon className="w-4 h-4" />,
           suffix: dot('dn'),
           onClick: () => handlePrintDN(r.id),
           disabled: isPrinting,
@@ -885,7 +880,7 @@ function DepartmentOrdersContent() {
         {
           key: 'taxdn',
           label: isPrinting && printingType === 'taxdn' ? 'กำลังสร้าง...' : 'พิมพ์ทั้งหมด',
-          icon: isPrinting && printingType === 'taxdn' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />,
+          icon: isPrinting && printingType === 'taxdn' ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <PrintIcon className="w-4 h-4" />,
           primary: true,
           onClick: () => handlePrintTaxDn(r.id),
           disabled: isPrinting,
@@ -894,7 +889,7 @@ function DepartmentOrdersContent() {
         {
           key: 'packing',
           label: 'ใบจัดของ',
-          icon: isPrinting && printingType === 'packing' ? <Loader2 className="w-4 h-4 animate-spin" /> : <ClipboardList className="w-4 h-4" />,
+          icon: isPrinting && printingType === 'packing' ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <ChecklistIcon className="w-4 h-4" />,
           suffix: dot('packing'),
           dividerBefore: true,
           onClick: () => handlePrintPacking(r.id),
@@ -903,7 +898,7 @@ function DepartmentOrdersContent() {
         {
           key: 'label',
           label: 'ใบปะหน้า',
-          icon: isPrinting && printingType === 'label' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Truck className="w-4 h-4" />,
+          icon: isPrinting && printingType === 'label' ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <ShippingIcon className="w-4 h-4" />,
           suffix: dot('label'),
           onClick: () => handlePrintLabel(r.id),
           disabled: isPrinting,
@@ -915,14 +910,14 @@ function DepartmentOrdersContent() {
           {
             key: 'edit_shipping',
             label: 'แก้ไขขนส่ง',
-            icon: <Truck className="w-4 h-4" />,
+            icon: <ShippingIcon className="w-4 h-4" />,
             onClick: () => setEditShipModalId(r.id),
             dividerBefore: true,
           },
           {
             key: 'void',
             label: 'ยกเลิก (Void)',
-            icon: <Trash2 className="w-4 h-4" />,
+            icon: <DeleteIcon className="w-4 h-4" />,
             onClick: () => setVoidId(r.id),
             danger: true,
             dividerBefore: true,
@@ -939,7 +934,7 @@ function DepartmentOrdersContent() {
       <div className="space-y-6">
         {/* Header */}
         <PageHeader
-          icon={<Building2 />}
+          icon={<DeptStoreIcon />}
           title="ส่งห้าง"
           subtitle="Department Store Orders"
           actions={
@@ -949,18 +944,18 @@ function DepartmentOrdersContent() {
                 onClick={() => fetchData(true)}
                 disabled={isRefreshing}
                 title="รีเฟรช"
-                icon={<RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />}
+                icon={<RefreshIcon className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />}
               />
               <Button
                 variant="secondary"
-                icon={<UserPlus className="w-4 h-4" />}
+                icon={<UserAddIcon className="w-4 h-4" />}
                 onClick={() => router.push('/customers/new?type=department_store')}
               >
                 เพิ่มลูกค้าห้าง
               </Button>
               <Button
                 variant="primary"
-                icon={<Plus className="w-4 h-4" />}
+                icon={<AddIcon className="w-4 h-4" />}
                 onClick={() => router.push('/department-orders/new')}
               >
                 สร้างใบส่งห้าง
@@ -1029,7 +1024,7 @@ function DepartmentOrdersContent() {
                     <StatusBadge domain="replenishment" status={r.status} />
                     {r.shipping_carrier && (
                       <div className="flex items-center gap-1 mt-1">
-                        <Truck className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                        <ShippingIcon className="w-3 h-3 text-gray-400 flex-shrink-0" />
                         <span className="data-timestamp text-gray-500 dark:text-slate-400">{r.shipping_carrier}</span>
                       </div>
                     )}
@@ -1067,7 +1062,7 @@ function DepartmentOrdersContent() {
                 return (
                   <Tooltip text={printStatusTip(r)}>
                     <div className="relative flex items-center justify-center gap-1">
-                      {isPrinting && <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin absolute" />}
+                      {isPrinting && <LoadingIcon className="w-3.5 h-3.5 text-gray-400 animate-spin absolute" />}
                       <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'packing') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
                       <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'label') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
                       <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'dn') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
@@ -1081,7 +1076,7 @@ function DepartmentOrdersContent() {
               render: (r) => (
                 <div className="flex items-center justify-end gap-1">
                   {r.status === 'pending' && (
-                    <Button variant="amber" icon={<Send className="w-4 h-4" />} onClick={() => setShipModalId(r.id)}>
+                    <Button variant="amber" icon={<SendIcon className="w-4 h-4" />} onClick={() => setShipModalId(r.id)}>
                       <span className="hidden md:inline">จัดส่ง</span>
                     </Button>
                   )}
@@ -1090,7 +1085,7 @@ function DepartmentOrdersContent() {
                       onClick={() => router.push(`/department-orders/${r.id}`)}
                       className="flex items-center gap-1.5 px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors whitespace-nowrap"
                     >
-                      <CheckCircle2 className="w-4 h-4" />
+                      <SuccessIcon className="w-4 h-4" />
                       <span className="hidden md:inline">ยืนยัน</span>
                     </button>
                   )}
@@ -1099,7 +1094,7 @@ function DepartmentOrdersContent() {
                       onClick={() => copyReceiveLink(r.receive_token!)}
                       className="flex items-center gap-1.5 px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg border border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-600 dark:bg-amber-900/30 dark:text-amber-300 dark:hover:bg-amber-900/50 transition-colors whitespace-nowrap"
                     >
-                      <Copy className="w-4 h-4" />
+                      <CopyIcon className="w-4 h-4" />
                       <span className="hidden md:inline">ลิงก์รับของ</span>
                     </button>
                   )}
@@ -1143,14 +1138,14 @@ function DepartmentOrdersContent() {
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-slate-500">
-                    {r.shipping_carrier && <span className="flex items-center gap-1"><Truck className="w-3 h-3" />{r.shipping_carrier}</span>}
+                    {r.shipping_carrier && <span className="flex items-center gap-1"><ShippingIcon className="w-3 h-3" />{r.shipping_carrier}</span>}
                     <span>{(r.items?.length || 0)} รายการ</span>
                     {r.created_by_profile?.name && <span>{r.created_by_profile.name}</span>}
                   </div>
                   {r.status !== 'cancelled' && (
                     <Tooltip text={printStatusTip(r)}>
                     <div className="relative flex items-center gap-1" aria-label="สถานะการพิมพ์เอกสาร">
-                      {isPrinting && <Loader2 className="w-3 h-3 text-gray-400 animate-spin absolute" />}
+                      {isPrinting && <LoadingIcon className="w-3 h-3 text-gray-400 animate-spin absolute" />}
                       <span className={`w-2 h-2 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'packing') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
                       <span className={`w-2 h-2 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'label') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
                       <span className={`w-2 h-2 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'dn') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
@@ -1161,18 +1156,18 @@ function DepartmentOrdersContent() {
                 {/* Mobile focus action */}
                 <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-100 dark:border-slate-700" onClick={e => e.stopPropagation()}>
                   {r.status === 'pending' && (
-                    <Button variant="amber" icon={<Send className="w-4 h-4" />} className="flex-1" onClick={() => setShipModalId(r.id)}>
+                    <Button variant="amber" icon={<SendIcon className="w-4 h-4" />} className="flex-1" onClick={() => setShipModalId(r.id)}>
                       จัดส่ง
                     </Button>
                   )}
                   {r.status === 'pending_confirm' && (
                     <button onClick={() => router.push(`/department-orders/${r.id}`)} className="flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors flex-1">
-                      <CheckCircle2 className="w-4 h-4" /> ยืนยัน
+                      <SuccessIcon className="w-4 h-4" /> ยืนยัน
                     </button>
                   )}
                   {r.status === 'shipped' && r.receive_token && (
                     <button onClick={() => copyReceiveLink(r.receive_token!)} className="flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-600 dark:bg-amber-900/30 dark:text-amber-300 transition-colors flex-1">
-                      <Copy className="w-4 h-4" /> ลิงก์รับของ
+                      <CopyIcon className="w-4 h-4" /> ลิงก์รับของ
                     </button>
                   )}
                 </div>
@@ -1235,18 +1230,18 @@ function DepartmentOrdersContent() {
         <div className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 shadow-lg px-4 py-3">
           <div className="max-w-7xl mx-auto flex items-center gap-3 flex-wrap">
             <button onClick={() => setSelectedIds(new Set())} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-500">
-              <X className="w-4 h-4" />
+              <CloseIcon className="w-4 h-4" />
             </button>
             <span className="text-sm font-medium text-gray-700 dark:text-slate-300">เลือก {selectedIds.size} รายการ</span>
             <div className="flex items-center gap-2 ml-auto">
               <button onClick={() => handleBulkPrint([...selectedIds], 'packing')}
                 className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors">
-                <ClipboardList className="w-4 h-4" />
+                <ChecklistIcon className="w-4 h-4" />
                 ใบจัดของ ({selectedIds.size})
               </button>
               <button onClick={() => handleBulkPrint([...selectedIds], 'label')}
                 className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors">
-                <Printer className="w-4 h-4" />
+                <PrintIcon className="w-4 h-4" />
                 ใบปะหน้า ({selectedIds.size})
               </button>
             </div>

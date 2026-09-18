@@ -9,10 +9,8 @@ import { Fragment, useState, useEffect, useCallback } from 'react';
 import SuperAdminLayout from '../components/SuperAdminLayout';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
-import {
-  Search, Building2, ChevronLeft, ChevronRight, ChevronDown,
-  Trash2, AlertTriangle, Store, MessageSquare,
-} from 'lucide-react';
+import { MessageSquare } from 'lucide-react';
+import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, CompanyIcon, DeleteIcon, SearchIcon, StoreIcon, WarningIcon } from '@/lib/icons';
 import { LoadingCard } from '@/components/ui/StateCard';
 import FormSelect from '@/components/ui/FormSelect';
 import FormInput from '@/components/ui/FormInput';
@@ -231,7 +229,7 @@ export default function SuperAdminCompanies() {
       <span className="text-slate-300">{relativeDays(c.quiet_days)}</span>
       {c.is_quiet && (
         <span className="inline-flex w-fit items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-900/30 text-amber-300">
-          <AlertTriangle className="w-3 h-3" />
+          <WarningIcon className="w-3 h-3" />
           เงียบ {formatNumber(c.quiet_days || 0)} วัน
         </span>
       )}
@@ -293,7 +291,7 @@ export default function SuperAdminCompanies() {
         {/* Search + filter */}
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="relative max-w-md w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
               value={search}
@@ -309,7 +307,7 @@ export default function SuperAdminCompanies() {
           <LoadingCard />
         ) : companies.length === 0 ? (
           <div className="text-center py-16">
-            <Building2 className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+            <CompanyIcon className="w-12 h-12 text-slate-600 mx-auto mb-3" />
             <p className="text-slate-400">ไม่พบบริษัท</p>
           </div>
         ) : (
@@ -341,7 +339,7 @@ export default function SuperAdminCompanies() {
                               <img src={c.logo_url} alt="" className="w-8 h-8 rounded-full object-cover" />
                             ) : (
                               <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center">
-                                <Building2 className="w-4 h-4 text-slate-400" />
+                                <CompanyIcon className="w-4 h-4 text-slate-400" />
                               </div>
                             )}
                             <div>
@@ -368,11 +366,11 @@ export default function SuperAdminCompanies() {
                             className="inline-flex items-center gap-1 font-medium text-white hover:text-violet-300 transition-colors"
                           >
                             {formatNumber(c.member_count)}
-                            <ChevronDown className={`w-4 h-4 transition-transform ${expandedId === c.id ? 'rotate-180' : ''}`} />
+                            <ChevronDownIcon className={`w-4 h-4 transition-transform ${expandedId === c.id ? 'rotate-180' : ''}`} />
                           </button>
                         </td>
                         <td className="px-4 py-3 text-center text-slate-300">
-                          <span className="inline-flex items-center gap-1"><Store className="w-3.5 h-3.5 text-slate-500" />{formatNumber(c.shops)}</span>
+                          <span className="inline-flex items-center gap-1"><StoreIcon className="w-3.5 h-3.5 text-slate-500" />{formatNumber(c.shops)}</span>
                           <span className="mx-1.5 text-slate-600">·</span>
                           <span className="inline-flex items-center gap-1"><MessageSquare className="w-3.5 h-3.5 text-slate-500" />{formatNumber(c.chat_channels)}</span>
                         </td>
@@ -388,7 +386,7 @@ export default function SuperAdminCompanies() {
                               onClick={() => openPurge(c)}
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-red-900/30 text-red-300 hover:bg-red-900/50 transition-colors"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <DeleteIcon className="w-4 h-4" />
                               ลบถาวร
                             </button>
                           ) : (
@@ -418,7 +416,7 @@ export default function SuperAdminCompanies() {
                         <img src={c.logo_url} alt="" className="w-10 h-10 rounded-full object-cover" />
                       ) : (
                         <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center">
-                          <Building2 className="w-5 h-5 text-slate-400" />
+                          <CompanyIcon className="w-5 h-5 text-slate-400" />
                         </div>
                       )}
                       <div className="min-w-0">
@@ -463,7 +461,7 @@ export default function SuperAdminCompanies() {
                         onClick={() => openPurge(c)}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-red-900/30 text-red-300 hover:bg-red-900/50 flex-shrink-0"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <DeleteIcon className="w-4 h-4" />
                         ลบถาวร
                       </button>
                     )}
@@ -480,10 +478,10 @@ export default function SuperAdminCompanies() {
                 </p>
                 <div className="flex gap-1">
                   <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="p-2 border border-slate-600 rounded-lg disabled:opacity-50 text-slate-300 hover:bg-slate-700">
-                    <ChevronLeft className="w-4 h-4" />
+                    <ChevronLeftIcon className="w-4 h-4" />
                   </button>
                   <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="p-2 border border-slate-600 rounded-lg disabled:opacity-50 text-slate-300 hover:bg-slate-700">
-                    <ChevronRight className="w-4 h-4" />
+                    <ChevronRightIcon className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -497,7 +495,7 @@ export default function SuperAdminCompanies() {
         open={!!purgeTarget}
         onClose={() => !purging && setPurgeTarget(null)}
         size="lg"
-        icon={<AlertTriangle className="w-5 h-5 text-red-500" />}
+        icon={<WarningIcon className="w-5 h-5 text-red-500" />}
         title="ลบบริษัทถาวร"
         footer={
           <div className="flex justify-end gap-2">

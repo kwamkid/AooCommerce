@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { PHONE_INPUT_PROPS, onPhoneChange } from '@/lib/numeric-input';
 import Link from 'next/link';
-import { Users, X, UserPlus, MapPin, ChevronDown, CheckCircle, Plus, UserCheck, Loader2, Pencil, Gift, Search } from 'lucide-react';
+import { UserCheck } from 'lucide-react';
+import { AddIcon, ChevronDownIcon, CloseIcon, EditIcon, GiftIcon, LoadingIcon, LocationIcon, PeopleIcon, SearchIcon, SuccessIcon } from '@/lib/icons';
 import EntitySearchInput from '@/components/ui/EntitySearchInput';
 import Tabs from '@/components/ui/Tabs';
 import Tooltip from '@/components/ui/Tooltip';
@@ -313,7 +314,7 @@ export default function CustomerSelectionCard({
       id: c.id,
       label: c.name,
       subtitle: c.phone || undefined,
-      icon: <Users className="w-4 h-4 text-gray-400" />,
+      icon: <PeopleIcon className="w-4 h-4 text-gray-400" />,
       badge: b ? b : undefined,
     };
   });
@@ -336,7 +337,7 @@ export default function CustomerSelectionCard({
       <div className={`grid grid-cols-1 ${singleColumn ? '' : 'sm:grid-cols-2'} gap-x-4 gap-y-3`}>
         {/* Section header — Left (toggle moved out, sits inline with the input below) */}
         <div className="flex items-center gap-1.5 pb-1 border-b border-gray-100 dark:border-slate-700">
-          <Users className="w-4 h-4 text-gray-500 dark:text-slate-400" />
+          <PeopleIcon className="w-4 h-4 text-gray-500 dark:text-slate-400" />
           <span className="heading-4">
             {customerLabel}
             {customerRequired && <span className="text-red-500 ml-0.5">*</span>}
@@ -347,7 +348,7 @@ export default function CustomerSelectionCard({
         {/* มีแท็บ "สั่งเอง / ส่งให้คนอื่น" แล้วไม่ต้องมีหัวข้อซ้ำ — แท็บเป็นหัวข้อของบล็อกนั้นในตัว */}
         {showDeliveryCol && !onShipToOtherChange ? (
           <div className={`${singleColumn ? 'hidden' : 'hidden sm:flex'} items-center gap-1.5 pb-1 border-b border-gray-100 dark:border-slate-700 sm:border-l sm:border-l-transparent sm:pl-4`}>
-            <MapPin className="w-4 h-4 text-gray-500 dark:text-slate-400" />
+            <LocationIcon className="w-4 h-4 text-gray-500 dark:text-slate-400" />
             <span className="heading-4">
               ที่อยู่จัดส่ง
             </span>
@@ -383,7 +384,7 @@ export default function CustomerSelectionCard({
                     aria-label="กลับไปค้นลูกค้าเดิม"
                     className="flex-shrink-0 px-3 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-500 hover:text-primary hover:border-primary transition-colors"
                   >
-                    <Search className="w-4 h-4" />
+                    <SearchIcon className="w-4 h-4" />
                   </button>
                 </Tooltip>
               )}
@@ -400,13 +401,13 @@ export default function CustomerSelectionCard({
                   className={`flex items-center gap-2 flex-1 min-w-0 h-full pl-3 text-left ${canPickOwnAddress ? 'cursor-pointer hover:bg-orange-100/40 dark:hover:bg-orange-900/30' : 'cursor-default'}`}
                 >
                   {loading
-                    ? <Loader2 className="w-4 h-4 text-primary flex-shrink-0 animate-spin" />
+                    ? <LoadingIcon className="w-4 h-4 text-primary flex-shrink-0 animate-spin" />
                     : <UserCheck className="w-4 h-4 text-primary flex-shrink-0" />
                   }
                   <span className="text-base font-medium text-gray-900 dark:text-slate-200 truncate">{selectedCustomer.name}</span>
                   {resolvedBadge && <span className="flex-shrink-0">{resolvedBadge}</span>}
                   {canPickOwnAddress && (
-                    <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0 ml-auto mr-2" />
+                    <ChevronDownIcon className="w-4 h-4 text-gray-400 flex-shrink-0 ml-auto mr-2" />
                   )}
                 </button>
                 {/* แก้ข้อมูลลูกค้า (ชื่อ/เบอร์หลัก) — ช่องในการ์ดนี้เป็นของบิล ไม่ใช่ของลูกค้า */}
@@ -419,7 +420,7 @@ export default function CustomerSelectionCard({
                         aria-label="แก้ข้อมูลลูกค้า"
                         className="h-full px-3 hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors flex-shrink-0 border-l border-primary/20 flex items-center"
                       >
-                        <Pencil className="w-4 h-4 text-gray-400" />
+                        <EditIcon className="w-4 h-4 text-gray-400" />
                       </button>
                     ) : (
                       <Link
@@ -430,7 +431,7 @@ export default function CustomerSelectionCard({
                         aria-label="แก้ข้อมูลลูกค้า"
                         className="h-full px-3 hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors flex-shrink-0 border-l border-primary/20 flex items-center"
                       >
-                        <Pencil className="w-4 h-4 text-gray-400" />
+                        <EditIcon className="w-4 h-4 text-gray-400" />
                       </Link>
                     )}
                   </Tooltip>
@@ -443,7 +444,7 @@ export default function CustomerSelectionCard({
                       aria-label="ล้างลูกค้า"
                       className="h-full px-3 hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors flex-shrink-0 border-l border-primary/20 flex items-center"
                     >
-                      <X className="w-4 h-4 text-gray-400" />
+                      <CloseIcon className="w-4 h-4 text-gray-400" />
                     </button>
                   </Tooltip>
                 )}
@@ -458,18 +459,18 @@ export default function CustomerSelectionCard({
                         onAddressSelect?.(addr.id, addr);
                         setShowAddressDropdown(false);
                       }} className={`w-full px-3 py-2.5 text-left flex items-center gap-2 transition-colors ${selectedAddressId === addr.id ? 'bg-orange-50 dark:bg-orange-900/20' : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'}`}>
-                        <MapPin className={`w-3.5 h-3.5 flex-shrink-0 ${selectedAddressId === addr.id ? 'text-primary' : 'text-gray-400'}`} />
+                        <LocationIcon className={`w-3.5 h-3.5 flex-shrink-0 ${selectedAddressId === addr.id ? 'text-primary' : 'text-gray-400'}`} />
                         <div className="flex-1 min-w-0">
                           <div className={`text-sm ${selectedAddressId === addr.id ? 'font-medium text-primary' : 'text-gray-700 dark:text-slate-300'}`}>{addr.address_name}</div>
                           <div className="text-xs text-gray-400 dark:text-slate-500 truncate">{[addr.address_line1, addr.district, addr.amphoe, addr.province].filter(Boolean).join(', ')}</div>
                         </div>
-                        {selectedAddressId === addr.id && <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />}
+                        {selectedAddressId === addr.id && <SuccessIcon className="w-4 h-4 text-primary flex-shrink-0" />}
                       </button>
                     ))}
                     {onNewAddress && (
                       <button type="button" onClick={() => { onNewAddress(); setShowAddressDropdown(false); }}
                         className="w-full px-3 py-2.5 text-left flex items-center gap-2 border-t border-gray-100 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
-                        <Plus className="w-3.5 h-3.5 text-gray-400" />
+                        <AddIcon className="w-3.5 h-3.5 text-gray-400" />
                         <span className="text-sm text-gray-500 dark:text-slate-400">ที่อยู่ใหม่</span>
                       </button>
                     )}
@@ -673,7 +674,7 @@ export default function CustomerSelectionCard({
                   {
                     key: 'other',
                     label: 'ส่งให้คนอื่น',
-                    icon: <Gift className="w-4 h-4" />,
+                    icon: <GiftIcon className="w-4 h-4" />,
                     activeColorClass: 'border-pink-500 text-pink-600 dark:text-pink-400 bg-pink-50 dark:bg-pink-900/20 rounded-t-lg',
                   },
                 ]}
@@ -706,9 +707,9 @@ export default function CustomerSelectionCard({
                           a.amphoe || a.district,
                           a.province,
                         ].filter(Boolean).join(' · '),
-                        icon: <MapPin className="w-4 h-4 text-gray-400" />,
+                        icon: <LocationIcon className="w-4 h-4 text-gray-400" />,
                       })),
-                      { id: NEW_ADDRESS_OPTION_ID, label: 'กรอกที่อยู่ใหม่', icon: <Plus className="w-4 h-4 text-gray-400" /> },
+                      { id: NEW_ADDRESS_OPTION_ID, label: 'กรอกที่อยู่ใหม่', icon: <AddIcon className="w-4 h-4 text-gray-400" /> },
                     ]}
                     placeholder="เลือกผู้รับที่เคยส่ง"
                     portal

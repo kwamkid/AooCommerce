@@ -12,7 +12,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Home, Package, Tag, Bookmark } from 'lucide-react';
+import { Bookmark } from 'lucide-react';
+import { CategoryIcon, DashboardIcon, ProductIcon } from '@/lib/icons';
 import Modal from '@/components/ui/Modal';
 import SearchInput from '@/components/ui/SearchInput';
 import FilterChips, { FILTER_CHIP_PRIMARY_ACTIVE, type FilterChip } from '@/components/ui/FilterChips';
@@ -39,10 +40,10 @@ interface Props {
 }
 
 const KIND_CHIPS: FilterChip<Kind>[] = [
-  { id: 'product', label: 'สินค้า', icon: <Package className="w-4 h-4" />, activeClass: FILTER_CHIP_PRIMARY_ACTIVE },
-  { id: 'category', label: 'หมวดหมู่', icon: <Tag className="w-4 h-4" />, activeClass: FILTER_CHIP_PRIMARY_ACTIVE },
+  { id: 'product', label: 'สินค้า', icon: <ProductIcon className="w-4 h-4" />, activeClass: FILTER_CHIP_PRIMARY_ACTIVE },
+  { id: 'category', label: 'หมวดหมู่', icon: <CategoryIcon className="w-4 h-4" />, activeClass: FILTER_CHIP_PRIMARY_ACTIVE },
   { id: 'brand', label: 'แบรนด์', icon: <Bookmark className="w-4 h-4" />, activeClass: FILTER_CHIP_PRIMARY_ACTIVE },
-  { id: 'home', label: 'หน้าร้าน', icon: <Home className="w-4 h-4" />, activeClass: FILTER_CHIP_PRIMARY_ACTIVE },
+  { id: 'home', label: 'หน้าร้าน', icon: <DashboardIcon className="w-4 h-4" />, activeClass: FILTER_CHIP_PRIMARY_ACTIVE },
 ];
 
 export default function StorefrontLinkModal({ open, onClose, onPick }: Props) {
@@ -166,7 +167,7 @@ export default function StorefrontLinkModal({ open, onClose, onPick }: Props) {
                             <img src={thumbUrl(row.image, 96)} alt="" className="w-10 h-10 rounded object-cover flex-shrink-0" />
                           ) : (
                             <span className="w-10 h-10 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                              <Package className="w-4 h-4 text-gray-400" />
+                              <ProductIcon className="w-4 h-4 text-gray-400" />
                             </span>
                           )
                         )}

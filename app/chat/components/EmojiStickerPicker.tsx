@@ -1,7 +1,7 @@
 'use client';
 
 import { memo, startTransition, useDeferredValue, useEffect, useMemo, useState } from 'react';
-import { Search, X } from 'lucide-react';
+import { CloseIcon, SearchIcon } from '@/lib/icons';
 import { officialStickers } from '../lib/chatHelpers';
 import { lineStickerUrl } from '@/lib/chat/line-sticker';
 import { bumpRecent, readRecent } from '@/lib/chat/recent-picks';
@@ -150,7 +150,7 @@ function EmojiStickerPicker({ platform, open, onEmojiSelect, onStickerSelect, on
             { key: 'sticker', label: '🎭 Sticker', activeColorClass: 'border-line text-line', hidden: platform !== 'line' },
           ]}
         />
-        <button onClick={onClose} aria-label="ปิด" className="shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700"><X className="w-4 h-4" /></button>
+        <button onClick={onClose} aria-label="ปิด" className="shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700"><CloseIcon className="w-4 h-4" /></button>
       </div>
 
       {/* Emoji Tab */}
@@ -159,7 +159,7 @@ function EmojiStickerPicker({ platform, open, onEmojiSelect, onStickerSelect, on
           {/* Search */}
           <div className="px-3 py-2 border-b border-gray-50 dark:border-slate-700/50">
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+              <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
               <input type="text" value={emojiSearch} onChange={(e) => setEmojiSearch(e.target.value)} placeholder="ค้นหา emoji..." className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 dark:border-slate-600 rounded-lg bg-gray-50 dark:bg-slate-700 focus:outline-none focus:ring-1 focus:ring-amber-400 text-gray-700 dark:text-slate-200" />
             </div>
           </div>

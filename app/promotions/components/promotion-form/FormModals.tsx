@@ -1,14 +1,6 @@
 'use client';
 
-import {
-  X,
-  CheckCircle2,
-  AlertTriangle,
-  Clock,
-  RefreshCw,
-  Send,
-  Loader2,
-} from 'lucide-react';
+import { LoadingIcon, RefreshIcon, SendIcon, SuccessIcon, TimeIcon, WarningIcon } from '@/lib/icons';
 import { apiFetch } from '@/lib/api-client';
 import Modal from '@/components/ui/Modal';
 import Badge from '@/components/ui/Badge';
@@ -132,8 +124,8 @@ export default function FormModals({ hook }: Props) {
                     <div key={idx} className={`rounded-lg ${r.success ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
                       <div className="flex items-center gap-2 py-2 px-3">
                         {r.success
-                          ? <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
-                          : <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400 flex-shrink-0" />
+                          ? <SuccessIcon className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                          : <WarningIcon className="w-4 h-4 text-red-600 dark:text-red-400 flex-shrink-0" />
                         }
                         <span className="text-sm font-medium text-gray-700 dark:text-slate-300 flex-1">{r.shop_name}</span>
                         {r.error && <span className="text-xs text-red-500">{r.error}</span>}
@@ -159,7 +151,7 @@ export default function FormModals({ hook }: Props) {
                         onClick={() => { setShowSyncConfirm(false); setSyncResults(null); setShowPushModal(true); }}
                         className="flex items-center gap-2 px-4 py-2 text-base font-medium text-primary bg-white dark:bg-slate-700 border border-primary rounded-lg hover:bg-orange-50 dark:hover:bg-slate-600 transition-colors"
                       >
-                        <Send className="w-4 h-4" />
+                        <SendIcon className="w-4 h-4" />
                         Push ร้านใหม่
                       </button>
                     ) : null;
@@ -259,12 +251,12 @@ export default function FormModals({ hook }: Props) {
                       >
                         {syncingShopee ? (
                           <>
-                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <LoadingIcon className="w-4 h-4 animate-spin" />
                             กำลัง Sync...
                           </>
                         ) : (
                           <>
-                            <RefreshCw className="w-4 h-4" />
+                            <RefreshIcon className="w-4 h-4" />
                             อัพเดต Shopee
                           </>
                         )}
@@ -286,7 +278,7 @@ export default function FormModals({ hook }: Props) {
               <img src="/marketplace/shopee.svg" alt="Shopee" className="w-5 h-5" />
               <h2 className="text-base font-semibold text-gray-700 dark:text-slate-300">สถานะ Shopee Deal</h2>
               {hasLocalChanges && (
-                <Badge tone="amber" size="sm" icon={<AlertTriangle className="w-3 h-3" />}>มีการแก้ไขที่ยังไม่ sync</Badge>
+                <Badge tone="amber" size="sm" icon={<WarningIcon className="w-3 h-3" />}>มีการแก้ไขที่ยังไม่ sync</Badge>
               )}
             </div>
             <button
@@ -296,7 +288,7 @@ export default function FormModals({ hook }: Props) {
               title={!hasLocalChanges ? 'ไม่มีการเปลี่ยนแปลงที่ต้อง sync' : undefined}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-primary hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors disabled:opacity-50"
             >
-              <RefreshCw className={`w-4 h-4 ${syncingShopee ? 'animate-spin' : ''}`} />
+              <RefreshIcon className={`w-4 h-4 ${syncingShopee ? 'animate-spin' : ''}`} />
               Sync ตอนนี้
             </button>
           </div>
@@ -304,12 +296,12 @@ export default function FormModals({ hook }: Props) {
             {shopeeDeals.map((deal) => {
               const account = marketplaceAccounts.find(a => a.id === deal.account_id);
               const shopName = account?.shop_name || deal.account_id;
-              const statusConfig: Record<string, { label: string; color: string; icon: typeof CheckCircle2 }> = {
-                ongoing: { label: 'กำลังดำเนินการ', color: 'text-green-600 dark:text-green-400', icon: CheckCircle2 },
-                upcoming: { label: 'รอเริ่ม', color: 'text-blue-600 dark:text-blue-400', icon: Clock },
-                expired: { label: 'หมดอายุ', color: 'text-gray-400 dark:text-slate-500', icon: Clock },
+              const statusConfig: Record<string, { label: string; color: string; icon: typeof SuccessIcon }> = {
+                ongoing: { label: 'กำลังดำเนินการ', color: 'text-green-600 dark:text-green-400', icon: SuccessIcon },
+                upcoming: { label: 'รอเริ่ม', color: 'text-blue-600 dark:text-blue-400', icon: TimeIcon },
+                expired: { label: 'หมดอายุ', color: 'text-gray-400 dark:text-slate-500', icon: TimeIcon },
               };
-              const sc = statusConfig[deal.status] || { label: deal.status, color: 'text-gray-500', icon: Clock };
+              const sc = statusConfig[deal.status] || { label: deal.status, color: 'text-gray-500', icon: TimeIcon };
               const StatusIcon = sc.icon;
               return (
                 <div key={deal.id} className="flex items-center justify-between py-2 px-3 rounded-lg bg-gray-50 dark:bg-slate-700/50">

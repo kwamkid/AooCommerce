@@ -20,7 +20,8 @@ import Button from '@/components/ui/Button';
 
 import { useMemo, type ReactNode } from 'react';
 import Link from 'next/link';
-import { BoxSelect, Boxes, Layers, Plus } from 'lucide-react';
+import { BoxSelect, Boxes, Layers } from 'lucide-react';
+import { AddIcon } from '@/lib/icons';
 import Card from '@/components/ui/Card';
 import FormInput from '@/components/ui/FormInput';
 import FormSelect from '@/components/ui/FormSelect';
@@ -120,7 +121,7 @@ function PickerField({ label, value, onChange, options, onAdd, addLabel, searchP
           aria-label={addLabel}
 
         >
-          <Plus className="w-3.5 h-3.5" />
+          <AddIcon className="w-3.5 h-3.5" />
           เพิ่มใหม่
         </Button>
       </div>

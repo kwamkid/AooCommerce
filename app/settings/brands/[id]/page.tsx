@@ -15,9 +15,7 @@ import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
 import { getImageUrl } from '@/lib/utils/image';
 import EntitySearchInput, { EntitySearchOption } from '@/components/ui/EntitySearchInput';
-import {
-  Loader2, Award, Package2, X, Factory, ChevronLeft, ChevronRight,
-} from 'lucide-react';
+import { BrandIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, LoadingIcon, ProductIcon, SupplierIcon } from '@/lib/icons';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import { LoadingCard } from '@/components/ui/StateCard';
 
@@ -147,7 +145,7 @@ export default function BrandDetailPage() {
               <img src={getImageUrl(p.main_image_url || p.image)} alt="" className="w-10 h-10 rounded object-cover" />
             ) : (
               <div className="w-10 h-10 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center">
-                <Package2 className="w-5 h-5 text-gray-400" />
+                <ProductIcon className="w-5 h-5 text-gray-400" />
               </div>
             ),
           }))
@@ -246,13 +244,13 @@ export default function BrandDetailPage() {
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
-              <Award className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              <BrandIcon className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             </div>
             <div className="flex-1 min-w-0">
               <h2 className="text-lg font-bold text-gray-900 dark:text-white">{brand.name}</h2>
               {brand.supplier && (
                 <div className="flex items-center gap-1.5 mt-0.5">
-                  <Factory className="w-3.5 h-3.5 text-gray-400" />
+                  <SupplierIcon className="w-3.5 h-3.5 text-gray-400" />
                   <span className="text-sm text-gray-500 dark:text-slate-400">{brand.supplier.name}</span>
                 </div>
               )}
@@ -299,7 +297,7 @@ export default function BrandDetailPage() {
 
           {products.length === 0 ? (
             <div className="px-5 py-12 text-center">
-              <Package2 className="w-10 h-10 text-gray-300 dark:text-slate-600 mx-auto mb-2" />
+              <ProductIcon className="w-10 h-10 text-gray-300 dark:text-slate-600 mx-auto mb-2" />
               <p className="text-sm text-gray-400 dark:text-slate-500">ยังไม่มีสินค้าใน Brand นี้</p>
               <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">ค้นหาและเพิ่มสินค้าด้านบน</p>
             </div>
@@ -321,7 +319,7 @@ export default function BrandDetailPage() {
                       />
                     ) : (
                       <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                        <Package2 className="w-7 h-7 text-gray-400" />
+                        <ProductIcon className="w-7 h-7 text-gray-400" />
                       </div>
                     )}
 
@@ -339,9 +337,9 @@ export default function BrandDetailPage() {
                       title="นำออกจากแบรนด์"
                     >
                       {removing === product.id ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <LoadingIcon className="w-4 h-4 animate-spin" />
                       ) : (
-                        <X className="w-4 h-4" />
+                        <CloseIcon className="w-4 h-4" />
                       )}
                     </button>
                   </div>
@@ -360,7 +358,7 @@ export default function BrandDetailPage() {
                       disabled={currentPage === 1}
                       className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 disabled:opacity-30 transition-colors"
                     >
-                      <ChevronLeft className="w-4 h-4" />
+                      <ChevronLeftIcon className="w-4 h-4" />
                     </button>
                     <span className="text-xs text-gray-600 dark:text-slate-300 px-2">
                       {currentPage} / {totalPages}
@@ -370,7 +368,7 @@ export default function BrandDetailPage() {
                       disabled={currentPage === totalPages}
                       className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 disabled:opacity-30 transition-colors"
                     >
-                      <ChevronRight className="w-4 h-4" />
+                      <ChevronRightIcon className="w-4 h-4" />
                     </button>
                   </div>
                 </div>

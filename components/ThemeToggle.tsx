@@ -2,7 +2,7 @@
 'use client';
 
 import { useTheme } from '@/lib/theme-context';
-import { Sun, Moon, Monitor } from 'lucide-react';
+import { DarkThemeIcon, LightThemeIcon, PosIcon } from '@/lib/icons';
 
 interface ThemeToggleProps {
   className?: string;
@@ -19,7 +19,7 @@ export default function ThemeToggle({ className = '', iconClassName = 'w-4 h-4' 
     setTheme(cycle[(idx + 1) % cycle.length]);
   };
 
-  const Icon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor;
+  const Icon = theme === 'light' ? LightThemeIcon : theme === 'dark' ? DarkThemeIcon : PosIcon;
   const label = theme === 'light' ? 'สว่าง' : theme === 'dark' ? 'มืด' : 'ตามระบบ';
 
   return (

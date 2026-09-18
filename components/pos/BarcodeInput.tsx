@@ -2,7 +2,7 @@
 'use client';
 
 import { useRef, useEffect, useCallback, useState } from 'react';
-import { Search, Camera } from 'lucide-react';
+import { CameraIcon, SearchIcon } from '@/lib/icons';
 import dynamic from 'next/dynamic';
 
 const CameraScanner = dynamic(() => import('./CameraScanner'), { ssr: false });
@@ -87,7 +87,7 @@ export default function BarcodeInput({ onBarcodeScan, onSearchChange, searchValu
     <>
       <div className="relative flex gap-2">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-400" />
+          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-400" />
           <input
             ref={inputRef}
             type="text"
@@ -105,7 +105,7 @@ export default function BarcodeInput({ onBarcodeScan, onSearchChange, searchValu
           className="px-3 bg-white dark:bg-white/10 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/20 transition-colors disabled:opacity-30 flex-shrink-0"
           title="สแกนด้วยกล้อง"
         >
-          <Camera className="w-5 h-5" />
+          <CameraIcon className="w-5 h-5" />
         </button>
       </div>
 

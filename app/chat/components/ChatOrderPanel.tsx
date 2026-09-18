@@ -2,7 +2,7 @@
 
 import { memo, type RefObject } from 'react';
 import dynamic from 'next/dynamic';
-import { ChevronLeft, ShoppingCart, X } from 'lucide-react';
+import { ChevronLeftIcon, CloseIcon, OrderIcon } from '@/lib/icons';
 import Tooltip from '@/components/ui/Tooltip';
 import { LoadingCard } from '@/components/ui/StateCard';
 
@@ -69,8 +69,8 @@ function ChatOrderPanel({
     <div className="flex w-full md:w-auto md:flex-1 flex-col border-l border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 absolute inset-0 md:static md:inset-auto z-10">
       <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 min-h-[81px]">
         <div className="flex items-center gap-3">
-          <button onClick={onClose} className="p-1 -ml-1 text-gray-500 hover:text-gray-700 md:hidden"><ChevronLeft className="w-6 h-6" /></button>
-          <ShoppingCart className="w-5 h-5 text-primary" />
+          <button onClick={onClose} className="p-1 -ml-1 text-gray-500 hover:text-gray-700 md:hidden"><ChevronLeftIcon className="w-6 h-6" /></button>
+          <OrderIcon className="w-5 h-5 text-primary" />
           <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">เปิดบิล</h2>
             <p className="text-xs text-gray-500 dark:text-slate-400">{customerName || `${platformLabel}: ${contactName}`}</p>
@@ -80,7 +80,7 @@ function ChatOrderPanel({
           {/* ปุ่มไอคอนของฟอร์ม (ล้างร่าง / คัดลอก Order ล่าสุด) — ต้อง flex ไม่งั้น portal วางซ้อนกันเป็นสองบรรทัด */}
           <div ref={headerActionsRef} className="flex items-center gap-2" />
           <div ref={warehousePortalRef} />
-          <Tooltip text="ปิด"><button onClick={onClose} aria-label="ปิด" className="hidden md:block p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"><X className="w-5 h-5" /></button></Tooltip>
+          <Tooltip text="ปิด"><button onClick={onClose} aria-label="ปิด" className="hidden md:block p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"><CloseIcon className="w-5 h-5" /></button></Tooltip>
         </div>
       </div>
       <div className="flex-1 overflow-y-auto px-4 pt-4">

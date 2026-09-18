@@ -5,7 +5,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Check, Copy } from 'lucide-react';
+import { ConfirmIcon, CopyIcon } from '@/lib/icons';
 
 interface CopyFieldProps {
   value: string;
@@ -48,8 +48,8 @@ export default function CopyField({ value, label, hint }: CopyFieldProps) {
           }`}
         >
           {copied
-            ? <><Check className="w-4 h-4" strokeWidth={2.5} />คัดลอกแล้ว</>
-            : <><Copy className="w-4 h-4" />คัดลอก</>}
+            ? <><ConfirmIcon className="w-4 h-4" strokeWidth={2.5} />คัดลอกแล้ว</>
+            : <><CopyIcon className="w-4 h-4" />คัดลอก</>}
         </button>
       </div>
       {hint && <p className="helper-text text-gray-500 mt-1.5">{hint}</p>}

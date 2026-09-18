@@ -26,7 +26,8 @@ import {
   type BroadcastActionType,
   type BroadcastProductCard,
 } from '@/lib/broadcast/content';
-import { Link2, MessageSquare, Package, Ticket, Trash2 } from 'lucide-react';
+import { MessageSquare } from 'lucide-react';
+import { CouponIcon, DeleteIcon, LinkIcon, ProductIcon } from '@/lib/icons';
 
 /**
  * ไอคอนประจำชนิด action — อยู่ที่ component ไม่ใช่ทะเบียนกลาง (lib ไม่ import lucide)
@@ -34,9 +35,9 @@ import { Link2, MessageSquare, Package, Ticket, Trash2 } from 'lucide-react';
  * · คูปอง = Ticket (ตัวเดียวกับเมนูคูปองส่วนลดใน Sidebar)
  */
 const ACTION_ICONS: Record<BroadcastActionType, ReactNode> = {
-  url: <Link2 className="w-4 h-4" />,
-  product: <Package className="w-4 h-4" />,
-  coupon: <Ticket className="w-4 h-4" />,
+  url: <LinkIcon className="w-4 h-4" />,
+  product: <ProductIcon className="w-4 h-4" />,
+  coupon: <CouponIcon className="w-4 h-4" />,
   message: <MessageSquare className="w-4 h-4" />,
 };
 
@@ -129,7 +130,7 @@ export default function ActionPicker({
               </div>
               <Button
                 variant="ghost"
-                icon={<Trash2 className="w-4 h-4" />}
+                icon={<DeleteIcon className="w-4 h-4" />}
                 aria-label="เอาสินค้าออก"
                 disabled={disabled}
                 onClick={() => onChange({ type: 'product', product: null })}

@@ -6,20 +6,8 @@ import SuperAdminLayout from '../components/SuperAdminLayout';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import Pagination from '@/app/components/Pagination';
-import {
-  Search,
-  ChevronDown,
-  ChevronUp,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  Copy,
-  Check,
-  ArrowUpRight,
-  ArrowDownLeft,
-  Activity,
-  RefreshCw,
-} from 'lucide-react';
+import { ArrowUpRight, ArrowDownLeft, Activity } from 'lucide-react';
+import { ChevronDownIcon, ChevronUpIcon, ConfirmIcon, CopyIcon, ErrorIcon, RefreshIcon, SearchIcon, SuccessIcon, TimeIcon } from '@/lib/icons';
 import FormSelect from '@/components/ui/FormSelect';
 import { LoadingCard } from '@/components/ui/StateCard';
 import { useDebouncedCallback } from '@/lib/useDebounce';
@@ -272,7 +260,7 @@ export default function SuperAdminApiLogs() {
               className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
               title="รีเฟรช"
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
           </div>
         </div>
@@ -280,7 +268,7 @@ export default function SuperAdminApiLogs() {
         {/* Filters */}
         <div className="flex flex-wrap gap-3">
           <div className="relative flex-1 min-w-[200px] max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
               value={search}
@@ -351,8 +339,8 @@ export default function SuperAdminApiLogs() {
                       >
                         <td className="px-3 py-2.5">
                           {isExpanded
-                            ? <ChevronUp className="w-4 h-4 text-slate-400" />
-                            : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                            ? <ChevronUpIcon className="w-4 h-4 text-slate-400" />
+                            : <ChevronDownIcon className="w-4 h-4 text-slate-400" />}
                         </td>
                         <td className="px-2 py-2.5">
                           <p className="text-sm text-white leading-tight truncate">{dateStr}</p>
@@ -383,11 +371,11 @@ export default function SuperAdminApiLogs() {
                         </td>
                         <td className="px-2 py-2.5 text-center">
                           {log.status === 'success' ? (
-                            <CheckCircle2 className="w-4 h-4 text-green-400 inline-block" />
+                            <SuccessIcon className="w-4 h-4 text-green-400 inline-block" />
                           ) : log.status === 'error' ? (
-                            <XCircle className="w-4 h-4 text-red-400 inline-block" />
+                            <ErrorIcon className="w-4 h-4 text-red-400 inline-block" />
                           ) : (
-                            <Clock className="w-4 h-4 text-yellow-400 inline-block" />
+                            <TimeIcon className="w-4 h-4 text-yellow-400 inline-block" />
                           )}
                         </td>
                         <td className="text-right text-slate-400 text-xs px-3 py-2.5">
@@ -421,7 +409,7 @@ export default function SuperAdminApiLogs() {
                                   onClick={(e) => { e.stopPropagation(); copyAllLog(log); }}
                                   className="ml-3 flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-violet-600/20 text-violet-300 hover:bg-violet-600/30 border border-violet-500/30 transition-colors"
                                 >
-                                  {copiedId === `all-${log.id}` ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                                  {copiedId === `all-${log.id}` ? <ConfirmIcon className="w-3.5 h-3.5" /> : <CopyIcon className="w-3.5 h-3.5" />}
                                   {copiedId === `all-${log.id}` ? 'Copied!' : 'Copy All'}
                                 </button>
                               </div>
@@ -442,7 +430,7 @@ export default function SuperAdminApiLogs() {
                                         onClick={(e) => { e.stopPropagation(); copyApiBody(log.request_body, `req-${log.id}`); }}
                                         className="flex items-center gap-1 text-xs text-slate-400 hover:text-violet-400 transition-colors"
                                       >
-                                        {copiedId === `req-${log.id}` ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                                        {copiedId === `req-${log.id}` ? <ConfirmIcon className="w-3 h-3" /> : <CopyIcon className="w-3 h-3" />}
                                         {copiedId === `req-${log.id}` ? 'Copied!' : 'Copy'}
                                       </button>
                                     )}
@@ -459,7 +447,7 @@ export default function SuperAdminApiLogs() {
                                         onClick={(e) => { e.stopPropagation(); copyApiBody(log.response_body, `res-${log.id}`); }}
                                         className="flex items-center gap-1 text-xs text-slate-400 hover:text-violet-400 transition-colors"
                                       >
-                                        {copiedId === `res-${log.id}` ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                                        {copiedId === `res-${log.id}` ? <ConfirmIcon className="w-3 h-3" /> : <CopyIcon className="w-3 h-3" />}
                                         {copiedId === `res-${log.id}` ? 'Copied!' : 'Copy'}
                                       </button>
                                     )}
@@ -501,9 +489,9 @@ export default function SuperAdminApiLogs() {
                           <p className="text-xs text-slate-400 mt-1">{dateStr} {timeStr}</p>
                         </div>
                         {log.status === 'success' ? (
-                          <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
+                          <SuccessIcon className="w-4 h-4 text-green-400 flex-shrink-0" />
                         ) : (
-                          <XCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                          <ErrorIcon className="w-4 h-4 text-red-400 flex-shrink-0" />
                         )}
                       </div>
                       <div className="flex items-center justify-between text-xs text-slate-400">
@@ -521,7 +509,7 @@ export default function SuperAdminApiLogs() {
                             onClick={(e) => { e.stopPropagation(); copyAllLog(log); }}
                             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-violet-600/20 text-violet-300 hover:bg-violet-600/30 border border-violet-500/30 transition-colors"
                           >
-                            {copiedId === `all-${log.id}` ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                            {copiedId === `all-${log.id}` ? <ConfirmIcon className="w-3.5 h-3.5" /> : <CopyIcon className="w-3.5 h-3.5" />}
                             {copiedId === `all-${log.id}` ? 'Copied!' : 'Copy All'}
                           </button>
                         </div>

@@ -1,7 +1,8 @@
 'use client';
 
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Package, Trash2, AlertTriangle, Gift, StickyNote } from 'lucide-react';
+import { StickyNote } from 'lucide-react';
+import { DeleteIcon, GiftIcon, ProductIcon, WarningIcon } from '@/lib/icons';
 import ProductSearchInput, { type ProductSearchItem, type SearchMode } from '@/components/ui/ProductSearchInput';
 import FormSelect from '@/components/ui/FormSelect';
 import DiscountInput from '@/components/ui/DiscountInput';
@@ -241,7 +242,7 @@ function ItemNoteInput({
 function RoleBadge({ role }: { role: string }) {
   switch (role) {
     case 'gift':
-      return <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400"><Gift className="w-2.5 h-2.5" />แถมฟรี</span>;
+      return <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400"><GiftIcon className="w-2.5 h-2.5" />แถมฟรี</span>;
     case 'discounted':
       return <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">ราคาพิเศษ</span>;
     case 'component': // ส่วนประกอบของสินค้าชุด — ไม่มีป้าย
@@ -461,7 +462,7 @@ export default function ItemsTable({
           {poMismatch && (
             <span className="absolute right-1 top-1/2 -translate-y-1/2 inline-flex items-center gap-px text-amber-600 dark:text-amber-400"
               title={`ต่างจาก PO ${Math.abs(item.quantity - (item.po_quantity ?? 0))} ชิ้น`}>
-              <AlertTriangle className="w-3 h-3" />
+              <WarningIcon className="w-3 h-3" />
               <span className="text-[9px] font-semibold">
                 {item.quantity > (item.po_quantity ?? 0) ? '+' : ''}{item.quantity - (item.po_quantity ?? 0)}
               </span>
@@ -563,7 +564,7 @@ export default function ItemsTable({
                     {QtyCell({ item, idx })}
                     {(isOverDest || isOverStock) && !readOnly && (
                       <div className={`flex items-center justify-center gap-0.5 mt-0.5 text-[10px] ${isOverDest ? 'text-red-500' : 'text-amber-600 dark:text-amber-400'}`}>
-                        <AlertTriangle className="w-2.5 h-2.5" />เกินสต๊อก
+                        <WarningIcon className="w-2.5 h-2.5" />เกินสต๊อก
                       </div>
                     )}
                   </td>
@@ -603,7 +604,7 @@ export default function ItemsTable({
                       }
                       {consignLoss && (
                         <div className="mt-0.5 flex items-center justify-end gap-0.5 text-[10px] text-amber-600 dark:text-amber-400">
-                          <AlertTriangle className="w-2.5 h-2.5 flex-shrink-0" />
+                          <WarningIcon className="w-2.5 h-2.5 flex-shrink-0" />
                           ขาดทุน ฿{fmt(consignLoss.lossPerUnit)}/ชิ้น
                         </div>
                       )}
@@ -684,7 +685,7 @@ export default function ItemsTable({
                           <button type="button" onClick={() => onRemove!(idx)}
                             className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex-shrink-0"
                             title="ลบรายการนี้">
-                            <Trash2 className="w-4 h-4" />
+                            <DeleteIcon className="w-4 h-4" />
                           </button>
                         )}
                       </div>
@@ -695,7 +696,7 @@ export default function ItemsTable({
                     <td className="py-3 pl-1 pr-0">
                       <button type="button" onClick={() => onRemove!(idx)}
                         className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
-                        <Trash2 className="w-4 h-4" />
+                        <DeleteIcon className="w-4 h-4" />
                       </button>
                     </td>
                   )}
@@ -812,7 +813,7 @@ export default function ItemsTable({
                 {!readOnly && (
                   <button type="button" onClick={() => onRemove!(idx)}
                     className="p-1 text-gray-400 hover:text-red-600 rounded flex-shrink-0 transition-colors">
-                    <Trash2 className="w-4 h-4" />
+                    <DeleteIcon className="w-4 h-4" />
                   </button>
                 )}
               </div>
@@ -961,19 +962,19 @@ export default function ItemsTable({
 
               {isOverDest && !readOnly && (
                 <div className="mt-1.5 flex items-center gap-1 text-xs text-red-500">
-                  <AlertTriangle className="w-3 h-3 flex-shrink-0" />จำนวนเกินสต๊อกที่ร้าน (มี {destQty})
+                  <WarningIcon className="w-3 h-3 flex-shrink-0" />จำนวนเกินสต๊อกที่ร้าน (มี {destQty})
                 </div>
               )}
               {(isOverStock || poMismatch) && !isOverDest && !readOnly && (
                 <div className="mt-1.5 flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
-                  <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+                  <WarningIcon className="w-3 h-3 flex-shrink-0" />
                   {isOverStock && 'จำนวนเกินสต๊อกที่มี'}
                   {poMismatch && `ต่างจาก PO ${Math.abs(item.quantity - (item.po_quantity ?? 0))} ชิ้น`}
                 </div>
               )}
               {consignLoss && !readOnly && (
                 <div className="mt-1.5 flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
-                  <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+                  <WarningIcon className="w-3 h-3 flex-shrink-0" />
                   ขาดทุน ฿{fmt(consignLoss.lossPerUnit)}/ชิ้น — ต้องจ่าย{consignLoss.supplier ? ` ${consignLoss.supplier}` : ''} ฿{fmt(consignLoss.payable)}/ชิ้น
                 </div>
               )}
@@ -1066,7 +1067,7 @@ export default function ItemsTable({
 
         {items.length === 0 && readOnly && (
           <div className="flex items-center justify-center gap-2 py-6 text-gray-400 dark:text-slate-500">
-            <Package className="w-5 h-5 opacity-50" />
+            <ProductIcon className="w-5 h-5 opacity-50" />
             <p className="text-sm">{emptyMessage}</p>
           </div>
         )}

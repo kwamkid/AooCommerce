@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
+import { BackIcon } from '@/lib/icons';
 import type { ReactNode } from 'react';
 import Button from './Button';
 
@@ -53,7 +53,7 @@ export default function PageHeader({ title, subtitle, backHref, onBack, actions,
             aria-label="ย้อนกลับ"
             className="flex-shrink-0"
           >
-            <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-slate-400" />
+            <BackIcon className="w-5 h-5 text-gray-600 dark:text-slate-400" />
           </Button>
         )}
         {icon && <div className="flex-shrink-0 pt-1 [&>svg]:w-8 [&>svg]:h-8 text-primary">{icon}</div>}

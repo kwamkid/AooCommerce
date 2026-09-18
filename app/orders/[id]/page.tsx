@@ -27,36 +27,8 @@ import Tooltip from '@/components/ui/Tooltip';
 import type { AdEventRow } from '@/lib/ads/meta-ui';
 import { useCompany } from '@/lib/company-context';
 import { getInvoiceMenuLabel } from '@/lib/invoice-utils';
-import {
-  ArrowLeft,
-  Loader2,
-  Printer,
-  XCircle,
-  Truck,
-  Link2,
-  ChevronRight,
-  X,
-  Banknote,
-  CreditCard,
-  Eye,
-  ShieldCheck,
-  ShieldX,
-  PackageCheck,
-  FileText,
-  ChevronDown,
-  Package,
-  ClipboardList,
-  Pencil,
-  RefreshCw,
-  CheckCircle,
-  Gift,
-  ReceiptText,
-  Undo2,
-  Repeat,
-  Copy,
-  Mail,
-  Megaphone
-} from 'lucide-react';
+import { ShieldX, PackageCheck, Repeat } from 'lucide-react';
+import { BackIcon, BroadcastIcon, ChecklistIcon, ChevronDownIcon, ChevronRightIcon, CloseIcon, CopyIcon, DocumentIcon, EditIcon, EmailIcon, ErrorIcon, GiftIcon, LinkIcon, LoadingIcon, MoneyIcon, ParcelIcon, PaymentIcon, PrintIcon, ProductIcon, ReceiptTextIcon, RefreshIcon, ReverseIcon, SecurityIcon, ShippingIcon, SuccessIcon, ViewIcon } from '@/lib/icons';
 import PaymentModal from '../components/PaymentModal';
 import HandoverPickerPanel from '../components/HandoverPickerPanel';
 import { shopeeResultToHandoverOrder, type HandoverOrder, type HandoverSelection } from '@/lib/marketplace/handover';
@@ -778,7 +750,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
       variant: 'danger',
       confirmLabel: 'ยืนยันยกเลิกบิล',
       cancelLabel: 'ยกเลิก',
-      icon: <ReceiptText className="w-6 h-6" />,
+      icon: <ReceiptTextIcon className="w-6 h-6" />,
     });
     if (!ok) return;
 
@@ -937,7 +909,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
           <div className="flex items-center gap-3 min-w-0">
             <Button
               variant="ghost"
-              icon={<ArrowLeft className="w-5 h-5" />}
+              icon={<BackIcon className="w-5 h-5" />}
               onClick={() => router.push(backUrl)}
               className="print:hidden"
               aria-label="กลับ"
@@ -992,7 +964,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
             {!isMarketplaceOrder && orderStatus === 'new' && paymentStatus === 'pending' && (
               <Button
                 variant="success"
-                icon={<Banknote className="w-4 h-4" />}
+                icon={<MoneyIcon className="w-4 h-4" />}
                 disabled={updating}
                 onClick={handlePaymentStatusClick}
               >
@@ -1005,7 +977,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                 {paymentRecord.slip_image_url && (
                   <Button
                     variant="secondary"
-                    icon={<Eye className="w-4 h-4" />}
+                    icon={<ViewIcon className="w-4 h-4" />}
                     onClick={() => setShowSlipModal(true)}
                   >
                     ดูสลิป
@@ -1022,7 +994,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                 </Button>
                 <Button
                   variant="success"
-                  icon={<ShieldCheck className="w-4 h-4" />}
+                  icon={<SecurityIcon className="w-4 h-4" />}
                   loading={updating}
                   onClick={handleApprovePayment}
                 >
@@ -1045,7 +1017,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
             {!isMarketplaceOrder && orderStatus === 'processing' && (
               <Button
                 variant="primary"
-                icon={<Package className="w-4 h-4" />}
+                icon={<ParcelIcon className="w-4 h-4" />}
                 onClick={() => setShowShipModal(true)}
                 className="!bg-amber-500 hover:!bg-amber-600 !border-amber-500"
               >
@@ -1056,7 +1028,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
             {!isMarketplaceOrder && orderStatus === 'shipping' && (
               <Button
                 variant="success"
-                icon={<CheckCircle className="w-4 h-4" />}
+                icon={<SuccessIcon className="w-4 h-4" />}
                 loading={updating}
                 onClick={handleOrderStatusClick}
               >
@@ -1079,7 +1051,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
             {isShopeeOrder && (
               <Button
                 variant="secondary"
-                icon={<RefreshCw className={`w-4 h-4 ${shopeeActionLoading ? 'animate-spin' : ''}`} />}
+                icon={<RefreshIcon className={`w-4 h-4 ${shopeeActionLoading ? 'animate-spin' : ''}`} />}
                 disabled={shopeeActionLoading}
                 onClick={handleResyncOrder}
                 title="Sync ข้อมูลจาก Shopee ใหม่"
@@ -1091,8 +1063,8 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
               <div className="relative">
                 <Button
                   variant="secondary"
-                  icon={<Pencil className="w-4 h-4" />}
-                  iconRight={<ChevronDown className="w-3.5 h-3.5" />}
+                  icon={<EditIcon className="w-4 h-4" />}
+                  iconRight={<ChevronDownIcon className="w-3.5 h-3.5" />}
                   onClick={() => setShowActionMenu(!showActionMenu)}
                 >
                   <span className="hidden md:inline">จัดการ</span>
@@ -1111,7 +1083,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                           }}
                           className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5"
                         >
-                          <Link2 className="w-4 h-4 text-gray-400" />
+                          <LinkIcon className="w-4 h-4 text-gray-400" />
                           คัดลอกลิงก์บิลออนไลน์
                         </button>
                       )}
@@ -1127,7 +1099,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                           }}
                           className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5"
                         >
-                          <Truck className="w-4 h-4 text-gray-400" />
+                          <ShippingIcon className="w-4 h-4 text-gray-400" />
                           แก้ไขข้อมูลจัดส่ง
                         </button>
                       )}
@@ -1150,7 +1122,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                             disabled={voidLoading}
                             className="w-full text-left px-3 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2.5 disabled:opacity-50"
                           >
-                            <XCircle className="w-4 h-4" />
+                            <ErrorIcon className="w-4 h-4" />
                             ยกเลิกบิล
                           </button>
                         </>
@@ -1164,8 +1136,8 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
             <div className="relative">
               <Button
                 variant="secondary"
-                icon={<Printer className="w-4 h-4" />}
-                iconRight={<ChevronDown className="w-3.5 h-3.5" />}
+                icon={<PrintIcon className="w-4 h-4" />}
+                iconRight={<ChevronDownIcon className="w-3.5 h-3.5" />}
                 onClick={() => setShowPrintMenu(!showPrintMenu)}
               >
                 <span className="hidden md:inline">พิมพ์</span>
@@ -1180,7 +1152,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                         disabled={generatingPdf}
                         className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5 disabled:opacity-50"
                       >
-                        {generatingPdf ? <Loader2 className="w-4 h-4 animate-spin text-gray-400" /> : <Banknote className="w-4 h-4 text-gray-400" />}
+                        {generatingPdf ? <LoadingIcon className="w-4 h-4 animate-spin text-gray-400" /> : <MoneyIcon className="w-4 h-4 text-gray-400" />}
                         {getInvoiceMenuLabel(paymentStatus, vatRegistered)}
                       </button>
                     )}
@@ -1188,7 +1160,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                       onClick={() => handlePrint('order')}
                       className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5"
                     >
-                      <FileText className="w-4 h-4 text-gray-400" />
+                      <DocumentIcon className="w-4 h-4 text-gray-400" />
                       ใบออเดอร์
                     </button>
                     {['processing', 'shipping', 'completed'].includes(orderStatus) && (
@@ -1197,7 +1169,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                         disabled={generatingPdf}
                         className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5 disabled:opacity-50"
                       >
-                        <ClipboardList className="w-4 h-4 text-gray-400" />
+                        <ChecklistIcon className="w-4 h-4 text-gray-400" />
                         ใบจัดของ
                       </button>
                     )}
@@ -1209,7 +1181,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                           disabled={generatingPdf}
                           className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5 disabled:opacity-50"
                         >
-                          <Package className="w-4 h-4 text-gray-400" />
+                          <ProductIcon className="w-4 h-4 text-gray-400" />
                           ใบปะหน้า
                         </button>
                       </>
@@ -1222,7 +1194,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                           disabled={generatingPdf}
                           className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5 disabled:opacity-50"
                         >
-                          <Mail className="w-4 h-4 text-gray-400" />
+                          <EmailIcon className="w-4 h-4 text-gray-400" />
                           ใบปะหน้าซองเอกสาร
                         </button>
                       </>
@@ -1281,7 +1253,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                 <Button
                   variant="ghost"
                   size="sm"
-                  icon={<Pencil className="w-3.5 h-3.5" />}
+                  icon={<EditIcon className="w-3.5 h-3.5" />}
                   onClick={handleEditDelivery}
                 >
                   แก้ไขข้อมูลจัดส่ง
@@ -1292,7 +1264,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
             {/* Customer row */}
             {fullOrderData?.customer ? (
               <div className="flex items-center gap-2 mb-3 flex-wrap">
-                <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                <SuccessIcon className="w-4 h-4 text-primary flex-shrink-0" />
                 <span className="data-primary text-gray-900 dark:text-slate-200">{fullOrderData.customer.name}</span>
                 {fullOrderData.customer.phone && (
                   <span className="data-secondary text-gray-400 dark:text-slate-500">· {fullOrderData.customer.phone}</span>
@@ -1340,7 +1312,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
             {/* Payment record (paid / verifying state — actions live in header) */}
             {(paymentStatus === 'paid' || paymentStatus === 'verifying') && paymentRecord && (
               <div className="mt-3 pt-3 border-t border-gray-200 dark:border-slate-600 flex items-center gap-2 flex-wrap text-sm">
-                <Banknote className="w-4 h-4 text-gray-400" />
+                <MoneyIcon className="w-4 h-4 text-gray-400" />
                 <span className={`badge badge-sm badge-pill ${paymentStatus === 'paid' ? 'badge-emerald' : 'badge-purple'}`}>
                   {paymentRecord.payment_method === 'cash' && 'เงินสด'}
                   {paymentRecord.payment_method === 'transfer' && 'โอนเงิน'}
@@ -1360,7 +1332,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                     onClick={() => setShowSlipModal(true)}
                     className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
                   >
-                    <Eye className="w-3.5 h-3.5" />
+                    <ViewIcon className="w-3.5 h-3.5" />
                     ดูสลิป
                   </button>
                 )}
@@ -1378,7 +1350,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                   if (r.gateway_status === 'PAID' || r.gateway_status === 'REFUNDED') {
                     rows.push(
                       <div key={`${r.id}-paid`} className="flex items-center gap-2 flex-wrap text-emerald-700 dark:text-emerald-400">
-                        <CreditCard className="w-4 h-4" />
+                        <PaymentIcon className="w-4 h-4" />
                         <span>ชำระผ่าน Beam{info.method ? ` · ${info.method}` : ''} · ฿{formatPrice(r.amount)}</span>
                         <span className="text-gray-400 dark:text-slate-500">{when(r.payment_date || r.updated_at)}</span>
                         {r.status === 'cancelled' && <span className="text-gray-500 dark:text-slate-400">(ร้านบันทึกชำระมือไว้ก่อน — ไม่นับซ้ำ)</span>}
@@ -1388,7 +1360,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                   if (r.gateway_status === 'FAILED' && info.failure) {
                     rows.push(
                       <div key={`${r.id}-failed`} className="flex items-center gap-2 flex-wrap text-red-600 dark:text-red-400">
-                        <XCircle className="w-4 h-4" />
+                        <ErrorIcon className="w-4 h-4" />
                         <span>ลูกค้าจ่ายผ่าน Beam ไม่ผ่าน{info.failure.method ? ` · ${info.failure.method}` : ''}{info.failure.code ? ` · ${info.failure.code}` : ''}</span>
                         <span className="text-gray-400 dark:text-slate-500">{when(info.failure.at || r.updated_at)}</span>
                         <span className="text-gray-500 dark:text-slate-400">ลูกค้ากดจ่ายใหม่จากลิงก์เดิมได้</span>
@@ -1398,7 +1370,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                   if (info.refund) {
                     rows.push(
                       <div key={`${r.id}-refund`} className={`flex items-center gap-2 flex-wrap ${info.refund.succeeded ? 'text-amber-700 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}`}>
-                        <Undo2 className="w-4 h-4" />
+                        <ReverseIcon className="w-4 h-4" />
                         <span>
                           {info.refund.succeeded
                             ? `Beam คืนเงินให้ลูกค้าแล้ว${info.refund.amount !== null ? ` ฿${formatPrice(info.refund.amount)}` : ''}${info.refund.reason ? ` (${info.refund.reason})` : ''}`
@@ -1412,7 +1384,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                   if (r.notes && r.notes.startsWith('ยอดที่จ่ายผ่าน Beam')) {
                     rows.push(
                       <div key={`${r.id}-mismatch`} className="flex items-center gap-2 flex-wrap text-red-600 dark:text-red-400 font-medium">
-                        <XCircle className="w-4 h-4" />
+                        <ErrorIcon className="w-4 h-4" />
                         <span>{r.notes}</span>
                       </div>
                     );
@@ -1420,7 +1392,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                   if (rows.length === 0 && r.status === 'pending') {
                     rows.push(
                       <div key={`${r.id}-pending`} className="flex items-center gap-2 flex-wrap text-gray-500 dark:text-slate-400">
-                        <CreditCard className="w-4 h-4" />
+                        <PaymentIcon className="w-4 h-4" />
                         <span>ลูกค้ากดจ่ายผ่าน Beam แล้ว ยังไม่จ่าย (ลิงก์ยังเปิดอยู่)</span>
                         <span className="text-gray-400 dark:text-slate-500">{when(r.created_at)}</span>
                       </div>
@@ -1439,7 +1411,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
               <div className="mt-3 pt-3 border-t border-gray-200 dark:border-slate-600 space-y-1.5">
                 {adEvents.map((e, i) => (
                   <div key={e.id} className="flex items-center gap-2 flex-wrap text-sm">
-                    <Megaphone className="w-4 h-4 text-blue-500 dark:text-blue-400" />
+                    <BroadcastIcon className="w-4 h-4 text-blue-500 dark:text-blue-400" />
                     <span className="text-gray-700 dark:text-slate-300">
                       {e.event_name} → {e.destination_name || (e.destination === 'page_dataset' ? 'dataset ของเพจ' : 'dataset บัญชีโฆษณา')}
                     </span>
@@ -1454,7 +1426,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                         <span className="text-red-600 dark:text-red-400">ส่งไม่สำเร็จ</span>
                         {e.error && (
                           <Tooltip text={e.error} box="inline-flex">
-                            <XCircle className="w-4 h-4 text-red-500 dark:text-red-400" aria-label={e.error} />
+                            <ErrorIcon className="w-4 h-4 text-red-500 dark:text-red-400" aria-label={e.error} />
                           </Tooltip>
                         )}
                       </>
@@ -1473,7 +1445,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                 (สายเดิมจดที่ orders.meta_purchase_sent_at ก่อนจะมีตาราง ad_events) */}
             {adEvents?.length === 0 && fullOrderData?.meta_purchase_sent_at && (
               <div className="mt-3 pt-3 border-t border-gray-200 dark:border-slate-600 flex items-center gap-2 flex-wrap text-sm">
-                <Megaphone className="w-4 h-4 text-blue-500 dark:text-blue-400" />
+                <BroadcastIcon className="w-4 h-4 text-blue-500 dark:text-blue-400" />
                 <span className="text-blue-700 dark:text-blue-400">ส่ง Purchase ให้ Meta แล้ว</span>
                 <span className="text-gray-400 dark:text-slate-500">{formatThaiDateTime(fullOrderData.meta_purchase_sent_at)}</span>
                 <span className="text-gray-500 dark:text-slate-400">โฆษณา Click-to-Messenger ใช้เรียนรู้หาคนที่ซื้อจริง</span>
@@ -1487,7 +1459,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                 : null;
               return (
                 <div className="mt-3 pt-3 border-t border-gray-200 dark:border-slate-600 flex items-center gap-2 flex-wrap text-sm">
-                  <Truck className="w-4 h-4 text-gray-400 dark:text-slate-500" />
+                  <ShippingIcon className="w-4 h-4 text-gray-400 dark:text-slate-500" />
                   {fullOrderData.shipping_carrier && (
                     <span className="text-gray-700 dark:text-slate-300">{getCarrierLabel(fullOrderData.shipping_carrier)}</span>
                   )}
@@ -1516,7 +1488,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                       className="text-gray-400 hover:text-gray-700 dark:text-slate-500 dark:hover:text-slate-300 transition-colors"
                       title="คัดลอกข้อมูลพัสดุ"
                     >
-                      <Copy className="w-3.5 h-3.5" />
+                      <CopyIcon className="w-3.5 h-3.5" />
                     </button>
                   )}
                 </div>
@@ -1545,7 +1517,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                     <div key={parcel.id} className="p-2.5 rounded-lg bg-gray-50 dark:bg-slate-700/50 border border-gray-100 dark:border-slate-600">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs font-medium text-gray-700 dark:text-slate-200 flex items-center gap-1">
-                          <Package className="w-3 h-3 text-purple-500" />
+                          <ParcelIcon className="w-3 h-3 text-purple-500" />
                           กล่องที่ {parcel.parcel_number}/{fullOrderData.parcels.length}
                         </span>
                         {parcel.status && (
@@ -1560,7 +1532,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                       </div>
                       {(parcel.tracking_number || parcel.shipping_carrier) && (
                         <div className="flex items-center gap-3 text-xs text-gray-600 dark:text-slate-400">
-                          {parcel.shipping_carrier && <span className="flex items-center gap-1"><Truck className="w-3 h-3" /> {parcel.shipping_carrier}</span>}
+                          {parcel.shipping_carrier && <span className="flex items-center gap-1"><ShippingIcon className="w-3 h-3" /> {parcel.shipping_carrier}</span>}
                           {parcel.tracking_number && <span className="font-mono">{parcel.tracking_number}</span>}
                         </div>
                       )}
@@ -1576,7 +1548,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                 <Button
                   variant="primary"
                   loading={updating}
-                  icon={<Truck className="w-4 h-4" />}
+                  icon={<ShippingIcon className="w-4 h-4" />}
                   onClick={handleOrderStatusClick}
                 >
                   {updating ? 'กำลังดำเนินการ...' : `เปลี่ยนเป็น "${getOrderStatusLabel(getNextOrderStatus(orderStatus)!)}"`}
@@ -1589,7 +1561,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
           {(fullOrderData?.gift_card_requested || fullOrderData?.gift_hide_price) && (
             <div className="rounded-xl border bg-pink-50/60 dark:bg-pink-900/15 border-pink-200 dark:border-pink-800/40 p-5">
               <div className="flex items-center gap-2 mb-2">
-                <Gift className="w-4 h-4 text-pink-500" />
+                <GiftIcon className="w-4 h-4 text-pink-500" />
                 <div className="text-base font-medium text-gray-700 dark:text-slate-200 uppercase tracking-wide">
                   {fullOrderData?.gift_card_requested ? 'การ์ดอวยพร' : 'ของขวัญ'}
                 </div>
@@ -1631,7 +1603,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
           } p-5`}>
             <div className="flex items-start justify-between gap-3 mb-2">
               <div className="flex items-center gap-2">
-                <ReceiptText className={`w-4 h-4 ${fullOrderData?.tax_invoice_requested ? 'text-primary' : 'text-gray-400'}`} />
+                <ReceiptTextIcon className={`w-4 h-4 ${fullOrderData?.tax_invoice_requested ? 'text-primary' : 'text-gray-400'}`} />
                 <div className="text-base font-medium text-gray-700 dark:text-slate-200 uppercase tracking-wide">ใบกำกับภาษี</div>
                 {fullOrderData?.tax_invoice_requested && (
                   <span className="badge badge-sm badge-pill badge-orange">ขอใบกำกับ</span>
@@ -1641,7 +1613,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                 <Button
                   variant="ghost"
                   size="sm"
-                  icon={<Pencil className="w-3.5 h-3.5" />}
+                  icon={<EditIcon className="w-3.5 h-3.5" />}
                   onClick={() => setShowTaxModal(true)}
                 >
                   {fullOrderData?.tax_invoice_requested ? 'แก้ไขใบกำกับ' : 'ขอใบกำกับ'}
@@ -1699,7 +1671,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
               {fullOrderData?.customer ? (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                    <SuccessIcon className="w-4 h-4 text-primary flex-shrink-0" />
                     <span className="body-text font-medium">{fullOrderData.customer.name}</span>
                   </div>
                   {fullOrderData.customer.phone && (
@@ -1777,7 +1749,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
             {fullOrderData?.customer ? (
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                  <SuccessIcon className="w-4 h-4 text-primary flex-shrink-0" />
                   <span className="data-primary text-gray-900 dark:text-slate-200">{fullOrderData.customer.name}</span>
                 </div>
                 {fullOrderData.customer.phone && (
@@ -1795,7 +1767,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
         {orderStatus === 'cancelled' && (
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-xl p-5">
             <div className="flex items-center gap-2 text-red-700 dark:text-red-400">
-              <XCircle className="w-5 h-5" />
+              <ErrorIcon className="w-5 h-5" />
               <span className="font-medium">คำสั่งซื้อนี้ถูกยกเลิกแล้ว</span>
             </div>
           </div>
@@ -1809,7 +1781,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
           return (
             <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-lg px-4 py-3 flex items-center justify-between gap-3 print:hidden">
               <span className="text-sm text-amber-800 dark:text-amber-300">ยังไม่มีข้อมูลจัดส่ง — กรอกก่อนเพื่อพิมพ์ใบปะหน้า</span>
-              <Button variant="primary" size="sm" icon={<Pencil className="w-3.5 h-3.5" />} onClick={handleEditDelivery}>
+              <Button variant="primary" size="sm" icon={<EditIcon className="w-3.5 h-3.5" />} onClick={handleEditDelivery}>
                 กรอกข้อมูลจัดส่ง
               </Button>
             </div>
@@ -1870,7 +1842,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                   className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors disabled:opacity-50">ยกเลิก</button>
                 <button onClick={handleShipOrder} disabled={shipLoading}
                   className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50 flex items-center gap-2">
-                  {shipLoading ? (<><Loader2 className="w-4 h-4 animate-spin" /> กำลังดำเนินการ...</>) : editingShipping ? (<><Pencil className="w-4 h-4" /> บันทึก</>) : (<><Package className="w-4 h-4" /> จัดส่งแล้ว</>)}
+                  {shipLoading ? (<><LoadingIcon className="w-4 h-4 animate-spin" /> กำลังดำเนินการ...</>) : editingShipping ? (<><EditIcon className="w-4 h-4" /> บันทึก</>) : (<><ProductIcon className="w-4 h-4" /> จัดส่งแล้ว</>)}
                 </button>
               </div>
             </div>
@@ -1909,7 +1881,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                 onClick={() => setShowSlipModal(false)}
                 className="absolute -top-3 -right-3 bg-white rounded-full p-1.5 shadow-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors z-10"
               >
-                <X className="w-5 h-5 text-gray-600" />
+                <CloseIcon className="w-5 h-5 text-gray-600" />
               </button>
               <img
                 src={paymentRecord.slip_image_url}
@@ -2014,7 +1986,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
       {creditNotes.length > 0 && (
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5 print:hidden">
           <div className="text-base font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-3 flex items-center gap-2">
-            <ReceiptText className="w-4 h-4" />
+            <ReceiptTextIcon className="w-4 h-4" />
             ใบลดหนี้ ({creditNotes.length})
           </div>
           <div className="space-y-2">
@@ -2043,7 +2015,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                   <span className="data-number text-gray-700 dark:text-slate-300">
                     ฿{formatPrice(cn.total_amount)}
                   </span>
-                  <ChevronRight className="w-4 h-4 text-gray-400" />
+                  <ChevronRightIcon className="w-4 h-4 text-gray-400" />
                 </div>
               </button>
             ))}
@@ -2061,7 +2033,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">เลือกการดำเนินการ</h3>
               <button onClick={() => setShowActionTypeModal(false)} className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
-                <X className="w-5 h-5 text-gray-400" />
+                <CloseIcon className="w-5 h-5 text-gray-400" />
               </button>
             </div>
             <div className="space-y-3">
@@ -2082,7 +2054,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                 className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 dark:border-slate-600 rounded-xl hover:border-orange-400 dark:hover:border-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors text-left"
               >
                 <div className="w-10 h-10 rounded-full bg-orange-100 dark:bg-orange-900/40 flex items-center justify-center flex-shrink-0">
-                  <Undo2 className="w-5 h-5 text-orange-500" />
+                  <ReverseIcon className="w-5 h-5 text-orange-500" />
                 </div>
                 <div>
                   <div className="font-medium text-gray-900 dark:text-white">คืนสินค้า</div>
@@ -2103,11 +2075,11 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
           <div className="bg-white dark:bg-slate-800 rounded-xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                <Undo2 className="w-5 h-5 text-orange-500" />
+                <ReverseIcon className="w-5 h-5 text-orange-500" />
                 คืนสินค้า
               </h3>
               <button onClick={() => setShowRefundModal(false)} className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
-                <X className="w-5 h-5 text-gray-400" />
+                <CloseIcon className="w-5 h-5 text-gray-400" />
               </button>
             </div>
 
@@ -2127,7 +2099,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                       </>
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
-                        <Package className="w-5 h-5 text-gray-300 dark:text-slate-500" />
+                        <ProductIcon className="w-5 h-5 text-gray-300 dark:text-slate-500" />
                       </div>
                     )}
                   </div>
@@ -2198,7 +2170,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                   onClick={() => { setShowRefundModal(false); handleVoid(); }}
                   className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm font-medium flex items-center gap-2"
                 >
-                  <XCircle className="w-4 h-4" />
+                  <ErrorIcon className="w-4 h-4" />
                   ยกเลิกบิล
                 </button>
               ) : (
@@ -2207,7 +2179,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                   disabled={refundLoading || refundItems.every(i => i.quantity === 0)}
                   className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-sm font-medium disabled:opacity-50 flex items-center gap-2"
                 >
-                  {refundLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {refundLoading && <LoadingIcon className="w-4 h-4 animate-spin" />}
                   ออกใบลดหนี้
                 </button>
               )}

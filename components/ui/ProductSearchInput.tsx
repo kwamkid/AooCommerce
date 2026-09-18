@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect, useCallback, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
-import { Plus, Package, Loader2, Flame } from 'lucide-react';
+import { Flame } from 'lucide-react';
+import { AddIcon, LoadingIcon, ProductIcon } from '@/lib/icons';
 import { formatNumber } from '@/lib/utils/format';
 import { useDropUp } from '@/lib/useDropUp';
 import { useDebouncedCallback } from '@/lib/useDebounce';
@@ -320,7 +321,7 @@ export default function ProductSearchInput({
         }}
         className="flex items-center gap-2 px-3 py-1.5 border border-dashed border-gray-300 dark:border-slate-600 rounded-lg hover:border-primary transition-colors cursor-text" style={{ backgroundColor: '#63f5b121' }}
       >
-        <Plus className="w-4 h-4 text-gray-400 flex-shrink-0" />
+        <AddIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />
         <input
           ref={searchRef}
           type="text"
@@ -358,7 +359,7 @@ export default function ProductSearchInput({
           className="flex-1 outline-none bg-transparent text-base text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500"
         />
         {effectiveLoading && (
-          <Loader2 className="w-4 h-4 text-gray-400 animate-spin flex-shrink-0" />
+          <LoadingIcon className="w-4 h-4 text-gray-400 animate-spin flex-shrink-0" />
         )}
       </div>
 
@@ -388,7 +389,7 @@ export default function ProductSearchInput({
             </div>
           ) : effectiveLoading && displayItems.length === 0 ? (
             <div className="px-4 py-3 flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400">
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <LoadingIcon className="w-4 h-4 animate-spin" />
               {onSearchChange ? 'กำลังค้นหาสินค้า...' : 'กำลังโหลดสินค้า...'}
             </div>
           ) : displayItems.length === 0 ? (
@@ -441,7 +442,7 @@ export default function ProductSearchInput({
                     <ProductImageThumb src={product.image} alt={product.name} size="sm" disabled />
                   ) : (
                     <div className="w-10 h-10 bg-gray-100 dark:bg-slate-700 rounded-md flex items-center justify-center flex-shrink-0">
-                      <Package className="w-5 h-5 text-gray-400 dark:text-slate-500" />
+                      <ProductIcon className="w-5 h-5 text-gray-400 dark:text-slate-500" />
                     </div>
                   )}
                   <div className="flex-1 min-w-0">

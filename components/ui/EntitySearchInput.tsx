@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, X, Check, Loader2, Plus } from 'lucide-react';
+import { AddIcon, CloseIcon, ConfirmIcon, LoadingIcon, SearchIcon } from '@/lib/icons';
 import { useDropUp } from '@/lib/useDropUp';
 
 export interface EntitySearchOption {
@@ -308,7 +308,7 @@ export default function EntitySearchInput({
         createIdx === highlightIdx ? 'bg-orange-50 dark:bg-slate-700' : ''
       } text-primary`}
     >
-      <Plus className="w-4 h-4 flex-shrink-0" />
+      <AddIcon className="w-4 h-4 flex-shrink-0" />
       <span className="flex-1 min-w-0 text-left truncate font-medium">
         {createLabel ? createLabel(search.trim()) : `สร้างใหม่ "${search.trim()}"`}
       </span>
@@ -319,7 +319,7 @@ export default function EntitySearchInput({
     if (isLoading) {
       return (
         <div className="flex items-center justify-center py-4">
-          <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
+          <LoadingIcon className="w-5 h-5 text-gray-400 animate-spin" />
         </div>
       );
     }
@@ -372,7 +372,7 @@ export default function EntitySearchInput({
               onClick={handleClear}
               className="absolute top-2 right-2 p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded transition-colors"
             >
-              <X className="w-3.5 h-3.5 text-gray-400" />
+              <CloseIcon className="w-3.5 h-3.5 text-gray-400" />
             </button>
           )}
         </div>
@@ -388,14 +388,14 @@ export default function EntitySearchInput({
             <div className="text-xs text-gray-500 dark:text-slate-400 truncate">{selected.subtitle}</div>
           )}
         </div>
-        <Check className="w-4 h-4 text-primary flex-shrink-0" />
+        <ConfirmIcon className="w-4 h-4 text-primary flex-shrink-0" />
         {!disabled && onClear && (
           <button
             type="button"
             onClick={handleClear}
             className="p-1 hover:bg-orange-100 dark:hover:bg-orange-900/40 rounded transition-colors"
           >
-            <X className="w-3.5 h-3.5 text-gray-400" />
+            <CloseIcon className="w-3.5 h-3.5 text-gray-400" />
           </button>
         )}
       </div>
@@ -407,7 +407,7 @@ export default function EntitySearchInput({
     <div className="relative" ref={containerRef} onKeyDown={handleKeyDown}>
       <div className="relative">
         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500">
-          {icon || <Search className="w-4 h-4" />}
+          {icon || <SearchIcon className="w-4 h-4" />}
         </span>
         <input
           ref={inputRef}
@@ -464,7 +464,7 @@ export default function EntitySearchInput({
             <div className="flex items-center gap-2 p-3 border-b border-gray-200 dark:border-slate-700">
               <div className="relative flex-1">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500">
-                  {icon || <Search className="w-4 h-4" />}
+                  {icon || <SearchIcon className="w-4 h-4" />}
                 </span>
                 <input
                   ref={mobileInputRef}
@@ -482,7 +482,7 @@ export default function EntitySearchInput({
                 onClick={closeMobileModal}
                 className="p-2 text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200"
               >
-                <X className="w-5 h-5" />
+                <CloseIcon className="w-5 h-5" />
               </button>
             </div>
 

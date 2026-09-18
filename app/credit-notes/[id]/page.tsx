@@ -12,7 +12,7 @@ import { formatPrice } from '@/lib/utils/format';
 import { showPdfPreview } from '@/lib/print-pdf';
 import { LoadingCard } from '@/components/ui/StateCard';
 import StatusBadge from '@/components/ui/StatusBadge';
-import { ArrowLeft, Loader2, Printer, ReceiptText, ExternalLink } from 'lucide-react';
+import { BackIcon, ExternalLinkIcon, LoadingIcon, PrintIcon, ReceiptTextIcon } from '@/lib/icons';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 
 interface CreditNoteDetail {
@@ -143,11 +143,11 @@ export default function CreditNoteDetailPage() {
               onClick={() => router.push('/credit-notes')}
               className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
             >
-              <ArrowLeft className="w-6 h-6 text-gray-600 dark:text-slate-300" />
+              <BackIcon className="w-6 h-6 text-gray-600 dark:text-slate-300" />
             </button>
             <div>
               <div className="flex items-center gap-2">
-                <ReceiptText className="w-5 h-5 text-red-500" />
+                <ReceiptTextIcon className="w-5 h-5 text-red-500" />
                 <h1 className="text-xl font-bold text-gray-900 dark:text-white">{cn.cn_number}</h1>
                 <StatusBadge domain="creditNoteType" status={cn.type} />
                 <StatusBadge domain="creditNote" status={cn.status} />
@@ -163,7 +163,7 @@ export default function CreditNoteDetailPage() {
               disabled={generatingPdf}
               className="bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-200 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors flex items-center gap-1.5 text-sm disabled:opacity-50"
             >
-              {generatingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
+              {generatingPdf ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <PrintIcon className="w-4 h-4" />}
               พิมพ์
             </button>
           </div>
@@ -211,7 +211,7 @@ export default function CreditNoteDetailPage() {
                       className="text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1 font-medium"
                     >
                       {cn.replenishment.replenishment_number}
-                      <ExternalLink className="w-3 h-3" />
+                      <ExternalLinkIcon className="w-3 h-3" />
                     </button>
                   </div>
                   {cn.replenishment.customer && (
@@ -238,7 +238,7 @@ export default function CreditNoteDetailPage() {
                       className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 font-medium"
                     >
                       {cn.order?.order_number || '-'}
-                      <ExternalLink className="w-3 h-3" />
+                      <ExternalLinkIcon className="w-3 h-3" />
                     </button>
                   </div>
                   {cn.order?.customer && (
@@ -265,7 +265,7 @@ export default function CreditNoteDetailPage() {
                     className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 font-medium"
                   >
                     {cn.exchange_order.order_number}
-                    <ExternalLink className="w-3 h-3" />
+                    <ExternalLinkIcon className="w-3 h-3" />
                   </button>
                 </div>
               )}

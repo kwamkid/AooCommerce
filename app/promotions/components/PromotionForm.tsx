@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeft } from 'lucide-react';
+import { BackIcon } from '@/lib/icons';
 import { LoadingCard } from '@/components/ui/StateCard';
 import { usePromotionForm } from './promotion-form/usePromotionForm';
 import GeneralInfoCard from './promotion-form/GeneralInfoCard';
@@ -29,7 +29,7 @@ export default function PromotionForm({ promotionId }: { promotionId?: string })
             onClick={() => router.push('/promotions')}
             className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
           >
-            <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-slate-400" />
+            <BackIcon className="w-5 h-5 text-gray-600 dark:text-slate-400" />
           </button>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
             {isEdit ? 'แก้ไขโปรโมชั่น' : 'สร้างโปรโมชั่น'}

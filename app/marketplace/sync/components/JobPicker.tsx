@@ -8,7 +8,8 @@
 // ⛔ ห้าม `switch (platform)` ในไฟล์นี้ — งานทั้งสี่ไม่ผูกกับแพลตฟอร์มไหนเลย
 
 import type { ReactNode } from 'react';
-import { Download, PackageSearch, Upload, UploadCloud } from 'lucide-react';
+import { PackageSearch, UploadCloud } from 'lucide-react';
+import { DownloadIcon, UploadIcon } from '@/lib/icons';
 
 export type JobKey = 'import' | 'export' | 'pull_stock' | 'push_stock';
 
@@ -38,7 +39,7 @@ export const JOBS: JobDef[] = [
     key: 'import',
     label: 'นำเข้าสินค้าจากร้าน',
     description: 'ร้าน → ระบบ · ดึงรายการสินค้าบนร้านมาสร้าง/ผูกกับสินค้าในระบบ',
-    icon: <Download className="w-5 h-5" />,
+    icon: <DownloadIcon className="w-5 h-5" />,
     needsLinks: false,
     stockOnly: false,
     needsPush: false,
@@ -47,7 +48,7 @@ export const JOBS: JobDef[] = [
     key: 'export',
     label: 'ส่งสินค้าขึ้นร้าน',
     description: 'ระบบ → ร้าน · เอาสินค้าที่มีในระบบไปสร้างเป็นสินค้าใหม่บนร้าน',
-    icon: <Upload className="w-5 h-5" />,
+    icon: <UploadIcon className="w-5 h-5" />,
     needsLinks: false,
     stockOnly: false,
     needsPush: true,

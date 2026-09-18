@@ -13,7 +13,7 @@
 
 import { Suspense, useCallback, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { RefreshCw } from 'lucide-react';
+import { RefreshIcon } from '@/lib/icons';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
@@ -136,7 +136,7 @@ function MarketplaceSyncContent() {
   return (
     <Container size="4xl">
       <PageHeader
-        icon={<RefreshCw />}
+        icon={<RefreshIcon />}
         title="ซิงค์สินค้า &amp; สต็อก"
         subtitle="เลือกงานก่อน แล้วค่อยเลือกร้าน — งานที่ไปแตะข้อมูลจริงอยู่ที่นี่ทั้งหมด"
         backHref={BACK_HREF}

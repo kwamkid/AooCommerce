@@ -2,9 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import {
-  ClipboardList, Loader2, Package2, Pencil, SquarePen, Warehouse, X,
-} from 'lucide-react';
+import { SquarePen } from 'lucide-react';
+import { ChecklistIcon, CloseIcon, EditIcon, LoadingIcon, ProductIcon, WarehouseIcon } from '@/lib/icons';
 import DataTable, { type DataTableColumn, type SortDir } from '@/components/ui/DataTable';
 import StatusTabs from '@/components/ui/StatusTabs';
 import SearchInput from '@/components/ui/SearchInput';
@@ -407,7 +406,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
           alt={row.product_name}
           size="lg"
           ratio="auto"
-          fallbackIcon={<Package2 className="w-7 h-7 text-gray-400" />}
+          fallbackIcon={<ProductIcon className="w-7 h-7 text-gray-400" />}
         />
       ),
     },
@@ -470,7 +469,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
             portal
             align="right"
             ariaLabel="ดูแยกตามคลัง"
-            trigger={<Warehouse className="w-4 h-4" />}
+            trigger={<WarehouseIcon className="w-4 h-4" />}
           >
             <WarehouseBreakdown rows={row.by_warehouse} />
           </HelpHint>
@@ -487,7 +486,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
       render: (row: StockRow) => row.in_transit > 0 ? (
         <span className="inline-flex items-center justify-end whitespace-nowrap">
           <span className="tabular-nums font-medium text-blue-600 dark:text-blue-400">{formatNumber(row.in_transit)}</span>
-          <HelpHint portal align="right" ariaLabel="ดูรายตัวแทน" trigger={<Warehouse className="w-4 h-4" />}>
+          <HelpHint portal align="right" ariaLabel="ดูรายตัวแทน" trigger={<WarehouseIcon className="w-4 h-4" />}>
             <QtyList title="กำลังส่งไปตัวแทน" rows={transitRowsOf(row)} empty="ไม่มีของกำลังส่ง" />
           </HelpHint>
         </span>
@@ -503,7 +502,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
       render: (row: StockRow) => row.consign_qty > 0 ? (
         <span className="inline-flex items-center justify-end whitespace-nowrap">
           <span className="tabular-nums font-medium text-purple-600 dark:text-purple-400">{formatNumber(row.consign_qty)}</span>
-          <HelpHint portal align="right" ariaLabel="ดูรายตัวแทน" trigger={<Warehouse className="w-4 h-4" />}>
+          <HelpHint portal align="right" ariaLabel="ดูรายตัวแทน" trigger={<WarehouseIcon className="w-4 h-4" />}>
             <QtyList title="ฝากขายที่ตัวแทน" rows={consignRowsOf(row)} empty="ไม่มีของฝากขาย" />
           </HelpHint>
         </span>
@@ -552,7 +551,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
           <Button
             variant="secondary"
             size="sm"
-            icon={<Pencil className="w-4 h-4" />}
+            icon={<EditIcon className="w-4 h-4" />}
             onClick={() => setAdjustRow(row)}
             aria-label="ปรับสต็อก"
           >
@@ -564,7 +563,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
               {
                 key: 'history',
                 label: 'ประวัติการเคลื่อนไหว',
-                icon: <ClipboardList className="w-3.5 h-3.5" />,
+                icon: <ChecklistIcon className="w-3.5 h-3.5" />,
                 onClick: () => onViewHistory?.(row.variation_id, labelOf(row)),
               },
               {
@@ -587,7 +586,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
         alt={row.product_name}
         size="lg"
         ratio="auto"
-        fallbackIcon={<Package2 className="w-6 h-6 text-gray-400" />}
+        fallbackIcon={<ProductIcon className="w-6 h-6 text-gray-400" />}
       />
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
@@ -627,7 +626,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
           <Button
             variant="secondary"
             size="sm"
-            icon={<Pencil className="w-4 h-4" />}
+            icon={<EditIcon className="w-4 h-4" />}
             onClick={() => setAdjustRow(row)}
             className="flex-1 justify-center"
           >
@@ -636,7 +635,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
           <Button
             variant="secondary"
             size="sm"
-            icon={<ClipboardList className="w-4 h-4" />}
+            icon={<ChecklistIcon className="w-4 h-4" />}
             onClick={() => onViewHistory?.(row.variation_id, labelOf(row))}
             className="flex-1 justify-center"
           >
@@ -658,7 +657,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
           <div className="card card-p-md">
             <div className="flex items-center justify-between gap-2">
               <span className="subtitle-text text-gray-500 dark:text-slate-400">สต็อกของเรา</span>
-              <Package2 className="w-4 h-4 text-gray-400" />
+              <ProductIcon className="w-4 h-4 text-gray-400" />
             </div>
             <p className="heading-3 mt-1 text-gray-900 dark:text-white">
               {valuation.own.value == null
@@ -727,7 +726,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
                 options={warehouseOptions}
                 clearLabel="ทุกคลัง"
                 placeholder="คลัง"
-                icon={<Warehouse className="w-4 h-4" />}
+                icon={<WarehouseIcon className="w-4 h-4" />}
                 searchPlaceholder="ค้นหาคลัง..."
               />
             </div>
@@ -784,7 +783,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
             <Tooltip text="ล้างตัวกรอง">
               <Button
                 variant="ghost"
-                icon={<X className="w-4 h-4" />}
+                icon={<CloseIcon className="w-4 h-4" />}
                 onClick={clearAllFilters}
                 aria-label="ล้างตัวกรอง"
               >
@@ -799,18 +798,18 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
         <LoadingCard />
       ) : rows.length === 0 ? (
         <EmptyCard
-          icon={<Package2 className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+          icon={<ProductIcon className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
           title={hasActiveFilters ? 'ไม่พบสินค้าที่ตรงกับตัวกรอง' : 'ยังไม่มีสินค้าในแท็บนี้'}
           subtitle={hasActiveFilters ? 'ลองล้างตัวกรองแล้วค้นใหม่' : undefined}
           actions={hasActiveFilters
-            ? <Button variant="secondary" icon={<X className="w-4 h-4" />} onClick={clearAllFilters}>ล้างตัวกรอง</Button>
+            ? <Button variant="secondary" icon={<CloseIcon className="w-4 h-4" />} onClick={clearAllFilters}>ล้างตัวกรอง</Button>
             : undefined}
         />
       ) : (
         <div className="relative">
           {fetching && (
             <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/60 dark:bg-slate-900/60 pointer-events-none">
-              <Loader2 className="w-8 h-8 text-primary animate-spin" />
+              <LoadingIcon className="w-8 h-8 text-primary animate-spin" />
             </div>
           )}
           <DataTable<StockRow>
@@ -834,7 +833,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
             onRecordsPerPageChange={(l) => setParams({ limit: String(l), page: '1' })}
             onLimitChange={(l, p) => setParams({ limit: String(l), page: String(p) })}
             emptyMessage="ไม่พบสินค้า"
-            emptyIcon={<Package2 className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+            emptyIcon={<ProductIcon className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
           />
         </div>
       )}

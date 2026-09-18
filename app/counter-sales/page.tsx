@@ -20,7 +20,8 @@ import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
 import { supabase } from '@/lib/supabase';
 import { formatPrice, formatNumber } from '@/lib/utils/format';
-import { Store, Banknote, Boxes, Trash2 } from 'lucide-react';
+import { Boxes } from 'lucide-react';
+import { DeleteIcon, MoneyIcon, StoreIcon } from '@/lib/icons';
 
 interface SaleRow {
   id: string;
@@ -192,7 +193,7 @@ export default function CounterSalesDashboardPage() {
       key: 'actions', label: '', stopPropagation: true, alwaysVisible: true,
       render: (r) => !r.report_id ? (
         <button onClick={() => handleDelete(r)} className="p-1.5 text-gray-400 hover:text-red-500 transition-colors" title="ลบรายการ">
-          <Trash2 className="w-4 h-4" />
+          <DeleteIcon className="w-4 h-4" />
         </button>
       ) : null,
     },
@@ -205,15 +206,15 @@ export default function CounterSalesDashboardPage() {
     <Layout>
       <Container size="full">
         <PageHeader
-          icon={<Store />}
+          icon={<StoreIcon />}
           title="ยอดขาย PC"
           subtitle="ยอดขายรายวันที่ PC บันทึกจากทุกสาขา (ข้อมูลติดตาม — วางบิลใช้ report ห้างตามเดิม)"
         />
 
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          <Stat label="ยอดขายรวม" value={`฿${formatPrice(summary.total_amount)}`} icon={<Banknote className="w-5 h-5" />} />
+          <Stat label="ยอดขายรวม" value={`฿${formatPrice(summary.total_amount)}`} icon={<MoneyIcon className="w-5 h-5" />} />
           <Stat label="จำนวนที่ขาย" value={`${formatNumber(summary.total_qty)} ชิ้น`} icon={<Boxes className="w-5 h-5" />} />
-          <Stat label="จำนวนรายการ" value={formatNumber(total)} icon={<Store className="w-5 h-5" />} />
+          <Stat label="จำนวนรายการ" value={formatNumber(total)} icon={<StoreIcon className="w-5 h-5" />} />
         </div>
 
         <div className="data-filter-card flex flex-wrap gap-3">

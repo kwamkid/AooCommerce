@@ -8,10 +8,7 @@ import PageHeader from '@/components/ui/PageHeader';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
 import { formatPrice } from '@/lib/utils/format';
-import {
-  ReceiptText,
-  ChevronRight,
-} from 'lucide-react';
+import { ChevronRightIcon, ReceiptTextIcon } from '@/lib/icons';
 import SearchInput from '@/components/ui/SearchInput';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import { LoadingCard } from '@/components/ui/StateCard';
@@ -104,7 +101,7 @@ export default function CreditNotesPage() {
       <div className="space-y-6">
         {/* Header */}
         <PageHeader
-          icon={<ReceiptText />}
+          icon={<ReceiptTextIcon />}
           title="ใบลดหนี้"
           subtitle="รายการใบลดหนี้ทั้งหมด"
         />
@@ -192,7 +189,7 @@ export default function CreditNotesPage() {
           getRowId={(cn) => cn.id}
           onRowClick={(cn) => router.push(`/credit-notes/${cn.id}`)}
           emptyMessage="ยังไม่มีใบลดหนี้"
-          emptyIcon={<ReceiptText className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+          emptyIcon={<ReceiptTextIcon className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
           currentPage={page}
           totalPages={totalPages}
           totalRecords={total}
@@ -213,7 +210,7 @@ export default function CreditNotesPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-gray-900 dark:text-white">฿{formatPrice(cn.total_amount)}</span>
-                  <ChevronRight className="w-4 h-4 text-gray-400" />
+                  <ChevronRightIcon className="w-4 h-4 text-gray-400" />
                 </div>
               </div>
             );

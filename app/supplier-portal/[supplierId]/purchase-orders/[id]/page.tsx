@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { FullPageLoading } from '@/components/ui/Loading';
 import StatusBadge from '@/components/ui/StatusBadge';
-import { ArrowLeft, Warehouse, CheckCircle2, Clock, AlertTriangle } from 'lucide-react';
+import { BackIcon, SuccessIcon, TimeIcon, WarehouseIcon, WarningIcon } from '@/lib/icons';
 
 interface POItem {
   id: string;
@@ -94,7 +94,7 @@ export default function PortalPODetailPage() {
   if (error || !data) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen text-gray-500">
-        <AlertTriangle className="w-12 h-12 mb-3 text-red-400" />
+        <WarningIcon className="w-12 h-12 mb-3 text-red-400" />
         <p className="text-lg font-medium">{error || 'ไม่พบข้อมูล'}</p>
       </div>
     );
@@ -104,7 +104,7 @@ export default function PortalPODetailPage() {
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-4">
       <button onClick={() => router.push(`/supplier-portal/${supplierId}`)} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700">
-        <ArrowLeft className="w-4 h-4" /> กลับ
+        <BackIcon className="w-4 h-4" /> กลับ
       </button>
 
       <div className="flex items-center justify-between">
@@ -118,7 +118,7 @@ export default function PortalPODetailPage() {
           <div>
             <span className="text-xs text-gray-500 uppercase block mb-1">คลัง</span>
             <div className="flex items-center gap-2">
-              <Warehouse className="w-4 h-4 text-gray-400" />
+              <WarehouseIcon className="w-4 h-4 text-gray-400" />
               <span className="text-gray-900 dark:text-white">{data.warehouse?.name || '-'}</span>
             </div>
           </div>
@@ -182,9 +182,9 @@ export default function PortalPODetailPage() {
                           {item.received_quantity}
                         </span>
                         {remaining <= 0 ? (
-                          <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+                          <SuccessIcon className="w-3.5 h-3.5 text-green-500" />
                         ) : (
-                          <Clock className="w-3.5 h-3.5 text-amber-500" />
+                          <TimeIcon className="w-3.5 h-3.5 text-amber-500" />
                         )}
                       </div>
                     </td>

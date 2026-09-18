@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Send, Loader2, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
+import { AlertIcon, LoadingIcon, RefreshIcon, SendIcon, SuccessIcon } from '@/lib/icons';
 import { apiFetch } from '@/lib/api-client';
 import { pushPromotionToShopee } from '@/lib/marketplace/push/shopee';
 import type { PushProgress } from '@/lib/marketplace/push/types';
@@ -249,9 +249,9 @@ export default function PushDealModal({ promotionId, promotionName, startDate, e
               className="flex items-center gap-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
             >
               {pushingAll ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <LoadingIcon className="w-4 h-4 animate-spin" />
               ) : (
-                <Send className="w-4 h-4" />
+                <SendIcon className="w-4 h-4" />
               )}
               ส่งทั้งหมด ({idleCount})
             </button>
@@ -262,21 +262,21 @@ export default function PushDealModal({ promotionId, promotionName, startDate, e
       <div>
           {!hasDates && (
             <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 rounded-lg text-sm mb-4">
-              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <AlertIcon className="w-4 h-4 flex-shrink-0" />
               โปรโมชั่นยังไม่มีวันเริ่มต้น/สิ้นสุด — Shopee ต้องการ
             </div>
           )}
 
           {startInPast && (
             <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 rounded-lg text-sm mb-4">
-              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <AlertIcon className="w-4 h-4 flex-shrink-0" />
               วันเริ่มต้นผ่านไปแล้ว — ระบบจะปรับเป็นอีก ~1 ชั่วโมงอัตโนมัติ
             </div>
           )}
 
           {loading ? (
             <div className="flex items-center justify-center py-10">
-              <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+              <LoadingIcon className="w-6 h-6 animate-spin text-gray-400" />
             </div>
           ) : shops.length === 0 ? (
             <div className="text-center py-10 text-gray-500 dark:text-slate-400">
@@ -317,14 +317,14 @@ export default function PushDealModal({ promotionId, promotionName, startDate, e
                           disabled={!hasDates || pushingAll}
                           className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
                         >
-                          <Send className="w-3.5 h-3.5" />
+                          <SendIcon className="w-3.5 h-3.5" />
                           ส่ง
                         </button>
                       )}
 
                       {shop.status === 'pushing' && (
                         <div className="flex items-center gap-1.5 text-sm text-blue-600 dark:text-blue-400">
-                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <LoadingIcon className="w-4 h-4 animate-spin" />
                           <span className="max-w-[140px] truncate">
                             {shop.progress?.message || 'กำลังส่ง...'}
                           </span>
@@ -333,21 +333,21 @@ export default function PushDealModal({ promotionId, promotionName, startDate, e
 
                       {shop.status === 'success' && (
                         <span className="flex items-center gap-1 text-sm text-green-600 dark:text-green-400 font-medium">
-                          <CheckCircle2 className="w-4 h-4" />
+                          <SuccessIcon className="w-4 h-4" />
                           ส่งแล้ว
                         </span>
                       )}
 
                       {shop.status === 'partial_success' && (
                         <span className="flex items-center gap-1 text-sm text-amber-600 dark:text-amber-400 font-medium" title={shop.warning}>
-                          <AlertCircle className="w-4 h-4" />
+                          <AlertIcon className="w-4 h-4" />
                           ส่งแล้ว (บางรายการล้มเหลว)
                         </span>
                       )}
 
                       {shop.status === 'already_pushed' && (
                         <span className="flex items-center gap-1 text-sm text-gray-500 dark:text-slate-400">
-                          <CheckCircle2 className="w-4 h-4" />
+                          <SuccessIcon className="w-4 h-4" />
                           ส่งแล้ว
                         </span>
                       )}
@@ -363,7 +363,7 @@ export default function PushDealModal({ promotionId, promotionName, startDate, e
                             className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                             title="ลองอีกครั้ง"
                           >
-                            <RefreshCw className="w-3.5 h-3.5 text-red-500" />
+                            <RefreshIcon className="w-3.5 h-3.5 text-red-500" />
                           </button>
                         </div>
                       )}

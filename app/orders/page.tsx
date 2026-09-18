@@ -23,28 +23,8 @@ import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
-import {
-  ShoppingCart,
-  Plus,
-  Trash2,
-  Edit2,
-  ChevronRight,
-  Link2,
-  X,
-  Package,
-  CreditCard,
-  User,
-  Store,
-  Copy,
-  Banknote,
-  ClipboardList,
-  Printer,
-  RefreshCw,
-  SlidersHorizontal,
-  Repeat,
-  FilterX,
-  Mail,
-} from 'lucide-react';
+import { SlidersHorizontal, Repeat, FilterX } from 'lucide-react';
+import { AddIcon, ChecklistIcon, ChevronRightIcon, CloseIcon, CopyIcon, DeleteIcon, EditIcon, EmailIcon, LinkIcon, MoneyIcon, OrderIcon, ParcelIcon, PaymentIcon, PrintIcon, RefreshIcon, StoreIcon, UserIcon } from '@/lib/icons';
 import Pagination from '@/app/components/Pagination';
 import PlatformChipFilter from '@/app/components/PlatformChipFilter';
 import SearchableDropdown, { DropdownOption } from '@/components/ui/SearchableDropdown';
@@ -456,7 +436,7 @@ function OrdersPageContent() {
     const isCreditFlowOrder = ['w_credit', 'c_consign', 'd_statement'].includes(order.flow_type || '');
     if (statusFilter === 'new' && !isMarketplace && order.payment_status === 'pending' && !isCreditFlowOrder) {
       primaryActions.push(
-        <Button variant="success" icon={<CreditCard className="w-4 h-4" />} key="pay" onClick={(e) => { e.stopPropagation(); handlePaymentStatusClick(order); }} aria-label="บันทึกชำระ">
+        <Button variant="success" icon={<PaymentIcon className="w-4 h-4" />} key="pay" onClick={(e) => { e.stopPropagation(); handlePaymentStatusClick(order); }} aria-label="บันทึกชำระ">
           <span className="hidden md:inline">บันทึกชำระ</span>
         </Button>
       );
@@ -465,7 +445,7 @@ function OrdersPageContent() {
     // Primary: Accept order (manual, new tab, credit flow — ship first pay later)
     if (statusFilter === 'new' && !isMarketplace && isCreditFlowOrder) {
       primaryActions.push(
-        <Button variant="indigo" icon={<Package className="w-4 h-4" />} key="accept" onClick={(e) => { e.stopPropagation(); handleOrderStatusClick(order); }} aria-label="รับออเดอร์">
+        <Button variant="indigo" icon={<ParcelIcon className="w-4 h-4" />} key="accept" onClick={(e) => { e.stopPropagation(); handleOrderStatusClick(order); }} aria-label="รับออเดอร์">
           <span className="hidden md:inline">รับออเดอร์</span>
         </Button>
       );
@@ -474,7 +454,7 @@ function OrdersPageContent() {
     // Primary: Complete action (shipping tab)
     if (statusFilter === 'shipping' && !isMarketplace) {
       primaryActions.push(
-        <Button variant="success" icon={<Package className="w-4 h-4" />} key="complete" onClick={(e) => { e.stopPropagation(); handleOrderStatusClick(order); }} aria-label="สำเร็จ">
+        <Button variant="success" icon={<ParcelIcon className="w-4 h-4" />} key="complete" onClick={(e) => { e.stopPropagation(); handleOrderStatusClick(order); }} aria-label="สำเร็จ">
           <span className="hidden md:inline">สำเร็จ</span>
         </Button>
       );
@@ -483,7 +463,7 @@ function OrdersPageContent() {
     // === Section 1: เอกสารจัดส่ง ===
     if (['processing', 'shipping', 'completed'].includes(order.order_status)) {
       menuItems.push({
-        key: 'packing', label: 'ใบจัดของ', icon: <ClipboardList className="w-4 h-4" />,
+        key: 'packing', label: 'ใบจัดของ', icon: <ChecklistIcon className="w-4 h-4" />,
         onClick: (e) => { e.stopPropagation(); handlePrintPackingList(order.id); },
       });
     }
@@ -491,12 +471,12 @@ function OrdersPageContent() {
       const sourceLabel = isMarketplace ? ` ${order.source === 'tiktok' ? 'TikTok Shop' : order.source === 'line_shopping' ? 'LINE Shopping' : order.source?.charAt(0).toUpperCase() + (order.source?.slice(1) || '')}` : '';
       if (isMarketplace) {
         menuItems.push({
-          key: 'label', label: `ใบปะหน้า${sourceLabel}`, icon: <Printer className="w-4 h-4" />,
+          key: 'label', label: `ใบปะหน้า${sourceLabel}`, icon: <PrintIcon className="w-4 h-4" />,
           onClick: (e) => { e.stopPropagation(); handlePrintShopeeLabel(order.id, order.source); },
         });
       } else {
         menuItems.push({
-          key: 'label', label: 'ใบปะหน้า', icon: <Printer className="w-4 h-4" />,
+          key: 'label', label: 'ใบปะหน้า', icon: <PrintIcon className="w-4 h-4" />,
           onClick: (e) => { e.stopPropagation(); handlePrintShippingLabel(order.id); },
         });
       }
@@ -506,7 +486,7 @@ function OrdersPageContent() {
     // ร้านมักเตรียมซองตั้งแต่ก่อนแพ็ค)
     if (order.document_by_post) {
       menuItems.push({
-        key: 'doc-envelope', label: 'ใบปะหน้าซองเอกสาร', icon: <Mail className="w-4 h-4" />,
+        key: 'doc-envelope', label: 'ใบปะหน้าซองเอกสาร', icon: <EmailIcon className="w-4 h-4" />,
         onClick: (e) => { e.stopPropagation(); handlePrint(order.id, 'doc_envelope'); },
       });
     }
@@ -518,7 +498,7 @@ function OrdersPageContent() {
 
     if (order.payment_status !== 'paid') {
       menuItems.push({
-        key: 'invoice', label: 'ใบแจ้งหนี้', icon: <Banknote className="w-4 h-4" />,
+        key: 'invoice', label: 'ใบแจ้งหนี้', icon: <MoneyIcon className="w-4 h-4" />,
         onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id); },
       });
     } else if (vatRegistered) {
@@ -526,24 +506,24 @@ function OrdersPageContent() {
       if (!hasFullTax) {
         // ยังไม่ออกแบบเต็ม → แสดง ABB + ออกใบกำกับแบบเต็ม
         menuItems.push({
-          key: 'abbreviated-invoice', label: 'ใบกำกับอย่างย่อ', icon: <Banknote className="w-4 h-4" />,
+          key: 'abbreviated-invoice', label: 'ใบกำกับอย่างย่อ', icon: <MoneyIcon className="w-4 h-4" />,
           onClick: (e) => { e.stopPropagation(); handlePrintAbbreviatedInvoice(order.id); },
         });
         menuItems.push({
-          key: 'full-invoice', label: 'ออกใบกำกับแบบเต็ม', primary: true, icon: <Banknote className="w-4 h-4" />,
+          key: 'full-invoice', label: 'ออกใบกำกับแบบเต็ม', primary: true, icon: <MoneyIcon className="w-4 h-4" />,
           onClick: async (e) => { e.stopPropagation(); const ok = await confirm({ title: 'ออกใบกำกับภาษีแบบเต็ม', description: 'หากออกใบกำกับแบบเต็มแล้ว ระบบจะยกเลิก (void) ใบกำกับภาษีอย่างย่อให้อัตโนมัติ', confirmLabel: 'ออกใบกำกับแบบเต็ม' }); if (!ok) return; setTaxInvoiceModal({ orderId: order.id, orderNumber: order.order_number, customerId: order.customer_id, hasAbbrev: docType === 'abbreviated' && !order.tax_invoice_voided_at }); },
         });
       } else {
         // ออกแบบเต็มแล้ว → แสดงแค่ใบกำกับแบบเต็ม (ซ่อน ABB)
         menuItems.push({
-          key: 'full-invoice', label: 'ใบกำกับแบบเต็ม', icon: <Banknote className="w-4 h-4" />,
+          key: 'full-invoice', label: 'ใบกำกับแบบเต็ม', icon: <MoneyIcon className="w-4 h-4" />,
           onClick: (e) => { e.stopPropagation(); handlePrintFullTaxInvoice(order.id); },
         });
       }
     } else {
       // ไม่จด VAT + paid: ใบเสร็จรับเงินอย่างเดียว
       menuItems.push({
-        key: 'receipt', label: 'ใบเสร็จรับเงิน', icon: <Banknote className="w-4 h-4" />,
+        key: 'receipt', label: 'ใบเสร็จรับเงิน', icon: <MoneyIcon className="w-4 h-4" />,
         onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id); },
       });
     }
@@ -564,7 +544,7 @@ function OrdersPageContent() {
             className="p-2 text-gray-500 hover:text-primary rounded-lg transition-colors"
             aria-label="คัดลอกลิงก์บิลออนไลน์"
           >
-            <Link2 className="w-4 h-4" />
+            <LinkIcon className="w-4 h-4" />
           </button>
         </Tooltip>
       );
@@ -575,13 +555,13 @@ function OrdersPageContent() {
       const section3Start = menuItems.length;
       if (order.order_status !== 'cancelled') {
         menuItems.push({
-          key: 'edit', label: 'แก้ไข', icon: <Edit2 className="w-4 h-4" />,
+          key: 'edit', label: 'แก้ไข', icon: <EditIcon className="w-4 h-4" />,
           onClick: (e) => { e.stopPropagation(); router.push(`/orders/${order.id}/edit`); },
         });
       }
       if (!['ready_to_ship', 'processing', 'shipping'].includes(statusFilter)) {
         menuItems.push({
-          key: 'duplicate', label: 'สั่งซ้ำ', icon: <Copy className="w-4 h-4" />,
+          key: 'duplicate', label: 'สั่งซ้ำ', icon: <CopyIcon className="w-4 h-4" />,
           onClick: (e) => { e.stopPropagation(); router.push(`/orders/new?duplicate=${order.id}`); },
         });
       }
@@ -593,7 +573,7 @@ function OrdersPageContent() {
       const section4Start = menuItems.length;
       if (!['cancelled', 'completed'].includes(order.order_status)) {
         menuItems.push({
-          key: 'cancel', label: 'ยกเลิก', icon: <Trash2 className="w-4 h-4" />,
+          key: 'cancel', label: 'ยกเลิก', icon: <DeleteIcon className="w-4 h-4" />,
           onClick: async (e) => {
             e.stopPropagation();
             const ok = await confirm({ title: `ยกเลิกคำสั่งซื้อ "${order.order_number}"?`, description: 'ต้องการยกเลิกคำสั่งซื้อนี้หรือไม่', variant: 'danger' });
@@ -617,7 +597,7 @@ function OrdersPageContent() {
       }
       if (order.order_status === 'cancelled' && can(userProfile, 'order.delete')) {
         menuItems.push({
-          key: 'del', label: 'ลบ', icon: <Trash2 className="w-4 h-4" />,
+          key: 'del', label: 'ลบ', icon: <DeleteIcon className="w-4 h-4" />,
           onClick: (e) => handleDeleteOrder(e, order),
           danger: true,
         });
@@ -675,7 +655,7 @@ function OrdersPageContent() {
       const isFiltered = !!(searchTerm || statusFilter !== 'all' || paymentFilter !== 'all' || channelFilter !== 'all' || createdByFilter !== 'all' || deliveryDateRange?.startDate);
       return (
         <EmptyCard
-          icon={<ShoppingCart className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+          icon={<OrderIcon className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
           title={isFiltered ? 'ไม่พบคำสั่งซื้อที่ค้นหา' : 'ยังไม่มีคำสั่งซื้อ'}
         />
       );
@@ -727,7 +707,7 @@ function OrdersPageContent() {
       <Container size="full">
         <PageHeader
           title="คำสั่งซื้อ"
-          icon={<ShoppingCart />}
+          icon={<OrderIcon />}
           actions={<>
             {/* box="inline-flex" — ปุ่มนี้ disabled ตอนกำลังโหลด ซึ่งไม่ยิง pointer event ต้องมีกล่องครอบถึงจะ hover ติด */}
             <Tooltip text="รีเฟรช" box="inline-flex">
@@ -738,12 +718,12 @@ function OrdersPageContent() {
                 aria-label="รีเฟรช"
                 className="text-gray-500 hover:text-primary dark:text-slate-400 dark:hover:text-primary disabled:opacity-50 transition-colors"
               >
-                <RefreshCw className={`w-5 h-5 ${fetching ? 'animate-spin' : ''}`} />
+                <RefreshIcon className={`w-5 h-5 ${fetching ? 'animate-spin' : ''}`} />
               </button>
             </Tooltip>
             <Button
               variant="primary"
-              icon={<Plus className="w-5 h-5" />}
+              icon={<AddIcon className="w-5 h-5" />}
               onClick={() => router.push('/orders/new')}
               onMouseEnter={() => {
                 // Warm the page bundle and prime the API cache so a click
@@ -800,9 +780,9 @@ function OrdersPageContent() {
                   placeholder="ทุกช่องทาง"
                   searchPlaceholder="ค้นหาช่องทาง..."
                   allLabel="ทุกช่องทาง"
-                  defaultIcon={<Store className="w-4 h-4" />}
+                  defaultIcon={<StoreIcon className="w-4 h-4" />}
                   extraOptions={[
-                    { id: 'none', label: 'เปิดบิลตรง', icon: <div className="w-6 h-6 rounded-full bg-gray-100 dark:bg-slate-600 flex items-center justify-center flex-shrink-0"><X className="w-3.5 h-3.5 text-gray-400 dark:text-slate-400" /></div> },
+                    { id: 'none', label: 'เปิดบิลตรง', icon: <div className="w-6 h-6 rounded-full bg-gray-100 dark:bg-slate-600 flex items-center justify-center flex-shrink-0"><CloseIcon className="w-3.5 h-3.5 text-gray-400 dark:text-slate-400" /></div> },
                   ]}
                 />
               </div>
@@ -858,9 +838,9 @@ function OrdersPageContent() {
                   placeholder="ทุกช่องทาง"
                   searchPlaceholder="ค้นหาช่องทาง..."
                   allLabel="ทุกช่องทาง"
-                  defaultIcon={<Store className="w-4 h-4" />}
+                  defaultIcon={<StoreIcon className="w-4 h-4" />}
                   extraOptions={[
-                    { id: 'none', label: 'เปิดบิลตรง', icon: <div className="w-6 h-6 rounded-full bg-gray-100 dark:bg-slate-600 flex items-center justify-center flex-shrink-0"><X className="w-3.5 h-3.5 text-gray-400 dark:text-slate-400" /></div> },
+                    { id: 'none', label: 'เปิดบิลตรง', icon: <div className="w-6 h-6 rounded-full bg-gray-100 dark:bg-slate-600 flex items-center justify-center flex-shrink-0"><CloseIcon className="w-3.5 h-3.5 text-gray-400 dark:text-slate-400" /></div> },
                   ]}
                 />
               </div>
@@ -920,7 +900,7 @@ function OrdersPageContent() {
                 placeholder="ทั้งหมด"
                 clearLabel="ทั้งหมด"
                 clearValue="all"
-                icon={<CreditCard className="w-4 h-4" />}
+                icon={<PaymentIcon className="w-4 h-4" />}
                 searchThreshold={99}
                 portal
               />
@@ -953,10 +933,10 @@ function OrdersPageContent() {
                   options={createdByDropdownOptions}
                   placeholder="ทั้งหมด"
                   searchPlaceholder="ค้นหาชื่อ..."
-                  defaultIcon={<User className="w-4 h-4" />}
+                  defaultIcon={<UserIcon className="w-4 h-4" />}
                 />
               ) : (
-                <FormSelect value="" onChange={() => {}} options={[]} placeholder="ทั้งหมด" disabled icon={<User className="w-4 h-4" />} searchThreshold={99} portal />
+                <FormSelect value="" onChange={() => {}} options={[]} placeholder="ทั้งหมด" disabled icon={<UserIcon className="w-4 h-4" />} searchThreshold={99} portal />
               )}
             </div>
             {/* Delivery date */}
@@ -1062,7 +1042,7 @@ function OrdersPageContent() {
             <div className="flex items-center gap-2">
               <span className="subtitle-text">เปลี่ยนจาก:</span>
               <OrderStatusBadge status={statusUpdateModal.order?.order_status || ''} />
-              <ChevronRight className="w-4 h-4 text-gray-400" />
+              <ChevronRightIcon className="w-4 h-4 text-gray-400" />
               <OrderStatusBadge status={statusUpdateModal.nextStatus} />
             </div>
 

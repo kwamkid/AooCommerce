@@ -14,7 +14,7 @@ import { generateInventoryPdf } from '@/lib/inventory-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
 import { statusLabel, statusColorClass } from '@/lib/status-labels';
 import { QRCodeSVG } from 'qrcode.react';
-import { Warehouse, CheckCircle2, XCircle, Truck, User, ArrowLeft, Printer, Link2, Copy, Check } from 'lucide-react';
+import { BackIcon, ConfirmIcon, CopyIcon, ErrorIcon, LinkIcon, PrintIcon, ShippingIcon, SuccessIcon, UserIcon, WarehouseIcon } from '@/lib/icons';
 import { flattenVariationItem, productDisplayName, productSubtitle } from '../../components/types';
 import Button from '@/components/ui/Button';
 import SaveButton from '@/components/ui/SaveButton';
@@ -349,7 +349,7 @@ export default function TransferDetailPage() {
         ]}
       >
         <div className="text-center py-16">
-          <XCircle className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
+          <ErrorIcon className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
           <p className="text-gray-500 dark:text-slate-400">ไม่พบใบโอนย้ายนี้</p>
           <button
             onClick={() => router.push('/inventory/transfers')}
@@ -379,12 +379,12 @@ export default function TransferDetailPage() {
             size="sm"
             variant="ghost"
             onClick={() => router.push('/inventory/transfers')}
-            icon={<ArrowLeft className="w-4 h-4" />}
+            icon={<BackIcon className="w-4 h-4" />}
           >
             กลับ
           </Button>
           <div className="flex items-center gap-2">
-            <Button size="sm" loading={generatingPdf} onClick={handlePrint} icon={<Printer className="w-4 h-4" />}>
+            <Button size="sm" loading={generatingPdf} onClick={handlePrint} icon={<PrintIcon className="w-4 h-4" />}>
               พิมพ์
             </Button>
             {transfer.status === 'pending' && (
@@ -392,7 +392,7 @@ export default function TransferDetailPage() {
                 <Button size="sm" variant="danger" onClick={confirmCancelTransfer}>
                   ยกเลิก
                 </Button>
-                <Button size="sm" variant="primary" onClick={handleShip} loading={shipping} icon={<Truck className="w-4 h-4" />}>
+                <Button size="sm" variant="primary" onClick={handleShip} loading={shipping} icon={<ShippingIcon className="w-4 h-4" />}>
                   จัดส่ง
                 </Button>
               </>
@@ -403,7 +403,7 @@ export default function TransferDetailPage() {
               </Button>
             )}
             {transfer.status === 'pending_confirm' && (
-              <Button size="sm" variant="success" onClick={handleConfirm} loading={confirming} icon={<CheckCircle2 className="w-4 h-4" />}>
+              <Button size="sm" variant="success" onClick={handleConfirm} loading={confirming} icon={<SuccessIcon className="w-4 h-4" />}>
                 ยืนยันรับสินค้า
               </Button>
             )}
@@ -420,7 +420,7 @@ export default function TransferDetailPage() {
         {transfer.status === 'shipping' && (
           <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
             <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-              <Link2 className="w-4 h-4 text-blue-500" />
+              <LinkIcon className="w-4 h-4 text-blue-500" />
               ลิงก์รับสินค้า (ส่งให้ผู้รับสแกน QR)
             </h3>
             <div className="flex flex-col sm:flex-row items-center gap-4">
@@ -440,7 +440,7 @@ export default function TransferDetailPage() {
                     size="sm"
                     variant="secondary"
                     onClick={handleCopyLink}
-                    icon={copiedLink ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    icon={copiedLink ? <ConfirmIcon className="w-4 h-4" /> : <CopyIcon className="w-4 h-4" />}
                     className="flex-shrink-0"
                   >
                     {copiedLink ? 'คัดลอกแล้ว' : 'คัดลอก'}
@@ -457,7 +457,7 @@ export default function TransferDetailPage() {
             <div>
               <label className="data-label text-gray-500 dark:text-slate-400 uppercase mb-1 block">คลังต้นทาง</label>
               <div className="flex items-center gap-2">
-                <Warehouse className="w-4 h-4 text-gray-400" />
+                <WarehouseIcon className="w-4 h-4 text-gray-400" />
                 <span className="data-primary text-gray-900 dark:text-white">
                   {transfer.from_warehouse?.name || '-'}
                 </span>
@@ -466,7 +466,7 @@ export default function TransferDetailPage() {
             <div>
               <label className="data-label text-gray-500 dark:text-slate-400 uppercase mb-1 block">คลังปลายทาง</label>
               <div className="flex items-center gap-2">
-                <Warehouse className="w-4 h-4 text-gray-400" />
+                <WarehouseIcon className="w-4 h-4 text-gray-400" />
                 <span className="data-primary text-gray-900 dark:text-white">
                   {transfer.to_warehouse?.name || '-'}
                 </span>
@@ -475,7 +475,7 @@ export default function TransferDetailPage() {
             <div>
               <label className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1 block">สร้างโดย</label>
               <div className="flex items-center gap-2">
-                <User className="w-4 h-4 text-gray-400" />
+                <UserIcon className="w-4 h-4 text-gray-400" />
                 <span className="text-sm text-gray-700 dark:text-slate-300">
                   {transfer.created_by_user?.name || '-'}
                 </span>

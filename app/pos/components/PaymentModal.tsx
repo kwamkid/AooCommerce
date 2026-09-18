@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Loader2, Plus, Trash2, Download } from 'lucide-react';
+import { AddIcon, DeleteIcon, DownloadIcon, LoadingIcon } from '@/lib/icons';
 import FormSelect from '@/components/ui/FormSelect';
 import NumberInput from '@/components/ui/NumberInput';
 import Modal from '@/components/ui/Modal';
@@ -143,7 +143,7 @@ export default function PaymentModal({ totalAmount, onConfirm, onClose, loading,
     return (
       <Modal open={true} onClose={onClose} hideCloseButton size="sm" disableBackdropClose>
         <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto" />
+          <LoadingIcon className="w-8 h-8 animate-spin text-primary mx-auto" />
           <p className="text-gray-500 dark:text-gray-400 mt-3 text-sm">กำลังโหลดช่องทางชำระเงิน...</p>
         </div>
       </Modal>
@@ -290,7 +290,7 @@ export default function PaymentModal({ totalAmount, onConfirm, onClose, loading,
                       }}
                       className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 transition-colors"
                     >
-                      <Download className="w-4 h-4" />
+                      <DownloadIcon className="w-4 h-4" />
                       บันทึก QR เป็นรูป
                     </button>
                   </div>
@@ -326,7 +326,7 @@ export default function PaymentModal({ totalAmount, onConfirm, onClose, loading,
               className="w-full mt-3 py-4 bg-primary hover:bg-primary-hover text-white font-bold text-lg rounded-xl transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
-                <><Loader2 className="w-5 h-5 animate-spin" /> กำลังดำเนินการ...</>
+                <><LoadingIcon className="w-5 h-5 animate-spin" /> กำลังดำเนินการ...</>
               ) : (
                 'ยืนยันชำระเงิน'
               )}
@@ -358,7 +358,7 @@ export default function PaymentModal({ totalAmount, onConfirm, onClose, loading,
                     className="flex-1 px-3 py-1.5 bg-white dark:bg-white/10 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white text-sm text-right focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                   <button onClick={() => removeSplitTender(idx)} className="text-gray-400 hover:text-red-500 dark:hover:text-red-400">
-                    <Trash2 className="w-4 h-4" />
+                    <DeleteIcon className="w-4 h-4" />
                   </button>
                 </div>
               ))}
@@ -368,7 +368,7 @@ export default function PaymentModal({ totalAmount, onConfirm, onClose, loading,
               onClick={addSplitTender}
               className="w-full py-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-xl text-gray-500 dark:text-gray-400 text-sm flex items-center justify-center gap-2 hover:border-gray-400 hover:text-gray-700 dark:hover:text-white"
             >
-              <Plus className="w-4 h-4" /> เพิ่มช่องทาง
+              <AddIcon className="w-4 h-4" /> เพิ่มช่องทาง
             </button>
 
             {/* Split remaining */}
@@ -392,7 +392,7 @@ export default function PaymentModal({ totalAmount, onConfirm, onClose, loading,
                 disabled={!canConfirmSplit || loading}
                 className="flex-1 py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'ยืนยัน'}
+                {loading ? <LoadingIcon className="w-5 h-5 animate-spin" /> : 'ยืนยัน'}
               </button>
             </div>
           </div>

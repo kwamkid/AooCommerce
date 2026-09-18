@@ -21,13 +21,11 @@ import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { downloadBlob } from '@/lib/utils/download';
 import { formatNumber } from '@/lib/utils/format';
-import {
-  Check, AlertCircle, Pencil, ShieldAlert, Star, Tag, Package2,
-  Warehouse as WarehouseIcon,
-} from 'lucide-react';
+import { ShieldAlert } from 'lucide-react';
+import { AlertIcon, ConfirmIcon, EditIcon, ProductIcon, StarIcon, TagIcon, WarehouseIcon } from '@/lib/icons';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 
-interface Warehouse {
+interface WarehouseIcon {
   id: string;
   name: string;
   code?: string | null;
@@ -74,10 +72,10 @@ const PREVIEW_PAGE_SIZE = 50;
 /** ผลลัพธ์ต่อแถว — ใช้ทั้งพรีวิวและหน้าสรุปหลังบันทึก */
 function ResultBadge({ action }: { action: ResultRow['action'] }) {
   if (action === 'updated') {
-    return <Badge tone="blue" icon={<Pencil className="w-3.5 h-3.5" />}>แก้ไข</Badge>;
+    return <Badge tone="blue" icon={<EditIcon className="w-3.5 h-3.5" />}>แก้ไข</Badge>;
   }
   if (action === 'error') {
-    return <Badge tone="red" icon={<AlertCircle className="w-3.5 h-3.5" />}>ผิดพลาด</Badge>;
+    return <Badge tone="red" icon={<AlertIcon className="w-3.5 h-3.5" />}>ผิดพลาด</Badge>;
   }
   return <Badge tone="gray">ไม่เปลี่ยน</Badge>;
 }
@@ -213,7 +211,7 @@ function ResultTable({ rows, storageKey }: { rows: ResultRow[]; storageKey: stri
       onRecordsPerPageChange={(limit) => { setPerPage(limit); setPage(1); }}
       onLimitChange={(limit, p) => { setPerPage(limit); setPage(p); }}
       emptyMessage="ไม่มีรายการ"
-      emptyIcon={<Package2 className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+      emptyIcon={<ProductIcon className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
     />
   );
 }
@@ -223,7 +221,7 @@ export default function BulkStockUpdatePage() {
   const { userProfile } = useAuth();
   const { showToast } = useToast();
 
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [warehouses, setWarehouses] = useState<WarehouseIcon[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [warehouseIds, setWarehouseIds] = useState<string[]>([]);
   const [brandIds, setBrandIds] = useState<string[]>([]);
@@ -248,7 +246,7 @@ export default function BulkStockUpdatePage() {
         ]);
         const whData = await whRes.json();
         const brData = await brRes.json();
-        const whList: Warehouse[] = whData.warehouses || [];
+        const whList: WarehouseIcon[] = whData.warehouses || [];
         setWarehouses(whList);
         setBrands(brData.data || []);
         const def = whList.find(w => w.is_default) || whList[0];
@@ -263,7 +261,7 @@ export default function BulkStockUpdatePage() {
     id: w.id,
     label: w.name,
     subtitle: w.code || undefined,
-    icon: w.is_default ? <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" /> : undefined,
+    icon: w.is_default ? <StarIcon className="w-3.5 h-3.5 text-amber-500 fill-amber-500" /> : undefined,
   })), [warehouses]);
 
   const brandOptions = useMemo(() => brands.map(b => ({
@@ -295,7 +293,7 @@ export default function BulkStockUpdatePage() {
         properties: { defaultColWidth: 14 },
       });
 
-      const exportWarehouses: Warehouse[] = data.warehouses || [];
+      const exportWarehouses: WarehouseIcon[] = data.warehouses || [];
       type Item = {
         product_id: string;
         variation_id: string;
@@ -694,7 +692,7 @@ export default function BulkStockUpdatePage() {
                   placeholder="ทุกแบรนด์ (กดเพื่อเลือกกรอง)"
                   emptyLabel="ทุกแบรนด์ (ไม่กรอง)"
                   searchPlaceholder="ค้นหาแบรนด์..."
-                  icon={<Tag className="w-4 h-4" />}
+                  icon={<TagIcon className="w-4 h-4" />}
                 />
               </div>
 
@@ -747,7 +745,7 @@ export default function BulkStockUpdatePage() {
                 <>
                   <Badge tone="amber">Stock เป็นข้อมูลสำคัญ — โปรดตรวจสอบ</Badge>
                   {dryRun.summary.updated > 0 && (
-                    <Badge tone="blue" icon={<Pencil className="w-3.5 h-3.5" />}>
+                    <Badge tone="blue" icon={<EditIcon className="w-3.5 h-3.5" />}>
                       แก้ไข {dryRun.summary.updated}
                     </Badge>
                   )}
@@ -758,7 +756,7 @@ export default function BulkStockUpdatePage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      icon={<AlertCircle className="w-4 h-4" />}
+                      icon={<AlertIcon className="w-4 h-4" />}
                       onClick={showDryRunErrors}
                       className="text-red-600 dark:text-red-400"
                     >
@@ -792,7 +790,7 @@ export default function BulkStockUpdatePage() {
               <EmptyCard
                 title="ไม่มีการเปลี่ยนแปลง"
                 subtitle="ข้อมูลในไฟล์ตรงกับระบบแล้ว"
-                icon={<Check className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+                icon={<ConfirmIcon className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
               />
             )}
           </div>

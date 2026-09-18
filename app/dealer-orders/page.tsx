@@ -8,10 +8,7 @@ import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
-import {
-  ShoppingBag, Search, Plus, Package, Loader2, CreditCard,
-  Banknote, XCircle, Trash2, Send, Printer, FileText, ClipboardList, X, UserPlus,
-} from 'lucide-react';
+import { AddIcon, ChecklistIcon, CloseIcon, DeleteIcon, DocumentIcon, MoneyIcon, ParcelIcon, PaymentIcon, PrintIcon, ProductIcon, SearchIcon, SendIcon, UserAddIcon, WholesaleIcon } from '@/lib/icons';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import FormSelect from '@/components/ui/FormSelect';
 import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
@@ -66,19 +63,19 @@ function getFocusAction(order: WholesaleOrder): { label: string; icon: React.Rea
   const { order_status, payment_status, flow_type } = order;
   // ใหม่ + รอชำระ (เงินสดเท่านั้น) → ยืนยันชำระ
   if (order_status === 'new' && payment_status === 'pending') {
-    return { label: 'ยืนยันชำระ', icon: <Banknote className="w-3.5 h-3.5" />, action: 'confirm_payment', variant: 'success' };
+    return { label: 'ยืนยันชำระ', icon: <MoneyIcon className="w-3.5 h-3.5" />, action: 'confirm_payment', variant: 'success' };
   }
   // รอคอนเฟิร์ม → คอนเฟิร์มออเดอร์
   if (order_status === 'ready_to_ship') {
-    return { label: 'คอนเฟิร์มออเดอร์', icon: <Package className="w-3.5 h-3.5" />, action: 'accept', variant: 'indigo' };
+    return { label: 'คอนเฟิร์มออเดอร์', icon: <ParcelIcon className="w-3.5 h-3.5" />, action: 'accept', variant: 'indigo' };
   }
   // ที่ต้องจัดส่ง → จัดส่งแล้ว (ไปสำเร็จเลย)
   if (order_status === 'processing') {
-    return { label: 'จัดส่ง', icon: <Send className="w-3.5 h-3.5" />, action: 'ship_complete', variant: 'amber' };
+    return { label: 'จัดส่ง', icon: <SendIcon className="w-3.5 h-3.5" />, action: 'ship_complete', variant: 'amber' };
   }
   // สำเร็จ + เครดิต + ยังไม่ชำระ → บันทึกชำระ
   if (order_status === 'completed' && flow_type === 'w_credit' && payment_status === 'pending') {
-    return { label: 'บันทึกชำระ', icon: <Banknote className="w-3.5 h-3.5" />, action: 'confirm_payment', variant: 'success' };
+    return { label: 'บันทึกชำระ', icon: <MoneyIcon className="w-3.5 h-3.5" />, action: 'confirm_payment', variant: 'success' };
   }
   return null;
 }
@@ -247,10 +244,10 @@ export default function DealerOrdersPage() {
 
     // === Financial documents ===
     if (hasProcessed) {
-      items.push({ key: 'print_tax', label: 'ใบกำกับภาษี/ใบแจ้งหนี้', icon: <FileText className="w-4 h-4" />, onClick: () => handlePrint(order.id, 'tax') });
-      items.push({ key: 'print_dn', label: 'ใบส่งสินค้า', icon: <FileText className="w-4 h-4" />, onClick: () => handlePrint(order.id, 'dn') });
+      items.push({ key: 'print_tax', label: 'ใบกำกับภาษี/ใบแจ้งหนี้', icon: <DocumentIcon className="w-4 h-4" />, onClick: () => handlePrint(order.id, 'tax') });
+      items.push({ key: 'print_dn', label: 'ใบส่งสินค้า', icon: <DocumentIcon className="w-4 h-4" />, onClick: () => handlePrint(order.id, 'dn') });
       items.push({
-        key: 'print_all', label: 'พิมพ์ทั้งหมด', icon: <Printer className="w-4 h-4" />,
+        key: 'print_all', label: 'พิมพ์ทั้งหมด', icon: <PrintIcon className="w-4 h-4" />,
         primary: true,
         onClick: () => handlePrint(order.id, 'all'),
       });
@@ -258,13 +255,13 @@ export default function DealerOrdersPage() {
 
     // === Shipping documents ===
     if (hasProcessed) {
-      items.push({ key: 'print_packing', label: 'ใบจัดของ', icon: <ClipboardList className="w-4 h-4" />, dividerBefore: true, onClick: () => handlePrint(order.id, 'packing') });
-      items.push({ key: 'print_label', label: 'ใบปะหน้า', icon: <Printer className="w-4 h-4" />, onClick: () => handlePrint(order.id, 'label') });
+      items.push({ key: 'print_packing', label: 'ใบจัดของ', icon: <ChecklistIcon className="w-4 h-4" />, dividerBefore: true, onClick: () => handlePrint(order.id, 'packing') });
+      items.push({ key: 'print_label', label: 'ใบปะหน้า', icon: <PrintIcon className="w-4 h-4" />, onClick: () => handlePrint(order.id, 'label') });
     }
 
     // === Cancel ===
     if (canCancel) {
-      items.push({ key: 'cancel', label: 'ยกเลิกออเดอร์', icon: <Trash2 className="w-4 h-4" />, danger: true, dividerBefore: true, onClick: (e) => { e?.stopPropagation(); handleAction(order, 'cancel'); } });
+      items.push({ key: 'cancel', label: 'ยกเลิกออเดอร์', icon: <DeleteIcon className="w-4 h-4" />, danger: true, dividerBefore: true, onClick: (e) => { e?.stopPropagation(); handleAction(order, 'cancel'); } });
     }
 
     return items;
@@ -277,15 +274,15 @@ export default function DealerOrdersPage() {
     <Layout>
       <Container size="full" gap="sm">
         <PageHeader
-          icon={<ShoppingBag />}
+          icon={<WholesaleIcon />}
           title="คำสั่งซื้อตัวแทนขายขาด"
           subtitle="ตัวแทนขายขาด (เงินสด / เครดิต)"
           actions={
             <>
-              <Button variant="secondary" icon={<UserPlus className="w-4 h-4" />} onClick={() => router.push('/customers/new?type=wholesale_dealer')}>
+              <Button variant="secondary" icon={<UserAddIcon className="w-4 h-4" />} onClick={() => router.push('/customers/new?type=wholesale_dealer')}>
                 เพิ่มตัวแทน
               </Button>
-              <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => router.push('/dealer-orders/new')}>
+              <Button variant="primary" icon={<AddIcon className="w-4 h-4" />} onClick={() => router.push('/dealer-orders/new')}>
                 สร้างคำสั่งซื้อ
               </Button>
             </>
@@ -303,14 +300,14 @@ export default function DealerOrdersPage() {
         <div className="data-filter-card">
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input type="text" value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
                 placeholder="ค้นหาเลขที่, ชื่อลูกค้า..."
                 className="w-full h-[42px] pl-9 pr-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/50" />
             </div>
             <div className="w-[140px] flex-shrink-0">
               <FormSelect value={flowFilter} onChange={(v) => { setFlowFilter(v); setPage(1); }}
-                options={FLOW_TYPE_OPTIONS} placeholder="ทั้งหมด" icon={<CreditCard className="w-4 h-4" />} />
+                options={FLOW_TYPE_OPTIONS} placeholder="ทั้งหมด" icon={<PaymentIcon className="w-4 h-4" />} />
             </div>
           </div>
         </div>
@@ -384,7 +381,7 @@ export default function DealerOrdersPage() {
           {...(isProcessingTab ? { selectedIds, onSelectionChange: setSelectedIds } : {})}
           rowClassName={(r) => r.order_status === 'cancelled' ? 'opacity-50' : ''}
           emptyMessage="ไม่มีคำสั่งซื้อ"
-          emptyIcon={<Package className="w-12 h-12 text-gray-300" />}
+          emptyIcon={<ProductIcon className="w-12 h-12 text-gray-300" />}
           currentPage={page}
           totalPages={totalPages}
           totalRecords={total}
@@ -407,7 +404,7 @@ export default function DealerOrdersPage() {
                     <OrderStatusBadge status={order.order_status} dealer />
                     {canCancel && (
                       <ActionMenu items={[
-                        { key: 'cancel', label: 'ยกเลิกออเดอร์', icon: <Trash2 className="w-4 h-4" />, danger: true, onClick: (e) => { e.stopPropagation(); handleAction(order, 'cancel'); } },
+                        { key: 'cancel', label: 'ยกเลิกออเดอร์', icon: <DeleteIcon className="w-4 h-4" />, danger: true, onClick: (e) => { e.stopPropagation(); handleAction(order, 'cancel'); } },
                       ]} />
                     )}
                   </div>
@@ -474,14 +471,14 @@ export default function DealerOrdersPage() {
         <div className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 shadow-lg px-4 py-3">
           <div className="max-w-7xl mx-auto flex items-center gap-3 flex-wrap">
             <button onClick={() => setSelectedIds(new Set())} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-500">
-              <X className="w-4 h-4" />
+              <CloseIcon className="w-4 h-4" />
             </button>
             <span className="text-sm font-medium text-gray-700 dark:text-slate-300">เลือก {selectedIds.size} รายการ</span>
             <div className="flex items-center gap-2 ml-auto">
-              <Button variant="primary" icon={<ClipboardList className="w-4 h-4" />} onClick={() => handleBulkPrint([...selectedIds], 'packing')}>
+              <Button variant="primary" icon={<ChecklistIcon className="w-4 h-4" />} onClick={() => handleBulkPrint([...selectedIds], 'packing')}>
                 ใบจัดของ ({selectedIds.size})
               </Button>
-              <Button variant="primary" icon={<Printer className="w-4 h-4" />} onClick={() => handleBulkPrint([...selectedIds], 'label')}>
+              <Button variant="primary" icon={<PrintIcon className="w-4 h-4" />} onClick={() => handleBulkPrint([...selectedIds], 'label')}>
                 ใบปะหน้า ({selectedIds.size})
               </Button>
             </div>

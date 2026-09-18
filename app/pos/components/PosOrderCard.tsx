@@ -5,7 +5,7 @@ import { formatPrice } from '@/lib/utils/format';
 import { useCopy } from '@/lib/useCopy';
 import { useToast } from '@/lib/toast-context';
 import { getStatusHeaderTint } from '@/lib/status-tab-colors';
-import { Eye, Printer, Ban, Loader2, Package, Store, Tag } from 'lucide-react';
+import { BanIcon, DiscountIcon, LoadingIcon, PrintIcon, ProductIcon, StoreIcon, ViewIcon } from '@/lib/icons';
 import StatusBadge from '@/components/ui/StatusBadge';
 import Badge from '@/components/ui/Badge';
 import { thumbUrl } from '@/lib/image-thumb';
@@ -106,11 +106,11 @@ export default function PosOrderCard({ order, onViewReceipt, onVoid, voidingId, 
           <StatusBadge domain="posOrder" status={order.order_status} />
           <Badge tone="blue" size="sm">{PAYMENT_LABELS[order.payment_method] || order.payment_method || 'เงินสด'}</Badge>
           {hasDiscount && (
-            <Badge tone="red" size="sm" icon={<Tag className="w-3 h-3" />}>-฿{formatPrice(order.discount_amount!)}</Badge>
+            <Badge tone="red" size="sm" icon={<DiscountIcon className="w-3 h-3" />}>-฿{formatPrice(order.discount_amount!)}</Badge>
           )}
           <div className="ml-auto flex items-center gap-2 flex-shrink-0">
             {order.pos_session?.terminal && (
-              <Badge tone="gray" size="sm" icon={<Store className="w-3 h-3" />}>{order.pos_session.terminal.name}</Badge>
+              <Badge tone="gray" size="sm" icon={<StoreIcon className="w-3 h-3" />}>{order.pos_session.terminal.name}</Badge>
             )}
             <span className="data-timestamp text-gray-400 dark:text-slate-500">
               {new Date(order.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
@@ -130,7 +130,7 @@ export default function PosOrderCard({ order, onViewReceipt, onVoid, voidingId, 
                   {item.product?.image ? (
                     <img src={thumbUrl(item.product.image, 96)} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                   ) : (
-                    <Package className="w-4 h-4 text-gray-300 dark:text-slate-500" />
+                    <ProductIcon className="w-4 h-4 text-gray-300 dark:text-slate-500" />
                   )}
                 </div>
                 <p className="data-primary text-gray-900 dark:text-slate-100 line-clamp-1 flex-1 min-w-0">
@@ -165,14 +165,14 @@ export default function PosOrderCard({ order, onViewReceipt, onVoid, voidingId, 
               className="p-1.5 text-gray-400 hover:text-primary transition-colors"
               title="ดูใบเสร็จ"
             >
-              <Eye className="w-4 h-4" />
+              <ViewIcon className="w-4 h-4" />
             </button>
             <button
               onClick={() => onViewReceipt(order.id)}
               className="p-1.5 text-gray-400 hover:text-primary transition-colors"
               title="พิมพ์"
             >
-              <Printer className="w-4 h-4" />
+              <PrintIcon className="w-4 h-4" />
             </button>
             {canVoid && order.order_status === 'completed' && (
               <button
@@ -182,9 +182,9 @@ export default function PosOrderCard({ order, onViewReceipt, onVoid, voidingId, 
                 title="Void"
               >
                 {voidingId === order.id ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <LoadingIcon className="w-4 h-4 animate-spin" />
                 ) : (
-                  <Ban className="w-4 h-4" />
+                  <BanIcon className="w-4 h-4" />
                 )}
               </button>
             )}

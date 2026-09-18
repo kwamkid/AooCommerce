@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Package2, Warehouse } from 'lucide-react';
+import { ProductIcon, WarehouseIcon } from '@/lib/icons';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import SaveButton from '@/components/ui/SaveButton';
@@ -136,7 +136,7 @@ export default function AdjustStockModal({ row, warehouses, initialWarehouseId, 
             src={row.image_url}
             alt={row.product_name}
             size="sm"
-            fallbackIcon={<Package2 className="w-4 h-4 text-gray-400" />}
+            fallbackIcon={<ProductIcon className="w-4 h-4 text-gray-400" />}
           />
           <div className="min-w-0">
             <p className="body-text font-medium text-gray-900 dark:text-white truncate">
@@ -153,7 +153,7 @@ export default function AdjustStockModal({ row, warehouses, initialWarehouseId, 
             onChange={handleWarehouseChange}
             options={warehouseOptions}
             placeholder="เลือกคลัง"
-            icon={<Warehouse className="w-4 h-4" />}
+            icon={<WarehouseIcon className="w-4 h-4" />}
             searchThreshold={7}
           />
         </div>

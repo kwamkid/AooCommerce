@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { ArrowRight } from 'lucide-react';
+import { ForwardIcon } from '@/lib/icons';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 
@@ -48,7 +48,7 @@ export default function BulkPreviewBar({
           <Button variant="secondary" onClick={onCancel}>
             ยกเลิก
           </Button>
-          <Button variant="primary" onClick={onConfirm} disabled={confirmDisabled} iconRight={<ArrowRight className="w-4 h-4" />}>
+          <Button variant="primary" onClick={onConfirm} disabled={confirmDisabled} iconRight={<ForwardIcon className="w-4 h-4" />}>
             {confirmLabel}
           </Button>
         </div>

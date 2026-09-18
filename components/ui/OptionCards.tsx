@@ -9,7 +9,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { Check } from 'lucide-react';
+import { ConfirmIcon } from '@/lib/icons';
 
 export interface OptionCardItem<T extends string = string> {
   /**
@@ -106,7 +106,7 @@ export default function OptionCards<T extends string>({
           // z-10 เพราะพรีวิวขนาด lg เป็นกรอบมีพื้นสีเต็มความกว้าง ติ๊กต้องลอยอยู่บนมัน
           const check = active && (
             <span className="absolute top-1 right-1 z-10 w-3.5 h-3.5 rounded-full bg-primary text-white flex items-center justify-center">
-              <Check className="w-2.5 h-2.5" strokeWidth={3.5} />
+              <ConfirmIcon className="w-2.5 h-2.5" strokeWidth={3.5} />
             </span>
           );
           const labelClass = active ? 'text-orange-700' : 'text-gray-700 dark:text-slate-300';

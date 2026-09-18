@@ -11,7 +11,8 @@ import { useCompany } from '@/lib/company-context';
 import { useToast } from '@/lib/toast-context';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import { apiFetch } from '@/lib/api-client';
-import { ArrowLeft, Clock, ListOrdered } from 'lucide-react';
+import { ListOrdered } from 'lucide-react';
+import { BackIcon, TimeIcon } from '@/lib/icons';
 import ThemeToggle from '@/components/ThemeToggle';
 
 import PosSaleScreen, { type PosSaleScreenHandle, type CheckoutPayload } from '@/components/pos/PosSaleScreen';
@@ -229,7 +230,7 @@ export default function PosPage() {
           onClick={() => router.push('/dashboard')}
           className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
         >
-          <ArrowLeft className="w-5 h-5" />
+          <BackIcon className="w-5 h-5" />
         </button>
         {currentCompany?.logo_url && (
           <img
@@ -262,7 +263,7 @@ export default function PosPage() {
           onClick={() => { setSessionModalMode('close'); setShowSessionModal(true); }}
           className="flex items-center gap-1.5 px-3 py-2 bg-red-600/20 rounded-lg text-red-400 text-sm hover:bg-red-600/30 transition-colors"
         >
-          <Clock className="w-4 h-4" />
+          <TimeIcon className="w-4 h-4" />
           <span className="hidden sm:inline">ปิดกะ</span>
         </button>
       </div>

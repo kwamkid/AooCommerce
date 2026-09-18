@@ -5,7 +5,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ShoppingBag } from 'lucide-react';
+import { CartIcon } from '@/lib/icons';
 import { useCart } from '@/lib/storefront-cart';
 import { storefrontHref } from '@/lib/storefront';
 
@@ -32,7 +32,7 @@ export default function CartBadge({ shop }: { shop: string }) {
       aria-label={hydrated && count > 0 ? `ตะกร้าสินค้า ${count} ชิ้น` : 'ตะกร้าสินค้า'}
     >
       <span className={`sf-cart-icon ${bump ? 'sf-bump' : ''}`} data-sf-cart-target="">
-        <ShoppingBag strokeWidth={1.75} aria-hidden="true" />
+        <CartIcon strokeWidth={1.75} aria-hidden="true" />
         {hydrated && count > 0 && (
           <span className="sf-cart-count">{count > 99 ? '99+' : count}</span>
         )}

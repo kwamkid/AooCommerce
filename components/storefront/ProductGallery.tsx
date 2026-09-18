@@ -8,7 +8,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeftIcon, ChevronRightIcon } from '@/lib/icons';
 import { thumbUrl } from '@/lib/image-thumb';
 import { SF_VARIATION_PICK_EVENT } from '@/lib/storefront';
 
@@ -94,7 +94,7 @@ export default function ProductGallery({ images, alt }: { images: string[]; alt:
             disabled={index === 0}
             onClick={() => scrollToIndex(index - 1)}
           >
-            <ChevronLeft size={20} />
+            <ChevronLeftIcon size={20} />
           </button>
           <button
             type="button"
@@ -103,7 +103,7 @@ export default function ProductGallery({ images, alt }: { images: string[]; alt:
             disabled={index === count - 1}
             onClick={() => scrollToIndex(index + 1)}
           >
-            <ChevronRight size={20} />
+            <ChevronRightIcon size={20} />
           </button>
         </>
       )}

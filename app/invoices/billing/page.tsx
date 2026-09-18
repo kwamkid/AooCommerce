@@ -8,7 +8,7 @@ import { LoadingCard } from '@/components/ui/StateCard';
 import PageHeader from '@/components/ui/PageHeader';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
-import { FileText, ExternalLink } from 'lucide-react';
+import { DocumentIcon, ExternalLinkIcon } from '@/lib/icons';
 import FormSelect from '@/components/ui/FormSelect';
 import SearchInput from '@/components/ui/SearchInput';
 import { getMonthOptions } from '@/lib/month-options';
@@ -87,7 +87,7 @@ export default function BillingInvoicesPage() {
     <Layout>
       <div className="space-y-6">
         <PageHeader
-          icon={<FileText />}
+          icon={<DocumentIcon />}
           title="ใบแจ้งหนี้"
           subtitle="INV-YYYYMM-NNNN"
         />
@@ -110,7 +110,7 @@ export default function BillingInvoicesPage() {
         </div>
 
         {loading ? (
-          <div className="flex justify-center py-16"><FileText className="w-8 h-8 text-gray-300 animate-pulse" /></div>
+          <div className="flex justify-center py-16"><DocumentIcon className="w-8 h-8 text-gray-300 animate-pulse" /></div>
         ) : rows.length === 0 ? (
           <div className="text-center py-16 text-gray-500 dark:text-slate-400 text-sm">ไม่พบใบแจ้งหนี้</div>
         ) : (
@@ -141,7 +141,7 @@ export default function BillingInvoicesPage() {
                         <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300 whitespace-nowrap">{formatDate(row.invoice_date)}</td>
                         <td className="px-6 py-4">
                           <Link href={link.href} className="text-sm text-primary hover:underline inline-flex items-center gap-1">
-                            {link.label} <ExternalLink className="w-3 h-3" />
+                            {link.label} <ExternalLinkIcon className="w-3 h-3" />
                           </Link>
                           {link.subtitle && <div className="text-xs text-gray-400">{link.subtitle}</div>}
                         </td>
@@ -182,7 +182,7 @@ export default function BillingInvoicesPage() {
                     <div className="text-sm text-gray-500 dark:text-slate-400 mt-1">{formatDate(row.invoice_date)}</div>
                     <div className="mt-1">
                       <Link href={link.href} className="text-sm text-primary hover:underline inline-flex items-center gap-1">
-                        {link.label} <ExternalLink className="w-3 h-3" />
+                        {link.label} <ExternalLinkIcon className="w-3 h-3" />
                       </Link>
                       {link.subtitle && <span className="text-xs text-gray-400 ml-1">{link.subtitle}</span>}
                     </div>

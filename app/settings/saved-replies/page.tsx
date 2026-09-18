@@ -22,7 +22,7 @@ import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch, invalidateApiCache } from '@/lib/api-client';
 import { filterSavedReplies, savedReplyPreview, savedReplyThumb, type SavedReply } from '@/lib/chat/saved-replies';
-import { MessageSquareText, Plus, Edit2, Trash2, Image as ImageIcon } from 'lucide-react';
+import { AddIcon, DeleteIcon, EditIcon, ImageIcon, MessageIcon } from '@/lib/icons';
 
 export default function SavedRepliesSettingsPage() {
   const { allowed, loading: authLoading } = useAuthGuard('chat.reply', { noRedirect: true });
@@ -119,11 +119,11 @@ export default function SavedRepliesSettingsPage() {
     <Layout>
       <Container size="4xl">
         <PageHeader
-          icon={<MessageSquareText />}
+          icon={<MessageIcon />}
           title="Saved Reply"
           subtitle="ข้อความสำเร็จรูปที่ใช้ตอบลูกค้าบ่อย ๆ — ทุกคนในร้านใช้ชุดเดียวกัน เรียกใช้ในหน้าแชทด้วยปุ่มข้างช่องพิมพ์ หรือพิมพ์ /"
           actions={
-            <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => { setEditing(null); setModalOpen(true); }}>
+            <Button variant="primary" icon={<AddIcon className="w-4 h-4" />} onClick={() => { setEditing(null); setModalOpen(true); }}>
               เพิ่มข้อความ
             </Button>
           }
@@ -135,7 +135,7 @@ export default function SavedRepliesSettingsPage() {
           <NoPermissionCard />
         ) : replies.length === 0 ? (
           <EmptyCard
-            icon={<MessageSquareText className="w-10 h-10" />}
+            icon={<MessageIcon className="w-10 h-10" />}
             title="ยังไม่มี Saved Reply"
             subtitle="เพิ่มข้อความที่ตอบลูกค้าบ่อย ๆ เช่น ค่าส่ง เลขบัญชี วิธีสั่งซื้อ แล้วเรียกใช้ได้ทันทีในหน้าแชท"
           />
@@ -167,7 +167,7 @@ export default function SavedRepliesSettingsPage() {
                         <img src={savedReplyThumb(r)!} alt="" className="w-8 h-8 rounded-lg object-cover" />
                       ) : (
                         <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                          <MessageSquareText className="w-4 h-4 text-primary" />
+                          <MessageIcon className="w-4 h-4 text-primary" />
                         </div>
                       )
                     }
@@ -189,12 +189,12 @@ export default function SavedRepliesSettingsPage() {
                         </Tooltip>
                         <Tooltip text="แก้ไข">
                           <button onClick={() => { setEditing(r); setModalOpen(true); }} aria-label="แก้ไข" className="p-2 text-gray-500 hover:text-primary rounded-lg">
-                            <Edit2 className="w-4 h-4" />
+                            <EditIcon className="w-4 h-4" />
                           </button>
                         </Tooltip>
                         <Tooltip text="ลบ">
                           <button onClick={() => remove(r)} aria-label="ลบ" className="p-2 text-gray-500 hover:text-red-600 rounded-lg">
-                            <Trash2 className="w-4 h-4" />
+                            <DeleteIcon className="w-4 h-4" />
                           </button>
                         </Tooltip>
                       </div>

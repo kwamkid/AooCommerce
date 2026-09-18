@@ -27,7 +27,7 @@ import {
   type BroadcastContent,
 } from '@/lib/broadcast/content';
 import { BROADCAST_PLATFORMS, type BroadcastPlatform } from '@/lib/broadcast/platforms';
-import { Image as ImageIcon } from 'lucide-react';
+import { ImageIcon } from '@/lib/icons';
 
 export interface BroadcastPreviewProps {
   content: BroadcastContent;

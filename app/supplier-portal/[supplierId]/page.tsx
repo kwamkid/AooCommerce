@@ -3,10 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
-import {
-  Loader2, Warehouse, Package, BarChart3, ClipboardList, FileText,
-  Calendar, Factory, AlertTriangle, KeyRound, LogOut, Sun, Moon,
-} from 'lucide-react';
+import { CalendarIcon, ChecklistIcon, DarkThemeIcon, DocumentIcon, LightThemeIcon, LoadingIcon, LogoutIcon, PasswordIcon, ProductIcon, ReportIcon, SupplierIcon, WarehouseIcon, WarningIcon } from '@/lib/icons';
 import FormSelect from '@/components/ui/FormSelect';
 import Button from '@/components/ui/Button';
 import { FullPageLoading } from '@/components/ui/Loading';
@@ -315,7 +312,7 @@ export default function SupplierPortalPage() {
             className="p-2 rounded-lg text-gray-400 dark:text-white/50 hover:text-gray-600 dark:hover:text-white hover:bg-gray-200/50 dark:hover:bg-white/10 transition-colors"
             title={dark ? 'Light Mode' : 'Dark Mode'}
           >
-            {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            {dark ? <LightThemeIcon className="w-4 h-4" /> : <DarkThemeIcon className="w-4 h-4" />}
           </button>
         </div>
 
@@ -323,7 +320,7 @@ export default function SupplierPortalPage() {
           <div className="w-full max-w-sm">
             <div className="text-center mb-8">
               <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Factory className="w-8 h-8 text-primary" />
+                <SupplierIcon className="w-8 h-8 text-primary" />
               </div>
               <h1 className="text-xl font-bold text-gray-900 dark:text-white">Supplier Portal</h1>
               <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">กรุณากรอกรหัสเข้าถึงเพื่อดูข้อมูล</p>
@@ -335,7 +332,7 @@ export default function SupplierPortalPage() {
                   รหัสเข้าถึง (Access Code)
                 </label>
                 <div className="relative">
-                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <PasswordIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input
                     type="text"
                     value={authCode}
@@ -356,7 +353,7 @@ export default function SupplierPortalPage() {
                 fullWidth
                 loading={authLoading}
                 disabled={!authCode.trim()}
-                icon={<KeyRound className="w-4 h-4" />}
+                icon={<PasswordIcon className="w-4 h-4" />}
               >
                 เข้าสู่ระบบ
               </Button>
@@ -376,7 +373,7 @@ export default function SupplierPortalPage() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-white dark:bg-[#1A1A2E] text-gray-500 dark:text-slate-400 transition-colors">
-        <AlertTriangle className="w-12 h-12 mb-3 text-red-400" />
+        <WarningIcon className="w-12 h-12 mb-3 text-red-400" />
         <p className="text-lg font-medium">{error}</p>
         <p className="text-sm mt-1">กรุณาติดต่อผู้ดูแลระบบ</p>
       </div>
@@ -384,10 +381,10 @@ export default function SupplierPortalPage() {
   }
 
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
-    { key: 'stock', label: 'สินค้าคงเหลือ', icon: <Warehouse className="w-4 h-4" /> },
-    ...(supplierType === 'consignment' ? [{ key: 'sales' as Tab, label: 'ยอดขาย', icon: <BarChart3 className="w-4 h-4" /> }] : []),
-    { key: 'po', label: 'ใบสั่งซื้อ', icon: <ClipboardList className="w-4 h-4" /> },
-    { key: 'report', label: 'รายงาน', icon: <FileText className="w-4 h-4" /> },
+    { key: 'stock', label: 'สินค้าคงเหลือ', icon: <WarehouseIcon className="w-4 h-4" /> },
+    ...(supplierType === 'consignment' ? [{ key: 'sales' as Tab, label: 'ยอดขาย', icon: <ReportIcon className="w-4 h-4" /> }] : []),
+    { key: 'po', label: 'ใบสั่งซื้อ', icon: <ChecklistIcon className="w-4 h-4" /> },
+    { key: 'report', label: 'รายงาน', icon: <DocumentIcon className="w-4 h-4" /> },
   ];
 
   // Group stock by warehouse
@@ -426,14 +423,14 @@ export default function SupplierPortalPage() {
             className="p-2 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors"
             title={dark ? 'Light Mode' : 'Dark Mode'}
           >
-            {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            {dark ? <LightThemeIcon className="w-4 h-4" /> : <DarkThemeIcon className="w-4 h-4" />}
           </button>
           <button
             onClick={handleLogout}
             className="p-2 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors"
             title="ออกจากระบบ"
           >
-            <LogOut className="w-4 h-4" />
+            <LogoutIcon className="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -468,7 +465,7 @@ export default function SupplierPortalPage() {
         <div className="space-y-4">
           {stock.length === 0 ? (
             <div className="text-center py-12 text-gray-400 dark:text-slate-500">
-              <Warehouse className="w-10 h-10 mx-auto mb-2 opacity-50" />
+              <WarehouseIcon className="w-10 h-10 mx-auto mb-2 opacity-50" />
               <p className="text-sm">ไม่มีสินค้าคงเหลือ</p>
             </div>
           ) : (
@@ -490,7 +487,7 @@ export default function SupplierPortalPage() {
                           />
                         ) : (
                           <div className="w-11 h-11 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                            <Package className="w-4 h-4 text-gray-400" />
+                            <ProductIcon className="w-4 h-4 text-gray-400" />
                           </div>
                         )}
                         <div className="min-w-0">
@@ -528,16 +525,16 @@ export default function SupplierPortalPage() {
                 const month = ((m % 12) + 12) % 12 + 1;
                 return { id: `${y}-${month}`, label: `${MONTHS_FULL[month - 1]} ${y + 543}` };
               })}
-              icon={<Calendar className="w-4 h-4" />}
+              icon={<CalendarIcon className="w-4 h-4" />}
               searchThreshold={99}
             />
           </div>
 
           {salesLoading ? (
-            <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 text-primary animate-spin" /></div>
+            <div className="flex justify-center py-8"><LoadingIcon className="w-6 h-6 text-primary animate-spin" /></div>
           ) : sales.length === 0 ? (
             <div className="text-center py-12 text-gray-400 dark:text-slate-500">
-              <BarChart3 className="w-10 h-10 mx-auto mb-2 opacity-50" />
+              <ReportIcon className="w-10 h-10 mx-auto mb-2 opacity-50" />
               <p className="text-sm">ไม่มียอดขายในเดือนนี้</p>
             </div>
           ) : (
@@ -579,7 +576,7 @@ export default function SupplierPortalPage() {
         <div className="space-y-3">
           {pos.length === 0 ? (
             <div className="text-center py-12 text-gray-400 dark:text-slate-500">
-              <ClipboardList className="w-10 h-10 mx-auto mb-2 opacity-50" />
+              <ChecklistIcon className="w-10 h-10 mx-auto mb-2 opacity-50" />
               <p className="text-sm">ยังไม่มีใบสั่งซื้อ</p>
             </div>
           ) : (
@@ -613,7 +610,7 @@ export default function SupplierPortalPage() {
         <div className="space-y-3">
           {snapshots.length === 0 ? (
             <div className="text-center py-12 text-gray-400 dark:text-slate-500">
-              <FileText className="w-10 h-10 mx-auto mb-2 opacity-50" />
+              <DocumentIcon className="w-10 h-10 mx-auto mb-2 opacity-50" />
               <p className="text-sm">ยังไม่มีรายงาน</p>
             </div>
           ) : (

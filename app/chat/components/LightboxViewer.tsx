@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { X, ChevronLeft, ChevronRight, Download, Play, Images } from 'lucide-react';
+import { Play, Images } from 'lucide-react';
+import { ChevronLeftIcon, ChevronRightIcon, CloseIcon, DownloadIcon } from '@/lib/icons';
 
 interface MediaItem {
   url: string;
@@ -58,7 +59,7 @@ export default function LightboxViewer({ mediaList, currentIndex, onClose, onCha
               }
             }}
               className="p-2.5 bg-white/20 hover:bg-white/30 rounded-full transition-colors text-white" title="บันทึก">
-              <Download className="w-5 h-5" />
+              <DownloadIcon className="w-5 h-5" />
             </button>
           )}
           {mediaList.length > 1 && (
@@ -68,7 +69,7 @@ export default function LightboxViewer({ mediaList, currentIndex, onClose, onCha
             </button>
           )}
           <button onClick={() => onClose()} className="p-2.5 bg-white/20 hover:bg-white/30 rounded-full transition-colors text-white" title="ปิด">
-            <X className="w-5 h-5" />
+            <CloseIcon className="w-5 h-5" />
           </button>
         </div>
       </div>
@@ -97,11 +98,11 @@ export default function LightboxViewer({ mediaList, currentIndex, onClose, onCha
         <>
           <button onClick={(e) => { e.stopPropagation(); onChangeIndex(currentIndex - 1); }} disabled={currentIndex <= 0}
             className="absolute left-2 md:left-4 top-1/2 -translate-y-1/2 p-2 md:p-3 bg-white/20 hover:bg-white/30 disabled:opacity-20 disabled:cursor-not-allowed rounded-full transition-colors text-white z-10" title="รูปก่อนหน้า">
-            <ChevronLeft className="w-6 h-6" />
+            <ChevronLeftIcon className="w-6 h-6" />
           </button>
           <button onClick={(e) => { e.stopPropagation(); onChangeIndex(currentIndex + 1); }} disabled={currentIndex >= mediaList.length - 1}
             className="absolute right-2 md:right-4 top-1/2 -translate-y-1/2 p-2 md:p-3 bg-white/20 hover:bg-white/30 disabled:opacity-20 disabled:cursor-not-allowed rounded-full transition-colors text-white z-10" title="รูปถัดไป">
-            <ChevronRight className="w-6 h-6" />
+            <ChevronRightIcon className="w-6 h-6" />
           </button>
           <div className="max-w-[90vw] max-h-[85vh] flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
             {currentMedia.type === 'image' ? (

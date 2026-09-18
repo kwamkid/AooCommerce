@@ -1,9 +1,7 @@
 // Shared types for inventory components
 
-import {
-  ArrowDownToLine, ArrowUpFromLine, ArrowLeftRight, Bookmark, BookmarkX,
-  RotateCcw, Settings2, type LucideIcon,
-} from 'lucide-react';
+import { Bookmark, BookmarkX, Settings2, type LucideIcon } from 'lucide-react';
+import { ResetIcon, StockIssueIcon, StockReceiveIcon, StockTransferIcon } from '@/lib/icons';
 import type { BadgeTone } from '@/components/ui/Badge';
 
 export interface WarehouseItem {
@@ -182,14 +180,14 @@ export const MOVEMENT_TYPE_ORDER: TransactionType[] = [
 
 /** ไอคอนประจำประเภท — เก็บเป็นตัว component (ไฟล์นี้เป็น .ts เขียน JSX ไม่ได้) */
 export const TYPE_ICONS: Record<TransactionType, LucideIcon> = {
-  in: ArrowDownToLine,
-  out: ArrowUpFromLine,
-  transfer_in: ArrowLeftRight,
-  transfer_out: ArrowLeftRight,
+  in: StockReceiveIcon,
+  out: StockIssueIcon,
+  transfer_in: StockTransferIcon,
+  transfer_out: StockTransferIcon,
   reserve: Bookmark,
   unreserve: BookmarkX,
   adjust: Settings2,
-  return: RotateCcw,
+  return: ResetIcon,
 };
 
 /** สีการ์ดสรุปต่อประเภท */

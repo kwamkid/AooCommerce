@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import ImageDropzone from '@/components/ui/ImageDropzone';
-import { Loader2, Package, Camera, Sun, Moon, CheckCircle2, XCircle, Clock, Truck, AlertTriangle } from 'lucide-react';
+import { CameraIcon, DarkThemeIcon, ErrorIcon, LightThemeIcon, LoadingIcon, ProductIcon, ShippingIcon, SuccessIcon, TimeIcon, WarningIcon } from '@/lib/icons';
 import NumberInput from '@/components/ui/NumberInput';
 import { FullPageLoading } from '@/components/ui/Loading';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
@@ -194,7 +194,7 @@ export default function TransferReceiveClient({ token, initialTransfer }: { toke
     return (
       <div className={`min-h-screen flex items-center justify-center p-4 ${dark ? 'bg-[#1A1A2E]' : 'bg-gray-50'}`}>
         <div className="text-center">
-          <Package className={`w-16 h-16 mx-auto mb-4 ${dark ? 'text-slate-600' : 'text-gray-300'}`} />
+          <ProductIcon className={`w-16 h-16 mx-auto mb-4 ${dark ? 'text-slate-600' : 'text-gray-300'}`} />
           <h1 className={`text-xl font-semibold mb-2 ${dark ? 'text-slate-300' : 'text-gray-700'}`}>ไม่พบใบโอนย้าย</h1>
           <p className={dark ? 'text-slate-500' : 'text-gray-500'}>{error || 'ลิงก์นี้ไม่ถูกต้องหรือหมดอายุแล้ว'}</p>
         </div>
@@ -217,7 +217,7 @@ export default function TransferReceiveClient({ token, initialTransfer }: { toke
           onClick={toggleDark}
           className="p-2 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors"
         >
-          {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          {dark ? <LightThemeIcon className="w-4 h-4" /> : <DarkThemeIcon className="w-4 h-4" />}
         </button>
       </div>
 
@@ -259,7 +259,7 @@ export default function TransferReceiveClient({ token, initialTransfer }: { toke
           {/* === STATUS: PENDING === */}
           {transfer.status === 'pending' && (
             <div className={`border-2 rounded-xl p-5 text-center ${dark ? 'bg-yellow-900/20 border-yellow-800' : 'bg-yellow-50 border-yellow-200'}`}>
-              <Clock className={`w-10 h-10 mx-auto mb-2 ${dark ? 'text-yellow-400' : 'text-yellow-500'}`} />
+              <TimeIcon className={`w-10 h-10 mx-auto mb-2 ${dark ? 'text-yellow-400' : 'text-yellow-500'}`} />
               <div className={`font-bold text-lg ${dark ? 'text-yellow-400' : 'text-yellow-700'}`}>ใบโอนย้ายนี้ยังไม่ได้จัดส่ง</div>
               <p className={`text-sm mt-1 ${dark ? 'text-yellow-500/70' : 'text-yellow-500'}`}>กรุณารอจนกว่าจะมีการจัดส่งสินค้า</p>
             </div>
@@ -268,7 +268,7 @@ export default function TransferReceiveClient({ token, initialTransfer }: { toke
           {/* === STATUS: CANCELLED === */}
           {transfer.status === 'cancelled' && (
             <div className={`border-2 rounded-xl p-5 text-center ${dark ? 'bg-red-900/20 border-red-800' : 'bg-red-50 border-red-200'}`}>
-              <XCircle className={`w-10 h-10 mx-auto mb-2 ${dark ? 'text-red-400' : 'text-red-500'}`} />
+              <ErrorIcon className={`w-10 h-10 mx-auto mb-2 ${dark ? 'text-red-400' : 'text-red-500'}`} />
               <div className={`font-bold text-lg ${dark ? 'text-red-400' : 'text-red-700'}`}>ใบโอนย้ายนี้ถูกยกเลิกแล้ว</div>
             </div>
           )}
@@ -277,7 +277,7 @@ export default function TransferReceiveClient({ token, initialTransfer }: { toke
           {transfer.status === 'received' && (
             <>
               <div className={`border-2 rounded-xl p-5 text-center mb-5 ${dark ? 'bg-green-900/20 border-green-800' : 'bg-green-50 border-green-200'}`}>
-                <CheckCircle2 className={`w-10 h-10 mx-auto mb-2 ${dark ? 'text-green-400' : 'text-green-500'}`} />
+                <SuccessIcon className={`w-10 h-10 mx-auto mb-2 ${dark ? 'text-green-400' : 'text-green-500'}`} />
                 <div className={`font-bold text-lg ${dark ? 'text-green-400' : 'text-green-700'}`}>รับสินค้าเรียบร้อยแล้ว</div>
                 {transfer.received_at && (
                   <p className={`text-sm mt-1 ${dark ? 'text-green-500/70' : 'text-green-500'}`} suppressHydrationWarning>{formatDate(transfer.received_at)}</p>
@@ -339,7 +339,7 @@ export default function TransferReceiveClient({ token, initialTransfer }: { toke
           {transfer.status === 'shipping' && !submitSuccess && (
             <>
               <div className={`flex items-center gap-2 mb-4 ${dark ? 'text-amber-400' : 'text-amber-600'}`}>
-                <Truck className="w-5 h-5" />
+                <ShippingIcon className="w-5 h-5" />
                 <span className="font-bold text-lg">รับสินค้า</span>
               </div>
 
@@ -403,7 +403,7 @@ export default function TransferReceiveClient({ token, initialTransfer }: { toke
               {/* Summary */}
               {totalReceived < totalSent && (
                 <div className={`rounded-lg p-3 flex items-center gap-2 ${dark ? 'bg-amber-900/20 border border-amber-800' : 'bg-amber-50 border border-amber-200'}`}>
-                  <AlertTriangle className={`w-4 h-4 flex-shrink-0 ${dark ? 'text-amber-400' : 'text-amber-500'}`} />
+                  <WarningIcon className={`w-4 h-4 flex-shrink-0 ${dark ? 'text-amber-400' : 'text-amber-500'}`} />
                   <span className={`text-sm ${dark ? 'text-amber-400' : 'text-amber-700'}`}>
                     รับไม่ครบ: {totalReceived}/{totalSent} ชิ้น (ขาด {totalSent - totalReceived} ชิ้น จะถูกคืนกลับคลังต้นทาง)
                   </span>
@@ -415,7 +415,7 @@ export default function TransferReceiveClient({ token, initialTransfer }: { toke
           {/* Success after submit */}
           {transfer.status === 'shipping' && submitSuccess && (
             <div className={`border-2 rounded-xl p-5 text-center ${dark ? 'bg-green-900/20 border-green-800' : 'bg-green-50 border-green-200'}`}>
-              <CheckCircle2 className={`w-10 h-10 mx-auto mb-2 ${dark ? 'text-green-400' : 'text-green-500'}`} />
+              <SuccessIcon className={`w-10 h-10 mx-auto mb-2 ${dark ? 'text-green-400' : 'text-green-500'}`} />
               <div className={`font-bold text-lg ${dark ? 'text-green-400' : 'text-green-700'}`}>บันทึกการรับสินค้าเรียบร้อย</div>
               <p className={`text-sm mt-1 ${dark ? 'text-green-500/70' : 'text-green-500'}`}>ขอบคุณที่ยืนยันการรับสินค้า</p>
             </div>
@@ -457,7 +457,7 @@ export default function TransferReceiveClient({ token, initialTransfer }: { toke
                 onChange={setPhoto}
                 onBusyChange={setCompressing}
                 capture="environment"
-                icon={<Camera className="w-8 h-8" />}
+                icon={<CameraIcon className="w-8 h-8" />}
                 label="ถ่ายรูป / เลือกรูป"
                 alt="รูปรับสินค้า"
                 classNames={{
@@ -491,12 +491,12 @@ export default function TransferReceiveClient({ token, initialTransfer }: { toke
             >
               {submitting ? (
                 <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <LoadingIcon className="w-5 h-5 animate-spin" />
                   กำลังบันทึก...
                 </>
               ) : (
                 <>
-                  <CheckCircle2 className="w-5 h-5" />
+                  <SuccessIcon className="w-5 h-5" />
                   ยืนยันรับสินค้า
                 </>
               )}

@@ -37,7 +37,8 @@ import {
   type DeliveryZone, type DeliverySlot,
   formatSlotTime, formatDays, DAY_LABELS,
 } from '@/lib/delivery';
-import { MapPin, Clock, Pencil, Trash2, Bike } from 'lucide-react';
+import { Bike } from 'lucide-react';
+import { DeleteIcon, EditIcon, LocationIcon, TimeIcon } from '@/lib/icons';
 
 type TabKey = 'zones' | 'slots';
 
@@ -418,7 +419,7 @@ export default function DeliverySettingsPage() {
 
     const ok = await confirm({
       title: isZones ? 'ใช้ชุดพื้นที่จัดส่งมาตรฐาน' : 'ใช้ชุดรอบส่งมาตรฐาน',
-      icon: isZones ? <MapPin className="w-6 h-6 text-primary" /> : <Clock className="w-6 h-6 text-primary" />,
+      icon: isZones ? <LocationIcon className="w-6 h-6 text-primary" /> : <TimeIcon className="w-6 h-6 text-primary" />,
       description: [
         isZones
           ? `จะเพิ่ม ${jobs.length} ${unit} ตามลำดับนี้ (พื้นที่แคบอยู่เหนือพื้นที่กว้าง):`
@@ -519,8 +520,8 @@ export default function DeliverySettingsPage() {
         {zonesOn && slotsOn && (
           <Tabs
             tabs={[
-              { key: 'zones', label: 'พื้นที่จัดส่ง / ค่าส่ง', icon: <MapPin className="w-4 h-4" /> },
-              { key: 'slots', label: 'ช่วงเวลาส่ง', icon: <Clock className="w-4 h-4" /> },
+              { key: 'zones', label: 'พื้นที่จัดส่ง / ค่าส่ง', icon: <LocationIcon className="w-4 h-4" /> },
+              { key: 'slots', label: 'ช่วงเวลาส่ง', icon: <TimeIcon className="w-4 h-4" /> },
             ]}
             activeKey={tab}
             onSelect={(k) => setTab(k as TabKey)}
@@ -531,7 +532,7 @@ export default function DeliverySettingsPage() {
           <EmptyCard
             title="ยังไม่ได้เปิดใช้งาน"
             subtitle='เปิด "พื้นที่จัดส่ง" หรือ "ช่วงเวลาส่ง" ที่ ตั้งค่า → Feature เสริม ก่อน'
-            icon={<MapPin className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+            icon={<LocationIcon className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
           />
         ) : loading ? (
           <LoadingCard />
@@ -540,7 +541,7 @@ export default function DeliverySettingsPage() {
             <EmptyCard
               title="ยังไม่มีพื้นที่จัดส่ง"
               subtitle="เพิ่มพื้นที่ที่ร้านรับส่ง พร้อมค่าส่งของแต่ละพื้นที่ — ที่อยู่นอกทุกพื้นที่ = ไม่รับส่ง"
-              icon={<MapPin className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+              icon={<LocationIcon className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
               actions={canApplyPresetSet ? presetSetButton('primary') : undefined}
             />
           ) : (
@@ -562,7 +563,7 @@ export default function DeliverySettingsPage() {
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${z.fee_type === 'lalamove' ? 'bg-orange-50' : 'bg-emerald-50'}`}>
                       {z.fee_type === 'lalamove'
                         ? <Bike className="w-4 h-4 text-orange-600" />
-                        : <MapPin className="w-4 h-4 text-emerald-600" />}
+                        : <LocationIcon className="w-4 h-4 text-emerald-600" />}
                     </div>
                   }
                   title={z.name}
@@ -571,8 +572,8 @@ export default function DeliverySettingsPage() {
                   actions={
                     <div className="flex items-center gap-2">
                       <Toggle checked={z.is_active} onChange={(v) => toggleZone(z, v)} aria-label={`เปิดใช้ ${z.name}`} />
-                      <Button variant="ghost" size="sm" icon={<Pencil className="w-4 h-4" />} onClick={() => openZoneEdit(z)} />
-                      <Button variant="ghost" size="sm" icon={<Trash2 className="w-4 h-4 text-red-500" />} onClick={() => deleteZone(z)} />
+                      <Button variant="ghost" size="sm" icon={<EditIcon className="w-4 h-4" />} onClick={() => openZoneEdit(z)} />
+                      <Button variant="ghost" size="sm" icon={<DeleteIcon className="w-4 h-4 text-red-500" />} onClick={() => deleteZone(z)} />
                     </div>
                   }
                 />
@@ -584,7 +585,7 @@ export default function DeliverySettingsPage() {
             <EmptyCard
               title="ยังไม่มีช่วงเวลาส่ง"
               subtitle="เพิ่มรอบส่งเป็นช่วงเวลา 2-3 ชั่วโมง เช่น 09:00-12:00 — ลูกค้าเลือกได้เฉพาะช่วง ไม่ใช่เวลาเป๊ะ"
-              icon={<Clock className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+              icon={<TimeIcon className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
               actions={canApplyPresetSet ? presetSetButton('primary') : undefined}
             />
           ) : (
@@ -608,7 +609,7 @@ export default function DeliverySettingsPage() {
                   }}
                   icon={
                     <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
-                      <Clock className="w-4 h-4 text-indigo-600" />
+                      <TimeIcon className="w-4 h-4 text-indigo-600" />
                     </div>
                   }
                   title={`${s.name} · ${formatSlotTime(s.start_time)}-${formatSlotTime(s.end_time)} น.`}
@@ -617,8 +618,8 @@ export default function DeliverySettingsPage() {
                   actions={
                     <div className="flex items-center gap-2">
                       <Toggle checked={s.is_active} onChange={(v) => toggleSlot(s, v)} aria-label={`เปิดใช้ ${s.name}`} />
-                      <Button variant="ghost" size="sm" icon={<Pencil className="w-4 h-4" />} onClick={() => openSlotEdit(s)} />
-                      <Button variant="ghost" size="sm" icon={<Trash2 className="w-4 h-4 text-red-500" />} onClick={() => deleteSlot(s)} />
+                      <Button variant="ghost" size="sm" icon={<EditIcon className="w-4 h-4" />} onClick={() => openSlotEdit(s)} />
+                      <Button variant="ghost" size="sm" icon={<DeleteIcon className="w-4 h-4 text-red-500" />} onClick={() => deleteSlot(s)} />
                     </div>
                   }
                 />

@@ -5,23 +5,8 @@ import { useCopy } from '@/lib/useCopy';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
-import {
-  Package,
-  Loader2,
-  Link2,
-  Edit2,
-  Trash2,
-  CreditCard,
-  CheckCircle,
-  Banknote,
-  Pause,
-  Play,
-  Clock,
-  Scissors,
-  XCircle,
-  ImageIcon,
-  X,
-} from 'lucide-react';
+import { Pause, Play, Scissors, ImageIcon } from 'lucide-react';
+import { CloseIcon, DeleteIcon, EditIcon, ErrorIcon, LinkIcon, LoadingIcon, MoneyIcon, ParcelIcon, SuccessIcon } from '@/lib/icons';
 import { generatePackingPdf } from '@/lib/orders-packing-pdf';
 import { generateShippingLabelPdf } from '@/lib/order-shipping-label-pdf';
 import { generateOrderInvoicePdf } from '@/lib/order-invoice-pdf';
@@ -1067,7 +1052,7 @@ export default function ReadyToShipTab({
         </Button>
       );
       primaryActions.push(
-        <Button variant="success" icon={<CheckCircle className="w-4 h-4" />} key="approve-slip" onClick={(e) => { e.stopPropagation(); handleApproveSlip(order.id); }} disabled={actionLoading} title="ยืนยันสลิป">
+        <Button variant="success" icon={<SuccessIcon className="w-4 h-4" />} key="approve-slip" onClick={(e) => { e.stopPropagation(); handleApproveSlip(order.id); }} disabled={actionLoading} title="ยืนยันสลิป">
           <span className="hidden md:inline">ยืนยัน</span>
         </Button>
       );
@@ -1098,7 +1083,7 @@ export default function ReadyToShipTab({
           size="sm"
           variant="primary"
           disabled={actionLoading}
-          icon={<Package className="w-4 h-4" />}
+          icon={<ParcelIcon className="w-4 h-4" />}
           title="รับออเดอร์"
           onClick={(e) => {
             e.stopPropagation();
@@ -1118,7 +1103,7 @@ export default function ReadyToShipTab({
         onClick: (e) => { e.stopPropagation(); handleViewSlip(order.id, order.order_number); },
       });
       menuItems.push({
-        key: 'reject-slip', label: 'ปฏิเสธสลิป', icon: <XCircle className="w-4 h-4" />,
+        key: 'reject-slip', label: 'ปฏิเสธสลิป', icon: <ErrorIcon className="w-4 h-4" />,
         onClick: (e) => { e.stopPropagation(); handleRejectSlip(order.id); },
         danger: true,
       });
@@ -1153,31 +1138,31 @@ export default function ReadyToShipTab({
 
     if (order.payment_status !== 'paid') {
       menuItems.push({
-        key: 'invoice', label: 'ใบแจ้งหนี้', icon: <Banknote className="w-4 h-4" />,
+        key: 'invoice', label: 'ใบแจ้งหนี้', icon: <MoneyIcon className="w-4 h-4" />,
         onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id); },
       });
     } else if (vatRegistered) {
       if (!hasFullTax) {
         // ยังไม่ออกแบบเต็ม → ABB + ออกใบกำกับแบบเต็ม
         menuItems.push({
-          key: 'abbreviated-invoice', label: 'ใบกำกับอย่างย่อ', icon: <Banknote className="w-4 h-4" />,
+          key: 'abbreviated-invoice', label: 'ใบกำกับอย่างย่อ', icon: <MoneyIcon className="w-4 h-4" />,
           onClick: (e) => { e.stopPropagation(); handlePrintAbbreviatedInvoice(order.id); },
         });
         menuItems.push({
-          key: 'full-invoice', label: 'ออกใบกำกับแบบเต็ม', primary: true, icon: <Banknote className="w-4 h-4" />,
+          key: 'full-invoice', label: 'ออกใบกำกับแบบเต็ม', primary: true, icon: <MoneyIcon className="w-4 h-4" />,
           onClick: async (e) => { e.stopPropagation(); const ok = await confirm({ title: 'ออกใบกำกับภาษีแบบเต็ม', description: 'หากออกใบกำกับแบบเต็มแล้ว ระบบจะยกเลิก (void) ใบกำกับภาษีอย่างย่อให้อัตโนมัติ', confirmLabel: 'ออกใบกำกับแบบเต็ม' }); if (!ok) return; setTaxInvoiceModal({ orderId: order.id, orderNumber: order.order_number, customerId: order.customer_id, hasAbbrev: order.tax_invoice_doc_type === 'abbreviated' && !order.tax_invoice_voided_at }); },
         });
       } else {
         // ออกแบบเต็มแล้ว → แสดงแค่ใบกำกับแบบเต็ม (ซ่อน ABB)
         menuItems.push({
-          key: 'full-invoice', label: 'ใบกำกับแบบเต็ม', icon: <Banknote className="w-4 h-4" />,
+          key: 'full-invoice', label: 'ใบกำกับแบบเต็ม', icon: <MoneyIcon className="w-4 h-4" />,
           onClick: (e) => { e.stopPropagation(); handlePrintFullTaxInvoice(order.id); },
         });
       }
     } else {
       // ไม่จด VAT + paid
       menuItems.push({
-        key: 'receipt', label: 'ใบเสร็จรับเงิน', icon: <Banknote className="w-4 h-4" />,
+        key: 'receipt', label: 'ใบเสร็จรับเงิน', icon: <MoneyIcon className="w-4 h-4" />,
         onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id); },
       });
     }
@@ -1189,7 +1174,7 @@ export default function ReadyToShipTab({
     if (!order.source || order.source === 'manual') {
       const section3Start = menuItems.length;
       menuItems.push({
-        key: 'link', label: 'คัดลอกลิงก์', icon: <Link2 className="w-4 h-4" />,
+        key: 'link', label: 'คัดลอกลิงก์', icon: <LinkIcon className="w-4 h-4" />,
         onClick: (e) => {
           e.stopPropagation();
           const billUrl = `${window.location.origin}/bills/${order.id}`;
@@ -1197,7 +1182,7 @@ export default function ReadyToShipTab({
         },
       });
       menuItems.push({
-        key: 'edit', label: 'แก้ไข', icon: <Edit2 className="w-4 h-4" />,
+        key: 'edit', label: 'แก้ไข', icon: <EditIcon className="w-4 h-4" />,
         onClick: (e) => { e.stopPropagation(); router.push(`/orders/${order.id}/edit`); },
       });
       if (section3Start > 0) menuItems[section3Start].dividerBefore = true;
@@ -1214,7 +1199,7 @@ export default function ReadyToShipTab({
       }
       if (!isMarketplace) {
         menuItems.push({
-          key: 'cancel', label: 'ยกเลิก', icon: <Trash2 className="w-4 h-4" />,
+          key: 'cancel', label: 'ยกเลิก', icon: <DeleteIcon className="w-4 h-4" />,
           onClick: (e) => { e.stopPropagation(); confirmBulkCancel([order.id]); },
           danger: true,
         });
@@ -1277,7 +1262,7 @@ export default function ReadyToShipTab({
       {/* Loading */}
       {loading && (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-6 h-6 text-primary animate-spin" />
+          <LoadingIcon className="w-6 h-6 text-primary animate-spin" />
         </div>
       )}
 
@@ -1340,7 +1325,7 @@ export default function ReadyToShipTab({
                 size="sm"
                 variant="primary"
                 disabled={bulkLoading}
-                icon={<Package className="w-4 h-4" />}
+                icon={<ParcelIcon className="w-4 h-4" />}
                 onClick={() => confirmBulkAccept(Array.from(selectedIds))}
               >
                 <span className="hidden md:inline">รับออเดอร์</span> ({selectedIds.size})
@@ -1443,7 +1428,7 @@ export default function ReadyToShipTab({
       {/* PDF loading toast — only show when NOT in handover panel */}
       {actionLoading && !handoverPanelOpen && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white px-5 py-3 rounded-lg shadow-lg flex items-center gap-2 text-sm">
-          <Loader2 className="w-4 h-4 animate-spin text-primary" />
+          <LoadingIcon className="w-4 h-4 animate-spin text-primary" />
           กำลังดำเนินการ...
         </div>
       )}
@@ -1451,7 +1436,7 @@ export default function ReadyToShipTab({
       {/* Local toast */}
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white px-5 py-3 rounded-lg shadow-lg flex items-center gap-2 text-sm animate-fade-in">
-          <CheckCircle className="w-4 h-4 text-green-400" />
+          <SuccessIcon className="w-4 h-4 text-green-400" />
           {toast}
         </div>
       )}
@@ -1485,7 +1470,7 @@ export default function ReadyToShipTab({
                 สลิปโอนเงิน — {slipModal.orderNumber}
               </h3>
               <button onClick={() => setSlipModal(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-slate-300">
-                <X className="w-5 h-5" />
+                <CloseIcon className="w-5 h-5" />
               </button>
             </div>
             <div className="flex-1 overflow-auto p-4 flex items-center justify-center">
@@ -1501,7 +1486,7 @@ export default function ReadyToShipTab({
                 fullWidth
                 onClick={() => handleRejectSlip(slipModal.orderId)}
                 disabled={actionLoading}
-                icon={<XCircle className="w-4 h-4" />}
+                icon={<ErrorIcon className="w-4 h-4" />}
               >
                 ปฏิเสธ
               </Button>
@@ -1510,7 +1495,7 @@ export default function ReadyToShipTab({
                 fullWidth
                 onClick={() => { handleApproveSlip(slipModal.orderId); setSlipModal(null); }}
                 disabled={actionLoading}
-                icon={<CheckCircle className="w-4 h-4" />}
+                icon={<SuccessIcon className="w-4 h-4" />}
               >
                 ยืนยัน
               </Button>

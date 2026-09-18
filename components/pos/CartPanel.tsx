@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useRef, useEffect, type ReactNode } from 'react';
-import { AlertTriangle, Minus, Plus, Trash2, User, Tag } from 'lucide-react';
+import { AddIcon, DeleteIcon, DiscountIcon, RemoveIcon, UserIcon, WarningIcon } from '@/lib/icons';
 import { formatPrice } from '@/lib/utils/format';
 import Button from '@/components/ui/Button';
 import NumberInput from '@/components/ui/NumberInput';
@@ -125,7 +125,7 @@ function DiscountPopover({ item, onUpdate }: { item: CartItem; onUpdate: (type: 
         }`}
         title="ส่วนลด"
       >
-        <Tag className="w-3 h-3" />
+        <DiscountIcon className="w-3 h-3" />
         {hasDiscount && <span>-฿{formatPrice(discountAmt)}</span>}
       </button>
 
@@ -199,7 +199,7 @@ export default function CartPanel({
         onClick={onOpenCustomerSearch}
         className="flex items-center gap-2 px-3 py-2.5 mb-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-white/5 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
       >
-        <User className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+        <UserIcon className="w-4 h-4 text-gray-500 dark:text-gray-400" />
         <span className="text-sm text-gray-700 dark:text-gray-200 truncate">
           {customerName || 'ลูกค้าทั่วไป (Walk-in)'}
         </span>
@@ -250,7 +250,7 @@ export default function CartPanel({
                     onClick={() => onRemoveItem(item.variation_id)}
                     className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition-colors flex-shrink-0"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <DeleteIcon className="w-4 h-4" />
                   </button>
                 </div>
 
@@ -261,7 +261,7 @@ export default function CartPanel({
                       onClick={() => onUpdateQuantity(item.variation_id, -1)}
                       className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-white hover:bg-gray-200 dark:hover:bg-white/20 active:scale-95"
                     >
-                      <Minus className="w-4 h-4" />
+                      <RemoveIcon className="w-4 h-4" />
                     </button>
                     <span className="w-10 text-center text-gray-900 dark:text-white font-medium text-sm">
                       {item.quantity}
@@ -271,7 +271,7 @@ export default function CartPanel({
                       disabled={!canAdd}
                       className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-white hover:bg-gray-200 dark:hover:bg-white/20 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
                     >
-                      <Plus className="w-4 h-4" />
+                      <AddIcon className="w-4 h-4" />
                     </button>
                   </div>
 
@@ -287,7 +287,7 @@ export default function CartPanel({
 
                 {consignLossPerUnit != null && (
                   <div className="mt-1.5 flex items-start gap-1 text-xs text-amber-600 dark:text-amber-400">
-                    <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-px" />
+                    <WarningIcon className="w-3.5 h-3.5 flex-shrink-0 mt-px" />
                     <span>
                       ขาดทุน ฿{formatPrice(consignLossPerUnit)}/ชิ้น — ของฝากขาย
                       {item.consignmentSupplier ? ` ${item.consignmentSupplier}` : ''} ต้องจ่าย ฿{formatPrice(payable as number)}/ชิ้น

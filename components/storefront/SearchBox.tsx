@@ -5,7 +5,7 @@
 
 import { useState, useRef, useEffect, useTransition } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Search, X, Loader2 } from 'lucide-react';
+import { CloseIcon, LoadingIcon, SearchIcon } from '@/lib/icons';
 import { storefrontHref } from '@/lib/storefront';
 
 export default function SearchBox({ shop }: { shop: string }) {
@@ -62,14 +62,14 @@ export default function SearchBox({ shop }: { shop: string }) {
         title="ค้นหาสินค้า"
       >
         {open
-          ? <X strokeWidth={1.75} aria-hidden="true" />
-          : <Search strokeWidth={1.75} aria-hidden="true" />}
+          ? <CloseIcon strokeWidth={1.75} aria-hidden="true" />
+          : <SearchIcon strokeWidth={1.75} aria-hidden="true" />}
       </button>
 
       {open && (
         <div className="sf-search-panel">
           <form className="sf-search" onSubmit={submit} role="search">
-            <Search className="sf-search-icon" strokeWidth={1.75} aria-hidden="true" />
+            <SearchIcon className="sf-search-icon" strokeWidth={1.75} aria-hidden="true" />
             <input
               ref={inputRef}
               type="search"
@@ -88,7 +88,7 @@ export default function SearchBox({ shop }: { shop: string }) {
                 onClick={() => { setValue(''); inputRef.current?.focus(); }}
                 aria-label="ล้างคำค้นหา"
               >
-                <X strokeWidth={2} aria-hidden="true" />
+                <CloseIcon strokeWidth={2} aria-hidden="true" />
               </button>
             )}
             <button
@@ -97,7 +97,7 @@ export default function SearchBox({ shop }: { shop: string }) {
               disabled={isPending}
               aria-busy={isPending}
             >
-              {isPending && <Loader2 className="sf-skel-spin" strokeWidth={2} aria-hidden="true" />}
+              {isPending && <LoadingIcon className="sf-skel-spin" strokeWidth={2} aria-hidden="true" />}
               ค้นหา
             </button>
           </form>

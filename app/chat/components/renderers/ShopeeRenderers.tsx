@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { BellOff, BellRing, ExternalLink, Headset, Info, Package, Receipt, Store, Ticket, UserMinus, UserPlus } from 'lucide-react';
+import { BellOff, BellRing, Headset, UserMinus } from 'lucide-react';
+import { CouponIcon, ExternalLinkIcon, InfoIcon, ProductIcon, ReceiptIcon, StoreIcon, UserAddIcon } from '@/lib/icons';
 import { ChatMessage } from '@/app/chat/lib/chatTypes';
 import { linkify } from './SharedRenderers';
 import Badge from '@/components/ui/Badge';
@@ -55,7 +56,7 @@ function CardLink({
     return (
       <a href={href} target="_blank" rel="noopener noreferrer" className={cls} style={{ color }}>
         {children}
-        <ExternalLink className="w-3 h-3" />
+        <ExternalLinkIcon className="w-3 h-3" />
       </a>
     );
   }
@@ -74,7 +75,7 @@ export function ProductCardBubble({ msg, platform }: RendererProps) {
     return (
       <div className={`${CARD_CLASS} p-3`}>
         <div className="flex items-center gap-2 text-gray-700 dark:text-slate-200">
-          <Package className="w-4 h-4 flex-shrink-0" style={{ color: meta.color }} />
+          <ProductIcon className="w-4 h-4 flex-shrink-0" style={{ color: meta.color }} />
           <span className="text-sm">{msg.content || `สินค้าจาก ${meta.label}`}</span>
         </div>
         {url && <div className="mt-2"><CardLink href={url} external color={meta.color}>ดูบน {meta.label}</CardLink></div>}
@@ -140,7 +141,7 @@ export function OrderCardBubble({ msg, platform }: RendererProps) {
   return (
     <div className={`${CARD_CLASS} p-3`}>
       <div className="flex items-center gap-2">
-        <Receipt className="w-4 h-4 flex-shrink-0" style={{ color: meta.color }} />
+        <ReceiptIcon className="w-4 h-4 flex-shrink-0" style={{ color: meta.color }} />
         <span className="text-sm font-medium text-gray-900 dark:text-white break-all">
           {order?.order_number || orderSn}
         </span>
@@ -209,7 +210,7 @@ export function VoucherCardBubble({ msg, platform }: RendererProps) {
   return (
     <div className={`${CARD_CLASS} p-3`}>
       <div className="flex items-center gap-2">
-        <Ticket className="w-4 h-4 flex-shrink-0" style={{ color: meta.color }} />
+        <CouponIcon className="w-4 h-4 flex-shrink-0" style={{ color: meta.color }} />
         <span className="text-sm font-medium text-gray-900 dark:text-white break-words">
           {title || 'คูปองส่วนลด'}
         </span>
@@ -235,7 +236,7 @@ export function FollowInviteChip({ msg, platform }: RendererProps) {
 
   return (
     <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 dark:bg-slate-700 text-xs text-gray-600 dark:text-slate-300">
-      <Store className="w-3.5 h-3.5 flex-shrink-0" style={{ color: meta.color }} />
+      <StoreIcon className="w-3.5 h-3.5 flex-shrink-0" style={{ color: meta.color }} />
       {label}
       {link && (
         <a href={link} target="_blank" rel="noopener noreferrer" className="underline" style={{ color: meta.color }}>
@@ -256,9 +257,9 @@ export function FollowInviteChip({ msg, platform }: RendererProps) {
  */
 const CHIP_MAX_CHARS = 60;
 
-const SYSTEM_EVENT_ICONS: Record<string, typeof Info> = {
+const SYSTEM_EVENT_ICONS: Record<string, typeof InfoIcon> = {
   faq_liveagent: Headset,
-  member_joined: UserPlus,
+  member_joined: UserAddIcon,
   member_left: UserMinus,
   // ลูกค้ากดปุ่มบนการ์ดชวนรับข่าวสาร (Facebook) — แอดมินต้องเห็นว่าใครรับ/เลิกรับแล้ว
   optin_subscribed: BellRing,
@@ -267,7 +268,7 @@ const SYSTEM_EVENT_ICONS: Record<string, typeof Info> = {
 
 export function SystemEventChip({ msg }: RendererProps) {
   const event = msg.raw_message?.system_event;
-  const Icon = (event && SYSTEM_EVENT_ICONS[event]) || Info;
+  const Icon = (event && SYSTEM_EVENT_ICONS[event]) || InfoIcon;
   const text = msg.content || 'ลูกค้ากดขอคุยกับเจ้าหน้าที่';
 
   if (text.length > CHIP_MAX_CHARS) {

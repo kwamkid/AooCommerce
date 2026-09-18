@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Clock, ChevronUp, ChevronDown } from 'lucide-react';
+import { ChevronDownIcon, ChevronUpIcon, TimeIcon } from '@/lib/icons';
 
 interface TimePickerProps {
   value: string; // "HH:mm" format
@@ -117,7 +117,7 @@ export default function TimePicker({
         }`}
       >
         <span className="flex-1 truncate">{displayValue || placeholder}</span>
-        <Clock className="w-4 h-4 text-amber-500 flex-shrink-0 ml-2" />
+        <TimeIcon className="w-4 h-4 text-amber-500 flex-shrink-0 ml-2" />
       </button>
 
       {/* Dropdown */}
@@ -132,7 +132,7 @@ export default function TimePicker({
                 onClick={() => increment('hour')}
                 className="w-full flex justify-center py-1.5 text-gray-400 hover:text-gray-700 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
               >
-                <ChevronUp className="w-4 h-4" />
+                <ChevronUpIcon className="w-4 h-4" />
               </button>
               <div
                 ref={hourListRef}
@@ -158,7 +158,7 @@ export default function TimePicker({
                 onClick={() => decrement('hour')}
                 className="w-full flex justify-center py-1.5 text-gray-400 hover:text-gray-700 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
               >
-                <ChevronDown className="w-4 h-4" />
+                <ChevronDownIcon className="w-4 h-4" />
               </button>
             </div>
 
@@ -174,7 +174,7 @@ export default function TimePicker({
                 onClick={() => increment('minute')}
                 className="w-full flex justify-center py-1.5 text-gray-400 hover:text-gray-700 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
               >
-                <ChevronUp className="w-4 h-4" />
+                <ChevronUpIcon className="w-4 h-4" />
               </button>
               <div
                 ref={minuteListRef}
@@ -200,7 +200,7 @@ export default function TimePicker({
                 onClick={() => decrement('minute')}
                 className="w-full flex justify-center py-1.5 text-gray-400 hover:text-gray-700 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
               >
-                <ChevronDown className="w-4 h-4" />
+                <ChevronDownIcon className="w-4 h-4" />
               </button>
             </div>
           </div>

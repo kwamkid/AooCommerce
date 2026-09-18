@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useCompany } from '@/lib/company-context';
 import CustomerSelectionCard, { type DeliveryFields, type ShippingAddress } from '@/components/ui/CustomerSelectionCard';
 import { useCustomerPrefill } from '@/lib/useCustomerPrefill';
-import { Save, Warehouse, Store } from 'lucide-react';
+import { StoreIcon, WarehouseIcon } from '@/lib/icons';
 import Button from '@/components/ui/Button';
 import FormSelect from '@/components/ui/FormSelect';
 import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
@@ -837,7 +837,7 @@ export default function DealerOrderForm({
               id: w.id,
               label: `${w.is_default ? '⭐ ' : ''}${w.name}`,
             }))}
-            icon={<Warehouse className="w-4 h-4" />}
+            icon={<WarehouseIcon className="w-4 h-4" />}
             placeholder="-- เลือกคลัง --"
             searchThreshold={99}
           />
@@ -888,7 +888,7 @@ export default function DealerOrderForm({
                 value={selectedCounterId}
                 onChange={(v) => { setSelectedCounterId(v); setPcSummary(null); }}
                 options={counters.map(c => ({ id: c.id, label: c.name }))}
-                icon={<Store className="w-4 h-4" />}
+                icon={<StoreIcon className="w-4 h-4" />}
                 disabled={isReadOnly}
               />
             </div>

@@ -9,7 +9,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Package2 } from 'lucide-react';
+import { ProductIcon } from '@/lib/icons';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
@@ -371,7 +371,7 @@ export default function ProductFormPlaygroundPage() {
             activeKey={tab}
             onSelect={key => setTab(key as 'info' | 'shop')}
             tabs={[
-              { key: 'info', label: 'ข้อมูลสินค้า', icon: <Package2 className="w-4 h-4" /> },
+              { key: 'info', label: 'ข้อมูลสินค้า', icon: <ProductIcon className="w-4 h-4" /> },
               { key: 'shop', label: SHOP.name, icon: <PlatformIcon id="shopee" size={16} /> },
             ]}
           />

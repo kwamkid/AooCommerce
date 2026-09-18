@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowDownUp, Loader2, Package2, Warehouse, X } from 'lucide-react';
+import { ArrowDownUp } from 'lucide-react';
+import { CloseIcon, LoadingIcon, ProductIcon, WarehouseIcon } from '@/lib/icons';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import SearchInput from '@/components/ui/SearchInput';
 import FormSelect from '@/components/ui/FormSelect';
@@ -331,7 +332,7 @@ export default function MovementsTab({ warehouses }: MovementsTabProps) {
           alt={row.product_name}
           size="sm"
           ratio="auto"
-          fallbackIcon={<Package2 className="w-5 h-5 text-gray-400" />}
+          fallbackIcon={<ProductIcon className="w-5 h-5 text-gray-400" />}
         />
       ),
     },
@@ -420,7 +421,7 @@ export default function MovementsTab({ warehouses }: MovementsTabProps) {
         alt={row.product_name}
         size="sm"
         ratio="auto"
-        fallbackIcon={<Package2 className="w-5 h-5 text-gray-400" />}
+        fallbackIcon={<ProductIcon className="w-5 h-5 text-gray-400" />}
       />
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
@@ -518,7 +519,7 @@ export default function MovementsTab({ warehouses }: MovementsTabProps) {
                 options={warehouseOptions}
                 clearLabel="ทุกคลัง"
                 placeholder="คลัง"
-                icon={<Warehouse className="w-4 h-4" />}
+                icon={<WarehouseIcon className="w-4 h-4" />}
                 searchPlaceholder="ค้นหาคลัง..."
               />
             </div>
@@ -546,7 +547,7 @@ export default function MovementsTab({ warehouses }: MovementsTabProps) {
             <Tooltip text="ล้างตัวกรอง">
               <Button
                 variant="ghost"
-                icon={<X className="w-4 h-4" />}
+                icon={<CloseIcon className="w-4 h-4" />}
                 onClick={clearAllFilters}
                 aria-label="ล้างตัวกรอง"
               >
@@ -576,14 +577,14 @@ export default function MovementsTab({ warehouses }: MovementsTabProps) {
           title={hasActiveFilters || variationId ? 'ไม่พบรายการที่ตรงกับตัวกรอง' : 'ยังไม่มีรายการเคลื่อนไหวในช่วงนี้'}
           subtitle={hasActiveFilters ? 'ลองขยายช่วงวันที่หรือล้างตัวกรอง' : undefined}
           actions={hasActiveFilters
-            ? <Button variant="secondary" icon={<X className="w-4 h-4" />} onClick={clearAllFilters}>ล้างตัวกรอง</Button>
+            ? <Button variant="secondary" icon={<CloseIcon className="w-4 h-4" />} onClick={clearAllFilters}>ล้างตัวกรอง</Button>
             : undefined}
         />
       ) : (
         <div className="relative">
           {fetching && (
             <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/60 dark:bg-slate-900/60 pointer-events-none">
-              <Loader2 className="w-8 h-8 text-primary animate-spin" />
+              <LoadingIcon className="w-8 h-8 text-primary animate-spin" />
             </div>
           )}
           <DataTable<MovementRow>

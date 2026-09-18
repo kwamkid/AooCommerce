@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { RefreshIcon } from '@/lib/icons';
 import { isStandalone } from '@/lib/pwa-install';
 
 /** ลากลงมาเกินนี้แล้วปล่อย = รีเฟรช (px) */
@@ -151,7 +151,7 @@ export default function PullToRefresh({ scrollRef }: PullToRefreshProps) {
       }}
     >
       <div className="w-9 h-9 rounded-full bg-white dark:bg-slate-800 shadow-md border border-gray-200 dark:border-slate-700 flex items-center justify-center text-primary">
-        <RefreshCw className={`w-5 h-5${refreshing ? ' animate-spin' : ''}`} />
+        <RefreshIcon className={`w-5 h-5${refreshing ? ' animate-spin' : ''}`} />
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Loader2 } from 'lucide-react';
+import { LoadingIcon } from '@/lib/icons';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import TaxInfoForm, { type TaxType } from '@/components/ui/TaxInfoForm';
@@ -119,7 +119,7 @@ export default function TaxInvoiceModal({
             disabled={loading || prefilling}
             className="text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-1.5"
           >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            {loading ? <LoadingIcon className="w-4 h-4 animate-spin" /> : null}
             {hasAbbrev ? 'ออกใบกำกับภาษี (ยกเลิก ABB)' : 'บันทึก'}
           </button>
         </div>
@@ -128,7 +128,7 @@ export default function TaxInvoiceModal({
       <div>
         {prefilling ? (
           <div className="flex items-center justify-center py-6">
-            <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+            <LoadingIcon className="w-5 h-5 animate-spin text-gray-400" />
             <span className="ml-2 text-sm text-gray-500">กำลังโหลดข้อมูล...</span>
           </div>
         ) : (

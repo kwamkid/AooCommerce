@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
-import { Search, X } from 'lucide-react';
+import { CloseIcon, SearchIcon } from '@/lib/icons';
 
 export interface SearchInputHandle {
   focus: () => void;
@@ -51,7 +51,7 @@ const SearchInput = forwardRef<SearchInputHandle, SearchInputProps>(function Sea
 
   return (
     <div className="relative">
-      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+      <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
       <input
         ref={inputRef}
         type="text"
@@ -69,7 +69,7 @@ const SearchInput = forwardRef<SearchInputHandle, SearchInputProps>(function Sea
           className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-0.5 rounded-full transition-colors"
           tabIndex={-1}
         >
-          <X className="w-3.5 h-3.5" />
+          <CloseIcon className="w-3.5 h-3.5" />
         </button>
       )}
     </div>

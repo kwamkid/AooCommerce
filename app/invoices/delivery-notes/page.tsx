@@ -8,7 +8,7 @@ import { LoadingCard } from '@/components/ui/StateCard';
 import PageHeader from '@/components/ui/PageHeader';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
-import { Truck, ExternalLink } from 'lucide-react';
+import { ExternalLinkIcon, ShippingIcon } from '@/lib/icons';
 import FormSelect from '@/components/ui/FormSelect';
 import SearchInput from '@/components/ui/SearchInput';
 import { getMonthOptions } from '@/lib/month-options';
@@ -105,7 +105,7 @@ export default function DeliveryNotesPage() {
         return (
           <>
             <Link href={link.href} className="text-sm text-primary hover:underline inline-flex items-center gap-1">
-              {link.label} <ExternalLink className="w-3 h-3" />
+              {link.label} <ExternalLinkIcon className="w-3 h-3" />
             </Link>
             {link.subtitle && <div className="text-xs text-gray-400">{link.subtitle}</div>}
           </>
@@ -137,7 +137,7 @@ export default function DeliveryNotesPage() {
     <Layout>
       <div className="space-y-6">
         <PageHeader
-          icon={<Truck />}
+          icon={<ShippingIcon />}
           title="ใบส่งสินค้า"
           subtitle="DN-YYYYMM-NNNN"
         />
@@ -166,7 +166,7 @@ export default function DeliveryNotesPage() {
           loading={loading}
           getRowId={(row) => row.doc_id}
           emptyMessage="ไม่พบใบส่งสินค้า"
-          emptyIcon={<Truck className="w-10 h-10 text-gray-300 dark:text-slate-600" />}
+          emptyIcon={<ShippingIcon className="w-10 h-10 text-gray-300 dark:text-slate-600" />}
           currentPage={page}
           totalPages={totalPages}
           totalRecords={total}
@@ -187,7 +187,7 @@ export default function DeliveryNotesPage() {
                 <div className="text-sm text-gray-500 dark:text-slate-400 mt-1">{formatDate(row.dn_date)}</div>
                 <div className="mt-1">
                   <Link href={link.href} className="text-sm text-primary hover:underline inline-flex items-center gap-1">
-                    {link.label} <ExternalLink className="w-3 h-3" />
+                    {link.label} <ExternalLinkIcon className="w-3 h-3" />
                   </Link>
                   {link.subtitle && <span className="text-xs text-gray-400 ml-1">{link.subtitle}</span>}
                 </div>

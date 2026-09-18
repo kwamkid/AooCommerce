@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
-import { Loader2, Package, Sun, Moon, CheckCircle2, ClipboardList, BarChart3, ChevronRight, AlertCircle, KeyRound, LogOut, Store } from 'lucide-react';
+import { AlertIcon, ChecklistIcon, ChevronRightIcon, DarkThemeIcon, LightThemeIcon, LoadingIcon, LogoutIcon, PasswordIcon, ProductIcon, ReportIcon, SuccessIcon } from '@/lib/icons';
 import { productDisplayName } from '@/lib/product-display';
 import NumberInput from '@/components/ui/NumberInput';
 import { FullPageLoading } from '@/components/ui/Loading';
@@ -291,7 +291,7 @@ export default function ConsignmentPortalPage() {
         <div className="w-full max-w-sm bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-gray-200 dark:border-slate-700 p-8">
           <div className="text-center mb-6">
             <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-amber-100 dark:bg-amber-500/20 mb-4">
-              <KeyRound className="w-7 h-7 text-amber-500" />
+              <PasswordIcon className="w-7 h-7 text-amber-500" />
             </div>
             <h1 className="text-xl font-bold text-gray-900 dark:text-white">Portal ตัวแทน</h1>
             <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">กรุณากรอกรหัสเข้าถึงเพื่อดูข้อมูล</p>
@@ -303,7 +303,7 @@ export default function ConsignmentPortalPage() {
                 รหัสเข้าถึง (Access Code)
               </label>
               <div className="relative">
-                <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <PasswordIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="text"
                   value={authCode}
@@ -324,7 +324,7 @@ export default function ConsignmentPortalPage() {
               disabled={authLoading || !authCode.trim()}
               className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              {authLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
+              {authLoading ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <PasswordIcon className="w-4 h-4" />}
               เข้าสู่ระบบ
             </button>
           </form>
@@ -343,7 +343,7 @@ export default function ConsignmentPortalPage() {
     return (
       <div className={`min-h-screen flex items-center justify-center p-4 ${dark ? 'bg-[#1A1A2E]' : 'bg-gray-50'}`}>
         <div className="text-center">
-          <AlertCircle className={`w-16 h-16 mx-auto mb-4 ${dark ? 'text-red-400' : 'text-red-400'}`} />
+          <AlertIcon className={`w-16 h-16 mx-auto mb-4 ${dark ? 'text-red-400' : 'text-red-400'}`} />
           <h1 className={`text-xl font-semibold mb-2 ${dark ? 'text-slate-300' : 'text-gray-700'}`}>
             ไม่พบข้อมูลตัวแทน
           </h1>
@@ -381,14 +381,14 @@ export default function ConsignmentPortalPage() {
             className="p-2 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors"
             title={dark ? 'Light Mode' : 'Dark Mode'}
           >
-            {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            {dark ? <LightThemeIcon className="w-4 h-4" /> : <DarkThemeIcon className="w-4 h-4" />}
           </button>
           <button
             onClick={handleLogout}
             className="p-2 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors"
             title="ออกจากระบบ"
           >
-            <LogOut className="w-4 h-4" />
+            <LogoutIcon className="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -403,8 +403,8 @@ export default function ConsignmentPortalPage() {
         {/* Tabs — pill style same as supplier portal */}
         <div className="flex gap-1 bg-gray-100 dark:bg-slate-800 rounded-lg p-1 mb-6">
           {([
-            { key: 'stock', label: 'สต๊อกคงเหลือ', icon: <BarChart3 className="w-4 h-4" /> },
-            { key: 'reports', label: 'รายงาน', icon: <ClipboardList className="w-4 h-4" /> },
+            { key: 'stock', label: 'สต๊อกคงเหลือ', icon: <ReportIcon className="w-4 h-4" /> },
+            { key: 'reports', label: 'รายงาน', icon: <ChecklistIcon className="w-4 h-4" /> },
           ] as const).map(t => (
             <button
               key={t.key}
@@ -425,7 +425,7 @@ export default function ConsignmentPortalPage() {
           <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
             {data.stock_summary.length === 0 ? (
               <div className="text-center py-12 text-gray-400 dark:text-slate-500">
-                <Package className="w-10 h-10 mx-auto mb-2 opacity-40" />
+                <ProductIcon className="w-10 h-10 mx-auto mb-2 opacity-40" />
                 <p className="text-sm">ไม่มีสินค้าคงเหลือ</p>
               </div>
             ) : (
@@ -453,7 +453,7 @@ export default function ConsignmentPortalPage() {
                               />
                             ) : (
                               <div className="w-11 h-11 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                                <Package className="w-4 h-4 text-gray-400 dark:text-slate-500" />
+                                <ProductIcon className="w-4 h-4 text-gray-400 dark:text-slate-500" />
                               </div>
                             )}
                             <div className="min-w-0">
@@ -505,7 +505,7 @@ export default function ConsignmentPortalPage() {
           <div className="space-y-3">
             {data.reports.length === 0 ? (
               <div className="text-center py-12 text-gray-400 dark:text-slate-500">
-                <ClipboardList className="w-10 h-10 mx-auto mb-2 opacity-40" />
+                <ChecklistIcon className="w-10 h-10 mx-auto mb-2 opacity-40" />
                 <p className="text-sm">ยังไม่มีรายงาน</p>
               </div>
             ) : (
@@ -540,7 +540,7 @@ export default function ConsignmentPortalPage() {
                           className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 bg-primary hover:bg-[#e03e0d] text-white text-xs font-semibold rounded-lg transition-colors"
                         >
                           กรอกรายงาน
-                          <ChevronRight className="w-3 h-3" />
+                          <ChevronRightIcon className="w-3 h-3" />
                         </button>
                       )}
                     </div>
@@ -585,7 +585,7 @@ export default function ConsignmentPortalPage() {
             <div className="flex-1 overflow-y-auto px-5 py-4">
               {submitSuccess ? (
                 <div className={`text-center py-8 ${dark ? 'text-green-400' : 'text-green-600'}`}>
-                  <CheckCircle2 className="w-12 h-12 mx-auto mb-3" />
+                  <SuccessIcon className="w-12 h-12 mx-auto mb-3" />
                   <p className="font-bold text-lg">ส่งรายงานสำเร็จ</p>
                   <p className={`text-sm mt-1 ${dark ? 'text-slate-400' : 'text-gray-500'}`}>ขอบคุณที่ส่งรายงานประจำเดือน</p>
                   <button
@@ -697,12 +697,12 @@ export default function ConsignmentPortalPage() {
                 >
                   {submitting ? (
                     <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <LoadingIcon className="w-5 h-5 animate-spin" />
                       กำลังส่ง...
                     </>
                   ) : (
                     <>
-                      <CheckCircle2 className="w-5 h-5" />
+                      <SuccessIcon className="w-5 h-5" />
                       ส่งรายงาน
                     </>
                   )}

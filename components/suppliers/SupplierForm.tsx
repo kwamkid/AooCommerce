@@ -5,15 +5,7 @@ import { useState, useRef, useEffect } from 'react';
 import BrandFormModal from '@/components/brands/BrandFormModal';
 import Button from '@/components/ui/Button';
 import StickyActionBar from '@/components/ui/StickyActionBar';
-import {
-  Factory,
-  Banknote,
-  CreditCard,
-  Handshake,
-  ChevronDown,
-  Plus,
-  Tag,
-} from 'lucide-react';
+import { AddIcon, ChevronDownIcon, DealIcon, MoneyIcon, PaymentIcon, SupplierIcon, TagIcon } from '@/lib/icons';
 import { THAI_BANKS, getBankByCode } from '@/lib/constants/banks';
 import Checkbox from '@/components/ui/Checkbox';
 import FormSelect from '@/components/ui/FormSelect';
@@ -25,9 +17,9 @@ import { useFormValidation } from '@/lib/useFormValidation';
 import { apiFetch } from '@/lib/api-client';
 
 const SUPPLIER_TYPES = [
-  { value: 'cash', label: 'Cash (เงินสด)', icon: Banknote, desc: 'ชำระทันทีเมื่อสั่งซื้อ' },
-  { value: 'credit', label: 'Credit (เครดิต)', icon: CreditCard, desc: 'สั่งก่อน จ่ายทีหลังตามเครดิต' },
-  { value: 'consignment', label: 'Consignment (ฝากขาย)', icon: Handshake, desc: 'ฝากสินค้าไว้ ขายได้ค่อยจ่าย' },
+  { value: 'cash', label: 'Cash (เงินสด)', icon: MoneyIcon, desc: 'ชำระทันทีเมื่อสั่งซื้อ' },
+  { value: 'credit', label: 'Credit (เครดิต)', icon: PaymentIcon, desc: 'สั่งก่อน จ่ายทีหลังตามเครดิต' },
+  { value: 'consignment', label: 'Consignment (ฝากขาย)', icon: DealIcon, desc: 'ฝากสินค้าไว้ ขายได้ค่อยจ่าย' },
 ] as const;
 
 export interface SupplierFormData {
@@ -200,7 +192,7 @@ export default function SupplierForm({
         ) : (
           <span className="text-gray-400">เลือกธนาคาร</span>
         )}
-        <ChevronDown className="w-4 h-4 text-gray-400 ml-auto flex-shrink-0" />
+        <ChevronDownIcon className="w-4 h-4 text-gray-400 ml-auto flex-shrink-0" />
       </button>
       {bankDropdownOpen && (
         <div className="absolute z-20 mt-1 w-full bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
@@ -342,7 +334,7 @@ export default function SupplierForm({
           {/* ข้อมูลทั่วไป */}
           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-6 space-y-4">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-              <Factory className="w-5 h-5 text-primary" />
+              <SupplierIcon className="w-5 h-5 text-primary" />
               ข้อมูลทั่วไป
             </h2>
 
@@ -523,7 +515,7 @@ export default function SupplierForm({
           {/* แบรนด์ */}
           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-6 space-y-4">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-              <Tag className="w-5 h-5 text-primary" />
+              <TagIcon className="w-5 h-5 text-primary" />
               แบรนด์
             </h2>
 
@@ -536,11 +528,11 @@ export default function SupplierForm({
               placeholder="เลือกแบรนด์ของ Supplier รายนี้..."
               searchPlaceholder="พิมพ์ชื่อแบรนด์..."
               emptyLabel="ยังไม่ได้ผูกแบรนด์"
-              icon={<Tag className="w-4 h-4" />}
+              icon={<TagIcon className="w-4 h-4" />}
             />
 
             {/* สร้างแบรนด์ใหม่ที่ผูกกับ Supplier รายนี้ทันที — ฟอร์มเดียวกับหน้าแบรนด์ */}
-            <Button variant="secondary" icon={<Plus />} onClick={() => setBrandModalOpen(true)}>
+            <Button variant="secondary" icon={<AddIcon />} onClick={() => setBrandModalOpen(true)}>
               เพิ่มแบรนด์ใหม่
             </Button>
           </div>

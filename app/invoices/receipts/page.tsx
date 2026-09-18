@@ -8,7 +8,7 @@ import { LoadingCard } from '@/components/ui/StateCard';
 import PageHeader from '@/components/ui/PageHeader';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
-import { Receipt, Printer, ExternalLink } from 'lucide-react';
+import { ExternalLinkIcon, PrintIcon, ReceiptIcon } from '@/lib/icons';
 import FormSelect from '@/components/ui/FormSelect';
 import SearchInput from '@/components/ui/SearchInput';
 import { getMonthOptions } from '@/lib/month-options';
@@ -134,7 +134,7 @@ export default function ReceiptsPage() {
         return (
           <>
             <Link href={link.href} className="text-sm text-primary hover:underline inline-flex items-center gap-1">
-              {link.label} <ExternalLink className="w-3 h-3" />
+              {link.label} <ExternalLinkIcon className="w-3 h-3" />
             </Link>
             {inv.source_type !== 'order' && (
               <div className="text-xs text-gray-400">
@@ -175,7 +175,7 @@ export default function ReceiptsPage() {
       hideMobile: true,
       render: (inv) => (
         <button onClick={() => handlePrint(inv)} className="p-1.5 text-gray-400 hover:text-primary transition-colors" title="พิมพ์">
-          <Printer className="w-4 h-4" />
+          <PrintIcon className="w-4 h-4" />
         </button>
       ),
     },
@@ -188,7 +188,7 @@ export default function ReceiptsPage() {
     <Layout>
       <div className="space-y-6">
         <PageHeader
-          icon={<Receipt />}
+          icon={<ReceiptIcon />}
           title="ใบเสร็จรับเงิน"
           subtitle="REC-YYYYMM-NNNN — สำหรับร้านที่ไม่จด VAT"
         />
@@ -217,7 +217,7 @@ export default function ReceiptsPage() {
           loading={loading}
           getRowId={(inv) => inv.doc_id}
           emptyMessage="ไม่พบใบเสร็จรับเงิน"
-          emptyIcon={<Receipt className="w-10 h-10 text-gray-300 dark:text-slate-600" />}
+          emptyIcon={<ReceiptIcon className="w-10 h-10 text-gray-300 dark:text-slate-600" />}
           currentPage={page}
           totalPages={totalPages}
           totalRecords={total}
@@ -237,13 +237,13 @@ export default function ReceiptsPage() {
                     )}
                   </div>
                   <button onClick={() => handlePrint(inv)} className="p-1.5 text-gray-400 hover:text-primary transition-colors" title="พิมพ์">
-                    <Printer className="w-4 h-4" />
+                    <PrintIcon className="w-4 h-4" />
                   </button>
                 </div>
                 <div className="text-sm text-gray-500 dark:text-slate-400 mt-1">{formatDate(inv.tax_invoice_date)}</div>
                 <div className="mt-1">
                   <Link href={link.href} className="text-sm text-primary hover:underline inline-flex items-center gap-1">
-                    {link.label} <ExternalLink className="w-3 h-3" />
+                    {link.label} <ExternalLinkIcon className="w-3 h-3" />
                   </Link>
                   {inv.source_type !== 'order' && (
                     <span className="text-xs text-gray-400 ml-1">

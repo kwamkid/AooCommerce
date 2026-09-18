@@ -3,7 +3,7 @@
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { DayPicker, DateRange } from 'react-day-picker';
 import { format, isValid, isSameDay, isLastDayOfMonth, startOfMonth, endOfMonth, subDays, startOfDay, addMonths, subMonths } from 'date-fns';
-import { Calendar, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon } from '@/lib/icons';
 
 // Re-export DateValueType so consumers don't need to change imports
 export type DateValueType = {
@@ -149,7 +149,7 @@ function CalendarHeader({
           onClick={onPrev}
           className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
         >
-          <ChevronLeft className="w-5 h-5 text-gray-500" />
+          <ChevronLeftIcon className="w-5 h-5 text-gray-500" />
         </button>
       ) : (
         <div className="w-7" />
@@ -178,7 +178,7 @@ function CalendarHeader({
           onClick={onNext}
           className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
         >
-          <ChevronRight className="w-5 h-5 text-gray-500" />
+          <ChevronRightIcon className="w-5 h-5 text-gray-500" />
         </button>
       ) : (
         <div className="w-7" />
@@ -434,7 +434,7 @@ export default function DateRangePicker({
           open ? 'ring-2 ring-primary border-transparent' : 'hover:border-gray-400 dark:hover:border-slate-400'
         } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
       >
-        <Calendar className={`w-4 h-4 flex-shrink-0 ${readOnly ? 'text-gray-400 dark:text-slate-500' : 'text-amber-500'}`} />
+        <CalendarIcon className={`w-4 h-4 flex-shrink-0 ${readOnly ? 'text-gray-400 dark:text-slate-500' : 'text-amber-500'}`} />
         {displayText ? (
           <span className={`truncate flex-1 ${readOnly ? 'text-gray-400 dark:text-slate-500' : 'text-gray-900 dark:text-white'}`}>{displayText}</span>
         ) : (
@@ -445,7 +445,7 @@ export default function DateRangePicker({
             onClick={handleClear}
             className="p-0.5 hover:bg-gray-100 dark:hover:bg-slate-600 rounded transition-colors flex-shrink-0"
           >
-            <X className="w-3.5 h-3.5 text-gray-400" />
+            <CloseIcon className="w-3.5 h-3.5 text-gray-400" />
           </span>
         )}
       </button>

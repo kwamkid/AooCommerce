@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, Search, Check } from 'lucide-react';
+import { ChevronDownIcon, ConfirmIcon, SearchIcon } from '@/lib/icons';
 import { useDropUp } from '@/lib/useDropUp';
 
 export interface FormSelectOption {
@@ -252,7 +252,7 @@ export default function FormSelect({
         }`}>
           {selected?.triggerLabel || selected?.label || (clearLabel && value === clearValue ? clearLabel : placeholder)}
         </span>
-        <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform text-gray-400 dark:text-slate-400 ${open ? 'rotate-180' : ''}`} />
+        <ChevronDownIcon className={`w-4 h-4 flex-shrink-0 transition-transform text-gray-400 dark:text-slate-400 ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {/* Dropdown */}
@@ -271,7 +271,7 @@ export default function FormSelect({
             {showSearch && (
               <div className="px-2 py-2 border-b border-gray-100 dark:border-slate-700">
                 <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                  <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
                   <input
                     ref={searchRef}
                     type="text"
@@ -326,7 +326,7 @@ export default function FormSelect({
                       <div className="text-xs text-gray-500 dark:text-slate-400 whitespace-nowrap">{o.subtitle}</div>
                     )}
                   </div>
-                  {o.id === value && <Check className="w-4 h-4 text-primary flex-shrink-0" />}
+                  {o.id === value && <ConfirmIcon className="w-4 h-4 text-primary flex-shrink-0" />}
                 </button>
                 );
               })}

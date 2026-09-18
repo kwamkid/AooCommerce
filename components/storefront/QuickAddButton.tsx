@@ -6,7 +6,8 @@
 
 import { useRef, useState } from 'react';
 import Link from 'next/link';
-import { Plus, Check, SlidersHorizontal } from 'lucide-react';
+import { SlidersHorizontal } from 'lucide-react';
+import { AddIcon, ConfirmIcon } from '@/lib/icons';
 import { addToCart } from '@/lib/storefront-cart';
 import { flyToCart, findProductImage, FLY_DURATION } from '@/lib/storefront-fly-to-cart';
 import { storefrontHref, type StorefrontVariation } from '@/lib/storefront';
@@ -73,8 +74,8 @@ export default function QuickAddButton({ shop, productSlug, productName, variati
     >
       <span className="sf-quickadd-face" key={added ? 'done' : 'idle'}>
         {added
-          ? <><Check strokeWidth={2} aria-hidden="true" />เพิ่มแล้ว</>
-          : <><Plus strokeWidth={2} aria-hidden="true" />หยิบใส่ตะกร้า</>}
+          ? <><ConfirmIcon strokeWidth={2} aria-hidden="true" />เพิ่มแล้ว</>
+          : <><AddIcon strokeWidth={2} aria-hidden="true" />หยิบใส่ตะกร้า</>}
       </span>
     </button>
   );

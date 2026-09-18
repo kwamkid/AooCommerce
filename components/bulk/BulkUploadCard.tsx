@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, type ChangeEvent, type ReactNode } from 'react';
-import { Upload, Download, FileSpreadsheet, Loader2 } from 'lucide-react';
+import { DownloadIcon, ExcelIcon, LoadingIcon, UploadIcon } from '@/lib/icons';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 
@@ -54,7 +54,7 @@ export default function BulkUploadCard({
     <Card padding="lg">
       <div className="text-center space-y-5">
         <div className="w-16 h-16 bg-gray-100 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto">
-          <FileSpreadsheet className="w-8 h-8 text-gray-400" />
+          <ExcelIcon className="w-8 h-8 text-gray-400" />
         </div>
         {(title || subtitle) && (
           <div>
@@ -68,7 +68,7 @@ export default function BulkUploadCard({
         )}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
           {onDownloadTemplate && (
-            <Button variant="secondary" onClick={() => void onDownloadTemplate()} icon={<Download className="w-4 h-4" />}>
+            <Button variant="secondary" onClick={() => void onDownloadTemplate()} icon={<DownloadIcon className="w-4 h-4" />}>
               {downloadLabel}
             </Button>
           )}
@@ -77,7 +77,7 @@ export default function BulkUploadCard({
             size="lg"
             onClick={() => fileRef.current?.click()}
             disabled={disabled}
-            icon={disabled ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+            icon={disabled ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <UploadIcon className="w-4 h-4" />}
           >
             {disabled ? 'กำลังโหลด...' : (uploadLabel || 'อัพโหลดไฟล์')}
           </Button>

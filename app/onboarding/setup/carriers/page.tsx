@@ -1,6 +1,6 @@
 'use client';
 
-import { Truck, Check } from 'lucide-react';
+import { ConfirmIcon, ShippingIcon } from '@/lib/icons';
 import WizardShell from '@/components/onboarding/WizardShell';
 import { useWizardState, WIZARD_KEYS } from '@/components/onboarding/wizard-storage';
 import { CARRIER_PRESETS as CARRIERS, type CarrierPreset as CarrierItem } from '@/lib/constants/carriers';
@@ -47,7 +47,7 @@ export default function OnboardingCarriersPage() {
             isSelected ? 'bg-primary text-white' : 'border-2 border-gray-300 dark:border-slate-600'
           }`}
         >
-          {isSelected && <Check className="w-3.5 h-3.5" />}
+          {isSelected && <ConfirmIcon className="w-3.5 h-3.5" />}
         </div>
         <div className="flex-1 min-w-0">
           <div className="font-medium text-gray-900 dark:text-white">{c.name}</div>
@@ -79,7 +79,7 @@ export default function OnboardingCarriersPage() {
       </div>
 
       <div className="px-4 py-3 bg-gray-50 dark:bg-slate-700/40 rounded-lg text-sm text-gray-600 dark:text-slate-400 flex items-start gap-2">
-        <Truck className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-400 dark:text-slate-500" />
+        <ShippingIcon className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-400 dark:text-slate-500" />
         <span>ระบบจะเพิ่ม &quot;จัดส่งเอง&quot; และ &quot;อื่นๆ&quot; ให้อัตโนมัติเสมอ — ใช้กรอกชื่อขนส่งใหม่หรือรถบริษัท</span>
       </div>
     </WizardShell>

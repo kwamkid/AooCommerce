@@ -6,7 +6,7 @@
 // สี/โทนรับผ่าน props (บิลออนไลน์มีโหมดมืด หน้าร้านสว่างอย่างเดียว)
 'use client';
 
-import { X } from 'lucide-react';
+import { CloseIcon } from '@/lib/icons';
 import { getOrderProgress } from '@/lib/order-progress';
 import Stepper, { type StepItem } from './Stepper';
 
@@ -28,7 +28,7 @@ export default function OrderProgress({ order, dark = false }: Props) {
           color: dark ? '#fca5a5' : '#b91c1c', fontSize: 15, fontWeight: 500,
         }}
       >
-        <X size={17} strokeWidth={2.5} aria-hidden="true" />
+        <CloseIcon size={17} strokeWidth={2.5} aria-hidden="true" />
         {cancelledLabel}
       </div>
     );

@@ -5,7 +5,7 @@
 'use client';
 
 import { useSyncExternalStore } from 'react';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLinkIcon } from '@/lib/icons';
 import {
   detectInAppBrowser,
   currentUrlForExternalBrowser,
@@ -41,7 +41,7 @@ export default function InAppBrowserNotice() {
           onClick={() => { window.location.href = currentUrlForExternalBrowser(); }}
           className="mt-3 inline-flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-amber-600"
         >
-          <ExternalLink className="h-4 w-4" />
+          <ExternalLinkIcon className="h-4 w-4" />
           เปิดด้วยเบราว์เซอร์
         </button>
       )}

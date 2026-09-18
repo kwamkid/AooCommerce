@@ -15,7 +15,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
+import { ChevronDownIcon, ChevronUpIcon, LoadingIcon } from '@/lib/icons';
 import Card from './Card';
 import Toggle from './Toggle';
 
@@ -95,7 +95,7 @@ export default function ToggleCard({
             aria-label={open ? 'พับเก็บการตั้งค่า' : 'กางดูการตั้งค่า'}
             className="flex-shrink-0 p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-400 transition-colors"
           >
-            {open ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            {open ? <ChevronUpIcon className="w-4 h-4" /> : <ChevronDownIcon className="w-4 h-4" />}
           </button>
         )}
 
@@ -110,7 +110,7 @@ export default function ToggleCard({
 
       {loading ? (
         <div className="flex items-center justify-center py-4">
-          <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+          <LoadingIcon className="w-5 h-5 animate-spin text-gray-400" />
         </div>
       ) : showChildren && children ? (
         <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700">{children}</div>

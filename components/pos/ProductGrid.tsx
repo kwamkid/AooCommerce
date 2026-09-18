@@ -1,7 +1,7 @@
 // Path: components/pos/ProductGrid.tsx
 'use client';
 
-import { Package2 } from 'lucide-react';
+import { ProductIcon } from '@/lib/icons';
 import { formatPrice } from '@/lib/utils/format';
 import { thumbUrl } from '@/lib/image-thumb';
 
@@ -44,7 +44,7 @@ export default function ProductGrid({ products, onAddToCart, loading, allowOvers
   if (products.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-gray-500 dark:text-gray-400">
-        <Package2 className="w-12 h-12 mb-3 opacity-50" />
+        <ProductIcon className="w-12 h-12 mb-3 opacity-50" />
         <p className="text-sm">ไม่พบสินค้า</p>
       </div>
     );
@@ -77,7 +77,7 @@ export default function ProductGrid({ products, onAddToCart, loading, allowOvers
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <Package2 className="w-8 h-8 text-gray-400 dark:text-gray-500" />
+                <ProductIcon className="w-8 h-8 text-gray-400 dark:text-gray-500" />
               )}
             </div>
 

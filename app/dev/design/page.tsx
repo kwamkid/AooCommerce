@@ -28,10 +28,7 @@ import PlatformIcon from '@/components/ui/PlatformIcon';
 import StatusBadge, { InfoChip } from '@/components/ui/StatusBadge';
 import { OrderStatusBadge, PaymentStatusBadge } from '@/components/ui/OrderStatusBadge';
 import { STATUS_DOMAINS, STATUS_COLORS, type StatusDomain } from '@/lib/status-labels';
-import {
-  Plus, Save, Trash2, Check, AlertCircle, AlertTriangle, Pencil, Settings, Download, Upload, ArrowRight,
-  ShoppingCart, Package, Banknote, Users, ChevronRight, Truck, Clock,
-} from 'lucide-react';
+import { AddIcon, AlertIcon, ChevronRightIcon, ConfirmIcon, DeleteIcon, DownloadIcon, EditIcon, ForwardIcon, MoneyIcon, OrderIcon, PeopleIcon, ProductIcon, SaveIcon, SettingsIcon, ShippingIcon, TimeIcon, WarningIcon } from '@/lib/icons';
 
 interface DemoRow {
   id: string;
@@ -239,10 +236,10 @@ export default function DesignSystemPage() {
             </Group>
 
             <Group label="With icon">
-              <Button icon={<Plus className="w-4 h-4" />}>เพิ่ม</Button>
-              <Button variant="secondary" icon={<Download className="w-4 h-4" />}>ดาวน์โหลด</Button>
-              <Button variant="danger" icon={<Trash2 className="w-4 h-4" />}>ลบ</Button>
-              <Button iconRight={<ArrowRight className="w-4 h-4" />}>ถัดไป</Button>
+              <Button icon={<AddIcon className="w-4 h-4" />}>เพิ่ม</Button>
+              <Button variant="secondary" icon={<DownloadIcon className="w-4 h-4" />}>ดาวน์โหลด</Button>
+              <Button variant="danger" icon={<DeleteIcon className="w-4 h-4" />}>ลบ</Button>
+              <Button iconRight={<ForwardIcon className="w-4 h-4" />}>ถัดไป</Button>
             </Group>
 
             <Group label="States">
@@ -290,10 +287,10 @@ export default function DesignSystemPage() {
             </Group>
 
             <Group label="With icon">
-              <Badge tone="emerald" icon={<Check className="w-3 h-3" />}>สำเร็จ</Badge>
-              <Badge tone="red" icon={<AlertCircle className="w-3 h-3" />}>Error</Badge>
-              <Badge tone="amber" icon={<AlertTriangle className="w-3 h-3" />}>เตือน</Badge>
-              <Badge tone="blue" icon={<Pencil className="w-3 h-3" />}>อัพเดท</Badge>
+              <Badge tone="emerald" icon={<ConfirmIcon className="w-3 h-3" />}>สำเร็จ</Badge>
+              <Badge tone="red" icon={<AlertIcon className="w-3 h-3" />}>Error</Badge>
+              <Badge tone="amber" icon={<WarningIcon className="w-3 h-3" />}>เตือน</Badge>
+              <Badge tone="blue" icon={<EditIcon className="w-3 h-3" />}>อัพเดท</Badge>
             </Group>
 
             <Group label="Shape + Size">
@@ -325,7 +322,7 @@ export default function DesignSystemPage() {
               <StatusBadge domain="order" status="processing" />
               <StatusBadge domain="order" status="processing" size="md" />
               <StatusBadge domain="order" status="processing" hideIcon />
-              <StatusBadge domain="order" status="processing" trailing={<ChevronRight className="w-3 h-3" />} />
+              <StatusBadge domain="order" status="processing" trailing={<ChevronRightIcon className="w-3 h-3" />} />
             </Group>
             <Hint>
               <code>size</code> sm (ค่าปกติ) / md · <code>hideIcon</code> เฉพาะที่แคบจริง ๆ ·{' '}
@@ -347,8 +344,8 @@ export default function DesignSystemPage() {
             </Hint>
 
             <Group label="ป้ายที่ไม่ใช่สถานะ — InfoChip">
-              <InfoChip colors="bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300" icon={<Truck className="w-3 h-3" />}>Flash Express</InfoChip>
-              <InfoChip colors="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" icon={<Clock className="w-3 h-3" />}>ส่งพรุ่งนี้</InfoChip>
+              <InfoChip colors="bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300" icon={<ShippingIcon className="w-3 h-3" />}>Flash Express</InfoChip>
+              <InfoChip colors="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" icon={<TimeIcon className="w-3 h-3" />}>ส่งพรุ่งนี้</InfoChip>
               <InfoChip colors="bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-300">READY_TO_SHIP</InfoChip>
             </Group>
             <Hint>
@@ -403,8 +400,8 @@ export default function DesignSystemPage() {
               backHref="/dev/design"
               actions={
                 <>
-                  <Button variant="secondary" icon={<Settings className="w-4 h-4" />}>ตั้งค่า</Button>
-                  <Button variant="primary" icon={<Save className="w-4 h-4" />}>บันทึก</Button>
+                  <Button variant="secondary" icon={<SettingsIcon className="w-4 h-4" />}>ตั้งค่า</Button>
+                  <Button variant="primary" icon={<SaveIcon className="w-4 h-4" />}>บันทึก</Button>
                 </>
               }
             />
@@ -667,7 +664,7 @@ export default function DesignSystemPage() {
               subtitle="12 ออเดอร์"
               delta="+18% จากเมื่อวาน"
               trend="up"
-              icon={<Banknote className="w-5 h-5" />}
+              icon={<MoneyIcon className="w-5 h-5" />}
             />
             <Stat
               label="ออเดอร์ใหม่"
@@ -675,20 +672,20 @@ export default function DesignSystemPage() {
               subtitle="รอตรวจสอบ"
               delta="-5% จากสัปดาห์ก่อน"
               trend="down"
-              icon={<ShoppingCart className="w-5 h-5" />}
+              icon={<OrderIcon className="w-5 h-5" />}
             />
             <Stat
               label="สินค้า low stock"
               value="8"
               subtitle="ต่ำกว่า min"
-              icon={<Package className="w-5 h-5" />}
+              icon={<ProductIcon className="w-5 h-5" />}
             />
             <Stat
               label="ลูกค้าใหม่"
               value="142"
               delta="ไม่เปลี่ยนแปลง"
               trend="flat"
-              icon={<Users className="w-5 h-5" />}
+              icon={<PeopleIcon className="w-5 h-5" />}
             />
           </div>
         </Section>
@@ -784,7 +781,7 @@ export default function DesignSystemPage() {
         onClose={() => setModalOpen(false)}
         size="lg"
         title="ตัวอย่าง Modal"
-        icon={<Settings className="w-6 h-6 text-gray-500" />}
+        icon={<SettingsIcon className="w-6 h-6 text-gray-500" />}
         footer={
           <div className="flex items-center justify-end gap-2">
             <Button variant="secondary" onClick={() => setModalOpen(false)}>ยกเลิก</Button>
@@ -809,7 +806,7 @@ export default function DesignSystemPage() {
         confirmLabel="ลบ"
         cancelLabel="ยกเลิก"
         variant="danger"
-        icon={<AlertTriangle className="w-6 h-6 text-red-500" />}
+        icon={<WarningIcon className="w-6 h-6 text-red-500" />}
       />
 
       <BulkErrorModal

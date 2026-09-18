@@ -2,7 +2,8 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { CornerDownRight, Edit2, Folder, FolderTree, Plus, Tag, Trash2 } from 'lucide-react';
+import { CornerDownRight, Folder } from 'lucide-react';
+import { AddIcon, CategoryIcon, DeleteIcon, EditIcon } from '@/lib/icons';
 import Layout from '@/components/layout/Layout';
 import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
 import Badge from '@/components/ui/Badge';
@@ -222,20 +223,20 @@ function CategoriesPage() {
 
   const parentActions = (category: CategoryItem): ActionItem[] => [
     {
-      key: 'add-child', label: 'เพิ่มหมวดย่อย', icon: <Plus />,
+      key: 'add-child', label: 'เพิ่มหมวดย่อย', icon: <AddIcon />,
       onClick: () => openAddModal(category.id), primary: true,
     },
-    { key: 'edit', label: 'แก้ไข', icon: <Edit2 />, onClick: () => openEditModal(category) },
+    { key: 'edit', label: 'แก้ไข', icon: <EditIcon />, onClick: () => openEditModal(category) },
     {
-      key: 'delete', label: 'ลบ', icon: <Trash2 />,
+      key: 'delete', label: 'ลบ', icon: <DeleteIcon />,
       onClick: () => void handleDelete(category, false), danger: true, disabled: deletingId === category.id, dividerBefore: true,
     },
   ];
 
   const childActions = (child: CategoryItem): ActionItem[] => [
-    { key: 'edit', label: 'แก้ไข', icon: <Edit2 />, onClick: () => openEditModal(child) },
+    { key: 'edit', label: 'แก้ไข', icon: <EditIcon />, onClick: () => openEditModal(child) },
     {
-      key: 'delete', label: 'ลบ', icon: <Trash2 />,
+      key: 'delete', label: 'ลบ', icon: <DeleteIcon />,
       onClick: () => void handleDelete(child, true), danger: true, disabled: deletingId === child.id, dividerBefore: true,
     },
   ];
@@ -246,10 +247,10 @@ function CategoriesPage() {
     <Layout>
       <Container size="full">
         <PageHeader
-          icon={<FolderTree />}
+          icon={<CategoryIcon />}
           title="หมวดหมู่สินค้า"
           subtitle={`จัดโครงสร้างสินค้า ${parentCount} หมวดหลัก และ ${childCount} หมวดย่อย`}
-          actions={<Button variant="primary" icon={<Plus />} onClick={() => openAddModal()}>เพิ่มหมวดหมู่</Button>}
+          actions={<Button variant="primary" icon={<AddIcon />} onClick={() => openAddModal()}>เพิ่มหมวดหมู่</Button>}
         />
         <ListFilterBar
           value={searchInput}
@@ -265,10 +266,10 @@ function CategoriesPage() {
 
         {loading ? <LoadingCard /> : visibleCategories.length === 0 ? (
           <EmptyCard
-            icon={<FolderTree className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+            icon={<CategoryIcon className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
             title={searchQuery ? 'ไม่พบหมวดหมู่ที่ค้นหา' : 'ยังไม่มีหมวดหมู่สินค้า'}
             subtitle={searchQuery ? 'ลองเปลี่ยนคำค้น' : 'เพิ่มหมวดหมู่แรกเพื่อจัดกลุ่มสินค้าให้หาง่ายขึ้น'}
-            actions={searchQuery ? undefined : <Button variant="primary" icon={<Plus />} onClick={() => openAddModal()}>เพิ่มหมวดหมู่</Button>}
+            actions={searchQuery ? undefined : <Button variant="primary" icon={<AddIcon />} onClick={() => openAddModal()}>เพิ่มหมวดหมู่</Button>}
           />
         ) : (
           <MasterDataGrid>
@@ -289,7 +290,7 @@ function CategoriesPage() {
                       <ActionMenu items={childActions(child)} />
                     </div>
                   )) : (
-                    <Button variant="ghost" size="sm" icon={<Plus />} onClick={() => openAddModal(parent.id)}>
+                    <Button variant="ghost" size="sm" icon={<AddIcon />} onClick={() => openAddModal(parent.id)}>
                       เพิ่มหมวดย่อย
                     </Button>
                   )}
@@ -301,7 +302,7 @@ function CategoriesPage() {
       </Container>
 
       <Modal open={addModalOpen} onClose={closeAddModal} title={addParentId ? 'เพิ่มหมวดย่อย' : 'เพิ่มหมวดหมู่'}
-        icon={<Tag />} size="md"
+        icon={<CategoryIcon />} size="md"
         footer={<ModalFormFooter><Button variant="secondary" onClick={closeAddModal} disabled={saving}>ยกเลิก</Button><SaveButton onClick={handleAdd} loading={saving} /></ModalFormFooter>}
       >
         <ModalFormBody stacked>
@@ -316,7 +317,7 @@ function CategoriesPage() {
       </Modal>
 
       <Modal open={Boolean(editingCategory)} onClose={closeEditModal} title="แก้ไขหมวดหมู่"
-        icon={<Edit2 />} size="md"
+        icon={<EditIcon />} size="md"
         footer={<ModalFormFooter><Button variant="secondary" onClick={closeEditModal} disabled={saving}>ยกเลิก</Button><SaveButton onClick={handleSaveEdit} loading={saving} /></ModalFormFooter>}
       >
         <ModalFormBody stacked>

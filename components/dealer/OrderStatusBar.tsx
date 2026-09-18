@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Loader2, CheckCircle, Trash2 } from 'lucide-react';
+import { DeleteIcon, LoadingIcon, SuccessIcon } from '@/lib/icons';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
@@ -59,14 +59,14 @@ export default function OrderStatusBar({ orderId, orderNumber, orderStatus, paym
         {(orderStatus === 'new' || orderStatus === 'processing') && (
           <button onClick={() => handleStatusChange('completed')} disabled={updating}
             className="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 text-sm font-medium flex items-center gap-1.5 disabled:opacity-50">
-            {updating ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+            {updating ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <SuccessIcon className="w-4 h-4" />}
             จัดส่งแล้ว / เสร็จสิ้น
           </button>
         )}
         {!['completed', 'cancelled'].includes(orderStatus) && (
           <button onClick={handleCancel} disabled={updating}
             className="border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 px-3 py-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-sm font-medium flex items-center gap-1.5 disabled:opacity-50">
-            <Trash2 className="w-4 h-4" /> ยกเลิกออเดอร์
+            <DeleteIcon className="w-4 h-4" /> ยกเลิกออเดอร์
           </button>
         )}
       </div>

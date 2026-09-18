@@ -29,20 +29,8 @@ import { getImageUrl } from '@/lib/utils/image';
 import { formatNumber } from '@/lib/utils/format';
 import { useFeatures } from '@/lib/features-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
-import {
-  Plus,
-  Edit2,
-  Trash2,
-  Copy,
-  Package2,
-  Loader2,
-  Award,
-  Pencil,
-  SlidersHorizontal,
-  X,
-  ChevronDown,
-  Warehouse,
-} from 'lucide-react';
+import { SlidersHorizontal } from 'lucide-react';
+import { AddIcon, BrandIcon, ChevronDownIcon, CloseIcon, CopyIcon, DeleteIcon, EditIcon, LoadingIcon, ProductIcon, WarehouseIcon } from '@/lib/icons';
 import SharedActionMenu from '@/components/ui/ActionMenu';
 import SearchableDropdown, { DropdownOption } from '@/components/ui/SearchableDropdown';
 import FormSelect from '@/components/ui/FormSelect';
@@ -252,7 +240,7 @@ function WarehouseBreakdown({ entry, variationId, comboIds }: {
   if (!entry || entry.status === 'loading') {
     body = (
       <div className="flex items-center gap-2 text-gray-300">
-        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        <LoadingIcon className="w-3.5 h-3.5 animate-spin" />
         กำลังโหลด...
       </div>
     );
@@ -312,10 +300,10 @@ function ProductActionMenu({ onEdit, onOpenNewTab, onDuplicate, onDelete }: {
 }) {
   return (
     <SharedActionMenu items={[
-      { key: 'edit', label: 'แก้ไข', icon: <Edit2 className="w-3.5 h-3.5" />, onClick: onEdit },
-      { key: 'new-tab', label: 'เปิดในแท็บใหม่', icon: <Edit2 className="w-3.5 h-3.5" />, onClick: onOpenNewTab },
-      { key: 'duplicate', label: 'คัดลอก', icon: <Copy className="w-3.5 h-3.5" />, onClick: onDuplicate },
-      { key: 'delete', label: 'ลบ', icon: <Trash2 className="w-3.5 h-3.5" />, danger: true, onClick: onDelete },
+      { key: 'edit', label: 'แก้ไข', icon: <EditIcon className="w-3.5 h-3.5" />, onClick: onEdit },
+      { key: 'new-tab', label: 'เปิดในแท็บใหม่', icon: <EditIcon className="w-3.5 h-3.5" />, onClick: onOpenNewTab },
+      { key: 'duplicate', label: 'คัดลอก', icon: <CopyIcon className="w-3.5 h-3.5" />, onClick: onDuplicate },
+      { key: 'delete', label: 'ลบ', icon: <DeleteIcon className="w-3.5 h-3.5" />, danger: true, onClick: onDelete },
     ]} />
   );
 }
@@ -892,7 +880,7 @@ function ProductsPageContent() {
       portal
       align="right"
       ariaLabel="ดูแยกตามคลัง"
-      trigger={<Warehouse className="w-4 h-4" />}
+      trigger={<WarehouseIcon className="w-4 h-4" />}
       onOpenChange={(open) => { if (open) void loadBreakdown(product.product_id); }}
     >
       <WarehouseBreakdown
@@ -976,7 +964,7 @@ function ProductsPageContent() {
           size="sm"
           ratio="auto"
           className="mx-auto"
-          fallbackIcon={<Package2 className="w-4 h-4 text-gray-400" />}
+          fallbackIcon={<ProductIcon className="w-4 h-4 text-gray-400" />}
         />
       ) : (
         <ProductImageThumb
@@ -984,7 +972,7 @@ function ProductsPageContent() {
           alt={row.product.name}
           size="lg"
           ratio="auto"
-          fallbackIcon={<Package2 className="w-7 h-7 text-gray-400" />}
+          fallbackIcon={<ProductIcon className="w-7 h-7 text-gray-400" />}
         />
       ),
     },
@@ -1101,7 +1089,7 @@ function ProductsPageContent() {
       render: (row) => {
         if (row.kind === 'variation') return null;
         return row.product.brand_id ? (
-          <Badge tone="blue" size="sm" icon={<Award className="w-3 h-3" />}>
+          <Badge tone="blue" size="sm" icon={<BrandIcon className="w-3 h-3" />}>
             {brands.find(b => b.id === row.product.brand_id)?.name || '-'}
           </Badge>
         ) : DASH;
@@ -1162,7 +1150,7 @@ function ProductsPageContent() {
             alt={product.name}
             size="lg"
             ratio="auto"
-            fallbackIcon={<Package2 className="w-6 h-6 text-gray-400" />}
+            fallbackIcon={<ProductIcon className="w-6 h-6 text-gray-400" />}
           />
         </div>
 
@@ -1218,7 +1206,7 @@ function ProductsPageContent() {
                 className="mt-2 w-full flex items-center justify-between rounded-lg bg-gray-50 dark:bg-slate-700/50 px-3 py-2 text-sm text-gray-600 dark:text-slate-300"
               >
                 <span>{optionCountLabel(product, product.variations.length)}</span>
-                <ChevronDown className={`w-4 h-4 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+                <ChevronDownIcon className={`w-4 h-4 transition-transform ${expanded ? 'rotate-180' : ''}`} />
               </button>
               {expanded && (
                 <ul className="mt-1 divide-y divide-gray-100 dark:divide-slate-700">
@@ -1268,19 +1256,19 @@ function ProductsPageContent() {
         <PageHeader
           title="สินค้า"
           subtitle="จัดการสินค้า ราคา และสต็อกพร้อมขาย"
-          icon={<Package2 />}
+          icon={<ProductIcon />}
           actions={<>
             <ExportButton onClick={handleExport} loading={exporting} />
             <Button
               variant="secondary"
-              icon={<Pencil className="w-4 h-4" />}
+              icon={<EditIcon className="w-4 h-4" />}
               onClick={() => router.push('/products/bulk')}
             >
               <span className="hidden md:inline">แก้ไขแบบชุด</span>
             </Button>
             <Button
               variant="primary"
-              icon={<Plus className="w-5 h-5" />}
+              icon={<AddIcon className="w-5 h-5" />}
               onClick={() => router.push(productEditorUrl(null, returnTo))}
             >
               เพิ่ม<span className="hidden md:inline">สินค้า</span>
@@ -1400,7 +1388,7 @@ function ProductsPageContent() {
               <Tooltip text="ล้างตัวกรอง">
                 <Button
                   variant="secondary"
-                  icon={<X className="w-4 h-4" />}
+                  icon={<CloseIcon className="w-4 h-4" />}
                   onClick={clearAllFilters}
                   aria-label="ล้างตัวกรอง"
                   className="md:flex-shrink-0"
@@ -1415,7 +1403,7 @@ function ProductsPageContent() {
         <div className="relative">
           {fetching && !loading && (
             <div className="absolute inset-0 bg-white/60 dark:bg-slate-900/60 z-10 flex items-center justify-center rounded-xl pointer-events-none">
-              <Loader2 className="w-8 h-8 text-primary animate-spin" />
+              <LoadingIcon className="w-8 h-8 text-primary animate-spin" />
             </div>
           )}
           <DataTable<ProductRow>
@@ -1438,7 +1426,7 @@ function ProductsPageContent() {
             onLimitChange={(l, p) => setParams({ limit: String(l), page: String(p) })}
             loadTime={loadTime}
             emptyMessage="ไม่พบข้อมูลสินค้า"
-            emptyIcon={<Package2 className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+            emptyIcon={<ProductIcon className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
           />
         </div>
 
@@ -1447,7 +1435,7 @@ function ProductsPageContent() {
           {features.product_brand && brands.length > 0 && (
             <Button
               variant="primary"
-              icon={<Award className="w-4 h-4" />}
+              icon={<BrandIcon className="w-4 h-4" />}
               onClick={() => { setBulkBrandId(''); setShowBrandModal(true); }}
               className="!bg-blue-600 hover:!bg-blue-700"
             >
@@ -1456,7 +1444,7 @@ function ProductsPageContent() {
           )}
           <Button
             variant="danger"
-            icon={<Trash2 className="w-4 h-4" />}
+            icon={<DeleteIcon className="w-4 h-4" />}
             loading={bulkDeleting}
             onClick={handleBulkDelete}
           >

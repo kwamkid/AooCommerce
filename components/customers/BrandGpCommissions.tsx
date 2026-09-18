@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { apiFetch } from '@/lib/api-client';
 import FormSelect from '@/components/ui/FormSelect';
-import { Award, Plus, Trash2, Loader2 } from 'lucide-react';
+import { AddIcon, DeleteIcon, LoadingIcon } from '@/lib/icons';
 import PostfixInput from '@/components/ui/PostfixInput';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -74,7 +74,7 @@ export default function BrandGpCommissions({ rows, onRowsChange, canEdit = false
   if (loadingBrands) {
     return (
       <div className="flex justify-center py-4">
-        <Loader2 className="w-5 h-5 text-primary animate-spin" />
+        <LoadingIcon className="w-5 h-5 text-primary animate-spin" />
       </div>
     );
   }
@@ -126,7 +126,7 @@ export default function BrandGpCommissions({ rows, onRowsChange, canEdit = false
                 onClick={() => removeRow(idx)}
                 className="flex-shrink-0 p-1.5 text-gray-400 hover:text-red-500 transition-colors"
               >
-                <Trash2 className="w-4 h-4" />
+                <DeleteIcon className="w-4 h-4" />
               </button>
             )}
           </div>
@@ -171,7 +171,7 @@ function AddBrandRow({
         onClick={() => setOpen(true)}
         className="flex items-center gap-1 text-sm text-primary hover:text-primary-hover transition-colors mt-1"
       >
-        <Plus className="w-4 h-4" />
+        <AddIcon className="w-4 h-4" />
         เพิ่มแบรนด์
       </button>
     );

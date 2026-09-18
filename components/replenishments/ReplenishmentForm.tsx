@@ -5,7 +5,7 @@ import { useCopy } from '@/lib/useCopy';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
-import { Settings, ChevronDown, Clock, CheckCircle, MapPin, FileText, Receipt, QrCode, Copy, Camera, Link2, AlertTriangle, Eye, Printer, Store } from 'lucide-react';
+import { ChevronDownIcon, CopyIcon, QrIcon, ReceiptIcon, SettingsIcon, StoreIcon, SuccessIcon, TimeIcon, WarningIcon } from '@/lib/icons';
 import FormSelect from '@/components/ui/FormSelect';
 import Card from '@/components/ui/Card';
 import NumberInput from '@/components/ui/NumberInput';
@@ -655,7 +655,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
       {existingData?.tax_invoice_number && !isDeptOrder && (
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-purple-200 dark:border-purple-800 p-5">
           <div className="flex items-center gap-2 mb-2 text-purple-700 dark:text-purple-400">
-            <Receipt className="w-5 h-5" />
+            <ReceiptIcon className="w-5 h-5" />
             <span className="font-bold">
               {['tax', 'tax_only', 'tax_invoice'].includes(existingData.tax_invoice_doc_type) ? 'ใบกำกับภาษี' : 'ใบเสร็จรับเงิน'}
             </span>
@@ -681,7 +681,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
       {isShipped && receiveToken && (
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-amber-200 dark:border-amber-800 p-5">
           <div className="flex items-center gap-2 mb-3 text-amber-700 dark:text-amber-400">
-            <QrCode className="w-5 h-5" />
+            <QrIcon className="w-5 h-5" />
             <span className="font-bold">ลิงก์รับสินค้า</span>
           </div>
           <p className="text-sm text-gray-600 dark:text-slate-400 mb-4">
@@ -701,7 +701,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
                   className="flex-shrink-0 p-2 rounded-lg bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors"
                   title="คัดลอกลิงก์"
                 >
-                  <Copy className="w-4 h-4" />
+                  <CopyIcon className="w-4 h-4" />
                 </button>
               </div>
             </div>
@@ -717,9 +717,9 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
             : 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800'
         }`}>
           {isPendingConfirm && hasMismatch ? (
-            <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0" />
+            <WarningIcon className="w-4 h-4 text-amber-500 flex-shrink-0" />
           ) : (
-            <CheckCircle className="w-4 h-4 text-blue-500 flex-shrink-0" />
+            <SuccessIcon className="w-4 h-4 text-blue-500 flex-shrink-0" />
           )}
           <span className={`font-bold ${isPendingConfirm && hasMismatch ? 'text-amber-700 dark:text-amber-400' : 'text-blue-700 dark:text-blue-400'}`}>
             {isPendingConfirm && hasMismatch ? 'รับสินค้าไม่ตรง' : 'รับสินค้าแล้ว'}
@@ -776,7 +776,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
               value={selectedCounterId}
               onChange={setSelectedCounterId}
               options={counters.map(c => ({ id: c.id, label: c.name }))}
-              icon={<Store className="w-4 h-4" />}
+              icon={<StoreIcon className="w-4 h-4" />}
               disabled={isDisabled}
             />
           </div>
@@ -989,15 +989,15 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
                     onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
                     className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 transition-colors mt-1"
                   >
-                    <Settings className="w-3.5 h-3.5" />
+                    <SettingsIcon className="w-3.5 h-3.5" />
                     ตั้งค่าขั้นสูง
-                    <ChevronDown className={`w-3 h-3 transition-transform ${showAdvancedSettings ? 'rotate-180' : ''}`} />
+                    <ChevronDownIcon className={`w-3 h-3 transition-transform ${showAdvancedSettings ? 'rotate-180' : ''}`} />
                   </button>
 
                   {showAdvancedSettings && (
                     <div className="border border-gray-200 dark:border-slate-600 rounded-lg p-3 space-y-2 bg-gray-50 dark:bg-slate-700/30">
                       <div className="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-slate-300">
-                        <Clock className="w-4 h-4" />
+                        <TimeIcon className="w-4 h-4" />
                         วันหมดอายุบิล
                       </div>
                       <div className="space-y-1.5">

@@ -9,7 +9,7 @@
 // ⛔ ห้ามเขียนเงื่อนไขแยกตาม platform — ป้ายชื่อมาจาก MARKETPLACE_PLATFORMS เท่านั้น
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Package, RefreshCw } from 'lucide-react';
+import { ProductIcon, RefreshIcon } from '@/lib/icons';
 import Alert from '@/components/ui/Alert';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
@@ -451,7 +451,7 @@ export default function StockPreview({ account, direction, onApplied, onBack, on
           {loadError}
           <div className="flex justify-end gap-3 mt-3">
             <Button variant="secondary" onClick={onBack}>เลือกร้านอื่น</Button>
-            <Button variant="primary" icon={<RefreshCw className="w-4 h-4" />} onClick={() => reloadPreview(false)}>ลองใหม่</Button>
+            <Button variant="primary" icon={<RefreshIcon className="w-4 h-4" />} onClick={() => reloadPreview(false)}>ลองใหม่</Button>
           </div>
         </Alert>
       ) : preview ? (
@@ -534,7 +534,7 @@ export default function StockPreview({ account, direction, onApplied, onBack, on
             selectAllScope={filtered} /* ติ๊กหัวตาราง = ทุกแถวที่กรองอยู่ ไม่ใช่แค่หน้านี้ */
             isRowSelectable={(row) => isActionable(row.plan)}
             emptyMessage="ไม่มีรายการในตัวกรองนี้"
-            emptyIcon={<Package className="w-10 h-10 text-gray-300 dark:text-slate-600" />}
+            emptyIcon={<ProductIcon className="w-10 h-10 text-gray-300 dark:text-slate-600" />}
             sortBy={sortBy}
             sortDir={sortDir}
             onSort={(key, dir) => { setSortBy(dir ? key : undefined); setSortDir(dir ?? undefined); }}
@@ -570,7 +570,7 @@ export default function StockPreview({ account, direction, onApplied, onBack, on
           <div className="flex flex-wrap justify-end gap-3">
             <Button variant="secondary" onClick={onBack}>เลือกร้านอื่น</Button>
             {expired ? (
-              <Button variant="primary" icon={<RefreshCw className="w-4 h-4" />} onClick={() => reloadPreview(true)}>
+              <Button variant="primary" icon={<RefreshIcon className="w-4 h-4" />} onClick={() => reloadPreview(true)}>
                 โหลดตารางใหม่
               </Button>
             ) : selected.size === 0 ? (

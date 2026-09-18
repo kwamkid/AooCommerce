@@ -1,7 +1,7 @@
 'use client';
 
 import { ReactNode } from 'react';
-import { Info } from 'lucide-react';
+import { InfoIcon } from '@/lib/icons';
 import { formatNumber } from '@/lib/utils/format';
 import { splitVatInclusive } from '@/lib/order-totals';
 import NumberInput from './NumberInput';
@@ -99,7 +99,7 @@ export default function OrderSummaryBox({
                     aria-label="ที่มาของค่าจัดส่ง"
                     className="-m-1 p-1 text-gray-400 hover:text-primary dark:text-slate-500 dark:hover:text-primary transition-colors"
                   >
-                    <Info className="w-4 h-4" />
+                    <InfoIcon className="w-4 h-4" />
                   </button>
                 </Tooltip>
               )}

@@ -48,7 +48,7 @@ import {
 import {
   applyBroadcastVars, blocksSummary, validateBroadcastContent, type BroadcastContent,
 } from '@/lib/broadcast/content';
-import { Send } from 'lucide-react';
+import { SendIcon } from '@/lib/icons';
 import ChannelStep from './components/ChannelStep';
 import AudienceStep from './components/AudienceStep';
 import BlocksEditor from './components/BlocksEditor';
@@ -556,7 +556,7 @@ export default function NewBroadcastPage() {
         ? `ตั้งเวลาส่งถึง ${recipientCount.toLocaleString()} คน ผ่าน ${via} เวลา ${formatThaiDateTime(scheduledAt)}?`
         : `ส่งถึง ${recipientCount.toLocaleString()} คน ผ่าน ${via}? ข้อความจะถูกส่งทันที`,
       confirmLabel: scheduledAt ? 'ตั้งเวลาส่ง' : 'ส่งบรอดแคสต์',
-      confirmIcon: <Send className="w-4 h-4" />,
+      confirmIcon: <SendIcon className="w-4 h-4" />,
     });
     if (!ok) return;
 

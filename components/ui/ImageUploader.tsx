@@ -5,7 +5,8 @@ import { supabase } from '@/lib/supabase';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
-import { ImagePlus, X, Loader2, GripVertical, ChevronLeft, ChevronRight } from 'lucide-react';
+import { GripVertical } from 'lucide-react';
+import { ChevronLeftIcon, ChevronRightIcon, CloseIcon, ImageAddIcon, LoadingIcon } from '@/lib/icons';
 import imageCompression from 'browser-image-compression';
 import Modal from './Modal';
 import { storageSafeName } from '@/lib/storage-key';
@@ -428,7 +429,7 @@ export default function ImageUploader({
                   }}
                   className="absolute top-0.5 right-0.5 bg-red-500 hover:bg-red-600 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
                 >
-                  <X className="w-3 h-3" />
+                  <CloseIcon className="w-3 h-3" />
                 </button>
               )}
             </div>
@@ -440,7 +441,7 @@ export default function ImageUploader({
               onClick={() => fileInputRef.current?.click()}
               className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 dark:border-slate-600 hover:border-primary hover:bg-primary/5 flex flex-col items-center justify-center gap-1 transition-colors flex-shrink-0"
             >
-              <ImagePlus className="w-5 h-5 text-gray-400 dark:text-slate-500" />
+              <ImageAddIcon className="w-5 h-5 text-gray-400 dark:text-slate-500" />
               <span className="text-[10px] text-gray-400 dark:text-slate-500">{images.length}/{maxImages}</span>
             </button>
           )}
@@ -454,7 +455,7 @@ export default function ImageUploader({
             onClick={() => !disabled && fileInputRef.current?.click()}
             className="w-full aspect-square flex flex-col items-center justify-center gap-1 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors rounded-xl"
           >
-            <ImagePlus className="w-5 h-5 text-gray-400 dark:text-slate-500" />
+            <ImageAddIcon className="w-5 h-5 text-gray-400 dark:text-slate-500" />
             <span className="text-[10px] text-gray-400 dark:text-slate-500">เพิ่มรูป</span>
           </button>
         ) : (
@@ -464,7 +465,7 @@ export default function ImageUploader({
             className="w-full p-6 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors rounded-xl"
           >
             <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-slate-700 flex items-center justify-center">
-              <ImagePlus className="w-6 h-6 text-gray-400 dark:text-slate-500" />
+              <ImageAddIcon className="w-6 h-6 text-gray-400 dark:text-slate-500" />
             </div>
             <div className="text-center">
               <p className="text-sm font-medium text-gray-600 dark:text-slate-400">
@@ -480,7 +481,7 @@ export default function ImageUploader({
 
       {uploading && (
         <div className="flex items-center justify-center gap-2 p-4 text-gray-500 dark:text-slate-400">
-          <Loader2 className="w-5 h-5 animate-spin text-primary" />
+          <LoadingIcon className="w-5 h-5 animate-spin text-primary" />
           <span className="text-sm">{uploadProgress || 'กำลังประมวลผล...'}</span>
         </div>
       )}
@@ -488,7 +489,7 @@ export default function ImageUploader({
       {isDragOver && !uploading && (
         <div className="absolute inset-0 bg-primary/10 rounded-xl flex items-center justify-center pointer-events-none z-10">
           <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg px-6 py-3 flex items-center gap-2">
-            <ImagePlus className="w-5 h-5 text-primary" />
+            <ImageAddIcon className="w-5 h-5 text-primary" />
             <span className="text-sm font-medium text-gray-700 dark:text-slate-300">วางรูปภาพที่นี่</span>
           </div>
         </div>
@@ -519,7 +520,7 @@ export default function ImageUploader({
                   onClick={() => setLightboxIndex(lightboxIndex - 1)}
                   className="absolute left-2 top-1/2 -translate-y-1/2 text-white p-2 rounded-full bg-black/40 hover:bg-black/60 transition-colors z-10"
                 >
-                  <ChevronLeft className="w-6 h-6" />
+                  <ChevronLeftIcon className="w-6 h-6" />
                 </button>
               )}
 
@@ -529,7 +530,7 @@ export default function ImageUploader({
                   onClick={() => setLightboxIndex(lightboxIndex + 1)}
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-white p-2 rounded-full bg-black/40 hover:bg-black/60 transition-colors z-10"
                 >
-                  <ChevronRight className="w-6 h-6" />
+                  <ChevronRightIcon className="w-6 h-6" />
                 </button>
               )}
 

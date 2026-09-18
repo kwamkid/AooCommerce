@@ -11,10 +11,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { showPdfPreview } from '@/lib/print-pdf';
 import DealerOrderForm from '@/components/dealer/DealerOrderForm';
 import ReplenishmentForm from '@/components/replenishments/ReplenishmentForm';
-import {
-  ArrowLeft, Building2, Loader2, Send, Copy, CheckCircle2,
-  XCircle, Trash2, Printer,
-} from 'lucide-react';
+import { BackIcon, CopyIcon, DeleteIcon, DeptStoreIcon, ErrorIcon, LoadingIcon, PrintIcon, SendIcon, SuccessIcon } from '@/lib/icons';
 import Link from 'next/link';
 import { LoadingCard } from '@/components/ui/StateCard';
 import StatusBadge from '@/components/ui/StatusBadge';
@@ -319,10 +316,10 @@ export default function DepartmentOrderDetailPage() {
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
             <Link href="/department-orders" className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
-              <ArrowLeft className="w-5 h-5" />
+              <BackIcon className="w-5 h-5" />
             </Link>
             <div className="flex items-center gap-2">
-              <Building2 className="w-6 h-6 text-primary" />
+              <DeptStoreIcon className="w-6 h-6 text-primary" />
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
                 {isViewOnly ? 'ใบส่งห้าง' : 'แก้ไขใบส่งห้าง'}
               </h1>
@@ -334,39 +331,39 @@ export default function DepartmentOrderDetailPage() {
           {/* Action buttons */}
           <div className="flex items-center gap-2 flex-wrap">
             <button onClick={handlePrint} disabled={printing} className="btn-secondary flex items-center gap-2">
-              {printing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
+              {printing ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <PrintIcon className="w-4 h-4" />}
               พิมพ์
             </button>
 
             {status === 'shipped' && orderInfo.receive_token && (
               <button onClick={copyReceiveLink}
                 className="btn-secondary flex items-center gap-2 !border-amber-300 dark:!border-amber-700 !bg-amber-50 dark:!bg-amber-900/20 !text-amber-700 dark:!text-amber-400 hover:!bg-amber-100 dark:hover:!bg-amber-900/30">
-                <Copy className="w-4 h-4" /> คัดลอกลิงก์รับสินค้า
+                <CopyIcon className="w-4 h-4" /> คัดลอกลิงก์รับสินค้า
               </button>
             )}
 
             {status === 'pending' && (
               <button onClick={() => setShowShipModal(true)} className="btn-primary">
-                <Send className="w-4 h-4" /> จัดส่ง
+                <SendIcon className="w-4 h-4" /> จัดส่ง
               </button>
             )}
 
             {status === 'pending' && (
               <button onClick={() => setShowCancelConfirm(true)} className="btn-danger flex items-center gap-2">
-                <Trash2 className="w-4 h-4" /> ยกเลิก
+                <DeleteIcon className="w-4 h-4" /> ยกเลิก
               </button>
             )}
 
             {status === 'pending_confirm' && repFormState && (
               <button onClick={repFormState.handleConfirm} disabled={repFormState.confirmSubmitting} className="btn-success">
-                {repFormState.confirmSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                {repFormState.confirmSubmitting ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <SuccessIcon className="w-4 h-4" />}
                 ยืนยัน
               </button>
             )}
 
             {status === 'shipped' && (
               <button onClick={() => setShowVoidConfirm(true)} className="btn-danger flex items-center gap-2">
-                <XCircle className="w-4 h-4" /> Void
+                <ErrorIcon className="w-4 h-4" /> Void
               </button>
             )}
           </div>

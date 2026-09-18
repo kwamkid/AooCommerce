@@ -22,45 +22,8 @@ import { OrderStatusBadge, PaymentStatusBadge } from '@/components/ui/OrderStatu
 import { isConsignmentFlow, isDepartmentFlow } from '@/lib/flow-types';
 import { supabase } from '@/lib/supabase';
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
-import {
-  MessageCircle,
-  Mail,
-  CheckCheck,
-  Search,
-  Send,
-  User,
-  Loader2,
-  ChevronLeft,
-  Link as LinkIcon,
-  X,
-  Check,
-  Phone,
-  ShoppingCart,
-  History,
-  AlertCircle,
-  RotateCcw,
-  ImagePlus,
-  Smile,
-  ArrowDown,
-  Filter,
-  ChevronDown,
-  UserCheck,
-  UserX,
-  Clock,
-  Bell,
-  FileText,
-  ArrowUpDown,
-  Trash2,
-  Unlink,
-  ExternalLink,
-  UserPlus,
-  MapPin,
-  FilterX,
-  MessageSquareText,
-  Pencil,
-  Megaphone,
-  Link2,
-} from 'lucide-react';
+import { CheckCheck, History, Smile, ArrowDown, UserCheck, UserX, ArrowUpDown, Unlink, FilterX } from 'lucide-react';
+import { AlertIcon, BroadcastIcon, ChatIcon, ChevronLeftIcon, CloseIcon, ConfirmIcon, DeleteIcon, DocumentIcon, EditIcon, EmailIcon, ExternalLinkIcon, FilterIcon, ImageAddIcon, LinkIcon, LoadingIcon, LocationIcon, MessageIcon, OrderIcon, PhoneIcon, ResetIcon, SendIcon, TimeIcon, UserIcon } from '@/lib/icons';
 import Image from 'next/image';
 import type { CustomerFormData } from '@/components/customers/customer-payload';
 import { buildCustomerPayload } from '@/components/customers/customer-payload';
@@ -342,7 +305,7 @@ function UnifiedChatPageContent() {
               <div className="flex items-center gap-3 mt-0.5">
                 {postUrl && (
                   <a href={postUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline inline-flex items-center gap-0.5">
-                    ดูโพสต์โฆษณา <ExternalLink className="w-3 h-3" />
+                    ดูโพสต์โฆษณา <ExternalLinkIcon className="w-3 h-3" />
                   </a>
                 )}
                 {/* ห่อ lambda — การ์ดนี้ถูกประกอบก่อนบรรทัดที่ประกาศ handleOpenProfile (TDZ) */}
@@ -2292,8 +2255,8 @@ function UnifiedChatPageContent() {
           if (!area && !recipient) return null;
           return (
             <div className="flex flex-wrap items-center gap-1 mb-1.5">
-              {recipient && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-pink-50 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400"><User className="w-3 h-3" />{recipient}</span>}
-              {area && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"><MapPin className="w-3 h-3" />{area}</span>}
+              {recipient && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-pink-50 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400"><UserIcon className="w-3 h-3" />{recipient}</span>}
+              {area && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"><LocationIcon className="w-3 h-3" />{area}</span>}
             </div>
           );
         })()}
@@ -2433,7 +2396,7 @@ function UnifiedChatPageContent() {
               {selectedContact.nickname
                 ? <span className="text-gray-900 dark:text-white">{selectedContact.nickname}</span>
                 : <span className="text-gray-400">ยังไม่ได้ตั้ง — กดเพื่อตั้ง</span>}
-              <Pencil className="w-3.5 h-3.5 text-gray-400 group-hover:text-primary" />
+              <EditIcon className="w-3.5 h-3.5 text-gray-400 group-hover:text-primary" />
             </button>
           )}
           <p className="helper-text text-gray-500 mt-1">
@@ -2556,7 +2519,7 @@ function UnifiedChatPageContent() {
                       {lc.picture_url ? (
                         <img src={lc.picture_url} alt="" className="w-7 h-7 rounded-full object-cover" />
                       ) : (
-                        <div className="w-7 h-7 rounded-full bg-gray-200 dark:bg-slate-600 flex items-center justify-center"><User className="w-3.5 h-3.5 text-gray-500 dark:text-slate-400" /></div>
+                        <div className="w-7 h-7 rounded-full bg-gray-200 dark:bg-slate-600 flex items-center justify-center"><UserIcon className="w-3.5 h-3.5 text-gray-500 dark:text-slate-400" /></div>
                       )}
                       <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full flex items-center justify-center ${lc.platform === 'line' ? 'bg-line' : lc.platform === 'shopee' ? 'bg-[#EE4D2D]' : lc.platform === 'lazada' ? 'bg-[#0F146E]' : lc.platform === 'tiktok' ? 'bg-[#161823]' : 'bg-facebook'}`}>
                         {lc.platform === 'line' ? <LineIcon size={8} /> : lc.platform === 'shopee' ? <ShopeeIcon size={8} /> : lc.platform === 'lazada' ? <LazadaIcon size={8} /> : lc.platform === 'tiktok' ? <TiktokIcon size={8} /> : <FbIcon size={8} />}
@@ -2591,7 +2554,7 @@ function UnifiedChatPageContent() {
             {c.phone && (
               <div>
                 <label className="text-base font-medium text-gray-700 dark:text-slate-300 mb-0.5 block">เบอร์โทร</label>
-                <a href={`tel:${c.phone}`} className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"><Phone className="w-3.5 h-3.5" />{c.phone}</a>
+                <a href={`tel:${c.phone}`} className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"><PhoneIcon className="w-3.5 h-3.5" />{c.phone}</a>
               </div>
             )}
           </div>
@@ -2630,7 +2593,7 @@ function UnifiedChatPageContent() {
                       {postUrl && (
                         <Tooltip text="เปิดโพสต์โฆษณา" box="inline-flex">
                           <a href={postUrl} target="_blank" rel="noopener noreferrer" aria-label="เปิดโพสต์" className="p-1.5 rounded-md text-gray-400 hover:text-blue-500 hover:bg-gray-50 dark:hover:bg-slate-700/50 flex-shrink-0">
-                            <ExternalLink className="w-4 h-4" />
+                            <ExternalLinkIcon className="w-4 h-4" />
                           </a>
                         </Tooltip>
                       )}
@@ -2756,7 +2719,7 @@ function UnifiedChatPageContent() {
               {/* ตัวเลขยังไม่อ่านโชว์เต็มจำนวนติดหัวข้อ (ไม่ตัดเป็น "9+") — เป็นที่เดียวที่บอกยอดรวม
                   ทุกขนาดจอแล้ว หลังยุบแถวหัวข้อของเดสก์ท็อปทิ้ง */}
               <h2 className="flex-1 min-w-0 flex items-center gap-1.5 text-lg font-semibold text-gray-900 dark:text-white">
-                <MessageCircle className="w-5 h-5 text-primary flex-shrink-0" />
+                <ChatIcon className="w-5 h-5 text-primary flex-shrink-0" />
                 แชท
                 {totalUnread > 0 && (
                   <span className="bg-red-500 text-white text-xs font-medium leading-none px-1.5 py-1 rounded-full">{formatNumber(totalUnread)}</span>
@@ -2775,7 +2738,7 @@ function UnifiedChatPageContent() {
                   className={`h-[42px] w-[42px] flex-shrink-0 flex items-center justify-center border rounded-lg transition-colors ${filterUnread ? 'bg-red-500 border-red-500 text-white' : 'border-gray-300 dark:border-slate-500 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'}`}>
                   {/* ซองจดหมาย = ยังไม่อ่าน (ไอคอนแชทกลม ๆ ซ้ำกับไอคอนหัวข้อหน้า สื่อไม่ออกว่าเป็นตัวกรอง) ·
                       ไม่ต้องมีตัวเลขซ้อนบนปุ่ม — ยอดเต็มอยู่ข้างหัวข้อ "แชท" และใน tooltip แล้ว */}
-                  <Mail className="w-4 h-4" />
+                  <EmailIcon className="w-4 h-4" />
                 </button>
               </Tooltip>
               <div className="relative h-[42px]" data-filter-popover>
@@ -2783,7 +2746,7 @@ function UnifiedChatPageContent() {
                   <button onClick={() => setShowFilterPopover(!showFilterPopover)}
                     aria-label="กรองรายชื่อ"
                     className={`h-full w-[42px] flex items-center justify-center border rounded-lg transition-colors ${hasActiveFilter ? 'bg-primary border-primary text-white' : 'border-gray-300 dark:border-slate-500 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'}`}>
-                    <Filter className="w-5 h-5" />
+                    <FilterIcon className="w-5 h-5" />
                   </button>
                 </Tooltip>
                 {showFilterPopover && (
@@ -2893,11 +2856,11 @@ function UnifiedChatPageContent() {
             {/* Active filters display */}
             {hasActiveFilter && (
               <div className="flex flex-wrap items-center gap-1 mt-2">
-                {filterLinked === 'linked' && !filterOrderDaysRange && (<span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full"><UserCheck className="w-3 h-3" />ซื้อแล้ว<button onClick={() => setFilterParams({ linked: 'all' })} className="ml-1 hover:text-blue-900"><X className="w-3 h-3" /></button></span>)}
-                {filterLinked === 'unlinked' && (<span className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-100 text-orange-700 text-xs rounded-full"><UserX className="w-3 h-3" />ยังไม่ซื้อ<button onClick={() => setFilterParams({ linked: 'all' })} className="ml-1 hover:text-orange-900"><X className="w-3 h-3" /></button></span>)}
+                {filterLinked === 'linked' && !filterOrderDaysRange && (<span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full"><UserCheck className="w-3 h-3" />ซื้อแล้ว<button onClick={() => setFilterParams({ linked: 'all' })} className="ml-1 hover:text-blue-900"><CloseIcon className="w-3 h-3" /></button></span>)}
+                {filterLinked === 'unlinked' && (<span className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-100 text-orange-700 text-xs rounded-full"><UserX className="w-3 h-3" />ยังไม่ซื้อ<button onClick={() => setFilterParams({ linked: 'all' })} className="ml-1 hover:text-orange-900"><CloseIcon className="w-3 h-3" /></button></span>)}
 
-                {filterOrderDaysRange !== null && (<span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full ${filterOrderDaysRange.min >= 7 ? 'bg-red-100 text-red-700' : filterOrderDaysRange.min >= 5 ? 'bg-orange-100 text-orange-700' : filterOrderDaysRange.min >= 3 ? 'bg-amber-100 text-amber-700' : 'bg-yellow-100 text-yellow-700'}`}><Clock className="w-3 h-3" />ไม่สั่ง {filterOrderDaysRange.max === null ? `${filterOrderDaysRange.min}+ วัน` : `${filterOrderDaysRange.min}-${filterOrderDaysRange.max} วัน`}<button onClick={() => { setFilterOrderDaysRange(null); setFilterParams({ linked: 'all' }); }} className="ml-1 hover:opacity-70"><X className="w-3 h-3" /></button></span>)}
-                {filterTag && (() => { const tag = allTags.find(t => t.id === filterTag); return tag ? (<span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full" style={{ backgroundColor: tag.color + '20', color: tag.color }}><span className="w-2 h-2 rounded-full" style={{ backgroundColor: tag.color }} />{tag.name}<button onClick={() => setFilterParams({ tag: '' })} className="ml-1 hover:opacity-70"><X className="w-3 h-3" /></button></span>) : null; })()}
+                {filterOrderDaysRange !== null && (<span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full ${filterOrderDaysRange.min >= 7 ? 'bg-red-100 text-red-700' : filterOrderDaysRange.min >= 5 ? 'bg-orange-100 text-orange-700' : filterOrderDaysRange.min >= 3 ? 'bg-amber-100 text-amber-700' : 'bg-yellow-100 text-yellow-700'}`}><TimeIcon className="w-3 h-3" />ไม่สั่ง {filterOrderDaysRange.max === null ? `${filterOrderDaysRange.min}+ วัน` : `${filterOrderDaysRange.min}-${filterOrderDaysRange.max} วัน`}<button onClick={() => { setFilterOrderDaysRange(null); setFilterParams({ linked: 'all' }); }} className="ml-1 hover:opacity-70"><CloseIcon className="w-3 h-3" /></button></span>)}
+                {filterTag && (() => { const tag = allTags.find(t => t.id === filterTag); return tag ? (<span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full" style={{ backgroundColor: tag.color + '20', color: tag.color }}><span className="w-2 h-2 rounded-full" style={{ backgroundColor: tag.color }} />{tag.name}<button onClick={() => setFilterParams({ tag: '' })} className="ml-1 hover:opacity-70"><CloseIcon className="w-3 h-3" /></button></span>) : null; })()}
                 <button onClick={() => { setFilterParams({ account: '', platform: 'all', tag: '', sort: 'time', linked: 'all', unread: '' }); setFilterOrderDaysRange(null); setSearchTerm(''); }}
                   className="inline-flex items-center gap-1 px-2 py-0.5 text-xs text-red-500 hover:text-red-600 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
                   <FilterX className="w-3 h-3" />ล้างตัวกรอง
@@ -2909,9 +2872,9 @@ function UnifiedChatPageContent() {
           {/* Contacts List — overscroll-contain กันลากสุดรายชื่อแล้ว main เด้งตาม */}
           <div className="flex-1 overflow-y-auto overscroll-contain">
             {loadingContacts ? (
-              <div className="flex items-center justify-center py-8"><Loader2 className="w-6 h-6 text-gray-400 animate-spin" /></div>
+              <div className="flex items-center justify-center py-8"><LoadingIcon className="w-6 h-6 text-gray-400 animate-spin" /></div>
             ) : contacts.length === 0 ? (
-              <div className="text-center py-8 text-gray-500 dark:text-slate-400"><MessageCircle className="w-12 h-12 mx-auto mb-2 text-gray-300" /><p>ยังไม่มีข้อความ</p></div>
+              <div className="text-center py-8 text-gray-500 dark:text-slate-400"><ChatIcon className="w-12 h-12 mx-auto mb-2 text-gray-300" /><p>ยังไม่มีข้อความ</p></div>
             ) : (
               <>
                 {(() => {
@@ -2948,7 +2911,7 @@ function UnifiedChatPageContent() {
                           {/* มาจากโฆษณา — เห็นตั้งแต่รายชื่อว่าห้องไหนมาจากเงินที่จ่ายไป
                               (InfoChip ไม่ใช่ Badge เพราะแถวนี้เตี้ย ต้องไม่ดันความสูง) */}
                           {contact.referral_source === 'ADS' && (
-                            <InfoChip size="sm" colors="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" icon={<Megaphone className="w-3 h-3" />}>Ads</InfoChip>
+                            <InfoChip size="sm" colors="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" icon={<BroadcastIcon className="w-3 h-3" />}>Ads</InfoChip>
                           )}
                         </div>
                       </div>
@@ -2976,7 +2939,7 @@ function UnifiedChatPageContent() {
                       )}
                       {filterLinked === 'linked' && lastOrderLabel(contact) && (
                         <div className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
-                          <Clock className="w-3 h-3" />
+                          <TimeIcon className="w-3 h-3" />
                           {lastOrderLabel(contact)}
                         </div>
                       )}
@@ -2984,7 +2947,7 @@ function UnifiedChatPageContent() {
                   </button>
                 ))}
                 <div ref={contactsEndRef} className="py-2">
-                  {loadingMoreContacts && (<div className="flex items-center justify-center py-2"><Loader2 className="w-5 h-5 text-gray-400 animate-spin" /></div>)}
+                  {loadingMoreContacts && (<div className="flex items-center justify-center py-2"><LoadingIcon className="w-5 h-5 text-gray-400 animate-spin" /></div>)}
                 </div>
               </>
             )}
@@ -3006,7 +2969,7 @@ function UnifiedChatPageContent() {
               แล้ว dragleave จะยิงทันทีที่ overlay โผล่ = กะพริบไม่หยุด */}
           {dragActive && (
             <div className="absolute inset-2 z-30 pointer-events-none rounded-xl border-2 border-dashed border-primary bg-primary/10 backdrop-blur-[1px] flex flex-col items-center justify-center gap-2">
-              <ImagePlus className="w-10 h-10 text-primary" />
+              <ImageAddIcon className="w-10 h-10 text-primary" />
               <p className="text-base font-medium text-primary">วางรูปที่นี่</p>
               <p className="helper-text text-primary/80">รูปจะไปรออยู่ในช่องพิมพ์ กด Enter เพื่อส่ง</p>
             </div>
@@ -3015,7 +2978,7 @@ function UnifiedChatPageContent() {
             <>
               {/* Chat Header */}
               <div className="px-2 py-2 md:p-4 border-b border-gray-200 dark:border-slate-700 flex items-center gap-2 md:gap-3">
-                <button onClick={handleBackTap} aria-label="กลับไปรายชื่อแชท" className="md:hidden p-1 text-gray-500 hover:text-gray-700 flex-shrink-0"><ChevronLeft className="w-5 h-5" /></button>
+                <button onClick={handleBackTap} aria-label="กลับไปรายชื่อแชท" className="md:hidden p-1 text-gray-500 hover:text-gray-700 flex-shrink-0"><ChevronLeftIcon className="w-5 h-5" /></button>
                   {(() => {
                     // รูปลูกค้า + **โลโก้ช่องทางที่คุยอยู่** ซ้อนมุมล่างซ้าย — ชุดเดียวกับในรายชื่อแชท
                     // (เดิมหัวแชทบอกที่มาด้วยตัวหนังสือจาง ๆ บรรทัดเดียว ซึ่งมองข้ามง่ายมาก
@@ -3054,7 +3017,7 @@ function UnifiedChatPageContent() {
                           {adUrl ? (
                             <a href={adUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 dark:text-blue-400 hover:underline truncate max-w-[220px] flex items-center gap-0.5">
                               {sourceLabel}: {selectedContact.referral_ad_title}
-                              <ExternalLink className="w-2.5 h-2.5 flex-shrink-0" />
+                              <ExternalLinkIcon className="w-2.5 h-2.5 flex-shrink-0" />
                             </a>
                           ) : (
                             <p className="text-xs text-blue-500 dark:text-blue-400 truncate max-w-[220px]">
@@ -3080,13 +3043,13 @@ function UnifiedChatPageContent() {
                   {selectedContact.customer ? (
                     <>
                       <Tooltip text="ดูประวัติออเดอร์"><button onClick={handleOpenHistory} aria-label="ดูประวัติออเดอร์" className={`p-2 rounded-lg transition-colors ${rightPanel === 'history' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><History className="w-4 h-4" /></button></Tooltip>
-                      <Tooltip text={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'}><button onClick={() => { setRightPanel(rightPanel === 'order' ? null : 'order'); }} aria-label={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'} className={`p-2 rounded-lg transition-colors ${rightPanel === 'order' ? 'bg-primary text-white' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}><ShoppingCart className="w-4 h-4" /></button></Tooltip>
-                      <Tooltip text="ดูข้อมูลลูกค้า"><button onClick={handleOpenProfile} aria-label="ดูข้อมูลลูกค้า" className={`p-2 rounded-lg transition-colors ${rightPanel === 'profile' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><User className="w-4 h-4" /></button></Tooltip>
+                      <Tooltip text={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'}><button onClick={() => { setRightPanel(rightPanel === 'order' ? null : 'order'); }} aria-label={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'} className={`p-2 rounded-lg transition-colors ${rightPanel === 'order' ? 'bg-primary text-white' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}><OrderIcon className="w-4 h-4" /></button></Tooltip>
+                      <Tooltip text="ดูข้อมูลลูกค้า"><button onClick={handleOpenProfile} aria-label="ดูข้อมูลลูกค้า" className={`p-2 rounded-lg transition-colors ${rightPanel === 'profile' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><UserIcon className="w-4 h-4" /></button></Tooltip>
                     </>
                   ) : (
                     <>
-                      <Tooltip text={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'}><button onClick={() => { setRightPanel(rightPanel === 'order' ? null : 'order'); }} aria-label={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'} className={`p-2 rounded-lg transition-colors ${rightPanel === 'order' ? 'bg-primary text-white' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}><ShoppingCart className="w-4 h-4" /></button></Tooltip>
-                      <Tooltip text="แท็ก / โปรไฟล์"><button onClick={handleOpenProfile} aria-label="แท็ก / โปรไฟล์" className={`p-2 rounded-lg transition-colors ${rightPanel === 'profile' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><User className="w-4 h-4" /></button></Tooltip>
+                      <Tooltip text={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'}><button onClick={() => { setRightPanel(rightPanel === 'order' ? null : 'order'); }} aria-label={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'} className={`p-2 rounded-lg transition-colors ${rightPanel === 'order' ? 'bg-primary text-white' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}><OrderIcon className="w-4 h-4" /></button></Tooltip>
+                      <Tooltip text="แท็ก / โปรไฟล์"><button onClick={handleOpenProfile} aria-label="แท็ก / โปรไฟล์" className={`p-2 rounded-lg transition-colors ${rightPanel === 'profile' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><UserIcon className="w-4 h-4" /></button></Tooltip>
                       <Tooltip text="เชื่อมลูกค้าที่มีอยู่"><button onClick={() => { setShowLinkModal(true); }} aria-label="เชื่อมลูกค้าที่มีอยู่" className="p-2 rounded-lg transition-colors bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600"><LinkIcon className="w-4 h-4" /></button></Tooltip>
                     </>
                   )}
@@ -3104,11 +3067,11 @@ function UnifiedChatPageContent() {
                 ) : messages.length === 0 ? (
                   <>
                   {referralCard}
-                  <div className="text-center py-8 text-gray-500 dark:text-slate-400"><MessageCircle className="w-12 h-12 mx-auto mb-2 text-gray-300" /><p>ยังไม่มีข้อความ</p></div>
+                  <div className="text-center py-8 text-gray-500 dark:text-slate-400"><ChatIcon className="w-12 h-12 mx-auto mb-2 text-gray-300" /><p>ยังไม่มีข้อความ</p></div>
                   </>
                 ) : (
                   <>
-                    <div ref={messagesTopRef} className="py-1">{loadingMore && (<div className="flex items-center justify-center py-2"><Loader2 className="w-4 h-4 text-gray-400 animate-spin" /></div>)}</div>
+                    <div ref={messagesTopRef} className="py-1">{loadingMore && (<div className="flex items-center justify-center py-2"><LoadingIcon className="w-4 h-4 text-gray-400 animate-spin" /></div>)}</div>
                     {!hasMoreMessages && referralCard}
                     {displayMessages.map((msg) => isSystemEventMessage(msg) ? (
                       // เหตุการณ์ของระบบ (ลูกค้ากดขอคุยกับเจ้าหน้าที่) — ชิปกลางจอ ไม่ใช่ฟองคำพูด
@@ -3137,9 +3100,9 @@ function UnifiedChatPageContent() {
                                   <span className="max-w-[220px] text-right leading-tight text-red-500">{msg._error}</span>
                                 )}
                                 <div className="flex items-center gap-1">
-                                  {msg._status === 'failed' && (<Tooltip text={msg._error ? `ส่งไม่สำเร็จ: ${msg._error} — กดเพื่อลองใหม่` : 'ส่งไม่สำเร็จ กดเพื่อลองใหม่'}><button onClick={() => { retrySend(msg); }} aria-label="ส่งไม่สำเร็จ กดเพื่อลองใหม่" className="flex items-center gap-0.5 text-red-500 hover:text-red-600"><AlertCircle className="w-3 h-3" /><RotateCcw className="w-2.5 h-2.5" /></button></Tooltip>)}
-                                  {msg._status === 'sending' && (<Loader2 className="w-2.5 h-2.5 animate-spin text-gray-400" />)}
-                                  {msg._status === 'sent' && (<Check className="w-2.5 h-2.5" style={{ color: platformColor }} />)}
+                                  {msg._status === 'failed' && (<Tooltip text={msg._error ? `ส่งไม่สำเร็จ: ${msg._error} — กดเพื่อลองใหม่` : 'ส่งไม่สำเร็จ กดเพื่อลองใหม่'}><button onClick={() => { retrySend(msg); }} aria-label="ส่งไม่สำเร็จ กดเพื่อลองใหม่" className="flex items-center gap-0.5 text-red-500 hover:text-red-600"><AlertIcon className="w-3 h-3" /><ResetIcon className="w-2.5 h-2.5" /></button></Tooltip>)}
+                                  {msg._status === 'sending' && (<LoadingIcon className="w-2.5 h-2.5 animate-spin text-gray-400" />)}
+                                  {msg._status === 'sent' && (<ConfirmIcon className="w-2.5 h-2.5" style={{ color: platformColor }} />)}
                                   <span>{formatTime(msg.created_at)}</span>
                                 </div>
                               </div>
@@ -3180,7 +3143,7 @@ function UnifiedChatPageContent() {
               {isWindowExpired ? (
                 <div className="p-3 md:p-4 border-t border-gray-200 dark:border-slate-700 bg-amber-50 dark:bg-amber-950/30">
                   <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
-                    <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                    <AlertIcon className="w-5 h-5 flex-shrink-0" />
                     <span className="text-sm">ไม่สามารถส่งข้อความได้ — ลูกค้าไม่ได้ส่งข้อความมาภายใน 7 วัน (หมดเวลาตอบกลับตามนโยบาย Facebook/Instagram)</span>
                   </div>
                 </div>
@@ -3206,7 +3169,7 @@ function UnifiedChatPageContent() {
                         <div key={a.id} className="relative flex-shrink-0">
                           {a.kind === 'doc' ? (
                             <div className="h-16 max-w-[190px] px-2.5 rounded-lg border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700 flex items-center gap-2">
-                              <FileText className="w-5 h-5 text-gray-500 shrink-0" />
+                              <DocumentIcon className="w-5 h-5 text-gray-500 shrink-0" />
                               <div className="min-w-0 leading-tight">
                                 <div className="text-xs font-medium text-gray-800 dark:text-slate-100 truncate">{a.file.name}</div>
                                 <div className="text-[10px] text-gray-500">{formatFileSize(a.file.size)} · ส่งเป็นลิงก์</div>
@@ -3225,7 +3188,7 @@ function UnifiedChatPageContent() {
                             aria-label="เอาไฟล์นี้ออก"
                             className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-gray-900/80 text-white flex items-center justify-center hover:bg-red-500 transition-colors"
                           >
-                            <X className="w-3 h-3" />
+                            <CloseIcon className="w-3 h-3" />
                           </button>
                         </div>
                       ))}
@@ -3238,7 +3201,7 @@ function UnifiedChatPageContent() {
                   {/* box="inline-flex" — ปุ่มนี้ disabled ตอนอัปโหลด ซึ่งไม่ยิง pointer event ต้องมีกล่องครอบถึงจะ hover ติด */}
                   <Tooltip text="ส่งรูปภาพ / ไฟล์ (PDF, Word, Excel…)" box="inline-flex">
                     <button onClick={() => fileInputRef.current?.click()} disabled={uploadingImage} aria-label="ส่งรูปภาพหรือไฟล์" className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-full transition-colors disabled:opacity-50">
-                      {uploadingImage ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImagePlus className="w-5 h-5" />}
+                      {uploadingImage ? <LoadingIcon className="w-5 h-5 animate-spin" /> : <ImageAddIcon className="w-5 h-5" />}
                     </button>
                   </Tooltip>
                   {/* Emoji & Sticker wrapper */}
@@ -3262,7 +3225,7 @@ function UnifiedChatPageContent() {
                   <div className="relative" data-saved-reply>
                     <Tooltip text="Saved Reply (หรือพิมพ์ /)">
                       <button onClick={() => savedReplyMode ? setSavedReplyMode(false) : openSavedReplyPicker('button')} aria-label="Saved Reply" className={`p-2 rounded-full transition-colors ${savedReplyMode ? 'text-primary bg-primary/10' : 'text-gray-500 hover:text-primary hover:bg-gray-100 dark:hover:bg-slate-700'}`}>
-                        <MessageSquareText className="w-5 h-5" />
+                        <MessageIcon className="w-5 h-5" />
                       </button>
                     </Tooltip>
                     {savedReplyMode && (
@@ -3290,7 +3253,7 @@ function UnifiedChatPageContent() {
                     <Tooltip text="แทรกลิงก์สินค้า/หมวดหมู่/หน้าร้าน">
                       <button onClick={() => setStoreLinkOpen(true)} aria-label="แทรกลิงก์หน้าร้าน"
                         className="p-2 rounded-full text-gray-500 hover:text-primary hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
-                        <Link2 className="w-5 h-5" />
+                        <LinkIcon className="w-5 h-5" />
                       </button>
                     </Tooltip>
                   )}
@@ -3300,7 +3263,7 @@ function UnifiedChatPageContent() {
                     <Tooltip text="ชวนลูกค้ากดรับข่าวสาร — ส่งได้เฉพาะตอนที่ลูกค้าเพิ่งทักมา" box="inline-flex">
                       <button onClick={sendOptinInvite} disabled={optinSending} aria-label="ชวนรับข่าวสาร"
                         className="p-2 rounded-full text-gray-500 hover:text-primary hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-                        <Megaphone className={`w-5 h-5 ${optinSending ? 'animate-pulse' : ''}`} />
+                        <BroadcastIcon className={`w-5 h-5 ${optinSending ? 'animate-pulse' : ''}`} />
                       </button>
                     </Tooltip>
                   )}
@@ -3309,7 +3272,7 @@ function UnifiedChatPageContent() {
                     onPaste={handleComposerPaste}
                     placeholder="พิมพ์ข้อความ หรือ / เรียก Saved Reply" autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} enterKeyHint="send"
                     className="flex-1 min-w-0 h-10 px-3 md:px-4 py-2 mr-2 text-sm md:text-base border border-gray-300 rounded-[15px] focus:outline-none focus:ring-2" style={{ '--tw-ring-color': platformColor } as any} />
-                  <button onClick={() => { sendMessage(); }} disabled={!newMessage.trim() && attachments.length === 0} className="p-2 text-white rounded-full disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0" style={{ backgroundColor: platformColor }}><Send className="w-5 h-5" /></button>
+                  <button onClick={() => { sendMessage(); }} disabled={!newMessage.trim() && attachments.length === 0} className="p-2 text-white rounded-full disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0" style={{ backgroundColor: platformColor }}><SendIcon className="w-5 h-5" /></button>
                 </div>
               </div>
               )}
@@ -3317,7 +3280,7 @@ function UnifiedChatPageContent() {
           ) : (
             <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-slate-900">
               <div className="text-center text-gray-500 dark:text-slate-400">
-                <MessageCircle className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                <ChatIcon className="w-16 h-16 mx-auto mb-4 text-gray-300" />
                 <p className="text-lg font-medium">เลือกแชทเพื่อเริ่มสนทนา</p>
                 <p className="text-sm">ข้อความจากลูกค้าจะแสดงที่นี่</p>
               </div>
@@ -3331,10 +3294,10 @@ function UnifiedChatPageContent() {
         {mobileView === 'history' && selectedContact?.customer && (
           <div className="flex md:hidden w-full flex-col bg-gray-50 dark:bg-slate-900">
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-              <div className="flex items-center gap-3"><button onClick={() => setMobileView('chat')} className="p-1 -ml-1 text-gray-500 hover:text-gray-700"><ChevronLeft className="w-6 h-6" /></button><History className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">ประวัติออเดอร์</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.name}</p></div></div>
+              <div className="flex items-center gap-3"><button onClick={() => setMobileView('chat')} className="p-1 -ml-1 text-gray-500 hover:text-gray-700"><ChevronLeftIcon className="w-6 h-6" /></button><History className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">ประวัติออเดอร์</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.name}</p></div></div>
             </div>
             <div className="flex-1 overflow-y-auto p-4">
-              {loadingHistory ? (<div className="flex items-center justify-center py-8"><Loader2 className="w-6 h-6 text-gray-400 animate-spin" /></div>) : orderHistory.length === 0 ? (<div className="text-center py-8 text-gray-500 dark:text-slate-400"><History className="w-12 h-12 mx-auto mb-2 text-gray-300" /><p>ยังไม่มีประวัติออเดอร์</p></div>) : (<div className="space-y-3">{orderHistory.map(renderOrderCard)}</div>)}
+              {loadingHistory ? (<div className="flex items-center justify-center py-8"><LoadingIcon className="w-6 h-6 text-gray-400 animate-spin" /></div>) : orderHistory.length === 0 ? (<div className="text-center py-8 text-gray-500 dark:text-slate-400"><History className="w-12 h-12 mx-auto mb-2 text-gray-300" /><p>ยังไม่มีประวัติออเดอร์</p></div>) : (<div className="space-y-3">{orderHistory.map(renderOrderCard)}</div>)}
             </div>
           </div>
         )}
@@ -3343,7 +3306,7 @@ function UnifiedChatPageContent() {
         {mobileView === 'profile' && selectedContact && (
           <div className="flex md:hidden w-full flex-col bg-gray-50 dark:bg-slate-900">
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-              <div className="flex items-center gap-3"><button onClick={() => setMobileView('chat')} className="p-1 -ml-1 text-gray-500 hover:text-gray-700"><ChevronLeft className="w-6 h-6" /></button><User className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">{selectedContact.customer ? 'ข้อมูลลูกค้า' : 'โปรไฟล์'}</h2>{selectedContact.customer && <p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.customer_code}</p>}</div></div>
+              <div className="flex items-center gap-3"><button onClick={() => setMobileView('chat')} className="p-1 -ml-1 text-gray-500 hover:text-gray-700"><ChevronLeftIcon className="w-6 h-6" /></button><UserIcon className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">{selectedContact.customer ? 'ข้อมูลลูกค้า' : 'โปรไฟล์'}</h2>{selectedContact.customer && <p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.customer_code}</p>}</div></div>
               {selectedContact.customer && <button onClick={handleOpenEditCustomer} className="px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 rounded-lg transition-colors">แก้ไข</button>}
             </div>
             <div className="flex-1 overflow-y-auto p-4">
@@ -3351,11 +3314,11 @@ function UnifiedChatPageContent() {
               <div className="mt-4 space-y-2">
                 {selectedContact.customer ? (
                   <>
-                    <Button variant="primary" fullWidth icon={<ShoppingCart className="w-4 h-4" />} onClick={() => { setOrderFormKey(k => k + 1); setRightPanel('order'); }}>เปิดบิล</Button>
+                    <Button variant="primary" fullWidth icon={<OrderIcon className="w-4 h-4" />} onClick={() => { setOrderFormKey(k => k + 1); setRightPanel('order'); }}>เปิดบิล</Button>
                     <Button variant="secondary" fullWidth onClick={() => window.open(`/customers/${selectedContact.customer!.id}`, '_blank')}>ดูรายละเอียดเต็ม</Button>
                     <div className="flex gap-2 pt-2">
                       <button onClick={handleUnlinkCustomer} className="flex-1 py-2 text-sm text-gray-500 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"><Unlink className="w-3.5 h-3.5" />ยกเลิกเชื่อมต่อ</button>
-                      <button onClick={handleDeleteCustomer} className="flex-1 py-2 text-sm text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"><Trash2 className="w-3.5 h-3.5" />ลบลูกค้า</button>
+                      <button onClick={handleDeleteCustomer} className="flex-1 py-2 text-sm text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"><DeleteIcon className="w-3.5 h-3.5" />ลบลูกค้า</button>
                     </div>
                   </>
                 ) : (
@@ -3370,7 +3333,7 @@ function UnifiedChatPageContent() {
         {mobileView === 'edit-customer' && selectedContact?.customer && editCustomerInitialData && (
           <div className="flex md:hidden w-full flex-col bg-gray-50 dark:bg-slate-900">
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-              <div className="flex items-center gap-3"><button onClick={() => setMobileView('profile')} className="p-1 -ml-1 text-gray-500 hover:text-gray-700"><ChevronLeft className="w-6 h-6" /></button><User className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">แก้ไขข้อมูลลูกค้า</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.customer_code}</p></div></div>
+              <div className="flex items-center gap-3"><button onClick={() => setMobileView('profile')} className="p-1 -ml-1 text-gray-500 hover:text-gray-700"><ChevronLeftIcon className="w-6 h-6" /></button><UserIcon className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">แก้ไขข้อมูลลูกค้า</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.customer_code}</p></div></div>
             </div>
             <div className="flex-1 overflow-y-auto p-4"><CustomerForm compact={true} initialData={editCustomerInitialData} onSubmit={handleUpdateCustomerInChat} onCancel={() => setMobileView('profile')} isEditing={true} isLoading={editingCustomer} allTags={allTags} selectedTags={profileTags} onTagsChange={setProfileTags} onTagCreated={(tag) => setAllTags(prev => [...prev, tag])}/></div>
           </div>
@@ -3380,7 +3343,7 @@ function UnifiedChatPageContent() {
         {mobileView === 'order-detail' && selectedOrderId && (
           <div className="flex md:hidden w-full flex-col bg-gray-50 dark:bg-slate-900">
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-              <div className="flex items-center gap-3"><button onClick={() => setMobileView('history')} className="p-1 -ml-1 text-gray-500 hover:text-gray-700"><ChevronLeft className="w-6 h-6" /></button><FileText className="w-5 h-5 text-blue-500" /><div><div className="flex items-center gap-1.5 flex-wrap"><h2 className="text-lg font-semibold text-gray-900 dark:text-white">{orderHistory.find(o => o.id === selectedOrderId)?.order_number || 'รายละเอียดออเดอร์'}</h2>{(() => { const o = orderHistory.find(o => o.id === selectedOrderId); if (!o) return null; return (<><OrderStatusBadge status={o.order_status || o.status} /><PaymentStatusBadge status={o.payment_status || 'pending'} /></>); })()}</div>{selectedContact?.customer && <p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.name}</p>}</div></div>
+              <div className="flex items-center gap-3"><button onClick={() => setMobileView('history')} className="p-1 -ml-1 text-gray-500 hover:text-gray-700"><ChevronLeftIcon className="w-6 h-6" /></button><DocumentIcon className="w-5 h-5 text-blue-500" /><div><div className="flex items-center gap-1.5 flex-wrap"><h2 className="text-lg font-semibold text-gray-900 dark:text-white">{orderHistory.find(o => o.id === selectedOrderId)?.order_number || 'รายละเอียดออเดอร์'}</h2>{(() => { const o = orderHistory.find(o => o.id === selectedOrderId); if (!o) return null; return (<><OrderStatusBadge status={o.order_status || o.status} /><PaymentStatusBadge status={o.payment_status || 'pending'} /></>); })()}</div>{selectedContact?.customer && <p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.name}</p>}</div></div>
               <div className="flex items-center gap-2">
                 <div ref={headerActionsRef} className="flex items-center gap-2" />
                 <div ref={warehousePortalRef} />
@@ -3421,10 +3384,10 @@ function UnifiedChatPageContent() {
           <div className="hidden md:flex flex-1 flex-col border-l border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 min-h-[81px]">
               <div className="flex items-center gap-3"><History className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">ประวัติออเดอร์</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.name}</p></div></div>
-              <Tooltip text="ปิด"><button onClick={() => setRightPanel(null)} aria-label="ปิด" className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"><X className="w-5 h-5" /></button></Tooltip>
+              <Tooltip text="ปิด"><button onClick={() => setRightPanel(null)} aria-label="ปิด" className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"><CloseIcon className="w-5 h-5" /></button></Tooltip>
             </div>
             <div className="flex-1 overflow-y-auto p-4">
-              {loadingHistory ? (<div className="flex items-center justify-center py-8"><Loader2 className="w-6 h-6 text-gray-400 animate-spin" /></div>) : orderHistory.length === 0 ? (<div className="text-center py-8 text-gray-500 dark:text-slate-400"><History className="w-12 h-12 mx-auto mb-2 text-gray-300" /><p>ยังไม่มีประวัติออเดอร์</p></div>) : (<div className="space-y-3">{orderHistory.map(renderOrderCard)}</div>)}
+              {loadingHistory ? (<div className="flex items-center justify-center py-8"><LoadingIcon className="w-6 h-6 text-gray-400 animate-spin" /></div>) : orderHistory.length === 0 ? (<div className="text-center py-8 text-gray-500 dark:text-slate-400"><History className="w-12 h-12 mx-auto mb-2 text-gray-300" /><p>ยังไม่มีประวัติออเดอร์</p></div>) : (<div className="space-y-3">{orderHistory.map(renderOrderCard)}</div>)}
             </div>
           </div>
         )}
@@ -3432,10 +3395,10 @@ function UnifiedChatPageContent() {
         {rightPanel === 'profile' && selectedContact && (
           <div className="hidden md:flex flex-1 flex-col border-l border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 min-h-[81px]">
-              <div className="flex items-center gap-3"><User className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">{selectedContact.customer ? 'ข้อมูลลูกค้า' : 'โปรไฟล์'}</h2>{selectedContact.customer && <p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.customer_code}</p>}</div></div>
+              <div className="flex items-center gap-3"><UserIcon className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">{selectedContact.customer ? 'ข้อมูลลูกค้า' : 'โปรไฟล์'}</h2>{selectedContact.customer && <p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.customer_code}</p>}</div></div>
               <div className="flex items-center gap-2">
                 {selectedContact.customer && <button onClick={handleOpenEditCustomer} className="px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 rounded-lg transition-colors">แก้ไข</button>}
-                <Tooltip text="ปิด"><button onClick={() => setRightPanel(null)} aria-label="ปิด" className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"><X className="w-5 h-5" /></button></Tooltip>
+                <Tooltip text="ปิด"><button onClick={() => setRightPanel(null)} aria-label="ปิด" className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"><CloseIcon className="w-5 h-5" /></button></Tooltip>
               </div>
             </div>
             <div className="flex-1 overflow-y-auto p-4">
@@ -3443,11 +3406,11 @@ function UnifiedChatPageContent() {
               <div className="mt-4 space-y-2">
                 {selectedContact.customer ? (
                   <>
-                    <Button variant="primary" fullWidth icon={<ShoppingCart className="w-4 h-4" />} onClick={() => { setOrderFormKey(k => k + 1); setRightPanel('order'); }}>เปิดบิล</Button>
+                    <Button variant="primary" fullWidth icon={<OrderIcon className="w-4 h-4" />} onClick={() => { setOrderFormKey(k => k + 1); setRightPanel('order'); }}>เปิดบิล</Button>
                     <Button variant="secondary" fullWidth onClick={() => window.open(`/customers/${selectedContact.customer!.id}`, '_blank')}>ดูรายละเอียดเต็ม</Button>
                     <div className="flex gap-2 pt-2">
                       <button onClick={handleUnlinkCustomer} className="flex-1 py-2 text-sm text-gray-500 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"><Unlink className="w-3.5 h-3.5" />ยกเลิกเชื่อมต่อ</button>
-                      <button onClick={handleDeleteCustomer} className="flex-1 py-2 text-sm text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"><Trash2 className="w-3.5 h-3.5" />ลบลูกค้า</button>
+                      <button onClick={handleDeleteCustomer} className="flex-1 py-2 text-sm text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"><DeleteIcon className="w-3.5 h-3.5" />ลบลูกค้า</button>
                     </div>
                   </>
                 ) : (
@@ -3461,8 +3424,8 @@ function UnifiedChatPageContent() {
         {rightPanel === 'edit-customer' && selectedContact?.customer && editCustomerInitialData && (
           <div className="hidden md:flex flex-1 flex-col border-l border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 min-h-[81px]">
-              <div className="flex items-center gap-3"><User className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">แก้ไขข้อมูลลูกค้า</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.customer_code}</p></div></div>
-              <Tooltip text="ปิด"><button onClick={() => setRightPanel('profile')} aria-label="ปิด" className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"><X className="w-5 h-5" /></button></Tooltip>
+              <div className="flex items-center gap-3"><UserIcon className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">แก้ไขข้อมูลลูกค้า</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.customer_code}</p></div></div>
+              <Tooltip text="ปิด"><button onClick={() => setRightPanel('profile')} aria-label="ปิด" className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"><CloseIcon className="w-5 h-5" /></button></Tooltip>
             </div>
             <div className="flex-1 overflow-y-auto p-4"><CustomerForm compact={true} initialData={editCustomerInitialData} onSubmit={handleUpdateCustomerInChat} onCancel={() => setRightPanel('profile')} isEditing={true} isLoading={editingCustomer} allTags={allTags} selectedTags={profileTags} onTagsChange={setProfileTags} onTagCreated={(tag) => setAllTags(prev => [...prev, tag])}/></div>
           </div>
@@ -3471,11 +3434,11 @@ function UnifiedChatPageContent() {
         {rightPanel === 'order-detail' && selectedOrderId && (
           <div className="flex w-full md:w-auto md:flex-1 flex-col border-l border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 absolute inset-0 md:static md:inset-auto z-10">
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 min-h-[81px]">
-              <div className="flex items-center gap-3"><button onClick={() => setRightPanel('history')} className="p-1 -ml-1 text-gray-500 hover:text-gray-700"><ChevronLeft className="w-5 h-5" /></button><FileText className="w-5 h-5 text-blue-500" /><div><div className="flex items-center gap-1.5 flex-wrap"><h2 className="text-lg font-semibold text-gray-900 dark:text-white">{orderHistory.find(o => o.id === selectedOrderId)?.order_number || 'รายละเอียดออเดอร์'}</h2>{(() => { const o = orderHistory.find(o => o.id === selectedOrderId); if (!o) return null; return (<><OrderStatusBadge status={o.order_status || o.status} /><PaymentStatusBadge status={o.payment_status || 'pending'} /></>); })()}</div>{selectedContact?.customer && <p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.name}</p>}</div></div>
+              <div className="flex items-center gap-3"><button onClick={() => setRightPanel('history')} className="p-1 -ml-1 text-gray-500 hover:text-gray-700"><ChevronLeftIcon className="w-5 h-5" /></button><DocumentIcon className="w-5 h-5 text-blue-500" /><div><div className="flex items-center gap-1.5 flex-wrap"><h2 className="text-lg font-semibold text-gray-900 dark:text-white">{orderHistory.find(o => o.id === selectedOrderId)?.order_number || 'รายละเอียดออเดอร์'}</h2>{(() => { const o = orderHistory.find(o => o.id === selectedOrderId); if (!o) return null; return (<><OrderStatusBadge status={o.order_status || o.status} /><PaymentStatusBadge status={o.payment_status || 'pending'} /></>); })()}</div>{selectedContact?.customer && <p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.name}</p>}</div></div>
               <div className="flex items-center gap-2">
                 <div ref={headerActionsRef} className="flex items-center gap-2" />
                 <div ref={warehousePortalRef} />
-                <Tooltip text="ปิด"><button onClick={() => setRightPanel(null)} aria-label="ปิด" className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"><X className="w-5 h-5" /></button></Tooltip>
+                <Tooltip text="ปิด"><button onClick={() => setRightPanel(null)} aria-label="ปิด" className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"><CloseIcon className="w-5 h-5" /></button></Tooltip>
               </div>
             </div>
             <div className="flex-1 overflow-y-auto px-4 pt-4"><OrderForm key={selectedOrderId} editOrderId={selectedOrderId} embedded={true} warehousePortalRef={warehousePortalRef} headerActionsRef={headerActionsRef} onSuccess={() => { setRightPanel('history'); showToast('บันทึกการแก้ไขสำเร็จ!'); if (selectedContact?.customer) fetchOrderHistory(selectedContact.customer.id); }} onCancel={() => setRightPanel('history')} /></div>

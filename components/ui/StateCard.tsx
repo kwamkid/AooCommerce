@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { Loader2, AlertCircle, Check, AlertTriangle } from 'lucide-react';
+import { AlertIcon, ConfirmIcon, LoadingIcon, WarningIcon } from '@/lib/icons';
 import Card from './Card';
 import { SkeletonCard } from './Skeleton';
 
@@ -54,7 +54,7 @@ export function LoadingCard({ title, subtitle, compact }: { title?: ReactNode; s
   }
   return (
     <StateCard
-      icon={<Loader2 className="w-12 h-12 text-[#F4511E] animate-spin" />}
+      icon={<LoadingIcon className="w-12 h-12 text-[#F4511E] animate-spin" />}
       title={title}
       subtitle={subtitle}
       compact={compact}
@@ -66,7 +66,7 @@ export function LoadingCard({ title, subtitle, compact }: { title?: ReactNode; s
 export function EmptyCard({ title = 'ไม่พบข้อมูล', subtitle, icon, actions }: { title?: ReactNode; subtitle?: ReactNode; icon?: ReactNode; actions?: ReactNode }) {
   return (
     <StateCard
-      icon={icon || <Check className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+      icon={icon || <ConfirmIcon className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
       title={title}
       subtitle={subtitle}
       actions={actions}
@@ -81,7 +81,7 @@ export function NoPermissionCard({
 }: { title?: ReactNode; subtitle?: ReactNode } = {}) {
   return (
     <StateCard
-      icon={<AlertCircle className="w-12 h-12 text-red-400" />}
+      icon={<AlertIcon className="w-12 h-12 text-red-400" />}
       title={title}
       subtitle={subtitle}
     />
@@ -108,9 +108,9 @@ export function DoneCard({ hasErrors, title = 'เสร็จสิ้น', sum
         }`}
       >
         {hasErrors ? (
-          <AlertTriangle className="w-8 h-8 text-amber-600" />
+          <WarningIcon className="w-8 h-8 text-amber-600" />
         ) : (
-          <Check className="w-8 h-8 text-emerald-600" />
+          <ConfirmIcon className="w-8 h-8 text-emerald-600" />
         )}
       </div>
       <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h2>

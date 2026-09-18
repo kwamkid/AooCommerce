@@ -13,7 +13,7 @@ import { ProgressBar } from '@/components/ui/Chart';
 import BroadcastPreview from '@/components/broadcast/BroadcastPreview';
 import type { BroadcastContent } from '@/lib/broadcast/content';
 import type { BroadcastPlatform } from '@/lib/broadcast/platforms';
-import { ArrowRight, Clock, Send } from 'lucide-react';
+import { ForwardIcon, SendIcon, TimeIcon } from '@/lib/icons';
 import type { FollowerStats, PerAccountPreview } from './types';
 
 interface Props {
@@ -128,7 +128,7 @@ export default function SummaryRail(p: Props) {
               <Button
                 variant="primary"
                 className="flex-1"
-                icon={<ArrowRight className="w-4 h-4" />}
+                icon={<ForwardIcon className="w-4 h-4" />}
                 disabled={!p.canNext}
                 onClick={p.onNext}
               >
@@ -143,7 +143,7 @@ export default function SummaryRail(p: Props) {
               <Button
                 variant="primary"
                 className="flex-1"
-                icon={p.scheduled ? <Clock className="w-4 h-4" /> : <Send className="w-4 h-4" />}
+                icon={p.scheduled ? <TimeIcon className="w-4 h-4" /> : <SendIcon className="w-4 h-4" />}
                 loading={p.sending}
                 disabled={!p.canSend}
                 onClick={p.onSend}

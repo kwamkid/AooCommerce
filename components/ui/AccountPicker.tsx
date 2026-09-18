@@ -13,7 +13,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import ChannelBadge from './ChannelBadge';
-import { Check, ChevronDown, Layers, Search } from 'lucide-react';
+import { Layers } from 'lucide-react';
+import { ChevronDownIcon, ConfirmIcon, SearchIcon } from '@/lib/icons';
 
 export interface PickerAccount {
   id: string;
@@ -116,14 +117,14 @@ export default function AccountPicker({
             ))}
           </span>
         )}
-        <ChevronDown className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDownIcon className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open && (
         <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg max-h-72 overflow-hidden flex flex-col">
           {accounts.length > 5 && (
             <div className="p-2 border-b border-gray-100 dark:border-slate-700 relative">
-              <Search className="w-4 h-4 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <SearchIcon className="w-4 h-4 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"
                 value={search}
@@ -145,7 +146,7 @@ export default function AccountPicker({
                   <Layers className="w-3.5 h-3.5 text-gray-400" />
                 </span>
                 <span className="flex-1 text-gray-900 dark:text-white">{allOption}</span>
-                {value.length === 0 && <Check className="w-4 h-4 text-primary flex-shrink-0" />}
+                {value.length === 0 && <ConfirmIcon className="w-4 h-4 text-primary flex-shrink-0" />}
               </button>
             )}
             {shown.length === 0 ? (
@@ -174,7 +175,7 @@ export default function AccountPicker({
                     )}
                   </span>
                   {a.badge && <span className="helper-text text-gray-400 dark:text-slate-500 flex-shrink-0 mt-0.5">{a.badge}</span>}
-                  {active && <Check className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />}
+                  {active && <ConfirmIcon className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />}
                 </button>
               );
             })}

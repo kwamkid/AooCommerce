@@ -26,15 +26,7 @@ import { Tag } from '@/components/ui/TagBadge';
 import { diffTagIds, patchCustomerTags } from '@/lib/tag-links';
 import StickyActionBar from '@/components/ui/StickyActionBar';
 import PageHeader from '@/components/ui/PageHeader';
-import {
-  AlertCircle,
-  UserCircle,
-  Link2,
-  Copy,
-  ExternalLink,
-  RefreshCw,
-  KeyRound,
-} from 'lucide-react';
+import { AlertIcon, CopyIcon, CustomerIcon, ExternalLinkIcon, LinkIcon, PasswordIcon, RefreshIcon } from '@/lib/icons';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 
 // Customer interface
@@ -291,7 +283,7 @@ export default function CustomerEditPage() {
       <Layout>
         <Container size="2xl">
           <div className="text-center py-12">
-            <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+            <AlertIcon className="w-16 h-16 text-red-500 mx-auto mb-4" />
             <p className="text-gray-500 text-lg">ไม่พบข้อมูลลูกค้า</p>
             <Button variant="ghost" onClick={() => router.push('/customers')} className="mt-4">
               กลับหน้ารายการลูกค้า
@@ -308,7 +300,7 @@ export default function CustomerEditPage() {
         {/* Header */}
         <PageHeader
           backHref="/customers"
-          icon={<UserCircle />}
+          icon={<CustomerIcon />}
           title={customer.name}
           subtitle={`รหัส: ${customer.customer_code}`}
         />
@@ -321,7 +313,7 @@ export default function CustomerEditPage() {
         {customer.customer_type === 'consignment_dealer' && customer.portal_token && (
           <Card padding="sm" className="space-y-3">
             <div className="flex items-center gap-2">
-              <Link2 className="w-4 h-4 text-amber-500" />
+              <LinkIcon className="w-4 h-4 text-amber-500" />
               <h3 className="heading-4">Portal ตัวแทน</h3>
             </div>
 
@@ -335,7 +327,7 @@ export default function CustomerEditPage() {
               <Button
                 variant="secondary"
                 size="sm"
-                icon={<Copy className="w-3.5 h-3.5" />}
+                icon={<CopyIcon className="w-3.5 h-3.5" />}
                 onClick={() => {
                   const url = `${window.location.origin}/portal/consignment/${customer.portal_token}`;
                   copy(url, 'ลิงก์');
@@ -349,7 +341,7 @@ export default function CustomerEditPage() {
                 rel="noopener noreferrer"
                 className="btn btn-sm btn-secondary !bg-amber-50 dark:!bg-amber-500/10 !text-amber-600 dark:!text-amber-400 hover:!bg-amber-100 dark:hover:!bg-amber-500/20 !border-amber-200 dark:!border-amber-500/20"
               >
-                <ExternalLink className="w-3.5 h-3.5" />
+                <ExternalLinkIcon className="w-3.5 h-3.5" />
                 เปิด
               </a>
             </div>
@@ -357,7 +349,7 @@ export default function CustomerEditPage() {
             {/* Access code row */}
             <div className="flex items-center gap-2 flex-wrap">
               <div className="flex items-center gap-2 flex-1 min-w-0">
-                <KeyRound className="w-3.5 h-3.5 text-gray-400 dark:text-slate-500 flex-shrink-0" />
+                <PasswordIcon className="w-3.5 h-3.5 text-gray-400 dark:text-slate-500 flex-shrink-0" />
                 <span className="text-xs text-gray-500 dark:text-slate-400 whitespace-nowrap">รหัส Portal:</span>
                 {customer.portal_access_code ? (
                   <code className="text-sm font-mono font-bold text-amber-600 dark:text-amber-400 tracking-wider">
@@ -370,7 +362,7 @@ export default function CustomerEditPage() {
               <Button
                 variant="secondary"
                 size="sm"
-                icon={regeneratingCode ? undefined : <RefreshCw className="w-3.5 h-3.5" />}
+                icon={regeneratingCode ? undefined : <RefreshIcon className="w-3.5 h-3.5" />}
                 loading={regeneratingCode}
                 onClick={handleRegenerateCode}
               >
@@ -380,7 +372,7 @@ export default function CustomerEditPage() {
                 <Button
                   variant="secondary"
                   size="sm"
-                  icon={<Copy className="w-3.5 h-3.5" />}
+                  icon={<CopyIcon className="w-3.5 h-3.5" />}
                   onClick={() => {
                     copy(customer.portal_access_code!, 'รหัส');
                   }}

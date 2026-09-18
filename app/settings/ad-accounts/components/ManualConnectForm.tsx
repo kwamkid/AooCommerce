@@ -7,7 +7,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, ExternalLink, Eye, EyeOff, Zap } from 'lucide-react';
+import { ChevronDownIcon, ChevronUpIcon, ExternalLinkIcon, FastIcon, HideIcon, ViewIcon } from '@/lib/icons';
 import Alert from '@/components/ui/Alert';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
@@ -50,7 +50,7 @@ function GuideLink({ href, children }: { href: string; children: React.ReactNode
       rel="noopener noreferrer"
       className="inline-flex items-center gap-1 mt-1 text-primary hover:underline"
     >
-      <ExternalLink className="w-3.5 h-3.5" /> {children}
+      <ExternalLinkIcon className="w-3.5 h-3.5" /> {children}
     </a>
   );
 }
@@ -138,7 +138,7 @@ export default function ManualConnectForm({
                 aria-label={showToken ? 'ซ่อน token' : 'แสดง token'}
                 className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-slate-200"
               >
-                {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                {showToken ? <HideIcon className="w-4 h-4" /> : <ViewIcon className="w-4 h-4" />}
               </button>
             }
           />
@@ -150,9 +150,9 @@ export default function ManualConnectForm({
             onClick={() => setGuideOpen(v => !v)}
             className="flex items-center gap-2 subtitle-text text-gray-500 dark:text-slate-400 hover:text-primary transition-colors"
           >
-            <Zap className="w-4 h-4 text-primary" />
+            <FastIcon className="w-4 h-4 text-primary" />
             <span>วิธีหาข้อมูล</span>
-            {guideOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            {guideOpen ? <ChevronUpIcon className="w-4 h-4" /> : <ChevronDownIcon className="w-4 h-4" />}
           </button>
 
           {guideOpen && (

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon } from '@/lib/icons';
 import { useDropUp } from '@/lib/useDropUp';
 
 const THAI_MONTHS = [
@@ -126,7 +126,7 @@ export default function MonthYearPicker({
           disabled={viewYear <= minYear}
           className="p-1 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
-          <ChevronLeft className="w-4 h-4 text-gray-500 dark:text-slate-400" />
+          <ChevronLeftIcon className="w-4 h-4 text-gray-500 dark:text-slate-400" />
         </button>
         <span className="text-base font-semibold text-gray-800 dark:text-white select-none">
           พ.ศ. {viewYear + 543}
@@ -137,7 +137,7 @@ export default function MonthYearPicker({
           disabled={viewYear >= maxYear}
           className="p-1 rounded hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
-          <ChevronRight className="w-4 h-4 text-gray-500 dark:text-slate-400" />
+          <ChevronRightIcon className="w-4 h-4 text-gray-500 dark:text-slate-400" />
         </button>
       </div>
 
@@ -180,7 +180,7 @@ export default function MonthYearPicker({
             : 'border-gray-300 dark:border-slate-500 bg-white dark:bg-slate-800 hover:border-gray-400 dark:hover:border-slate-400'
         } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
       >
-        <Calendar className="w-4 h-4 flex-shrink-0 text-gray-400 dark:text-slate-400" />
+        <CalendarIcon className="w-4 h-4 flex-shrink-0 text-gray-400 dark:text-slate-400" />
         <span className={`flex-1 truncate ${
           month && year ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-slate-400'
         }`}>

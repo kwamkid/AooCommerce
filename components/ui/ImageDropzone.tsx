@@ -10,7 +10,7 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import imageCompression from 'browser-image-compression';
-import { ImagePlus, X, Loader2 } from 'lucide-react';
+import { CloseIcon, ImageAddIcon, LoadingIcon } from '@/lib/icons';
 import type { ReactNode } from 'react';
 import Modal from './Modal';
 
@@ -233,8 +233,8 @@ const ImageDropzone = forwardRef<ImageDropzoneHandle, Props>(function ImageDropz
             {img}
             <span className="absolute inset-0 rounded-lg bg-black/40 text-white opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity flex flex-col items-center justify-center gap-0.5 pointer-events-none">
               {busy
-                ? <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" />
-                : <ImagePlus className="w-5 h-5" strokeWidth={1.75} aria-hidden="true" />}
+                ? <LoadingIcon className="w-5 h-5 animate-spin" aria-hidden="true" />
+                : <ImageAddIcon className="w-5 h-5" strokeWidth={1.75} aria-hidden="true" />}
               <span className="helper-text text-white">เปลี่ยนรูป</span>
             </span>
           </button>
@@ -246,7 +246,7 @@ const ImageDropzone = forwardRef<ImageDropzoneHandle, Props>(function ImageDropz
           aria-label="เอารูปออก"
           disabled={disabled}
         >
-          <X className={cn.clearIcon} strokeWidth={2} aria-hidden="true" />
+          <CloseIcon className={cn.clearIcon} strokeWidth={2} aria-hidden="true" />
         </button>
         {fileInput}
         {cropModal}
@@ -268,10 +268,10 @@ const ImageDropzone = forwardRef<ImageDropzoneHandle, Props>(function ImageDropz
         onDrop={e => { e.preventDefault(); setDragging(false); accept(e.dataTransfer.files?.[0]); }}
       >
         {busy ? (
-          <><Loader2 className={cn.spinner} strokeWidth={1.75} aria-hidden="true" /><span>กำลังย่อรูป…</span></>
+          <><LoadingIcon className={cn.spinner} strokeWidth={1.75} aria-hidden="true" /><span>กำลังย่อรูป…</span></>
         ) : (
           <>
-            {icon || <ImagePlus className="w-6 h-6" strokeWidth={1.5} aria-hidden="true" />}
+            {icon || <ImageAddIcon className="w-6 h-6" strokeWidth={1.5} aria-hidden="true" />}
             <span>{label || 'เลือกรูปจากเครื่อง'}</span>
             <small>{hint || 'ลากรูปมาวางตรงนี้ก็ได้'}</small>
           </>

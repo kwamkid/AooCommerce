@@ -21,9 +21,7 @@ import { EmptyCard, LoadingCard } from '@/components/ui/StateCard';
 import StatusBadge from '@/components/ui/StatusBadge';
 import DocListFilters, { type DocListUser, type DocListWarehouse } from '../components/DocListFilters';
 import { useDocListParams } from '../components/useDocListParams';
-import {
-  Loader2, Factory, Plus, Undo2, Warehouse, Eye, X,
-} from 'lucide-react';
+import { AddIcon, CloseIcon, LoadingIcon, SupplierIcon, SupplierReturnIcon, ViewIcon, WarehouseIcon } from '@/lib/icons';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 
 interface SupplierReturn {
@@ -130,7 +128,7 @@ function SupplierReturnListContent() {
     {
       key: 'view',
       label: 'ดูรายละเอียด',
-      icon: <Eye className="w-4 h-4" />,
+      icon: <ViewIcon className="w-4 h-4" />,
       onClick: () => router.push(`/inventory/supplier-returns/${r.id}`),
     },
   ];
@@ -145,7 +143,7 @@ function SupplierReturnListContent() {
         <Button
           variant="primary"
           onClick={() => router.push('/inventory/supplier-return')}
-          icon={<Plus className="w-4 h-4" />}
+          icon={<AddIcon className="w-4 h-4" />}
           aria-label="คืนของให้ Supplier"
           className="whitespace-nowrap flex-shrink-0"
         >
@@ -181,18 +179,18 @@ function SupplierReturnListContent() {
 
       {rows.length === 0 ? (
         <EmptyCard
-          icon={<Undo2 className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+          icon={<SupplierReturnIcon className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
           title={hasActiveFilters ? 'ไม่พบรายการที่ตรงกับตัวกรอง' : 'ยังไม่มีใบคืนของ Supplier'}
           subtitle={hasActiveFilters ? 'ลองขยายช่วงวันที่หรือล้างตัวกรอง' : undefined}
           actions={hasActiveFilters
-            ? <Button variant="secondary" icon={<X className="w-4 h-4" />} onClick={clearAll}>ล้างตัวกรอง</Button>
+            ? <Button variant="secondary" icon={<CloseIcon className="w-4 h-4" />} onClick={clearAll}>ล้างตัวกรอง</Button>
             : undefined}
         />
       ) : (
         <div className="relative">
           {fetching && (
             <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/60 dark:bg-slate-900/60 pointer-events-none">
-              <Loader2 className="w-8 h-8 text-primary animate-spin" />
+              <LoadingIcon className="w-8 h-8 text-primary animate-spin" />
             </div>
           )}
           <DataTable<SupplierReturn>
@@ -222,7 +220,7 @@ function SupplierReturnListContent() {
                 key: 'warehouse', label: 'คลัง',
                 render: (r) => (
                   <div className="flex items-center gap-1.5">
-                    <Warehouse className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                    <WarehouseIcon className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                     <span className="data-text text-gray-700 dark:text-slate-300">{r.warehouse?.name || '-'}</span>
                   </div>
                 ),
@@ -265,7 +263,7 @@ function SupplierReturnListContent() {
             getRowId={(r) => r.id}
             onRowClick={(r) => router.push(`/inventory/supplier-returns/${r.id}`)}
             emptyMessage="ไม่พบรายการที่ค้นหา"
-            emptyIcon={<Undo2 className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+            emptyIcon={<SupplierReturnIcon className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
             currentPage={page}
             totalPages={totalPages}
             totalRecords={total}
@@ -286,14 +284,14 @@ function SupplierReturnListContent() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 mb-1">
-                  <Factory className="w-3.5 h-3.5 text-gray-400" />
+                  <SupplierIcon className="w-3.5 h-3.5 text-gray-400" />
                   <span className="data-text text-gray-700 dark:text-slate-300">{r.supplier?.name || '-'}</span>
                   {r.deal_type && DEAL_LABEL[r.deal_type] && (
                     <Badge tone={DEAL_LABEL[r.deal_type].tone} size="sm">{DEAL_LABEL[r.deal_type].label}</Badge>
                   )}
                 </div>
                 <div className="flex items-center gap-2 mb-1">
-                  <Warehouse className="w-3.5 h-3.5 text-gray-400" />
+                  <WarehouseIcon className="w-3.5 h-3.5 text-gray-400" />
                   <span className="data-text text-gray-700 dark:text-slate-300">{r.warehouse?.name || '-'}</span>
                 </div>
                 <div className="flex items-center justify-between">

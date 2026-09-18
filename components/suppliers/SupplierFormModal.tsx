@@ -1,7 +1,7 @@
 // Path: components/suppliers/SupplierFormModal.tsx
 'use client';
 
-import { Factory } from 'lucide-react';
+import { SupplierIcon } from '@/lib/icons';
 import Modal from '@/components/ui/Modal';
 import SupplierForm, { type SupplierFormData } from './SupplierForm';
 
@@ -36,7 +36,7 @@ export default function SupplierFormModal({ open, onClose, onCreated }: Supplier
       onClose={onClose}
       size="lg"
       title="เพิ่มซัพพลายเออร์ใหม่"
-      icon={<Factory className="w-5 h-5 text-primary" />}
+      icon={<SupplierIcon className="w-5 h-5 text-primary" />}
     >
       <div>
         <SupplierForm

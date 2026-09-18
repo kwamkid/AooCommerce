@@ -11,7 +11,7 @@
 import { useState, useCallback, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Users, Info, ChevronDown, Image as ImageIcon, Ticket, Search } from 'lucide-react';
+import { ChevronDownIcon, CouponIcon, ImageIcon, InfoIcon, PeopleIcon, SearchIcon } from '@/lib/icons';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
@@ -432,7 +432,7 @@ export default function BroadcastPageSettings() {
 
           {subs && subs.eligible_now === 0 && subs.next_eligible_at && (
             <p className="subtitle-text mb-3">
-              <Users className="w-4 h-4 inline-block mr-1 -mt-0.5 text-gray-400" />
+              <PeopleIcon className="w-4 h-4 inline-block mr-1 -mt-0.5 text-gray-400" />
               ส่งได้อีกครั้ง {formatThaiDateTime(subs.next_eligible_at)} (Facebook จำกัด 1 ข้อความ ต่อคน ต่อ 12 ชั่วโมง)
             </p>
           )}
@@ -515,7 +515,7 @@ export default function BroadcastPageSettings() {
                         onClick={() => setExpanded(trigger)}
                         aria-expanded={open}
                       >
-                        <ChevronDown className={`w-4 h-4 flex-shrink-0 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+                        <ChevronDownIcon className={`w-4 h-4 flex-shrink-0 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
                         <span className="min-w-0">
                           <span className="body-text font-medium block">{info.label}</span>
                           <span className="subtitle-text block truncate">{open ? info.description : sc.title || info.description}</span>
@@ -592,7 +592,7 @@ export default function BroadcastPageSettings() {
                           <div>
                             <div className="flex items-center justify-between gap-3">
                               <label className="field-label flex items-center gap-1.5">
-                                <Ticket className="w-4 h-4 text-gray-400" />
+                                <CouponIcon className="w-4 h-4 text-gray-400" />
                                 ส่งคูปองเมื่อกดรับ
                                 <HelpHint>
                                   ใส่คูปองในการ์ดไม่ได้ (Facebook ให้แค่รูป หัวข้อ ปุ่ม) — ระบบส่งโค้ดตามเข้าแชท
@@ -619,7 +619,7 @@ export default function BroadcastPageSettings() {
                                   className="choice-card choice-card-active flex items-center gap-2 p-2.5 text-left w-full"
                                   onClick={() => { setCouponSearch(''); setCouponPickerFor(trigger); }}
                                 >
-                                  <Ticket className="w-4 h-4 text-primary flex-shrink-0" />
+                                  <CouponIcon className="w-4 h-4 text-primary flex-shrink-0" />
                                   <span className="min-w-0 flex-1">
                                     <span className="body-text font-medium block truncate">{coupon?.code || 'คูปองที่เลือกไว้'}</span>
                                     <span className="subtitle-text block truncate">
@@ -732,7 +732,7 @@ export default function BroadcastPageSettings() {
         </Card>
 
         <p className="helper-text flex items-start gap-1.5">
-          <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          <InfoIcon className="w-4 h-4 flex-shrink-0 mt-0.5" />
           <span>
             แคมเปญที่สร้างใหม่ต้องรอ Meta เตรียมก่อนส่งได้ (วัดจริงประมาณ 2 ชั่วโมง) ระบบจะลองส่งให้เองจนกว่าจะสำเร็จ
           </span>
@@ -750,7 +750,7 @@ export default function BroadcastPageSettings() {
           open={!!couponPickerFor}
           onClose={() => setCouponPickerFor(null)}
           title="เลือกคูปองที่จะส่งให้"
-          icon={<Ticket className="w-5 h-5" />}
+          icon={<CouponIcon className="w-5 h-5" />}
           size="md"
         >
           <div>
@@ -777,7 +777,7 @@ export default function BroadcastPageSettings() {
                         setCouponPickerFor(null);
                       }}
                     >
-                      <Ticket className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                      <CouponIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />
                       <span className="min-w-0 flex-1">
                         <span className="body-text font-medium block truncate">{c.code}</span>
                         <span className="subtitle-text block truncate">
@@ -794,7 +794,7 @@ export default function BroadcastPageSettings() {
             )}
             <div className="flex items-center justify-between gap-3 mt-4 pt-3 border-t border-gray-100 dark:border-slate-700">
               <Link href="/marketing/coupons" className="subtitle-text text-primary hover:underline">
-                <Search className="w-4 h-4 inline-block mr-1 -mt-0.5" />
+                <SearchIcon className="w-4 h-4 inline-block mr-1 -mt-0.5" />
                 จัดการคูปองทั้งหมด
               </Link>
               <Button variant="secondary" onClick={() => setCouponPickerFor(null)}>ปิด</Button>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { MapPin } from 'lucide-react';
+import { LocationIcon } from '@/lib/icons';
 import TaxInvoiceEditModal, { type TaxInvoiceSnapshot } from './TaxInvoiceEditModal';
 
 interface TaxInvoiceInfoProps {
@@ -50,7 +50,7 @@ export default function TaxInvoiceInfo({
             </div>
             {billingAddress && (
               <div className="flex items-start gap-1 text-xs">
-                <MapPin className="w-3 h-3 flex-shrink-0 mt-0.5" />
+                <LocationIcon className="w-3 h-3 flex-shrink-0 mt-0.5" />
                 <span>{billingAddress}</span>
                 {onEdit && (
                   <button type="button" onClick={() => setShowModal(true)}

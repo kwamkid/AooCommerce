@@ -9,7 +9,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Download, PackageSearch, Store, UploadCloud } from 'lucide-react';
+import { PackageSearch, UploadCloud } from 'lucide-react';
+import { DownloadIcon, StoreIcon } from '@/lib/icons';
 import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
@@ -81,7 +82,7 @@ export default function MarketplaceOnboardingModal({ account, onClose, onChanged
     if (!current) return null;
     if (current.key === 'link_products') {
       return (
-        <Button variant="primary" icon={<Download />} onClick={goImport}>
+        <Button variant="primary" icon={<DownloadIcon />} onClick={goImport}>
           นำเข้าสินค้าจาก {label}
         </Button>
       );
@@ -114,7 +115,7 @@ export default function MarketplaceOnboardingModal({ account, onClose, onChanged
       onClose={onClose}
       /* 2xl เพราะปุ่มของขั้น "ตั้งยอดตั้งต้น" มีสองปุ่มยาว — แคบกว่านี้แล้วปุ่มตกบรรทัด */
       size="2xl"
-      icon={<Store />}
+      icon={<StoreIcon />}
       title={`เริ่มใช้งาน ${shopName}`}
       footer={
         <ModalFormFooter>

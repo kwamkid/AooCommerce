@@ -13,13 +13,8 @@ import { can, isPcOnly } from '@/lib/permissions';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { apiFetch } from '@/lib/api-client';
 import { formatPrice } from '@/lib/utils/format';
-import {
-  Truck,
-  Phone,
-  LucideIcon,
-  ChevronRight,
-  AlertTriangle
-} from 'lucide-react';
+import { LucideIcon } from 'lucide-react';
+import { ChevronRightIcon, PhoneIcon, ShippingIcon, WarningIcon } from '@/lib/icons';
 
 // Define color type
 type StatColor = 'blue' | 'green' | 'yellow' | 'red';
@@ -167,14 +162,14 @@ export default function DashboardPage() {
         <StatCard
           title="ส่งของวันนี้"
           value={`${stats?.todayDeliveries?.count || 0} ออเดอร์`}
-          icon={Truck}
+          icon={ShippingIcon}
           color="blue"
         />
         {(stats?.lowStockCount ?? 0) > 0 && (
           <StatCard
             title="สินค้าใกล้หมด"
             value={`${stats?.lowStockCount || 0} รายการ`}
-            icon={AlertTriangle}
+            icon={WarningIcon}
             color="red"
             onClick={() => router.push('/inventory?status=low')}
           />
@@ -194,7 +189,7 @@ export default function DashboardPage() {
               className="text-primary hover:text-primary-hover text-sm font-medium flex items-center"
             >
               ดูทั้งหมด
-              <ChevronRight className="w-4 h-4 ml-1" />
+              <ChevronRightIcon className="w-4 h-4 ml-1" />
             </Link>
           </div>
           <div className="space-y-3">
@@ -211,7 +206,7 @@ export default function DashboardPage() {
                     <p className="text-xs text-gray-600 dark:text-slate-400">Order: {order.orderNumber}</p>
                     {order.customer.phone && (
                       <p className="text-xs text-gray-500 dark:text-slate-400 flex items-center mt-1">
-                        <Phone className="w-3 h-3 mr-1" />
+                        <PhoneIcon className="w-3 h-3 mr-1" />
                         {order.customer.phone}
                       </p>
                     )}

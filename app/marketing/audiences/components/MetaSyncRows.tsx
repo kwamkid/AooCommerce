@@ -26,7 +26,7 @@ import { useToast } from '@/lib/toast-context';
 import { apiFetch, invalidateApiCache } from '@/lib/api-client';
 import { formatNumber, formatThaiDateTime } from '@/lib/utils/format';
 import { customAudienceTosUrl, type AdAccountView } from '@/lib/ads/meta-ui';
-import { ExternalLink, Loader2, Megaphone, RefreshCw, Settings } from 'lucide-react';
+import { BroadcastIcon, ExternalLinkIcon, LoadingIcon, RefreshIcon, SettingsIcon } from '@/lib/icons';
 import type { AudienceSyncView, AudienceView } from './types';
 import { isSyncRunning, syncStatusLook } from './sync-view';
 
@@ -184,7 +184,7 @@ export default function MetaSyncRows({
         <p className="subtitle-text">กำลังโหลดบัญชีโฆษณา...</p>
       ) : adAccounts.length === 0 ? (
         <EmptyCard
-          icon={<Megaphone className="w-8 h-8 text-gray-300 dark:text-slate-600" />}
+          icon={<BroadcastIcon className="w-8 h-8 text-gray-300 dark:text-slate-600" />}
           title="ยังไม่ได้เชื่อมบัญชีโฆษณา"
           subtitle={audienceId
             ? 'กลุ่มเป้าหมายใช้ยิงโฆษณาผ่าน Meta · เชื่อมบัญชีโฆษณาแล้วกด sync ที่นี่'
@@ -217,7 +217,7 @@ export default function MetaSyncRows({
                     <Badge
                       tone={look.tone}
                       size="sm"
-                      icon={look.spinning ? <Loader2 className="w-3 h-3 animate-spin" /> : undefined}
+                      icon={look.spinning ? <LoadingIcon className="w-3 h-3 animate-spin" /> : undefined}
                     >
                       {look.label}
                     </Badge>
@@ -246,14 +246,14 @@ export default function MetaSyncRows({
                         className="subtitle-text text-primary hover:underline inline-flex items-center gap-1"
                       >
                         ยอมรับข้อกำหนดที่ Meta
-                        <ExternalLink className="w-3.5 h-3.5" />
+                        <ExternalLinkIcon className="w-3.5 h-3.5" />
                       </a>
                     ) : canManageAdAccounts ? (
                       <Link
                         href="/settings/ad-accounts"
                         className="subtitle-text text-primary hover:underline inline-flex items-center gap-1"
                       >
-                        <Settings className="w-3.5 h-3.5" />
+                        <SettingsIcon className="w-3.5 h-3.5" />
                         ตั้งค่า &gt; บัญชีโฆษณา
                       </Link>
                     ) : null}
@@ -282,7 +282,7 @@ export default function MetaSyncRows({
                       <Button
                         variant="secondary"
                         size="sm"
-                        icon={<RefreshCw className={`w-4 h-4 ${busy ? 'animate-spin' : ''}`} />}
+                        icon={<RefreshIcon className={`w-4 h-4 ${busy ? 'animate-spin' : ''}`} />}
                         disabled={disabled || busy || sync?.status === 'syncing'}
                         onClick={() => handleSync(account, sync)}
                       >

@@ -1,6 +1,6 @@
 'use client';
 
-import { Building2, User } from 'lucide-react';
+import { CompanyIcon, UserIcon } from '@/lib/icons';
 
 export type TaxType = 'personal' | 'corporate';
 
@@ -74,7 +74,7 @@ export default function TaxInfoForm({
                 ? 'bg-white dark:bg-slate-600 text-primary shadow-sm'
                 : 'text-gray-500 dark:text-slate-400 hover:text-gray-700'
             }`}>
-            <User className="w-3.5 h-3.5" />
+            <UserIcon className="w-3.5 h-3.5" />
             บุคคลธรรมดา
           </button>
           <button type="button"
@@ -84,7 +84,7 @@ export default function TaxInfoForm({
                 ? 'bg-white dark:bg-slate-600 text-primary shadow-sm'
                 : 'text-gray-500 dark:text-slate-400 hover:text-gray-700'
             }`}>
-            <Building2 className="w-3.5 h-3.5" />
+            <CompanyIcon className="w-3.5 h-3.5" />
             นิติบุคคล
           </button>
         </div>
@@ -97,7 +97,7 @@ export default function TaxInfoForm({
             ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
             : 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
         }`}>
-          {data.tax_type === 'personal' ? <><User className="w-3 h-3" /> บุคคลธรรมดา</> : <><Building2 className="w-3 h-3" /> นิติบุคคล</>}
+          {data.tax_type === 'personal' ? <><UserIcon className="w-3 h-3" /> บุคคลธรรมดา</> : <><CompanyIcon className="w-3 h-3" /> นิติบุคคล</>}
         </span>
       )}
 

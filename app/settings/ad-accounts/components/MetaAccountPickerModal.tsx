@@ -6,7 +6,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { ArrowLeft, CheckCircle2, ExternalLink } from 'lucide-react';
+import { BackIcon, ExternalLinkIcon, SuccessIcon } from '@/lib/icons';
 import Alert from '@/components/ui/Alert';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
@@ -65,7 +65,7 @@ export default function MetaAccountPickerModal({
       footer={
         <div className="flex gap-2 justify-end">
           {stage === 2 && (
-            <Button variant="ghost" onClick={onBack} disabled={saving} icon={<ArrowLeft className="w-4 h-4" />}>
+            <Button variant="ghost" onClick={onBack} disabled={saving} icon={<BackIcon className="w-4 h-4" />}>
               กลับ
             </Button>
           )}
@@ -123,7 +123,7 @@ export default function MetaAccountPickerModal({
                         {account.business?.name ? ` · ${account.business.name}` : ''}
                       </p>
                     </div>
-                    {active && <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />}
+                    {active && <SuccessIcon className="w-5 h-5 text-primary flex-shrink-0" />}
                   </Radio>
                 );
               })}
@@ -151,7 +151,7 @@ export default function MetaAccountPickerModal({
                   rel="noopener noreferrer"
                   className="mt-2 inline-flex items-center gap-1 subtitle-text text-primary underline"
                 >
-                  <ExternalLink className="w-3.5 h-3.5" /> เปิด Events Manager
+                  <ExternalLinkIcon className="w-3.5 h-3.5" /> เปิด Events Manager
                 </a>
               </Alert>
             ) : (
@@ -169,7 +169,7 @@ export default function MetaAccountPickerModal({
                         <p className="body-text font-medium text-gray-900 dark:text-white truncate">{dataset.name}</p>
                         <p className="subtitle-text text-gray-500 dark:text-slate-400">{dataset.id}</p>
                       </div>
-                      {active && <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />}
+                      {active && <SuccessIcon className="w-5 h-5 text-primary flex-shrink-0" />}
                     </Radio>
                   );
                 })}

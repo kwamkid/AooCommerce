@@ -1,7 +1,8 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { TrendingDown } from 'lucide-react';
+import { RemoveIcon, TrendUpIcon } from '@/lib/icons';
 import Card from './Card';
 
 /* ============================================================
@@ -28,10 +29,10 @@ interface StatProps {
   icon?: ReactNode;
 }
 
-const TREND_STYLES: Record<StatTrend, { cls: string; Icon: typeof TrendingUp }> = {
-  up:   { cls: 'text-emerald-600 dark:text-emerald-400', Icon: TrendingUp },
+const TREND_STYLES: Record<StatTrend, { cls: string; Icon: typeof TrendUpIcon }> = {
+  up:   { cls: 'text-emerald-600 dark:text-emerald-400', Icon: TrendUpIcon },
   down: { cls: 'text-red-600 dark:text-red-400',         Icon: TrendingDown },
-  flat: { cls: 'text-gray-500 dark:text-slate-400',       Icon: Minus },
+  flat: { cls: 'text-gray-500 dark:text-slate-400',       Icon: RemoveIcon },
 };
 
 export function Stat({ label, value, subtitle, delta, trend, icon }: StatProps) {

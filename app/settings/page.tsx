@@ -20,7 +20,7 @@ import { useCompany } from '@/lib/company-context';
 import { can } from '@/lib/permissions';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
-import { Gift, Plus, X, Loader2, Tag, Edit2, Check, Trash2, AlertTriangle, Clock, Building2 } from 'lucide-react';
+import { AddIcon, CloseIcon, CompanyIcon, ConfirmIcon, DeleteIcon, EditIcon, GiftIcon, LoadingIcon, TagIcon, TimeIcon, WarningIcon } from '@/lib/icons';
 
 export default function SettingsPage() {
   const { userProfile } = useAuth();
@@ -291,14 +291,14 @@ export default function SettingsPage() {
         {/* Variation Types Settings */}
         <Card padding="md">
           <div className="flex items-center gap-2 mb-3">
-            <Tag className="w-5 h-5 text-primary" />
+            <TagIcon className="w-5 h-5 text-primary" />
             <h2 className="heading-3">ประเภทตัวเลือกสินค้า</h2>
             <span className="text-sm text-gray-500 dark:text-slate-400 ml-auto">สำหรับ Variation Products เช่น ความจุ, รูปทรง, สี</span>
           </div>
 
           {loadingVT ? (
             <div className="flex items-center justify-center py-6">
-              <Loader2 className="w-5 h-5 text-primary animate-spin" />
+              <LoadingIcon className="w-5 h-5 text-primary animate-spin" />
             </div>
           ) : (
             <div className="flex flex-wrap items-center gap-2">
@@ -322,7 +322,7 @@ export default function SettingsPage() {
                       aria-label="บันทึก"
                       className="text-green-600 hover:text-green-700 transition-colors"
                     >
-                      <Check className="w-5 h-5" />
+                      <ConfirmIcon className="w-5 h-5" />
                     </button>
                     <button
                       type="button"
@@ -330,7 +330,7 @@ export default function SettingsPage() {
                       aria-label="ยกเลิก"
                       className="text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 transition-colors"
                     >
-                      <X className="w-5 h-5" />
+                      <CloseIcon className="w-5 h-5" />
                     </button>
                   </div>
                 ) : (
@@ -345,7 +345,7 @@ export default function SettingsPage() {
                       aria-label="แก้ไข"
                       className="text-gray-400 hover:text-primary transition-colors"
                     >
-                      <Edit2 className="w-3.5 h-3.5" />
+                      <EditIcon className="w-3.5 h-3.5" />
                     </button>
                     <button
                       type="button"
@@ -353,7 +353,7 @@ export default function SettingsPage() {
                       aria-label="ลบ"
                       className="text-gray-400 hover:text-red-500 transition-colors"
                     >
-                      <X className="w-3.5 h-3.5" />
+                      <CloseIcon className="w-3.5 h-3.5" />
                     </button>
                   </span>
                 )
@@ -372,7 +372,7 @@ export default function SettingsPage() {
                 <Button
                   variant="primary"
                   loading={addingVT}
-                  icon={!addingVT ? <Plus className="w-4 h-4" /> : undefined}
+                  icon={!addingVT ? <AddIcon className="w-4 h-4" /> : undefined}
                   disabled={!newTypeName.trim()}
                   onClick={handleAddVariationType}
                 >
@@ -385,7 +385,7 @@ export default function SettingsPage() {
 
         {/* Bill Expiry Settings */}
         <ToggleCard
-          icon={<Clock />}
+          icon={<TimeIcon />}
           title="บิลหมดอายุ"
           description="บิล manual order ที่ไม่ชำระจะถูกยกเลิกอัตโนมัติ"
           checked={billExpiryEnabled}
@@ -410,7 +410,7 @@ export default function SettingsPage() {
         {/* บริการเสริมของร้าน — ใช้ได้ทุกช่องทางที่สร้างออเดอร์ (หน้าร้านออนไลน์
             และเปิดบิลเองจากแชท) จึงอยู่ตรงนี้ ไม่ใช่ในตั้งค่าหน้าร้านออนไลน์ */}
         <ToggleCard
-          icon={<Gift />}
+          icon={<GiftIcon />}
           title="การ์ดอวยพร"
           description="เปิดแล้วจะมีให้เลือกทั้งหน้าร้านออนไลน์และตอนเปิดบิลเอง — ไม่ใช่ทุกออเดอร์ที่ใช้ ลูกค้าหรือพนักงานต้องกดขอเป็นรายออเดอร์"
           checked={giftCard.enabled}
@@ -445,7 +445,7 @@ export default function SettingsPage() {
         <Card padding="none" className="border-2 border-red-200 dark:border-red-900/50">
           <div className="flex items-center justify-between p-4 border-b border-red-100 dark:border-red-900/30">
             <div className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-red-500" />
+              <WarningIcon className="w-5 h-5 text-red-500" />
               <h2 className="heading-3 !text-red-600 dark:!text-red-400">ล้างข้อมูลทั้งหมด</h2>
             </div>
           </div>
@@ -459,7 +459,7 @@ export default function SettingsPage() {
             </p>
             <Button
               variant="danger"
-              icon={<Trash2 className="w-4 h-4" />}
+              icon={<DeleteIcon className="w-4 h-4" />}
               onClick={() => setShowClearModal(true)}
             >
               ล้างข้อมูลทั้งหมด
@@ -472,7 +472,7 @@ export default function SettingsPage() {
           <Card padding="none" className="border-2 border-red-300 dark:border-red-900/60">
             <div className="flex items-center justify-between p-4 border-b border-red-100 dark:border-red-900/30">
               <div className="flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-red-600" />
+                <CompanyIcon className="w-5 h-5 text-red-600" />
                 <h2 className="heading-3 !text-red-700 dark:!text-red-400">ลบบริษัทนี้</h2>
               </div>
             </div>
@@ -486,7 +486,7 @@ export default function SettingsPage() {
               </p>
               <Button
                 variant="danger"
-                icon={<Trash2 className="w-4 h-4" />}
+                icon={<DeleteIcon className="w-4 h-4" />}
                 onClick={() => setShowDeleteCompanyModal(true)}
                 className="!bg-red-700 hover:!bg-red-800"
               >
@@ -505,7 +505,7 @@ export default function SettingsPage() {
         title={
           <span className="flex items-center gap-3">
             <span className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-              <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+              <WarningIcon className="w-5 h-5 text-red-600 dark:text-red-400" />
             </span>
             ยืนยันการล้างข้อมูล
           </span>
@@ -525,7 +525,7 @@ export default function SettingsPage() {
               variant="danger"
               fullWidth
               loading={clearing}
-              icon={!clearing ? <Trash2 className="w-4 h-4" /> : undefined}
+              icon={!clearing ? <DeleteIcon className="w-4 h-4" /> : undefined}
               disabled={clearConfirmText !== 'ลบทั้งหมด'}
               onClick={handleClearAllData}
             >
@@ -570,7 +570,7 @@ export default function SettingsPage() {
         title={
           <span className="flex items-center gap-3">
             <span className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-              <Building2 className="w-5 h-5 text-red-600 dark:text-red-400" />
+              <CompanyIcon className="w-5 h-5 text-red-600 dark:text-red-400" />
             </span>
             ยืนยันการลบบริษัท
           </span>
@@ -591,7 +591,7 @@ export default function SettingsPage() {
                 variant="danger"
                 fullWidth
                 loading={deletingCompany}
-                icon={!deletingCompany ? <Trash2 className="w-4 h-4" /> : undefined}
+                icon={!deletingCompany ? <DeleteIcon className="w-4 h-4" /> : undefined}
                 disabled={deleteConfirmText !== currentCompany.name}
                 onClick={handleDeleteCompany}
                 className="!bg-red-700 hover:!bg-red-800"

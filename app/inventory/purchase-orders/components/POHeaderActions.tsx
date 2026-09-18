@@ -3,7 +3,8 @@
 import { useRouter } from 'next/navigation';
 import ActionMenu, { ActionItem } from '@/components/ui/ActionMenu';
 import StatusBadge from '@/components/ui/StatusBadge';
-import { ArrowLeft, Link2, Printer, Ban, Lock, Loader2 } from 'lucide-react';
+import { Lock } from 'lucide-react';
+import { BackIcon, BanIcon, LinkIcon, LoadingIcon, PrintIcon } from '@/lib/icons';
 
 interface Props {
   status: string;
@@ -20,12 +21,12 @@ export default function POHeaderActions({ status, updating, generatingPdf, onCop
   const busy = updating || generatingPdf;
 
   const menuItems: ActionItem[] = [
-    { key: 'print', label: generatingPdf ? 'กำลังสร้าง...' : 'พิมพ์', icon: generatingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />, onClick: () => onPrintPdf(), disabled: busy },
-    { key: 'copyLink', label: 'คัดลอกลิงก์ PO', icon: <Link2 className="w-4 h-4" />, onClick: () => onCopyLink(), disabled: busy },
+    { key: 'print', label: generatingPdf ? 'กำลังสร้าง...' : 'พิมพ์', icon: generatingPdf ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <PrintIcon className="w-4 h-4" />, onClick: () => onPrintPdf(), disabled: busy },
+    { key: 'copyLink', label: 'คัดลอกลิงก์ PO', icon: <LinkIcon className="w-4 h-4" />, onClick: () => onCopyLink(), disabled: busy },
   ];
 
   if (status === 'draft' || status === 'sent') {
-    menuItems.push({ key: 'cancel', label: 'ยกเลิก', icon: <Ban className="w-4 h-4" />, danger: true, onClick: () => onCancel(), disabled: busy, dividerBefore: true });
+    menuItems.push({ key: 'cancel', label: 'ยกเลิก', icon: <BanIcon className="w-4 h-4" />, danger: true, onClick: () => onCancel(), disabled: busy, dividerBefore: true });
   }
 
   if (status === 'partial_received' || status === 'received' || status === 'received_mismatch') {
@@ -36,7 +37,7 @@ export default function POHeaderActions({ status, updating, generatingPdf, onCop
     <div className="flex items-center justify-between flex-wrap gap-3">
       <div className="flex items-center gap-3">
         <button type="button" onClick={() => router.push('/inventory/purchase-orders')} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
-          <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-slate-400" />
+          <BackIcon className="w-5 h-5 text-gray-600 dark:text-slate-400" />
         </button>
         <StatusBadge domain="purchaseOrder" status={status} size="md" />
       </div>

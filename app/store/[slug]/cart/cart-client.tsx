@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ChevronLeft, Minus, Plus, X } from 'lucide-react';
+import { AddIcon, ChevronLeftIcon, CloseIcon, RemoveIcon } from '@/lib/icons';
 import { useCart, setQuantity, removeFromCart } from '@/lib/storefront-cart';
 import { formatStorePrice, storefrontHref } from '@/lib/storefront';
 import CheckoutSteps from '@/components/storefront/CheckoutSteps';
@@ -53,9 +53,9 @@ export default function CartClient({ shop, acceptingOrders = true }: { shop: str
             </div>
 
             <div className="sf-qty" role="group" aria-label={`จำนวนของ ${l.name}`}>
-              <button type="button" onClick={() => setQuantity(shop, l.variation_id, l.quantity - 1)} aria-label="ลดจำนวน"><Minus strokeWidth={2} aria-hidden="true" /></button>
+              <button type="button" onClick={() => setQuantity(shop, l.variation_id, l.quantity - 1)} aria-label="ลดจำนวน"><RemoveIcon strokeWidth={2} aria-hidden="true" /></button>
               <span>{l.quantity}</span>
-              <button type="button" onClick={() => setQuantity(shop, l.variation_id, l.quantity + 1)} aria-label="เพิ่มจำนวน"><Plus strokeWidth={2} aria-hidden="true" /></button>
+              <button type="button" onClick={() => setQuantity(shop, l.variation_id, l.quantity + 1)} aria-label="เพิ่มจำนวน"><AddIcon strokeWidth={2} aria-hidden="true" /></button>
             </div>
 
             <div className="sf-cart-total">{formatStorePrice(l.price * l.quantity)}</div>
@@ -66,7 +66,7 @@ export default function CartClient({ shop, acceptingOrders = true }: { shop: str
               onClick={() => removeFromCart(shop, l.variation_id)}
               aria-label={`ลบ ${l.name} ออกจากตะกร้า`}
             >
-              <X strokeWidth={2} aria-hidden="true" />
+              <CloseIcon strokeWidth={2} aria-hidden="true" />
             </button>
           </div>
         ))}
@@ -93,7 +93,7 @@ export default function CartClient({ shop, acceptingOrders = true }: { shop: str
             <button type="button" className="sf-cta sf-cta-block" disabled>ร้านพักรับออร์เดอร์ชั่วคราว</button>
           )}
           <Link href={storefrontHref(shop)} className="sf-btn-ghost sf-cta-block">
-            <ChevronLeft strokeWidth={2} aria-hidden="true" />ช้อปต่อ
+            <ChevronLeftIcon strokeWidth={2} aria-hidden="true" />ช้อปต่อ
           </Link>
         </div>
       </aside>

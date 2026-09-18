@@ -5,20 +5,8 @@ import { useCopy } from '@/lib/useCopy';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
-import {
-  Package,
-  Loader2,
-  Link2,
-  Edit2,
-  Trash2,
-  Printer,
-  ClipboardList,
-  Pause,
-  Play,
-  CheckCircle,
-  CreditCard,
-  Banknote,
-} from 'lucide-react';
+import { Pause, Play } from 'lucide-react';
+import { ChecklistIcon, DeleteIcon, EditIcon, LinkIcon, LoadingIcon, MoneyIcon, ParcelIcon, PaymentIcon, PrintIcon, ProductIcon, SuccessIcon } from '@/lib/icons';
 import { generatePackingPdf } from '@/lib/orders-packing-pdf';
 import { generateShippingLabelPdf } from '@/lib/order-shipping-label-pdf';
 import { generateOrderInvoicePdf } from '@/lib/order-invoice-pdf';
@@ -895,7 +883,7 @@ export default function ProcessingTab({
 
     if (!isMarketplace && !isOnHold && order.payment_status === 'pending') {
       primaryActions.push(
-        <Button variant="success" icon={<CreditCard className="w-3.5 h-3.5" />} key="pay" onClick={(e) => { e.stopPropagation(); onPaymentClick?.(order); }} title="บันทึกชำระ">
+        <Button variant="success" icon={<PaymentIcon className="w-3.5 h-3.5" />} key="pay" onClick={(e) => { e.stopPropagation(); onPaymentClick?.(order); }} title="บันทึกชำระ">
           <span className="hidden md:inline">บันทึกชำระ</span>
         </Button>
       );
@@ -903,7 +891,7 @@ export default function ProcessingTab({
 
     if (!isMarketplace && !isOnHold) {
       primaryActions.push(
-        <Button variant="amber" icon={<Package className="w-4 h-4" />} key="ship" onClick={(e) => { e.stopPropagation(); setShipModal({ order }); }} title="จัดส่งแล้ว">
+        <Button variant="amber" icon={<ParcelIcon className="w-4 h-4" />} key="ship" onClick={(e) => { e.stopPropagation(); setShipModal({ order }); }} title="จัดส่งแล้ว">
           <span className="hidden md:inline">จัดส่งแล้ว</span>
         </Button>
       );
@@ -964,8 +952,8 @@ export default function ProcessingTab({
         : action.label;
 
       const icon = action.category === 'shipping'
-        ? (action.type === 'packing' ? <ClipboardList className="w-4 h-4" /> : <Printer className="w-4 h-4" />)
-        : <Banknote className="w-4 h-4" />;
+        ? (action.type === 'packing' ? <ChecklistIcon className="w-4 h-4" /> : <PrintIcon className="w-4 h-4" />)
+        : <MoneyIcon className="w-4 h-4" />;
 
       const item: ActionItem = {
         key: action.type,
@@ -990,7 +978,7 @@ export default function ProcessingTab({
     if (!order.source || order.source === 'manual') {
       const section3Start = menuItems.length;
       menuItems.push({
-        key: 'link', label: 'คัดลอกลิงก์', icon: <Link2 className="w-4 h-4" />,
+        key: 'link', label: 'คัดลอกลิงก์', icon: <LinkIcon className="w-4 h-4" />,
         onClick: (e) => {
           e.stopPropagation();
           const billUrl = `${window.location.origin}/bills/${order.id}`;
@@ -998,7 +986,7 @@ export default function ProcessingTab({
         },
       });
       menuItems.push({
-        key: 'edit', label: 'แก้ไข', icon: <Edit2 className="w-4 h-4" />,
+        key: 'edit', label: 'แก้ไข', icon: <EditIcon className="w-4 h-4" />,
         onClick: (e) => { e.stopPropagation(); router.push(`/orders/${order.id}/edit`); },
       });
       if (section3Start > 0) menuItems[section3Start].dividerBefore = true;
@@ -1015,7 +1003,7 @@ export default function ProcessingTab({
       }
       if (!isMarketplace) {
         menuItems.push({
-          key: 'cancel', label: 'ยกเลิก', icon: <Trash2 className="w-4 h-4" />,
+          key: 'cancel', label: 'ยกเลิก', icon: <DeleteIcon className="w-4 h-4" />,
           onClick: (e) => { e.stopPropagation(); confirmBulkCancel([order.id]); },
           danger: true,
         });
@@ -1083,7 +1071,7 @@ export default function ProcessingTab({
       {/* Loading */}
       {loading && (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-6 h-6 text-primary animate-spin" />
+          <LoadingIcon className="w-6 h-6 text-primary animate-spin" />
         </div>
       )}
 
@@ -1137,14 +1125,14 @@ export default function ProcessingTab({
       {/* Empty state */}
       {!loading && orders.length === 0 && carrierTabs.length === 0 && (
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 py-16 text-center">
-          <Package className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
+          <ProductIcon className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
           <p className="text-gray-500 dark:text-slate-400">ไม่มีออเดอร์ที่ต้องจัดส่ง</p>
         </div>
       )}
 
       {!loading && orders.length === 0 && carrierTabs.length > 0 && (
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 py-12 text-center">
-          <Package className="w-10 h-10 text-gray-300 dark:text-slate-600 mx-auto mb-2" />
+          <ProductIcon className="w-10 h-10 text-gray-300 dark:text-slate-600 mx-auto mb-2" />
           <p className="text-gray-400 dark:text-slate-500 text-sm">ไม่มีออเดอร์ในกลุ่มนี้</p>
         </div>
       )}
@@ -1154,21 +1142,21 @@ export default function ProcessingTab({
               <Button
                 variant="secondary"
                 onClick={() => handlePrintLabels(Array.from(selectedIds))}
-                icon={<Printer className="w-4 h-4" />}
+                icon={<PrintIcon className="w-4 h-4" />}
               >
                 <span className="hidden md:inline">ใบปะหน้า</span> ({selectedIds.size})
               </Button>
               <Button
                 variant="secondary"
                 onClick={() => handlePrintPackingSlips(Array.from(selectedIds))}
-                icon={<ClipboardList className="w-4 h-4" />}
+                icon={<ChecklistIcon className="w-4 h-4" />}
               >
                 <span className="hidden md:inline">ใบจัดของ</span> ({selectedIds.size})
               </Button>
               <Button
                 variant="success"
                 onClick={() => handleBulkPrintInvoices(Array.from(selectedIds))}
-                icon={<Banknote className="w-4 h-4" />}
+                icon={<MoneyIcon className="w-4 h-4" />}
               >
                 <span className="hidden md:inline">ใบกำกับ/ใบเสร็จ</span> ({selectedIds.size})
               </Button>
@@ -1177,7 +1165,7 @@ export default function ProcessingTab({
                   variant="primary"
                   onClick={openBulkShipModal}
                   disabled={actionLoading}
-                  icon={<Package className="w-4 h-4" />}
+                  icon={<ParcelIcon className="w-4 h-4" />}
                 >
                   <span className="hidden md:inline">จัดส่งแล้ว</span> ({shippableSelectedIds.length})
                 </Button>
@@ -1284,7 +1272,7 @@ export default function ProcessingTab({
             </div>
             <div className="flex justify-end gap-3 mt-6">
               <Button variant="secondary" onClick={() => { setShipModal(null); setShipCarrier(''); setShipTracking(''); }} disabled={actionLoading}>ยกเลิก</Button>
-              <Button variant="primary" onClick={handleShip} loading={actionLoading} icon={<Package className="w-4 h-4" />}>จัดส่งแล้ว</Button>
+              <Button variant="primary" onClick={handleShip} loading={actionLoading} icon={<ProductIcon className="w-4 h-4" />}>จัดส่งแล้ว</Button>
             </div>
           </div>
         </div>
@@ -1348,7 +1336,7 @@ export default function ProcessingTab({
             </div>
             <div className="flex justify-end gap-3 pt-4 border-t dark:border-slate-700">
               <Button variant="secondary" onClick={() => setBulkShipModal(false)} disabled={actionLoading}>ยกเลิก</Button>
-              <Button variant="primary" onClick={handleBulkShipWithTracking} loading={actionLoading} icon={<Package className="w-4 h-4" />}>จัดส่งทั้งหมด</Button>
+              <Button variant="primary" onClick={handleBulkShipWithTracking} loading={actionLoading} icon={<ProductIcon className="w-4 h-4" />}>จัดส่งทั้งหมด</Button>
             </div>
           </div>
         </div>
@@ -1366,7 +1354,7 @@ export default function ProcessingTab({
       {/* Local toast */}
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white px-5 py-3 rounded-lg shadow-lg flex items-center gap-2 text-sm animate-fade-in">
-          <CheckCircle className="w-4 h-4 text-green-400" />
+          <SuccessIcon className="w-4 h-4 text-green-400" />
           {toast}
         </div>
       )}

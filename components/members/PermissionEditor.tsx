@@ -9,7 +9,8 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Check, Crown, Monitor, ShieldCheck, UserCog, Users } from 'lucide-react';
+import { Crown } from 'lucide-react';
+import { ConfirmIcon, MemberIcon, PeopleIcon, PosIcon, SecurityIcon } from '@/lib/icons';
 import FilterChips, { type FilterChip } from '@/components/ui/FilterChips';
 import Tabs from '@/components/ui/Tabs';
 import Badge from '@/components/ui/Badge';
@@ -63,9 +64,9 @@ const PRESET_CHIP_CLASS = 'border-primary bg-primary/10 text-primary dark:text-[
 
 const ROLE_ICON: Record<RoleLevel, React.ElementType> = {
   owner: Crown,
-  admin: ShieldCheck,
-  manager: UserCog,
-  staff: Users,
+  admin: SecurityIcon,
+  manager: MemberIcon,
+  staff: PeopleIcon,
 };
 
 /** ตัดกลุ่มงานที่ 'none' ทิ้ง — เก็บ key ที่ปิดอยู่ไว้ทำให้เทียบกับแม่แบบไม่ตรงเปล่า ๆ */
@@ -193,7 +194,7 @@ export default function PermissionEditor({
 
       {adminTier ? (
         <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900">
-          <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mt-0.5 flex-shrink-0" />
+          <ConfirmIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mt-0.5 flex-shrink-0" />
           <p className="subtitle-text text-emerald-700 dark:text-emerald-300">
             ได้ทุกกลุ่มงานอัตโนมัติ — เข้าถึงทุกคลัง เห็นต้นทุนสินค้า และเปิดหน้าตั้งค่าได้
           </p>
@@ -325,7 +326,7 @@ export default function PermissionEditor({
                         <span className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
                           checked ? 'bg-primary border-primary' : 'border-gray-300 dark:border-slate-500'
                         }`}>
-                          {checked && <Check className="w-3 h-3 text-white" />}
+                          {checked && <ConfirmIcon className="w-3 h-3 text-white" />}
                         </span>
                         <span className="min-w-0">
                           <span className="subtitle-text text-gray-700 dark:text-slate-300">{wh.name}</span>
@@ -333,7 +334,7 @@ export default function PermissionEditor({
                             // ป้าย "POS · ชื่อเครื่อง" แทนวงเล็บจาง ๆ — ต้องอ่านออกทันทีว่าคลังนี้พ่วงเครื่องแคชเชียร์
                             <span className="inline-flex flex-wrap gap-1 ml-2 align-middle">
                               {whTerminals.map(t => (
-                                <Badge key={t.id} tone="indigo" size="sm" icon={<Monitor className="w-3 h-3" />}>
+                                <Badge key={t.id} tone="indigo" size="sm" icon={<PosIcon className="w-3 h-3" />}>
                                   POS · {t.name}
                                 </Badge>
                               ))}

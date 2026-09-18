@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Printer, FileText, ClipboardList, Package, Loader2, Mail } from 'lucide-react';
+import { ChecklistIcon, DocumentIcon, EmailIcon, LoadingIcon, ParcelIcon, PrintIcon } from '@/lib/icons';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { showPdfPreview, preOpenPrintWindow } from '@/lib/print-pdf';
@@ -217,25 +217,25 @@ export default function OrderPrintButtons({
 
   const isRetail = flowType === 'r_retail';
 
-  const visibleTypes: { key: PrintType; label: string; icon: typeof FileText; color?: string }[] = [];
+  const visibleTypes: { key: PrintType; label: string; icon: typeof DocumentIcon; color?: string }[] = [];
 
   if (isRetail) {
-    visibleTypes.push({ key: 'abbreviated', label: 'ใบเสร็จ/ใบกำกับอย่างย่อ', icon: FileText });
+    visibleTypes.push({ key: 'abbreviated', label: 'ใบเสร็จ/ใบกำกับอย่างย่อ', icon: DocumentIcon });
   } else {
-    visibleTypes.push({ key: 'tax', label: 'ใบกำกับภาษี', icon: FileText });
-    visibleTypes.push({ key: 'dn', label: 'ใบส่งสินค้า', icon: FileText });
+    visibleTypes.push({ key: 'tax', label: 'ใบกำกับภาษี', icon: DocumentIcon });
+    visibleTypes.push({ key: 'dn', label: 'ใบส่งสินค้า', icon: DocumentIcon });
   }
 
-  visibleTypes.push({ key: 'packing', label: 'ใบจัดของ', icon: ClipboardList });
-  visibleTypes.push({ key: 'label', label: 'ใบปะหน้า', icon: Package });
+  visibleTypes.push({ key: 'packing', label: 'ใบจัดของ', icon: ChecklistIcon });
+  visibleTypes.push({ key: 'label', label: 'ใบปะหน้า', icon: ParcelIcon });
 
   // เฉพาะบิลที่ตั้งไว้ว่า "ส่งเอกสารทางไปรษณีย์" — บิลปกติไม่ต้องเห็น
   if (orderData?.document_by_post === true) {
-    visibleTypes.push({ key: 'doc_envelope', label: 'ใบปะหน้าซองเอกสาร', icon: Mail });
+    visibleTypes.push({ key: 'doc_envelope', label: 'ใบปะหน้าซองเอกสาร', icon: EmailIcon });
   }
 
   if (!isRetail) {
-    visibleTypes.push({ key: 'all', label: 'พิมพ์ทั้งหมด', icon: Printer, color: 'text-primary font-medium' });
+    visibleTypes.push({ key: 'all', label: 'พิมพ์ทั้งหมด', icon: PrintIcon, color: 'text-primary font-medium' });
   }
 
   const handlePrint = async (type: PrintType) => {
@@ -262,7 +262,7 @@ export default function OrderPrintButtons({
             ${t.color || 'text-gray-700 dark:text-slate-300'}`}
         >
           {printing === t.key ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
+            <LoadingIcon className="w-4 h-4 animate-spin" />
           ) : (
             <t.icon className="w-4 h-4" />
           )}
@@ -301,30 +301,30 @@ export function getPrintMenuItems(
 
   // Financial documents
   if (isRetail) {
-    items.push({ key: 'print_receipt', label: 'ใบเสร็จ/ใบกำกับอย่างย่อ', icon: <FileText className="w-4 h-4" />, onClick: () => onPrint(orderId, 'abbreviated') });
+    items.push({ key: 'print_receipt', label: 'ใบเสร็จ/ใบกำกับอย่างย่อ', icon: <DocumentIcon className="w-4 h-4" />, onClick: () => onPrint(orderId, 'abbreviated') });
   } else if (!isMarketplace) {
-    items.push({ key: 'print_tax', label: 'ใบกำกับภาษี', icon: <FileText className="w-4 h-4" />, onClick: () => onPrint(orderId, 'tax') });
-    items.push({ key: 'print_dn', label: 'ใบส่งสินค้า', icon: <FileText className="w-4 h-4" />, onClick: () => onPrint(orderId, 'dn') });
+    items.push({ key: 'print_tax', label: 'ใบกำกับภาษี', icon: <DocumentIcon className="w-4 h-4" />, onClick: () => onPrint(orderId, 'tax') });
+    items.push({ key: 'print_dn', label: 'ใบส่งสินค้า', icon: <DocumentIcon className="w-4 h-4" />, onClick: () => onPrint(orderId, 'dn') });
     items.push({
-      key: 'print_all', label: 'พิมพ์ทั้งหมด', icon: <Printer className="w-4 h-4" />,
+      key: 'print_all', label: 'พิมพ์ทั้งหมด', icon: <PrintIcon className="w-4 h-4" />,
       primary: true,
       onClick: () => onPrint(orderId, 'all'),
     });
   }
 
   // Shipping documents
-  items.push({ key: 'print_packing', label: 'ใบจัดของ', icon: <ClipboardList className="w-4 h-4" />, dividerBefore: true, onClick: () => onPrint(orderId, 'packing') });
+  items.push({ key: 'print_packing', label: 'ใบจัดของ', icon: <ChecklistIcon className="w-4 h-4" />, dividerBefore: true, onClick: () => onPrint(orderId, 'packing') });
 
   if (isMarketplace && source) {
     const platformLabel = PLATFORM_LABELS[source] || source;
     items.push({
       key: 'print_marketplace_label',
       label: `ใบปะหน้า ${platformLabel}`,
-      icon: <Package className="w-4 h-4" />,
+      icon: <ParcelIcon className="w-4 h-4" />,
       onClick: () => onPrint(orderId, 'marketplace_label'),
     });
   } else {
-    items.push({ key: 'print_label', label: 'ใบปะหน้า', icon: <Package className="w-4 h-4" />, onClick: () => onPrint(orderId, 'label') });
+    items.push({ key: 'print_label', label: 'ใบปะหน้า', icon: <ParcelIcon className="w-4 h-4" />, onClick: () => onPrint(orderId, 'label') });
   }
 
   // หน้าซองเอกสาร — เฉพาะบิลที่ตั้งไว้ว่าเอกสารส่งไปรษณีย์ (ของขวัญ)
@@ -332,7 +332,7 @@ export function getPrintMenuItems(
     items.push({
       key: 'print_doc_envelope',
       label: 'ใบปะหน้าซองเอกสาร',
-      icon: <Mail className="w-4 h-4" />,
+      icon: <EmailIcon className="w-4 h-4" />,
       onClick: () => onPrint(orderId, 'doc_envelope'),
     });
   }

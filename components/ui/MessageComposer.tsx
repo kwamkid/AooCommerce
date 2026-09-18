@@ -14,7 +14,7 @@
 'use client';
 
 import { useId, useRef, useState, type ClipboardEvent, type DragEvent, type ReactNode } from 'react';
-import { ImagePlus } from 'lucide-react';
+import { ImageAddIcon } from '@/lib/icons';
 import Button from './Button';
 import ImageDropzone, { type ImageDropzoneHandle } from './ImageDropzone';
 
@@ -165,7 +165,7 @@ export default function MessageComposer({
             <Button
               variant="ghost"
               size="sm"
-              icon={<ImagePlus className="w-4 h-4" strokeWidth={1.75} />}
+              icon={<ImageAddIcon className="w-4 h-4" strokeWidth={1.75} />}
               loading={busy}
               disabled={disabled}
               onClick={() => dropRef.current?.open()}

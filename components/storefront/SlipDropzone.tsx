@@ -7,7 +7,7 @@
 // ที่พูดถึงสลิปโดยเฉพาะ
 'use client';
 
-import { Camera } from 'lucide-react';
+import { CameraIcon } from '@/lib/icons';
 import ImageDropzone from '@/components/ui/ImageDropzone';
 
 interface Props {
@@ -23,7 +23,7 @@ export default function SlipDropzone({ value, onChange, disabled }: Props) {
       onChange={onChange}
       disabled={disabled}
       alt="สลิปที่แนบ"
-      icon={<Camera strokeWidth={1.5} aria-hidden="true" />}
+      icon={<CameraIcon strokeWidth={1.5} aria-hidden="true" />}
       label="ถ่ายรูปสลิป หรือเลือกรูปจากเครื่อง"
       hint="ลากรูปมาวางตรงนี้ก็ได้"
       classNames={{

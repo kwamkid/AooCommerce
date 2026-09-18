@@ -12,12 +12,7 @@ import ShipModal, { type ShipResult } from '@/components/ui/ShipModal';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
-import {
-  ArrowUpFromLine, Plus, Loader2, RefreshCw,
-  Package, Truck, CheckCircle2, XCircle, Clock,
-  Send, Copy, Eye, X, AlertTriangle, Printer,
-  ClipboardList, FileText, User, Ban, Pencil, UserPlus,
-} from 'lucide-react';
+import { AddIcon, BanIcon, ChecklistIcon, CopyIcon, DocumentIcon, EditIcon, LoadingIcon, PrintIcon, RefreshIcon, SendIcon, ShippingIcon, StockIssueIcon, SuccessIcon, UserAddIcon } from '@/lib/icons';
 import Tooltip from '@/components/ui/Tooltip';
 import StatusTabs from '@/components/ui/StatusTabs';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
@@ -625,7 +620,7 @@ function ReplenishmentsPageContent() {
         {
           key: 'packing',
           label: 'ใบจัดของ',
-          icon: isPrinting && printingType === 'packing' ? <Loader2 className="w-4 h-4 animate-spin" /> : <ClipboardList className="w-4 h-4" />,
+          icon: isPrinting && printingType === 'packing' ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <ChecklistIcon className="w-4 h-4" />,
           suffix: dot('packing'),
           onClick: () => handlePrintPacking(r.id),
           disabled: isPrinting,
@@ -633,7 +628,7 @@ function ReplenishmentsPageContent() {
         {
           key: 'label',
           label: 'ใบปะหน้า',
-          icon: isPrinting && printingType === 'label' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Truck className="w-4 h-4" />,
+          icon: isPrinting && printingType === 'label' ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <ShippingIcon className="w-4 h-4" />,
           suffix: dot('label'),
           onClick: () => handlePrintLabel(r.id),
           disabled: isPrinting,
@@ -641,7 +636,7 @@ function ReplenishmentsPageContent() {
         {
           key: 'all',
           label: isPrinting && printingType === 'all' ? 'กำลังสร้าง...' : 'พิมพ์ทั้งหมด',
-          icon: isPrinting && printingType === 'all' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />,
+          icon: isPrinting && printingType === 'all' ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <PrintIcon className="w-4 h-4" />,
           primary: true,
           onClick: () => handlePrintAll(r.id, true),
           disabled: isPrinting,
@@ -649,7 +644,7 @@ function ReplenishmentsPageContent() {
         {
           key: 'cancel',
           label: 'ยกเลิก',
-          icon: <Ban className="w-4 h-4" />,
+          icon: <BanIcon className="w-4 h-4" />,
           onClick: () => setCancelId(r.id),
           danger: true,
           dividerBefore: true,
@@ -661,7 +656,7 @@ function ReplenishmentsPageContent() {
         {
           key: 'dn',
           label: 'ใบส่งของ (DN)',
-          icon: isPrinting && printingType === 'dn' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />,
+          icon: isPrinting && printingType === 'dn' ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <DocumentIcon className="w-4 h-4" />,
           suffix: dot('dn'),
           onClick: () => handlePrintDN(r.id),
           disabled: isPrinting,
@@ -669,7 +664,7 @@ function ReplenishmentsPageContent() {
         {
           key: 'label',
           label: 'ใบปะหน้า',
-          icon: isPrinting && printingType === 'label' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Truck className="w-4 h-4" />,
+          icon: isPrinting && printingType === 'label' ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <ShippingIcon className="w-4 h-4" />,
           suffix: dot('label'),
           onClick: () => handlePrintLabel(r.id),
           disabled: isPrinting,
@@ -680,7 +675,7 @@ function ReplenishmentsPageContent() {
         items.push({
           key: 'edit_shipping',
           label: 'แก้ไขขนส่ง',
-          icon: <Pencil className="w-4 h-4" />,
+          icon: <EditIcon className="w-4 h-4" />,
           onClick: () => openEditShipping(r),
           dividerBefore: true,
         });
@@ -699,7 +694,7 @@ function ReplenishmentsPageContent() {
     <Layout>
       <Container size="full" gap="sm">
         <PageHeader
-          icon={<ArrowUpFromLine />}
+          icon={<StockIssueIcon />}
           title="เติมสินค้าตัวแทน"
           actions={
             <>
@@ -708,12 +703,12 @@ function ReplenishmentsPageContent() {
                 onClick={() => fetchData(true)}
                 disabled={isRefreshing}
                 title="รีเฟรช"
-                icon={<RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />}
+                icon={<RefreshIcon className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />}
               />
-              <Button variant="secondary" icon={<UserPlus className="w-4 h-4" />} onClick={() => router.push('/customers/new?type=consignment_dealer')}>
+              <Button variant="secondary" icon={<UserAddIcon className="w-4 h-4" />} onClick={() => router.push('/customers/new?type=consignment_dealer')}>
                 <span className="hidden md:inline">เพิ่มตัวแทน</span>
               </Button>
-              <Button variant="primary" icon={<Plus className="w-5 h-5" />} onClick={() => router.push('/replenishments/new')}>
+              <Button variant="primary" icon={<AddIcon className="w-5 h-5" />} onClick={() => router.push('/replenishments/new')}>
                 สร้าง<span className="hidden md:inline">ใบเติมสินค้า</span>
               </Button>
             </>
@@ -780,7 +775,7 @@ function ReplenishmentsPageContent() {
                     <StatusBadge domain="replenishment" status={r.status} />
                     {r.shipping_carrier && (
                       <div className="flex items-center gap-1 mt-1">
-                        <Truck className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                        <ShippingIcon className="w-3 h-3 text-gray-400 flex-shrink-0" />
                         <span className="data-timestamp text-gray-500 dark:text-slate-400">{r.shipping_carrier}</span>
                       </div>
                     )}
@@ -812,7 +807,7 @@ function ReplenishmentsPageContent() {
                 return (
                   <Tooltip text={printStatusTip(r)}>
                     <div className="relative flex items-center justify-center gap-1">
-                      {isPrinting && <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin absolute" />}
+                      {isPrinting && <LoadingIcon className="w-3.5 h-3.5 text-gray-400 animate-spin absolute" />}
                       <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'packing') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
                       <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'label') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
                       <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'dn') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
@@ -826,7 +821,7 @@ function ReplenishmentsPageContent() {
               render: (r) => (
                 <div className="flex items-center justify-end gap-1">
                   {r.status === 'pending' && (
-                    <Button variant="amber" icon={<Send className="w-4 h-4" />} onClick={() => setShipModalId(r.id)}>
+                    <Button variant="amber" icon={<SendIcon className="w-4 h-4" />} onClick={() => setShipModalId(r.id)}>
                       <span className="hidden md:inline">จัดส่ง</span>
                     </Button>
                   )}
@@ -835,7 +830,7 @@ function ReplenishmentsPageContent() {
                       onClick={() => router.push(`/replenishments/new?id=${r.id}`)}
                       className="flex items-center gap-1.5 px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors whitespace-nowrap"
                     >
-                      <CheckCircle2 className="w-4 h-4" />
+                      <SuccessIcon className="w-4 h-4" />
                       <span className="hidden md:inline">ยืนยัน</span>
                     </button>
                   )}
@@ -844,7 +839,7 @@ function ReplenishmentsPageContent() {
                       onClick={() => copyReceiveLink(r.receive_token!)}
                       className="flex items-center gap-1.5 px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg border border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-600 dark:bg-amber-900/30 dark:text-amber-300 dark:hover:bg-amber-900/50 transition-colors whitespace-nowrap"
                     >
-                      <Copy className="w-4 h-4" />
+                      <CopyIcon className="w-4 h-4" />
                       <span className="hidden md:inline">ลิงก์รับของ</span>
                     </button>
                   )}
@@ -887,14 +882,14 @@ function ReplenishmentsPageContent() {
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-slate-500">
-                    {r.shipping_carrier && <span className="flex items-center gap-1"><Truck className="w-3 h-3" />{r.shipping_carrier}</span>}
+                    {r.shipping_carrier && <span className="flex items-center gap-1"><ShippingIcon className="w-3 h-3" />{r.shipping_carrier}</span>}
                     <span>{(r.replenishment_items?.length || 0)} รายการ</span>
                     {r.created_by_profile?.name && <span>{r.created_by_profile.name}</span>}
                   </div>
                   {r.status !== 'cancelled' && (
                     <Tooltip text={printStatusTip(r)}>
                     <div className="relative flex items-center gap-1" aria-label="สถานะการพิมพ์เอกสาร">
-                      {isPrinting && <Loader2 className="w-3 h-3 text-gray-400 animate-spin absolute" />}
+                      {isPrinting && <LoadingIcon className="w-3 h-3 text-gray-400 animate-spin absolute" />}
                       <span className={`w-2 h-2 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'packing') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
                       <span className={`w-2 h-2 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'label') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
                       <span className={`w-2 h-2 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'dn') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
@@ -914,18 +909,18 @@ function ReplenishmentsPageContent() {
                 {(r.status === 'pending' || r.status === 'pending_confirm' || (r.status === 'shipped' && r.receive_token)) && (
                   <div className="mt-3 flex gap-2" onClick={e => e.stopPropagation()}>
                     {r.status === 'pending' && (
-                      <Button variant="amber" icon={<Send className="w-4 h-4" />} className="flex-1 justify-center" onClick={() => setShipModalId(r.id)}>
+                      <Button variant="amber" icon={<SendIcon className="w-4 h-4" />} className="flex-1 justify-center" onClick={() => setShipModalId(r.id)}>
                         จัดส่ง
                       </Button>
                     )}
                     {r.status === 'pending_confirm' && (
                       <button onClick={() => router.push(`/replenishments/new?id=${r.id}`)} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors">
-                        <CheckCircle2 className="w-4 h-4" /> ยืนยัน
+                        <SuccessIcon className="w-4 h-4" /> ยืนยัน
                       </button>
                     )}
                     {r.status === 'shipped' && r.receive_token && (
                       <button onClick={() => copyReceiveLink(r.receive_token!)} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors">
-                        <Copy className="w-4 h-4" /> ลิงก์รับของ
+                        <CopyIcon className="w-4 h-4" /> ลิงก์รับของ
                       </button>
                     )}
                   </div>
@@ -994,7 +989,7 @@ function ReplenishmentsPageContent() {
         open={!!editShipModalId}
         onClose={() => !editShipSubmitting && setEditShipModalId(null)}
         title="แก้ไขข้อมูลขนส่ง"
-        icon={<Pencil className="w-5 h-5 text-primary" />}
+        icon={<EditIcon className="w-5 h-5 text-primary" />}
         size="md"
         disableBackdropClose={editShipSubmitting}
         footer={

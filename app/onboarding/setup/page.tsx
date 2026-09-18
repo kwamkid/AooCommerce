@@ -1,6 +1,6 @@
 'use client';
 
-import { Building2, FileText, Upload } from 'lucide-react';
+import { CompanyIcon, DocumentIcon, UploadIcon } from '@/lib/icons';
 import ImageDropzone from '@/components/ui/ImageDropzone';
 import WizardShell from '@/components/onboarding/WizardShell';
 import { useWizardState, WIZARD_KEYS } from '@/components/onboarding/wizard-storage';
@@ -69,7 +69,7 @@ export default function OnboardingCompanyPage() {
               value={null}
               onChange={onLogoPick}
               initialPreviewUrl={form.logoDataUrl}
-              icon={<Upload className="w-6 h-6" />}
+              icon={<UploadIcon className="w-6 h-6" />}
               label="อัพโหลด"
               alt="โลโก้"
               maxWidthOrHeight={300}
@@ -94,7 +94,7 @@ export default function OnboardingCompanyPage() {
             ชื่อร้าน/ชื่อแบรนด์ <span className="text-red-500">*</span>
           </label>
           <div className="relative">
-            <Building2 className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <CompanyIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               type="text"
               name="wizard_company_name"
@@ -114,7 +114,7 @@ export default function OnboardingCompanyPage() {
             คำอธิบาย (ไม่บังคับ)
           </label>
           <div className="relative">
-            <FileText className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+            <DocumentIcon className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
             <textarea
               name="wizard_company_description"
               autoComplete="off"

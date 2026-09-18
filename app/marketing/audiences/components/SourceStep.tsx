@@ -23,7 +23,7 @@ import AccountPicker from '@/components/ui/AccountPicker';
 import HelpHint from '@/components/ui/HelpHint';
 import { BROADCAST_PLATFORMS } from '@/lib/broadcast/platforms';
 import { audienceSourceUnsupportedReason, PURCHASED_AUDIENCE_KEYS } from '@/lib/broadcast/audience';
-import { Users } from 'lucide-react';
+import { PeopleIcon } from '@/lib/icons';
 import type { ChatSourceAccount } from './types';
 
 /** เกินเท่านี้แล้วการ์ดจะยาวจนดันเนื้อหาที่เหลือตกจอ → เปลี่ยนไปใช้ป๊อปอัปแทน */
@@ -75,7 +75,7 @@ export default function SourceStep({
     >
       <div className="flex items-center gap-2.5 min-w-0 flex-1">
         <span className="w-10 h-10 rounded-full bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-300 flex items-center justify-center flex-shrink-0">
-          <Users className="w-5 h-5" />
+          <PeopleIcon className="w-5 h-5" />
         </span>
         <div className="min-w-0">
           <p className="body-text truncate">ลูกค้าในระบบ</p>

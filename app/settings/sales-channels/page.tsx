@@ -30,7 +30,8 @@ import Tabs from '@/components/ui/Tabs';
 import { useFeatures } from '@/lib/features-context';
 import { isMarketplacePlatform } from '@/lib/marketplace-platforms';
 import { useMarketplaceAccounts, type MarketplacePlatform } from './useMarketplaceAccounts';
-import { Link as LinkIcon, Loader2, Lock, MessageCircle, Pencil, Plus, RefreshCw, SlidersHorizontal, Star, Tag, Trash2 } from 'lucide-react';
+import { Link as LinkIcon, Lock, SlidersHorizontal } from 'lucide-react';
+import { AddIcon, ChatIcon, DeleteIcon, EditIcon, LoadingIcon, RefreshIcon, StarIcon, StoreIcon } from '@/lib/icons';
 import dynamic from 'next/dynamic';
 
 // Lazy chunk — โค้ดแท็บ marketplace โหลดเฉพาะตอนผู้ใช้กดแท็บจริง
@@ -523,7 +524,7 @@ export default function SalesChannelsPage() {
               <span className="font-semibold text-[16px] text-gray-900 dark:text-white">{c.name}</span>
               {c.is_default && (
                 <Tooltip text="ช่องทางที่ระบบเลือกไว้ให้ล่วงหน้าตอนเปิดบิลเอง — ออเดอร์ที่มาจากแชทจะใช้ช่องทางของแชทนั้นแทน" box="inline-flex">
-                  <Badge tone="amber" size="sm" icon={<Star className="w-3 h-3 fill-current" />}>ค่าเริ่มต้น</Badge>
+                  <Badge tone="amber" size="sm" icon={<StarIcon className="w-3 h-3 fill-current" />}>ค่าเริ่มต้น</Badge>
                 </Tooltip>
               )}
               {c.is_system && (
@@ -555,7 +556,7 @@ export default function SalesChannelsPage() {
       render: (c) =>
         c.channel_type === 'chat' ? (
           <Badge tone="emerald" size="sm">
-            <MessageCircle className="w-3 h-3 mr-1" />
+            <ChatIcon className="w-3 h-3 mr-1" />
             <span className="mr-1">Chat</span>
             {renderPlatformIcons(c)}
           </Badge>
@@ -587,16 +588,16 @@ export default function SalesChannelsPage() {
             key: 'default',
             label: 'ตั้งเป็นค่าเริ่มต้น',
             description: 'ใช้เป็นช่องทางที่เลือกไว้ให้ตอนเปิดบิลเอง',
-            icon: <Star className="w-4 h-4" />,
+            icon: <StarIcon className="w-4 h-4" />,
             onClick: () => handleSetDefault(c),
           });
         }
         if (c.channel_type === 'manual' && !c.is_system) {
-          items.push({ key: 'edit', label: 'แก้ไข', icon: <Pencil className="w-4 h-4" />, onClick: () => openEdit(c), dividerBefore: items.length > 0 });
+          items.push({ key: 'edit', label: 'แก้ไข', icon: <EditIcon className="w-4 h-4" />, onClick: () => openEdit(c), dividerBefore: items.length > 0 });
           items.push({
             key: 'delete',
             label: 'ลบ',
-            icon: <Trash2 className="w-4 h-4" />,
+            icon: <DeleteIcon className="w-4 h-4" />,
             onClick: () => setDeleteTarget(c),
             danger: true,
             dividerBefore: true,
@@ -614,7 +615,7 @@ export default function SalesChannelsPage() {
     <Layout>
       <Container size="full">
         <PageHeader
-          icon={<Tag />}
+          icon={<StoreIcon />}
           title="ช่องทางการขาย"
           subtitle="จัดการช่องทางที่ออเดอร์เข้ามา — ช่องทาง manual, เพจ LINE/FB และร้าน marketplace ที่เชื่อมต่อ"
           actions={
@@ -625,14 +626,14 @@ export default function SalesChannelsPage() {
             {marketplaceTabVisible && hasMarketplaceShops && (
               <Button
                 variant="secondary"
-                icon={<RefreshCw className="w-5 h-5" />}
+                icon={<RefreshIcon className="w-5 h-5" />}
                 onClick={() => router.push('/marketplace/sync')}
               >
                 ซิงค์สินค้า &amp; สต็อก
               </Button>
             )}
             {effectiveTab === 'manual' ? (
-              <Button variant="primary" icon={<Plus className="w-5 h-5" />} onClick={() => openCreate('')}>
+              <Button variant="primary" icon={<AddIcon className="w-5 h-5" />} onClick={() => openCreate('')}>
                 เพิ่มช่องทาง
               </Button>
             ) : effectiveTab === 'facebook' ? (
@@ -654,7 +655,7 @@ export default function SalesChannelsPage() {
               <ActionMenu
                 placement="bottom"
                 trigger={mpConnecting
-                  ? <><Loader2 className="w-5 h-5 animate-spin" />กำลังเชื่อมต่อ...</>
+                  ? <><LoadingIcon className="w-5 h-5 animate-spin" />กำลังเชื่อมต่อ...</>
                   : <><PlatformIcon id="shopee" size={16} mono />เชื่อมต่อร้าน Shopee</>}
                 triggerClassName="btn btn-md btn-primary"
                 items={(() => {
@@ -744,7 +745,7 @@ export default function SalesChannelsPage() {
             : channelTab === 'line' ? 'ยังไม่มี LINE OA ที่เชื่อม — กด "เชื่อม LINE OA" ด้านบน'
             : 'ยังไม่มีช่องทางที่ตั้งค่าเอง — กด "เพิ่มช่องทาง" ด้านบน'
           }
-          emptyIcon={<Tag className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+          emptyIcon={<StoreIcon className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
           currentPage={currentPage}
           totalPages={totalPages}
           totalRecords={filtered.length}
@@ -778,7 +779,7 @@ export default function SalesChannelsPage() {
           open={modalMode !== null}
           onClose={() => !submitting && setModalMode(null)}
           title={modalMode === 'edit' ? (isEditingChat ? 'แก้ไขสถานะ' : 'แก้ไขช่องทาง') : 'เพิ่มช่องทางการขาย'}
-          icon={<Tag className="w-5 h-5 text-primary" />}
+          icon={<StoreIcon className="w-5 h-5 text-primary" />}
           size="md"
           disableBackdropClose={submitting}
           footer={
@@ -889,7 +890,7 @@ export default function SalesChannelsPage() {
           confirmLabel="ลบ"
           variant="danger"
           loading={deleting}
-          icon={<Trash2 className="w-6 h-6 text-red-600" />}
+          icon={<DeleteIcon className="w-6 h-6 text-red-600" />}
         />
       </Container>
       {confirmDialog}

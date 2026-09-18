@@ -16,7 +16,8 @@
 'use client';
 
 import { memo, useEffect, useRef } from 'react';
-import { Search, Plus, Settings2, MessageSquareText, Loader2, Pencil } from 'lucide-react';
+import { Settings2 } from 'lucide-react';
+import { AddIcon, EditIcon, LoadingIcon, MessageIcon, SearchIcon } from '@/lib/icons';
 import Link from 'next/link';
 import Tooltip from '@/components/ui/Tooltip';
 import SavedReplyText from '@/components/chat/SavedReplyText';
@@ -109,7 +110,7 @@ function SavedReplyPicker({
               aria-label={`แก้ไข ${r.title}`}
               className="flex-shrink-0 w-8 flex items-start justify-center pt-2.5 text-gray-400 hover:text-primary md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100 transition-opacity"
             >
-              <Pencil className="w-3.5 h-3.5" />
+              <EditIcon className="w-3.5 h-3.5" />
             </button>
           </Tooltip>
         )}
@@ -142,7 +143,7 @@ function SavedReplyPicker({
     >
       {showSearch && (
         <div className="p-2 border-b border-gray-100 dark:border-slate-700 relative flex-shrink-0">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+          <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
           <input
             ref={searchRef}
             value={search}
@@ -162,11 +163,11 @@ function SavedReplyPicker({
       <div ref={listRef} className="flex-1 overflow-y-auto min-h-0">
         {loading ? (
           <div className="flex items-center justify-center gap-2 py-8 text-gray-400">
-            <Loader2 className="w-4 h-4 animate-spin" /><span className="subtitle-text">กำลังโหลด...</span>
+            <LoadingIcon className="w-4 h-4 animate-spin" /><span className="subtitle-text">กำลังโหลด...</span>
           </div>
         ) : replies.length === 0 ? (
           <div className="px-4 py-8 text-center">
-            <MessageSquareText className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+            <MessageIcon className="w-8 h-8 mx-auto mb-2 text-gray-300" />
             <p className="subtitle-text text-gray-500">
               {search ? 'ไม่พบข้อความที่ค้น' : 'ยังไม่มี Saved Reply'}
             </p>
@@ -190,14 +191,14 @@ function SavedReplyPicker({
             onClick={onSaveCurrent}
             className="flex items-center gap-1 helper-text text-primary hover:underline px-1 py-0.5"
           >
-            <Plus className="w-3.5 h-3.5" />บันทึกข้อความที่พิมพ์อยู่
+            <AddIcon className="w-3.5 h-3.5" />บันทึกข้อความที่พิมพ์อยู่
           </button>
         ) : onCreate ? (
           <button
             onClick={onCreate}
             className="flex items-center gap-1 helper-text text-primary hover:underline px-1 py-0.5"
           >
-            <Plus className="w-3.5 h-3.5" />เพิ่มใหม่
+            <AddIcon className="w-3.5 h-3.5" />เพิ่มใหม่
           </button>
         ) : <span className="helper-text text-gray-400 px-1">พิมพ์ / ในช่องแชทเพื่อค้นได้เลย</span>}
 

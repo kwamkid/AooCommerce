@@ -8,7 +8,7 @@ import SignedInUser from '@/components/onboarding/SignedInUser';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import Image from 'next/image';
 import { FullPageLoading } from '@/components/ui/Loading';
-import { Building2, AlertCircle, Loader2, Plus, ChevronRight, Users, User, LogOut } from 'lucide-react';
+import { AddIcon, AlertIcon, ChevronRightIcon, CompanyIcon, LoadingIcon, PeopleIcon, UserIcon } from '@/lib/icons';
 
 interface CompanyMembership {
   company_id: string;
@@ -195,7 +195,7 @@ export default function OnboardingPage() {
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-8 border border-gray-200 dark:border-slate-700">
             {error && (
               <div className="mb-6 p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg flex items-start space-x-3">
-                <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                <AlertIcon className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
                 <p className="text-sm text-red-600 dark:text-red-300">{error}</p>
               </div>
             )}
@@ -205,7 +205,7 @@ export default function OnboardingPage() {
                   ชื่อ-นามสกุล <span className="text-red-400">*</span>
                 </label>
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500" />
+                  <UserIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500" />
                   <input
                     type="text"
                     value={profileName}
@@ -224,7 +224,7 @@ export default function OnboardingPage() {
               >
                 {savingName ? (
                   <>
-                    <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                    <LoadingIcon className="w-5 h-5 animate-spin mr-2" />
                     กำลังบันทึก...
                   </>
                 ) : (
@@ -255,7 +255,7 @@ export default function OnboardingPage() {
                     />
                   ) : (
                     <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-[#F4511E] to-[#E0480F] flex items-center justify-center shadow-sm">
-                      <Building2 className="w-7 h-7 text-white" />
+                      <CompanyIcon className="w-7 h-7 text-white" />
                     </div>
                   )}
 
@@ -265,7 +265,7 @@ export default function OnboardingPage() {
                       {membership.company.name}
                     </h3>
                     <div className="flex items-center gap-2 mt-1">
-                      <Users className="w-3.5 h-3.5 text-gray-400" />
+                      <PeopleIcon className="w-3.5 h-3.5 text-gray-400" />
                       <span className="text-sm text-gray-400 dark:text-slate-500">
                         {getRoleLabels(membership.roles)}
                       </span>
@@ -273,7 +273,7 @@ export default function OnboardingPage() {
                   </div>
 
                   {/* Arrow */}
-                  <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+                  <ChevronRightIcon className="w-5 h-5 text-gray-300 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
                 </button>
               ))}
             </div>
@@ -284,7 +284,7 @@ export default function OnboardingPage() {
               className="w-full bg-white/70 dark:bg-slate-800/60 rounded-2xl p-4 border-2 border-dashed border-gray-300 dark:border-slate-600 hover:border-primary/60 hover:bg-white transition-all flex items-center gap-4 text-left group"
             >
               <div className="w-14 h-14 rounded-xl bg-orange-50 dark:bg-slate-700 flex items-center justify-center border border-orange-100 dark:border-slate-600 group-hover:border-primary/40">
-                <Plus className="w-7 h-7 text-primary transition-colors" />
+                <AddIcon className="w-7 h-7 text-primary transition-colors" />
               </div>
               <div className="flex-1">
                 <h3 className="text-gray-800 dark:text-slate-200 font-semibold group-hover:text-primary transition-colors">

@@ -10,7 +10,7 @@ import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
-import { Warehouse, ArrowLeft, User, CheckCircle2, XCircle, Factory } from 'lucide-react';
+import { BackIcon, ErrorIcon, SuccessIcon, SupplierIcon, UserIcon, WarehouseIcon } from '@/lib/icons';
 import Badge from '@/components/ui/Badge';
 import { LoadingCard } from '@/components/ui/StateCard';
 import { productDisplayName } from '../../components/types';
@@ -157,13 +157,13 @@ export default function SupplierReturnDetailPage() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <button onClick={() => router.push('/inventory/supplier-returns')} className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300">
-            <ArrowLeft className="w-4 h-4" /> กลับ
+            <BackIcon className="w-4 h-4" /> กลับ
           </button>
         </div>
 
         {/* Status */}
         <div className={`rounded-lg px-4 py-3 flex flex-wrap items-center gap-2 ${data.status === 'issued' ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'}`}>
-          {data.status === 'issued' ? <CheckCircle2 className="w-5 h-5 text-green-700 dark:text-green-400" /> : <XCircle className="w-5 h-5 text-red-700 dark:text-red-400" />}
+          {data.status === 'issued' ? <SuccessIcon className="w-5 h-5 text-green-700 dark:text-green-400" /> : <ErrorIcon className="w-5 h-5 text-red-700 dark:text-red-400" />}
           <span className={`text-sm font-medium ${data.status === 'issued' ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
             {data.status === 'issued' ? 'คืนของแล้ว — ตัดออกจากคลังเรียบร้อย' : 'ยกเลิก'}
           </span>
@@ -181,21 +181,21 @@ export default function SupplierReturnDetailPage() {
             <div>
               <label className="data-label text-gray-500 dark:text-slate-400 uppercase mb-1 block">Supplier</label>
               <div className="flex items-center gap-2">
-                <Factory className="w-4 h-4 text-gray-400" />
+                <SupplierIcon className="w-4 h-4 text-gray-400" />
                 <span className="data-primary text-gray-900 dark:text-white">{data.supplier?.name || '-'}</span>
               </div>
             </div>
             <div>
               <label className="data-label text-gray-500 dark:text-slate-400 uppercase mb-1 block">คลังสินค้า</label>
               <div className="flex items-center gap-2">
-                <Warehouse className="w-4 h-4 text-gray-400" />
+                <WarehouseIcon className="w-4 h-4 text-gray-400" />
                 <span className="data-primary text-gray-900 dark:text-white">{data.warehouse?.name || '-'}</span>
               </div>
             </div>
             <div>
               <label className="data-label text-gray-500 dark:text-slate-400 uppercase mb-1 block">สร้างโดย</label>
               <div className="flex items-center gap-2">
-                <User className="w-4 h-4 text-gray-400" />
+                <UserIcon className="w-4 h-4 text-gray-400" />
                 <span className="data-text text-gray-700 dark:text-slate-300">{data.created_by_user?.name || '-'}</span>
               </div>
             </div>

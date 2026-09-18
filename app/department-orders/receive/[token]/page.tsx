@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import ImageDropzone from '@/components/ui/ImageDropzone';
-import { Loader2, Package, Camera, Sun, Moon, CheckCircle2, XCircle, Clock, Truck, AlertTriangle } from 'lucide-react';
+import { CameraIcon, DarkThemeIcon, ErrorIcon, LightThemeIcon, LoadingIcon, ProductIcon, ShippingIcon, SuccessIcon, TimeIcon, WarningIcon } from '@/lib/icons';
 import { productDisplayName } from '@/lib/product-display';
 import NumberInput from '@/components/ui/NumberInput';
 import { FullPageLoading } from '@/components/ui/Loading';
@@ -176,7 +176,7 @@ export default function DeptOrderReceivePage() {
     return (
       <div className={`min-h-screen flex items-center justify-center p-4 ${dark ? 'bg-[#1A1A2E]' : 'bg-gray-50'}`}>
         <div className="text-center">
-          <Package className={`w-16 h-16 mx-auto mb-4 ${dark ? 'text-slate-600' : 'text-gray-300'}`} />
+          <ProductIcon className={`w-16 h-16 mx-auto mb-4 ${dark ? 'text-slate-600' : 'text-gray-300'}`} />
           <h1 className={`text-xl font-semibold mb-2 ${dark ? 'text-slate-300' : 'text-gray-700'}`}>ไม่พบใบส่งห้าง</h1>
           <p className={dark ? 'text-slate-500' : 'text-gray-500'}>{error || 'ลิงก์นี้ไม่ถูกต้องหรือหมดอายุแล้ว'}</p>
         </div>
@@ -205,7 +205,7 @@ export default function DeptOrderReceivePage() {
           onClick={toggleDark}
           className="p-2 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors"
         >
-          {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          {dark ? <LightThemeIcon className="w-4 h-4" /> : <DarkThemeIcon className="w-4 h-4" />}
         </button>
       </div>
 
@@ -247,7 +247,7 @@ export default function DeptOrderReceivePage() {
           {/* === STATUS: PENDING (ยังไม่จัดส่ง) === */}
           {data.status === 'pending' && (
             <div className={`border-2 rounded-xl p-5 text-center ${dark ? 'bg-yellow-900/20 border-yellow-800' : 'bg-yellow-50 border-yellow-200'}`}>
-              <Clock className={`w-10 h-10 mx-auto mb-2 ${dark ? 'text-yellow-400' : 'text-yellow-500'}`} />
+              <TimeIcon className={`w-10 h-10 mx-auto mb-2 ${dark ? 'text-yellow-400' : 'text-yellow-500'}`} />
               <div className={`font-bold text-lg ${dark ? 'text-yellow-400' : 'text-yellow-700'}`}>ใบส่งห้างนี้ยังไม่ได้จัดส่ง</div>
               <p className={`text-sm mt-1 ${dark ? 'text-yellow-500/70' : 'text-yellow-500'}`}>กรุณารอจนกว่าจะมีการจัดส่งสินค้า</p>
             </div>
@@ -256,7 +256,7 @@ export default function DeptOrderReceivePage() {
           {/* === STATUS: CANCELLED === */}
           {data.status === 'cancelled' && (
             <div className={`border-2 rounded-xl p-5 text-center ${dark ? 'bg-red-900/20 border-red-800' : 'bg-red-50 border-red-200'}`}>
-              <XCircle className={`w-10 h-10 mx-auto mb-2 ${dark ? 'text-red-400' : 'text-red-500'}`} />
+              <ErrorIcon className={`w-10 h-10 mx-auto mb-2 ${dark ? 'text-red-400' : 'text-red-500'}`} />
               <div className={`font-bold text-lg ${dark ? 'text-red-400' : 'text-red-700'}`}>ใบส่งห้างนี้ถูกยกเลิกแล้ว</div>
             </div>
           )}
@@ -271,12 +271,12 @@ export default function DeptOrderReceivePage() {
               }`}>
                 {data.status === 'pending_confirm' ? (
                   <>
-                    <Clock className={`w-10 h-10 mx-auto mb-2 ${dark ? 'text-blue-400' : 'text-blue-500'}`} />
+                    <TimeIcon className={`w-10 h-10 mx-auto mb-2 ${dark ? 'text-blue-400' : 'text-blue-500'}`} />
                     <div className={`font-bold text-lg ${dark ? 'text-blue-400' : 'text-blue-700'}`}>รับสินค้าแล้ว รอยืนยันจากผู้ส่ง</div>
                   </>
                 ) : (
                   <>
-                    <CheckCircle2 className={`w-10 h-10 mx-auto mb-2 ${dark ? 'text-green-400' : 'text-green-500'}`} />
+                    <SuccessIcon className={`w-10 h-10 mx-auto mb-2 ${dark ? 'text-green-400' : 'text-green-500'}`} />
                     <div className={`font-bold text-lg ${dark ? 'text-green-400' : 'text-green-700'}`}>
                       {data.status === 'partial_received' ? 'รับสินค้าไม่ครบ' : 'รับสินค้าเรียบร้อยแล้ว'}
                     </div>
@@ -343,7 +343,7 @@ export default function DeptOrderReceivePage() {
           {data.status === 'shipped' && !submitSuccess && (
             <>
               <div className={`flex items-center gap-2 mb-4 ${dark ? 'text-amber-400' : 'text-amber-600'}`}>
-                <Truck className="w-5 h-5" />
+                <ShippingIcon className="w-5 h-5" />
                 <span className="font-bold text-lg">รับสินค้า</span>
               </div>
 
@@ -422,7 +422,7 @@ export default function DeptOrderReceivePage() {
                     <div>
                       <div className="flex items-center justify-between mb-1.5">
                         <span className={`text-sm font-medium flex items-center gap-1.5 ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
-                          <Truck className="w-3.5 h-3.5" /> ข้อมูลจัดส่ง
+                          <ShippingIcon className="w-3.5 h-3.5" /> ข้อมูลจัดส่ง
                         </span>
                       </div>
                       <div className={`text-sm space-y-0.5 ${dark ? 'text-slate-300' : 'text-gray-700'}`}>
@@ -448,7 +448,7 @@ export default function DeptOrderReceivePage() {
 
               {totalReceived < totalSent && (
                 <div className={`rounded-lg p-3 flex items-center gap-2 mb-4 ${dark ? 'bg-amber-900/20 border border-amber-800' : 'bg-amber-50 border border-amber-200'}`}>
-                  <AlertTriangle className={`w-4 h-4 flex-shrink-0 ${dark ? 'text-amber-400' : 'text-amber-500'}`} />
+                  <WarningIcon className={`w-4 h-4 flex-shrink-0 ${dark ? 'text-amber-400' : 'text-amber-500'}`} />
                   <span className={`text-sm ${dark ? 'text-amber-400' : 'text-amber-700'}`}>
                     รับไม่ครบ: {totalReceived}/{totalSent} ชิ้น (ขาด {totalSent - totalReceived} ชิ้น)
                   </span>
@@ -456,7 +456,7 @@ export default function DeptOrderReceivePage() {
               )}
               {totalReceived > totalSent && (
                 <div className={`rounded-lg p-3 flex items-center gap-2 mb-4 ${dark ? 'bg-blue-900/20 border border-blue-800' : 'bg-blue-50 border border-blue-200'}`}>
-                  <AlertTriangle className={`w-4 h-4 flex-shrink-0 ${dark ? 'text-blue-400' : 'text-blue-500'}`} />
+                  <WarningIcon className={`w-4 h-4 flex-shrink-0 ${dark ? 'text-blue-400' : 'text-blue-500'}`} />
                   <span className={`text-sm ${dark ? 'text-blue-400' : 'text-blue-700'}`}>
                     รับเกิน: {totalReceived}/{totalSent} ชิ้น (เกิน {totalReceived - totalSent} ชิ้น)
                   </span>
@@ -468,7 +468,7 @@ export default function DeptOrderReceivePage() {
           {/* Success after submit */}
           {data.status === 'shipped' && submitSuccess && (
             <div className={`border-2 rounded-xl p-5 text-center ${dark ? 'bg-green-900/20 border-green-800' : 'bg-green-50 border-green-200'}`}>
-              <CheckCircle2 className={`w-10 h-10 mx-auto mb-2 ${dark ? 'text-green-400' : 'text-green-500'}`} />
+              <SuccessIcon className={`w-10 h-10 mx-auto mb-2 ${dark ? 'text-green-400' : 'text-green-500'}`} />
               <div className={`font-bold text-lg ${dark ? 'text-green-400' : 'text-green-700'}`}>บันทึกการรับสินค้าเรียบร้อย</div>
               <p className={`text-sm mt-1 ${dark ? 'text-green-500/70' : 'text-green-500'}`}>ขอบคุณที่ยืนยันการรับสินค้า</p>
             </div>
@@ -508,7 +508,7 @@ export default function DeptOrderReceivePage() {
                 onChange={setPhoto}
                 onBusyChange={setCompressing}
                 capture="environment"
-                icon={<Camera className="w-8 h-8" />}
+                icon={<CameraIcon className="w-8 h-8" />}
                 label="ถ่ายรูป / เลือกรูป"
                 alt="รูปรับสินค้า"
                 classNames={{
@@ -541,12 +541,12 @@ export default function DeptOrderReceivePage() {
             >
               {submitting ? (
                 <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <LoadingIcon className="w-5 h-5 animate-spin" />
                   กำลังบันทึก...
                 </>
               ) : (
                 <>
-                  <CheckCircle2 className="w-5 h-5" />
+                  <SuccessIcon className="w-5 h-5" />
                   ยืนยันรับสินค้า
                 </>
               )}

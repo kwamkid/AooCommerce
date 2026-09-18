@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Search, Package, Loader2 } from 'lucide-react';
+import { LoadingIcon, ProductIcon, SearchIcon } from '@/lib/icons';
 import Image from 'next/image';
 import { apiFetch } from '@/lib/api-client';
 import Modal from '@/components/ui/Modal';
@@ -71,7 +71,7 @@ export default function ProductPicker({ onSelect, onCancel, excludeProductIds = 
       {/* Search */}
       <div className="px-6 py-4 border-b border-gray-200 dark:border-slate-700">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-slate-500" />
+          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-slate-500" />
           <input
             type="text"
             placeholder="ค้นหาชื่อ, รหัส, SKU..."
@@ -87,11 +87,11 @@ export default function ProductPicker({ onSelect, onCancel, excludeProductIds = 
       <div className="p-2">
           {loading ? (
             <div className="flex items-center justify-center py-8 text-gray-400 dark:text-slate-500">
-              <Loader2 className="w-6 h-6 animate-spin text-orange-500" />
+              <LoadingIcon className="w-6 h-6 animate-spin text-orange-500" />
             </div>
           ) : filtered.length === 0 ? (
             <div className="text-center py-8 text-gray-400 dark:text-slate-500">
-              <Package className="w-8 h-8 mx-auto mb-2" />
+              <ProductIcon className="w-8 h-8 mx-auto mb-2" />
               <p className="text-sm">ไม่พบสินค้า</p>
             </div>
           ) : (
@@ -113,7 +113,7 @@ export default function ProductPicker({ onSelect, onCancel, excludeProductIds = 
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-gray-300 dark:text-slate-500">
-                        <Package className="w-5 h-5" />
+                        <ProductIcon className="w-5 h-5" />
                       </div>
                     )}
                   </div>

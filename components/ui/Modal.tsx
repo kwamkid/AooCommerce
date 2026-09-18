@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, type ReactNode } from 'react';
-import { X } from 'lucide-react';
+import { CloseIcon } from '@/lib/icons';
 
 type ModalSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl';
 
@@ -114,7 +114,7 @@ export default function Modal({
             </div>
             {!hideCloseButton && (
               <button type="button" onClick={onClose} aria-label="ปิด" className="modal-close-btn">
-                <X className="w-5 h-5" />
+                <CloseIcon className="w-5 h-5" />
               </button>
             )}
           </div>

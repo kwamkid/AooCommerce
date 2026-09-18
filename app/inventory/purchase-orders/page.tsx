@@ -22,9 +22,8 @@ import { EmptyCard, LoadingCard } from '@/components/ui/StateCard';
 import StatusBadge from '@/components/ui/StatusBadge';
 import DocListFilters, { type DocListUser, type DocListWarehouse } from '../components/DocListFilters';
 import { useDocListParams } from '../components/useDocListParams';
-import {
-  Plus, ClipboardList, Factory, Warehouse, Pencil, Printer, Link2, Ban, Lock, Loader2, X,
-} from 'lucide-react';
+import { Lock } from 'lucide-react';
+import { AddIcon, BanIcon, ChecklistIcon, CloseIcon, EditIcon, LinkIcon, LoadingIcon, PrintIcon, SupplierIcon, WarehouseIcon } from '@/lib/icons';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 
 interface PurchaseOrder {
@@ -227,25 +226,25 @@ function PurchaseOrdersContent() {
 
   const getMenuItems = (po: PurchaseOrder): ActionItem[] => {
     const items: ActionItem[] = [
-      { key: 'edit', label: 'แก้ไข', icon: <Pencil className="w-4 h-4" />, onClick: () => router.push(`/inventory/purchase-orders/${po.id}`) },
+      { key: 'edit', label: 'แก้ไข', icon: <EditIcon className="w-4 h-4" />, onClick: () => router.push(`/inventory/purchase-orders/${po.id}`) },
       {
         key: 'print',
         label: 'พิมพ์',
-        icon: printingId === po.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />,
+        icon: printingId === po.id ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <PrintIcon className="w-4 h-4" />,
         onClick: () => handlePrint(po.id, po.status),
         disabled: printingId === po.id,
       },
       {
         key: 'copyLink',
         label: 'คัดลอกลิงก์ PO',
-        icon: <Link2 className="w-4 h-4" />,
+        icon: <LinkIcon className="w-4 h-4" />,
         onClick: () => handleCopyLink(po.id, po.status),
         disabled: actionLoadingId === po.id,
       },
     ];
     if (po.status === 'draft' || po.status === 'sent') {
       items.push({
-        key: 'cancel', label: 'ยกเลิก', icon: <Ban className="w-4 h-4" />, danger: true, dividerBefore: true,
+        key: 'cancel', label: 'ยกเลิก', icon: <BanIcon className="w-4 h-4" />, danger: true, dividerBefore: true,
         onClick: () => patchStatus(po.id, 'cancelled', 'ยกเลิก PO สำเร็จ', 'ต้องการยกเลิก PO นี้?', true),
       });
     }
@@ -281,7 +280,7 @@ function PurchaseOrdersContent() {
           <Button
             variant="primary"
             onClick={() => router.push('/inventory/purchase-order')}
-            icon={<Plus className="w-4 h-4" />}
+            icon={<AddIcon className="w-4 h-4" />}
             aria-label="สร้างใบสั่งซื้อ"
             className="whitespace-nowrap flex-shrink-0"
           >
@@ -325,7 +324,7 @@ function PurchaseOrdersContent() {
                 options={suppliers}
                 clearLabel="ทุก Supplier"
                 placeholder="Supplier"
-                icon={<Factory className="w-4 h-4" />}
+                icon={<SupplierIcon className="w-4 h-4" />}
                 searchPlaceholder="ค้นหา Supplier..."
               />
             </div>
@@ -334,18 +333,18 @@ function PurchaseOrdersContent() {
 
         {rows.length === 0 ? (
           <EmptyCard
-            icon={<ClipboardList className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+            icon={<ChecklistIcon className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
             title={hasActiveFilters ? 'ไม่พบใบสั่งซื้อที่ตรงกับตัวกรอง' : 'ยังไม่มีใบสั่งซื้อในแท็บนี้'}
             subtitle={hasActiveFilters ? 'ลองขยายช่วงวันที่หรือล้างตัวกรอง' : undefined}
             actions={hasActiveFilters
-              ? <Button variant="secondary" icon={<X className="w-4 h-4" />} onClick={clearAll}>ล้างตัวกรอง</Button>
+              ? <Button variant="secondary" icon={<CloseIcon className="w-4 h-4" />} onClick={clearAll}>ล้างตัวกรอง</Button>
               : undefined}
           />
         ) : (
           <div className="relative">
             {fetching && (
               <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/60 dark:bg-slate-900/60 pointer-events-none">
-                <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                <LoadingIcon className="w-8 h-8 text-primary animate-spin" />
               </div>
             )}
             <DataTable<PurchaseOrder>
@@ -367,7 +366,7 @@ function PurchaseOrdersContent() {
                   key: 'supplier', label: 'Supplier',
                   render: (po) => (
                     <div className="flex items-center gap-1.5">
-                      <Factory className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                      <SupplierIcon className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                       <span className="data-primary text-gray-900 dark:text-slate-100">{po.supplier?.name || '-'}</span>
                     </div>
                   ),
@@ -376,7 +375,7 @@ function PurchaseOrdersContent() {
                   key: 'warehouse', label: 'คลัง',
                   render: (po) => (
                     <div className="flex items-center gap-1.5">
-                      <Warehouse className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                      <WarehouseIcon className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                       <span className="data-text text-gray-700 dark:text-slate-300">{po.warehouse?.name || '-'}</span>
                     </div>
                   ),
@@ -422,7 +421,7 @@ function PurchaseOrdersContent() {
               getRowId={(po) => po.id}
               onRowClick={(po) => router.push(`/inventory/purchase-orders/${po.id}`)}
               emptyMessage="ไม่พบรายการที่ค้นหา"
-              emptyIcon={<ClipboardList className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+              emptyIcon={<ChecklistIcon className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
               currentPage={page}
               totalPages={totalPages}
               totalRecords={total}
@@ -443,7 +442,7 @@ function PurchaseOrdersContent() {
                     <StatusBadge domain="purchaseOrder" status={po.status} />
                   </div>
                   <div className="flex items-center gap-2 mb-1">
-                    <Factory className="w-3.5 h-3.5 text-gray-400" />
+                    <SupplierIcon className="w-3.5 h-3.5 text-gray-400" />
                     <span className="data-text text-gray-700 dark:text-slate-300">{po.supplier?.name || '-'}</span>
                   </div>
                   <div className="flex items-center justify-between">

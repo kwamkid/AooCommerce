@@ -8,7 +8,7 @@ import {
   forwardRef, useImperativeHandle, useState, useEffect, useCallback, useRef, useMemo,
   type ReactNode,
 } from 'react';
-import { ShoppingCart, Package, AlertTriangle, CheckCircle, X } from 'lucide-react';
+import { CloseIcon, OrderIcon, ProductIcon, SuccessIcon, WarningIcon } from '@/lib/icons';
 import { apiFetch } from '@/lib/api-client';
 import { calculateQtyDiscount, type PromotionTier } from '@/lib/promotions';
 import { computeCouponDiscount, type CouponChannel, type CouponDiscountType } from '@/lib/coupons';
@@ -557,11 +557,11 @@ const PosSaleScreen = forwardRef<PosSaleScreenHandle, PosSaleScreenProps>(functi
         activeKey={mobileTab}
         onSelect={k => setMobileTab(k as typeof mobileTab)}
         tabs={[
-          { key: 'products', label: 'สินค้า', icon: <Package className="w-4 h-4" /> },
+          { key: 'products', label: 'สินค้า', icon: <ProductIcon className="w-4 h-4" /> },
           {
             key: 'cart',
             label: 'ตะกร้า',
-            icon: <ShoppingCart className="w-4 h-4" />,
+            icon: <OrderIcon className="w-4 h-4" />,
             count: cartItems.length > 0 ? cartItems.reduce((s, i) => s + i.quantity, 0) : undefined,
           },
         ]}
@@ -685,17 +685,17 @@ const PosSaleScreen = forwardRef<PosSaleScreenHandle, PosSaleScreenProps>(functi
               onClick={() => setScanAlert(null)}
               className="absolute top-3 right-3 p-1 text-gray-400 dark:text-gray-500 hover:text-gray-900 dark:hover:text-white"
             >
-              <X className="w-4 h-4" />
+              <CloseIcon className="w-4 h-4" />
             </button>
 
             <div className="flex flex-col items-center text-center gap-3">
               {scanAlert.type === 'success' ? (
                 <div className="w-14 h-14 rounded-full bg-green-500/20 flex items-center justify-center">
-                  <CheckCircle className="w-8 h-8 text-green-400" />
+                  <SuccessIcon className="w-8 h-8 text-green-400" />
                 </div>
               ) : (
                 <div className="w-14 h-14 rounded-full bg-red-500/20 flex items-center justify-center animate-pulse">
-                  <AlertTriangle className="w-8 h-8 text-red-400" />
+                  <WarningIcon className="w-8 h-8 text-red-400" />
                 </div>
               )}
               <p className={`text-lg font-semibold ${scanAlert.type === 'success' ? 'text-green-400' : 'text-red-400'}`}>

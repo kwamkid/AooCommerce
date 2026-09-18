@@ -14,17 +14,7 @@ import { can } from '@/lib/permissions';
 import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
-import {
-  Factory,
-  Plus,
-  Phone,
-  Trash2,
-  Copy,
-  ExternalLink,
-  RefreshCw,
-  Clock,
-  KeyRound,
-} from 'lucide-react';
+import { AddIcon, CopyIcon, DeleteIcon, ExternalLinkIcon, PasswordIcon, PhoneIcon, RefreshIcon, SupplierIcon, TimeIcon } from '@/lib/icons';
 import FormSelect from '@/components/ui/FormSelect';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
@@ -238,14 +228,14 @@ export default function SuppliersPage() {
     <Layout>
       <Container size="full">
         <PageHeader
-          icon={<Factory />}
+          icon={<SupplierIcon />}
           title="ซัพพลายเออร์"
           subtitle="จัดการข้อมูลซัพพลายเออร์และผู้จัดจำหน่าย"
           actions={
             <Button
               variant="primary"
               onClick={() => router.push('/settings/suppliers/new')}
-              icon={<Plus className="w-5 h-5" />}
+              icon={<AddIcon className="w-5 h-5" />}
             >
               เพิ่ม<span className="hidden md:inline">ซัพพลายเออร์</span>
             </Button>
@@ -283,7 +273,7 @@ export default function SuppliersPage() {
                 size="sm"
                 onClick={() => setBulkDeleteOpen(true)}
                 loading={bulkDeleting}
-                icon={<Trash2 className="w-4 h-4" />}
+                icon={<DeleteIcon className="w-4 h-4" />}
               >
                 {bulkDeleting ? 'กำลังลบ...' : `ลบ ${selectedIds.size} รายการ`}
               </Button>
@@ -299,33 +289,33 @@ export default function SuppliersPage() {
               items.push({
                 key: 'portal',
                 label: 'ลิงก์ซัพออนไลน์',
-                icon: <ExternalLink className="w-4 h-4" />,
+                icon: <ExternalLinkIcon className="w-4 h-4" />,
                 onClick: () => window.open(`/supplier-portal/${supplier.id}`, '_blank'),
               });
               items.push({
                 key: 'copy-link',
                 label: 'คัดลอกลิงก์',
-                icon: <Copy className="w-4 h-4" />,
+                icon: <CopyIcon className="w-4 h-4" />,
                 onClick: () => { copy(`${window.location.origin}/supplier-portal/${supplier.id}`, 'ลิงก์'); },
               });
               items.push({
                 key: 'copy-code',
                 label: `รหัส: ${supplier.access_code}`,
-                icon: <KeyRound className="w-4 h-4" />,
+                icon: <PasswordIcon className="w-4 h-4" />,
                 onClick: () => copyCode(supplier.access_code!),
-                suffix: <Copy className="w-3.5 h-3.5 text-gray-400" />,
+                suffix: <CopyIcon className="w-3.5 h-3.5 text-gray-400" />,
               });
               items.push({
                 key: 'regenerate',
                 label: 'สร้างรหัสใหม่',
-                icon: <RefreshCw className="w-4 h-4" />,
+                icon: <RefreshIcon className="w-4 h-4" />,
                 onClick: () => setRegenerateTarget(supplier),
               });
               if (supplier.portal_enabled_at) {
                 items.push({
                   key: 'portal-date',
                   label: `เปิด Portal เมื่อ ${new Date(supplier.portal_enabled_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })} ${new Date(supplier.portal_enabled_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}`,
-                  icon: <Clock className="w-4 h-4" />,
+                  icon: <TimeIcon className="w-4 h-4" />,
                   disabled: true,
                   dividerBefore: true,
                 });
@@ -334,14 +324,14 @@ export default function SuppliersPage() {
               items.push({
                 key: 'enable-portal',
                 label: 'เปิด Portal',
-                icon: <ExternalLink className="w-4 h-4" />,
+                icon: <ExternalLinkIcon className="w-4 h-4" />,
                 onClick: () => handleRegenerateCode(supplier),
               });
             }
             items.push({
               key: 'delete',
               label: 'ลบ',
-              icon: <Trash2 className="w-4 h-4" />,
+              icon: <DeleteIcon className="w-4 h-4" />,
               onClick: () => setDeleteTarget({ id: supplier.id, name: supplier.name }),
               danger: true,
               dividerBefore: true,
@@ -384,7 +374,7 @@ export default function SuppliersPage() {
               render: (supplier) =>
                 supplier.phone ? (
                   <a href={`tel:${supplier.phone}`} className="inline-flex items-center gap-1.5 text-sm text-blue-600 dark:text-blue-400 hover:underline">
-                    <Phone className="w-3.5 h-3.5" />{supplier.phone}
+                    <PhoneIcon className="w-3.5 h-3.5" />{supplier.phone}
                   </a>
                 ) : <span className="data-muted text-gray-400 dark:text-slate-500">-</span>,
             },
@@ -438,7 +428,7 @@ export default function SuppliersPage() {
               getRowId={(s) => s.id}
               onRowClick={(s) => router.push(`/settings/suppliers/${s.id}/edit`)}
               emptyMessage="ไม่พบซัพพลายเออร์"
-              emptyIcon={<Factory className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+              emptyIcon={<SupplierIcon className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
               currentPage={currentPage}
               totalPages={totalPages}
               totalRecords={filteredSuppliers.length}
@@ -468,7 +458,7 @@ export default function SuppliersPage() {
                     {supplier.contact_name && <span>{supplier.contact_name}</span>}
                     {supplier.phone && (
                       <a href={`tel:${supplier.phone}`} onClick={e => e.stopPropagation()} className="inline-flex items-center gap-1 hover:text-blue-600">
-                        <Phone className="w-3 h-3" />{supplier.phone}
+                        <PhoneIcon className="w-3 h-3" />{supplier.phone}
                       </a>
                     )}
                   </div>
@@ -503,41 +493,41 @@ export default function SuppliersPage() {
           open={!!regenerateTarget}
           onClose={() => setRegenerateTarget(null)}
           onConfirm={() => { if (regenerateTarget) handleRegenerateCode(regenerateTarget); setRegenerateTarget(null); }}
-          icon={<RefreshCw className="w-6 h-6 text-primary" />}
+          icon={<RefreshIcon className="w-6 h-6 text-primary" />}
           title="สร้างรหัส Portal ใหม่?"
           description="รหัสเดิมจะถูกยกเลิกทันที ซัพพลายเออร์ต้องใช้รหัสใหม่ในการเข้า Portal"
           confirmLabel="สร้างรหัสใหม่"
-          confirmIcon={<RefreshCw className="w-4 h-4" />}
+          confirmIcon={<RefreshIcon className="w-4 h-4" />}
         />
 
         <ConfirmDialog
           open={!!deleteTarget}
           onClose={() => setDeleteTarget(null)}
           onConfirm={() => { if (deleteTarget) handleDelete(deleteTarget.id); }}
-          icon={<Trash2 className="w-6 h-6 text-red-600" />}
+          icon={<DeleteIcon className="w-6 h-6 text-red-600" />}
           title={`ลบ "${deleteTarget?.name}"?`}
           description="การลบจะไม่สามารถกู้คืนได้"
           variant="danger"
           confirmLabel="ลบ"
-          confirmIcon={<Trash2 className="w-4 h-4" />}
+          confirmIcon={<DeleteIcon className="w-4 h-4" />}
         />
 
         <ConfirmDialog
           open={bulkDeleteOpen}
           onClose={() => setBulkDeleteOpen(false)}
           onConfirm={handleBulkDelete}
-          icon={<Trash2 className="w-6 h-6 text-red-600" />}
+          icon={<DeleteIcon className="w-6 h-6 text-red-600" />}
           title={`ลบซัพพลายเออร์ ${selectedIds.size} รายการ?`}
           description="การลบจะไม่สามารถกู้คืนได้"
           variant="danger"
           confirmLabel={bulkDeleting ? 'กำลังลบ...' : 'ลบทั้งหมด'}
-          confirmIcon={<Trash2 className="w-4 h-4" />}
+          confirmIcon={<DeleteIcon className="w-4 h-4" />}
         />
 
         {/* Empty State */}
         {filteredSuppliers.length === 0 && !loading && (
           <div className="text-center py-12 hidden md:block">
-            <Factory className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <SupplierIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500 text-lg">ไม่พบซัพพลายเออร์</p>
             {searchTerm ? (
               <p className="text-gray-400 text-sm mt-2">ลองค้นหาด้วยคำอื่น</p>

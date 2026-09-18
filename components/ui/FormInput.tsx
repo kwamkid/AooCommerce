@@ -4,7 +4,7 @@ import {
   forwardRef, useImperativeHandle, useRef, useState, useCallback,
   type InputHTMLAttributes, type ReactNode,
 } from 'react';
-import { AlertCircle } from 'lucide-react';
+import { AlertIcon } from '@/lib/icons';
 
 import { NUMERIC_TEXT_INPUT_PROPS, PHONE_INPUT_PROPS, allowsNegative, sanitizeNumericInput, sanitizePhoneInput } from '@/lib/numeric-input';
 
@@ -265,7 +265,7 @@ const FormInput = forwardRef<FormInputHandle, FormInputProps>(function FormInput
         {/* Error icon on right (when no postfix takes the slot) */}
         {hasError && !postfix && (
           <span className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center text-red-500 pointer-events-none">
-            <AlertCircle className="w-4 h-4" />
+            <AlertIcon className="w-4 h-4" />
           </span>
         )}
         {postfix && (

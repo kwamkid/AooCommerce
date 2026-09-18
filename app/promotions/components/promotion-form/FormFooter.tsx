@@ -1,6 +1,6 @@
 'use client';
 
-import { Trash2 } from 'lucide-react';
+import { DeleteIcon } from '@/lib/icons';
 import { apiFetch } from '@/lib/api-client';
 import Button from '@/components/ui/Button';
 import SaveButton from '@/components/ui/SaveButton';
@@ -27,7 +27,7 @@ export default function FormFooter({ hook }: Props) {
       {isEdit && (
         <Button
           variant="danger"
-          icon={<Trash2 className="w-4 h-4" />}
+          icon={<DeleteIcon className="w-4 h-4" />}
           onClick={() => {
             const hasOngoing = shopeeDeals.some(d => d.status === 'ongoing');
             const dealCount = shopeeDeals.length;

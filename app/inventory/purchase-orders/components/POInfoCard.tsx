@@ -10,7 +10,8 @@ import FormSelect from '@/components/ui/FormSelect';
 import DateRangePicker from '@/components/ui/DateRangePicker';
 import StatusBadge from '@/components/ui/StatusBadge';
 import Badge from '@/components/ui/Badge';
-import { Factory, Warehouse as WarehouseIcon, CalendarDays, Star, Tag, ExternalLink, AlertCircle } from 'lucide-react';
+import { CalendarDays } from 'lucide-react';
+import { AlertIcon, ExternalLinkIcon, StarIcon, SupplierIcon, TagIcon, WarehouseIcon } from '@/lib/icons';
 
 function supplierTypeLabel(type: string) {
   switch (type) {
@@ -57,7 +58,7 @@ export default function POInfoCard({
         <div className="flex flex-col gap-3">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
-              <Factory className="w-4 h-4 inline mr-1" /> Supplier
+              <SupplierIcon className="w-4 h-4 inline mr-1" /> Supplier
             </label>
             {isEditable ? (
               <EntitySearchInput
@@ -66,7 +67,7 @@ export default function POInfoCard({
                 onClear={onSupplierClear}
                 options={suppliers.map(s => ({ id: s.id, label: s.name }))}
                 placeholder="ค้นหาชื่อ Supplier..."
-                icon={<Factory className="w-4 h-4" />}
+                icon={<SupplierIcon className="w-4 h-4" />}
               />
             ) : (
               <div className="h-[42px] flex items-center px-3 border border-gray-200 dark:border-slate-700 rounded-lg bg-gray-50 dark:bg-slate-700/50 text-base text-gray-900 dark:text-white">
@@ -81,11 +82,11 @@ export default function POInfoCard({
               <div className="flex items-center justify-between">
                 <Badge tone="gray" size="sm">{supplierTypeLabel(selectedSupplier.supplier_type)}</Badge>
                 <Link href={`/settings/suppliers/${editSupplierId}/edit`} className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 flex-shrink-0">
-                  <ExternalLink className="w-3.5 h-3.5" />
+                  <ExternalLinkIcon className="w-3.5 h-3.5" />
                 </Link>
               </div>
               <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                <span className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1"><Tag className="w-3 h-3" /></span>
+                <span className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1"><TagIcon className="w-3 h-3" /></span>
                 {supplierBrands.length > 0 ? supplierBrands.map(b => (
                   <Badge key={b.id} tone="blue" size="sm">{b.name}</Badge>
                 )) : (
@@ -94,7 +95,7 @@ export default function POInfoCard({
               </div>
               {!loadingProducts && supplierProducts.length === 0 && (
                 <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-2.5 mt-2 flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                  <AlertIcon className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
                   <div className="text-xs">
                     <p className="text-amber-800 dark:text-amber-200 font-medium">Supplier นี้ยังไม่มีสินค้า</p>
                     <p className="text-amber-600 dark:text-amber-400 mt-0.5">
@@ -128,7 +129,7 @@ export default function POInfoCard({
               <FormSelect
                 value={editWarehouseId}
                 onChange={onWarehouseChange}
-                options={warehouses.map(w => ({ id: w.id, label: `${w.name}${w.code ? ` (${w.code})` : ''}`, icon: w.is_default ? <Star className="w-4 h-4 text-amber-500 fill-amber-500" /> : undefined }))}
+                options={warehouses.map(w => ({ id: w.id, label: `${w.name}${w.code ? ` (${w.code})` : ''}`, icon: w.is_default ? <StarIcon className="w-4 h-4 text-amber-500 fill-amber-500" /> : undefined }))}
                 placeholder="-- เลือกคลัง --"
                 searchPlaceholder="ค้นหาคลัง..."
                 icon={<WarehouseIcon className="w-4 h-4" />}

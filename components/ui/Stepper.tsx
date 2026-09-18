@@ -20,7 +20,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Check } from 'lucide-react';
+import { ConfirmIcon } from '@/lib/icons';
 
 export type StepState = 'done' | 'current' | 'todo';
 
@@ -71,7 +71,7 @@ export default function Stepper({
         const body = (
           <>
             <span className="stepper-dot">
-              {s.state === 'done' ? <Check strokeWidth={3} aria-hidden="true" /> : i + 1}
+              {s.state === 'done' ? <ConfirmIcon strokeWidth={3} aria-hidden="true" /> : i + 1}
             </span>
             <span className="stepper-label">
               {s.label}

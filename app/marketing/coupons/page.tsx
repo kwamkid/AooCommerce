@@ -8,7 +8,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Ticket, Plus, Pencil, Trash2, Copy } from 'lucide-react';
+import { AddIcon, CopyIcon, CouponIcon, DeleteIcon, EditIcon } from '@/lib/icons';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
@@ -403,12 +403,12 @@ export default function CouponsPage() {
       render: (c) => (
         <ActionMenu
           items={[
-            { key: 'copy', label: 'คัดลอกโค้ด', icon: <Copy className="w-4 h-4" />, onClick: () => copyCode(c.code) },
-            { key: 'edit', label: 'แก้เงื่อนไข', icon: <Pencil className="w-4 h-4" />, onClick: () => openEdit(c) },
+            { key: 'copy', label: 'คัดลอกโค้ด', icon: <CopyIcon className="w-4 h-4" />, onClick: () => copyCode(c.code) },
+            { key: 'edit', label: 'แก้เงื่อนไข', icon: <EditIcon className="w-4 h-4" />, onClick: () => openEdit(c) },
             {
               key: 'delete',
               label: c.used_count > 0 ? 'ปิดใช้งาน' : 'ลบ',
-              icon: <Trash2 className="w-4 h-4" />,
+              icon: <DeleteIcon className="w-4 h-4" />,
               danger: true,
               dividerBefore: true,
               onClick: () => handleDelete(c),
@@ -428,11 +428,11 @@ export default function CouponsPage() {
     <Layout>
       <Container size="full">
         <PageHeader
-          icon={<Ticket />}
+          icon={<CouponIcon />}
           title="คูปองส่วนลด"
           subtitle="โค้ดที่ลูกค้ากรอกเองตอนสั่งซื้อ — ต่างจากโปรโมชั่นที่ลดให้อัตโนมัติ"
           actions={
-            <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={openCreate}>
+            <Button variant="primary" icon={<AddIcon className="w-4 h-4" />} onClick={openCreate}>
               สร้างคูปอง
             </Button>
           }
@@ -449,7 +449,7 @@ export default function CouponsPage() {
           loading={loading}
           getRowId={(c) => c.id}
           emptyMessage={search ? 'ไม่พบคูปองที่ตรงกับคำค้น' : 'ยังไม่มีคูปอง — กด "สร้างคูปอง" เพื่อเริ่ม'}
-          emptyIcon={<Ticket className="w-10 h-10" />}
+          emptyIcon={<CouponIcon className="w-10 h-10" />}
           currentPage={page}
           totalPages={totalPages}
           totalRecords={filtered.length}
@@ -499,7 +499,7 @@ function CouponFormModal({
     <Modal
       open={open}
       onClose={onClose}
-      icon={<Ticket className="w-5 h-5" />}
+      icon={<CouponIcon className="w-5 h-5" />}
       title={editing ? `แก้คูปอง ${editing.code}` : 'สร้างคูปอง'}
       size="2xl"
       footer={

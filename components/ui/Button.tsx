@@ -1,7 +1,7 @@
 'use client';
 
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
-import { Loader2 } from 'lucide-react';
+import { LoadingIcon } from '@/lib/icons';
 
 // `indigo` / `amber` ยกมาจากคลาส `.btn-focus-action` เดิมที่ใช้กับปุ่มหลักในแถวตาราง
 // (ลูกค้าชำระแล้ว/รับออเดอร์เครดิต = indigo · จัดส่ง = amber) — เป็นภาษาสีของสถานะที่ระบบใช้อยู่แล้ว
@@ -54,7 +54,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
     .join(' ');
   return (
     <button ref={ref} type={type} disabled={isDisabled} className={classes} {...rest}>
-      {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : icon}
+      {loading ? <LoadingIcon className="w-4 h-4 animate-spin" /> : icon}
       {children}
       {!loading && iconRight}
     </button>

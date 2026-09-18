@@ -4,7 +4,7 @@ import { Suspense, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import PageHeader from '@/components/ui/PageHeader';
-import { ClipboardList } from 'lucide-react';
+import { ChecklistIcon } from '@/lib/icons';
 import DealerOrderForm from '@/components/dealer/DealerOrderForm';
 import { LoadingCard } from '@/components/ui/StateCard';
 import { useAuthGuard } from '@/lib/useAuthGuard';
@@ -24,7 +24,7 @@ function NewReportPageContent() {
       <div className="space-y-4">
         <PageHeader
           backHref="/consignment/reports"
-          icon={<ClipboardList />}
+          icon={<ChecklistIcon />}
           title="คีย์ยอดตัวแทน"
         />
 

@@ -10,7 +10,7 @@
 'use client';
 
 import { useState, type RefObject } from 'react';
-import { Link2 } from 'lucide-react';
+import { LinkIcon } from '@/lib/icons';
 import StorefrontLinkModal from './StorefrontLinkModal';
 import { useStorefrontLinks } from '@/lib/useStorefrontLinks';
 import { insertAtCursor } from '@/lib/insert-at-cursor';
@@ -35,7 +35,7 @@ export default function InsertLinkButton({ targetRef, value, onChange, className
         onClick={() => setOpen(true)}
         className={`helper-text inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-gray-300 dark:border-slate-600 text-gray-600 dark:text-slate-300 hover:border-primary hover:text-primary transition-colors ${className || ''}`}
       >
-        <Link2 className="w-3 h-3" />
+        <LinkIcon className="w-3 h-3" />
         ลิงก์หน้าร้าน
       </button>
       <StorefrontLinkModal

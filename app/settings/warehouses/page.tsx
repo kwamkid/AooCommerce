@@ -8,9 +8,8 @@ import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
-import {
-  Loader2, Plus, X, Edit2, Trash2, Warehouse, Star, StarOff, AlertTriangle, Info, Users
-} from 'lucide-react';
+import { StarOff } from 'lucide-react';
+import { AddIcon, CloseIcon, DeleteIcon, EditIcon, InfoIcon, LoadingIcon, PeopleIcon, StarIcon, WarehouseIcon, WarningIcon } from '@/lib/icons';
 import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
 import Card from '@/components/ui/Card';
@@ -222,7 +221,7 @@ export default function WarehouseSettingsPage() {
         {/* Stock not enabled */}
         {!stockConfig.stockEnabled && !loading && (
           <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 flex items-start gap-3 mb-6">
-            <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+            <WarningIcon className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
             <div>
               <p className="text-base font-medium text-amber-800 dark:text-amber-200">ระบบคลังสินค้ายังไม่เปิดใช้งาน</p>
               <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">แพ็กเกจปัจจุบันไม่รองรับระบบคลังสินค้า กรุณาอัปเกรดแพ็กเกจเพื่อใช้งาน</p>
@@ -255,7 +254,7 @@ export default function WarehouseSettingsPage() {
 
             {/* Info banner — explain auto-create consignment warehouses */}
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 flex items-start gap-3">
-              <Info className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
+              <InfoIcon className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
               <div className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
                 <p className="font-medium">สร้างเฉพาะคลังภายในของร้านเท่านั้น</p>
                 <p className="text-blue-700 dark:text-blue-300">
@@ -269,7 +268,7 @@ export default function WarehouseSettingsPage() {
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h2 className="heading-4 flex items-center gap-2">
-                  <Warehouse className="w-4 h-4 text-primary" />
+                  <WarehouseIcon className="w-4 h-4 text-primary" />
                   คลังภายใน
                 </h2>
                 <p className="text-sm text-gray-500 dark:text-slate-400">
@@ -293,7 +292,7 @@ export default function WarehouseSettingsPage() {
                     onClick={() => { resetForm(); setShowForm(true); }}
                     className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
                   >
-                    <Plus className="w-4 h-4" />
+                    <AddIcon className="w-4 h-4" />
                     เพิ่ม<span className="hidden md:inline">คลังภายใน</span>
                   </button>
                 ) : null}
@@ -305,7 +304,7 @@ export default function WarehouseSettingsPage() {
               <div className="pt-4">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="heading-4 flex items-center gap-2">
-                    <Users className="w-4 h-4 text-amber-600" />
+                    <PeopleIcon className="w-4 h-4 text-amber-600" />
                     คลังฝากขาย
                     <span className="text-xs text-gray-400 dark:text-slate-500 font-normal">(สร้างอัตโนมัติจากลูกค้า)</span>
                   </h2>
@@ -329,7 +328,7 @@ export default function WarehouseSettingsPage() {
         <Card padding="none" className={`overflow-hidden ${!wh.is_active ? 'opacity-60' : ''}`}>
           <div className="flex items-center gap-3 p-4">
             <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <Warehouse className="w-5 h-5 text-primary" />
+              <WarehouseIcon className="w-5 h-5 text-primary" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
@@ -359,21 +358,21 @@ export default function WarehouseSettingsPage() {
                 </button>
               )}
               {wh.is_default && (
-                <Star className="w-4 h-4 text-primary fill-current" />
+                <StarIcon className="w-4 h-4 text-primary fill-current" />
               )}
               <Toggle checked={wh.is_active} onChange={() => handleToggleActive(wh)} />
               <button
                 onClick={() => startEdit(wh)}
                 className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors"
               >
-                <Edit2 className="w-4 h-4" />
+                <EditIcon className="w-4 h-4" />
               </button>
               <button
                 onClick={async () => { const ok = await confirm({ title: 'ต้องการลบคลังนี้?', variant: 'danger' }); if (ok) handleDelete(wh.id); }}
                 disabled={deletingId === wh.id}
                 className="p-1.5 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
               >
-                {deletingId === wh.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                {deletingId === wh.id ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <DeleteIcon className="w-4 h-4" />}
               </button>
             </div>
           </div>
@@ -390,7 +389,7 @@ export default function WarehouseSettingsPage() {
       <Card key={wh.id} padding="none" className={`overflow-hidden ${!wh.is_active ? 'opacity-60' : ''}`}>
         <div className="flex items-center gap-3 p-4">
           <div className="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
-            <Users className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+            <PeopleIcon className="w-5 h-5 text-amber-600 dark:text-amber-400" />
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
@@ -412,13 +411,13 @@ export default function WarehouseSettingsPage() {
     return (
       <Card padding="md" className="space-y-3">
         <div className="text-sm font-medium text-gray-700 dark:text-slate-300 flex items-center gap-2">
-          <Warehouse className="w-4 h-4 text-primary" />
+          <WarehouseIcon className="w-4 h-4 text-primary" />
           {editingId ? 'แก้ไขคลังสินค้า' : 'เพิ่มคลังภายใน'}
         </div>
 
         {!editingId && (
           <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2">
-            <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            <InfoIcon className="w-4 h-4 flex-shrink-0 mt-0.5" />
             <span>
               สร้างคลังภายในของร้านเท่านั้น (คลังหลัก, สาขา ฯลฯ)
               <strong> ไม่ต้องสร้างคลังสำหรับตัวแทน/ห้างฝากขาย</strong> — ระบบจะสร้างให้อัตโนมัติเมื่อเพิ่มลูกค้าประเภทดังกล่าว
@@ -470,7 +469,7 @@ export default function WarehouseSettingsPage() {
             variant="secondary"
             size="sm"
             onClick={resetForm}
-            icon={<X className="w-4 h-4" />}
+            icon={<CloseIcon className="w-4 h-4" />}
           >
             ยกเลิก
           </Button>

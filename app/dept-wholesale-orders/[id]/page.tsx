@@ -3,7 +3,7 @@
 import { useParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import DealerOrderForm from '@/components/dealer/DealerOrderForm';
-import { ArrowLeft } from 'lucide-react';
+import { BackIcon } from '@/lib/icons';
 import Link from 'next/link';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import { LoadingCard } from '@/components/ui/StateCard';
@@ -21,7 +21,7 @@ export default function DeptWholesaleOrderDetailPage() {
       <div className="space-y-4">
         <div className="flex items-center gap-3">
           <Link href="/dept-wholesale-orders" className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
-            <ArrowLeft className="w-5 h-5 text-gray-500" />
+            <BackIcon className="w-5 h-5 text-gray-500" />
           </Link>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">คำสั่งซื้อห้างขายขาด</h1>
         </div>

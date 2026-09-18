@@ -22,10 +22,7 @@ import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import { Stat, BarChart, Sparkline, ProgressBar } from '@/components/ui/Chart';
 import FormSelect from '@/components/ui/FormSelect';
 import Tabs from '@/components/ui/Tabs';
-import {
-  Banknote, ShoppingCart, Package, Users,
-  Eye, Pencil,
-} from 'lucide-react';
+import { EditIcon, MoneyIcon, OrderIcon, PeopleIcon, ProductIcon, ViewIcon } from '@/lib/icons';
 
 type Period = 'today' | '7d' | '30d' | 'mtd';
 
@@ -141,8 +138,8 @@ export default function DemoDashboardPage() {
       key: 'actions', label: '', alwaysVisible: true, stopPropagation: true,
       render: () => (
         <div className="flex items-center justify-end gap-1">
-          <Button variant="ghost" size="sm" icon={<Eye className="w-4 h-4" />} aria-label="ดู" />
-          <Button variant="ghost" size="sm" icon={<Pencil className="w-4 h-4" />} aria-label="แก้ไข" />
+          <Button variant="ghost" size="sm" icon={<ViewIcon className="w-4 h-4" />} aria-label="ดู" />
+          <Button variant="ghost" size="sm" icon={<EditIcon className="w-4 h-4" />} aria-label="แก้ไข" />
         </div>
       ),
     },
@@ -180,7 +177,7 @@ export default function DemoDashboardPage() {
             subtitle="142 ออเดอร์"
             delta="+18.2% vs สัปดาห์ก่อน"
             trend="up"
-            icon={<Banknote className="w-5 h-5" />}
+            icon={<MoneyIcon className="w-5 h-5" />}
           />
           <Stat
             label="ออเดอร์ใหม่"
@@ -188,20 +185,20 @@ export default function DemoDashboardPage() {
             subtitle="รอตรวจสอบ"
             delta="-2 จากเมื่อวาน"
             trend="down"
-            icon={<ShoppingCart className="w-5 h-5" />}
+            icon={<OrderIcon className="w-5 h-5" />}
           />
           <Stat
             label="สินค้า low stock"
             value="8"
             subtitle="ต่ำกว่า min"
-            icon={<Package className="w-5 h-5" />}
+            icon={<ProductIcon className="w-5 h-5" />}
           />
           <Stat
             label="ลูกค้าใหม่"
             value="142"
             delta="+12% vs สัปดาห์ก่อน"
             trend="up"
-            icon={<Users className="w-5 h-5" />}
+            icon={<PeopleIcon className="w-5 h-5" />}
           />
         </div>
 

@@ -2,7 +2,8 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { X, Camera, SwitchCamera, Loader2, CheckCircle } from 'lucide-react';
+import { SwitchCamera } from 'lucide-react';
+import { CameraIcon, CloseIcon, LoadingIcon, SuccessIcon } from '@/lib/icons';
 
 interface CameraScannerProps {
   onScan: (code: string) => void;
@@ -266,7 +267,7 @@ export default function CameraScanner({ onScan, onClose }: CameraScannerProps) {
           onClick={onClose}
           className="p-2 bg-white/10 rounded-full text-white hover:bg-white/20"
         >
-          <X className="w-5 h-5" />
+          <CloseIcon className="w-5 h-5" />
         </button>
         <p className="text-white text-sm font-medium">สแกนบาร์โค้ด</p>
         <button
@@ -281,7 +282,7 @@ export default function CameraScanner({ onScan, onClose }: CameraScannerProps) {
       <div className="flex-1 flex flex-col items-center justify-center overflow-hidden relative">
         {error ? (
           <div className="flex flex-col items-center gap-4 py-16">
-            <Camera className="w-16 h-16 text-gray-500" />
+            <CameraIcon className="w-16 h-16 text-gray-500" />
             <p className="text-gray-300 text-center">{error}</p>
             <button
               onClick={onClose}
@@ -294,7 +295,7 @@ export default function CameraScanner({ onScan, onClose }: CameraScannerProps) {
           <>
             {loading && (
               <div className="absolute inset-0 flex items-center justify-center z-10">
-                <Loader2 className="w-8 h-8 animate-spin text-white" />
+                <LoadingIcon className="w-8 h-8 animate-spin text-white" />
               </div>
             )}
 
@@ -324,7 +325,7 @@ export default function CameraScanner({ onScan, onClose }: CameraScannerProps) {
             {scanSuccess && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
                 <div className="bg-black/70 backdrop-blur-sm rounded-2xl px-6 py-4 flex flex-col items-center gap-2 animate-fade-in">
-                  <CheckCircle className="w-10 h-10 text-green-400" />
+                  <SuccessIcon className="w-10 h-10 text-green-400" />
                   <p className="text-green-400 font-bold text-sm">สแกนสำเร็จ</p>
                   <p className="text-white text-xs font-mono">{scanSuccess}</p>
                 </div>

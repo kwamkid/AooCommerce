@@ -6,7 +6,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { ImagePlus, Loader2, Trash2 } from 'lucide-react';
+import { DeleteIcon, ImageAddIcon, LoadingIcon } from '@/lib/icons';
 import Button from './Button';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
@@ -71,7 +71,7 @@ export default function LogoUploader({
               style={usingFallback ? { opacity: 0.55 } : undefined}
             />
           ) : (
-            <ImagePlus className="w-6 h-6 text-gray-300 dark:text-slate-500" />
+            <ImageAddIcon className="w-6 h-6 text-gray-300 dark:text-slate-500" />
           )}
         </div>
 
@@ -81,7 +81,7 @@ export default function LogoUploader({
               variant="secondary"
               size="sm"
               disabled={disabled || busy}
-              icon={busy ? <Loader2 className="w-4 h-4 animate-spin" /> : undefined}
+              icon={busy ? <LoadingIcon className="w-4 h-4 animate-spin" /> : undefined}
               onClick={() => inputRef.current?.click()}
             >
               {value ? 'เปลี่ยนรูป' : 'อัปโหลด'}
@@ -91,7 +91,7 @@ export default function LogoUploader({
                 variant="ghost"
                 size="sm"
                 disabled={disabled || busy}
-                icon={<Trash2 className="w-4 h-4" />}
+                icon={<DeleteIcon className="w-4 h-4" />}
                 onClick={() => onChange(null)}
               >
                 ลบ

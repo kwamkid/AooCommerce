@@ -2,7 +2,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Gift, Minus, Plus, Package, ShoppingCart } from 'lucide-react';
+import { AddIcon, GiftIcon, OrderIcon, ProductIcon, RemoveIcon } from '@/lib/icons';
 import { formatPrice } from '@/lib/utils/format';
 import Modal from './Modal';
 import NumberInput from './NumberInput';
@@ -188,7 +188,7 @@ export default function PromotionSelectModal({
       size="lg"
       icon={
         <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-          <Gift className="w-5 h-5 text-primary" />
+          <GiftIcon className="w-5 h-5 text-primary" />
         </div>
       }
       title={
@@ -220,7 +220,7 @@ export default function PromotionSelectModal({
             >
               ยกเลิก
             </button>
-            <Button variant="primary" onClick={handleConfirm} icon={<ShoppingCart className="w-4 h-4" />}>
+            <Button variant="primary" onClick={handleConfirm} icon={<OrderIcon className="w-4 h-4" />}>
               เพิ่มลงรายการ
             </Button>
           </div>
@@ -243,7 +243,7 @@ export default function PromotionSelectModal({
                     {item.image
                       ? <img src={thumbUrl(item.image, 96)} alt="" loading="lazy" decoding="async" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
                       : <div className="w-10 h-10 rounded-lg bg-gray-200 dark:bg-white/10 flex items-center justify-center flex-shrink-0">
-                          <Package className="w-5 h-5 text-gray-400" />
+                          <ProductIcon className="w-5 h-5 text-gray-400" />
                         </div>
                     }
                     <div className="flex-1 min-w-0">
@@ -280,7 +280,7 @@ export default function PromotionSelectModal({
                       {item.image
                         ? <img src={thumbUrl(item.image, 96)} alt="" loading="lazy" decoding="async" className="w-9 h-9 rounded object-cover flex-shrink-0" />
                         : <div className="w-9 h-9 rounded bg-gray-200 dark:bg-white/10 flex items-center justify-center flex-shrink-0">
-                            <Package className="w-4 h-4 text-gray-400" />
+                            <ProductIcon className="w-4 h-4 text-gray-400" />
                           </div>
                       }
                       <div className="flex-1 min-w-0">
@@ -313,7 +313,7 @@ export default function PromotionSelectModal({
                         {item.image
                           ? <img src={thumbUrl(item.image, 96)} alt="" loading="lazy" decoding="async" className="w-9 h-9 rounded object-cover flex-shrink-0" />
                           : <div className="w-9 h-9 rounded bg-gray-200 dark:bg-white/10 flex items-center justify-center flex-shrink-0">
-                              <Package className="w-4 h-4 text-gray-400" />
+                              <ProductIcon className="w-4 h-4 text-gray-400" />
                             </div>
                         }
                         <div className="flex-1 min-w-0">
@@ -331,7 +331,7 @@ export default function PromotionSelectModal({
                             disabled={selQty <= 0}
                             className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-200 dark:bg-white/10 text-gray-700 dark:text-white disabled:opacity-30"
                           >
-                            <Minus className="w-3.5 h-3.5" />
+                            <RemoveIcon className="w-3.5 h-3.5" />
                           </button>
                           <span className="w-6 text-center text-sm font-medium text-gray-900 dark:text-white">{selQty}</span>
                           <button
@@ -339,7 +339,7 @@ export default function PromotionSelectModal({
                             disabled={!canAdd}
                             className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-200 dark:bg-white/10 text-gray-700 dark:text-white disabled:opacity-30"
                           >
-                            <Plus className="w-3.5 h-3.5" />
+                            <AddIcon className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </div>
@@ -359,7 +359,7 @@ export default function PromotionSelectModal({
                   {promotion.items[0].image
                     ? <img src={thumbUrl(promotion.items[0].image, 96)} alt="" loading="lazy" decoding="async" className="w-12 h-12 rounded-lg object-cover" />
                     : <div className="w-12 h-12 rounded-lg bg-gray-200 dark:bg-white/10 flex items-center justify-center">
-                        <Package className="w-5 h-5 text-gray-400" />
+                        <ProductIcon className="w-5 h-5 text-gray-400" />
                       </div>
                   }
                   <div>
@@ -376,7 +376,7 @@ export default function PromotionSelectModal({
                   onClick={() => setQty(q => Math.max(1, q - 1))}
                   className="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-200 dark:bg-white/10 text-gray-700 dark:text-white hover:bg-gray-300 dark:hover:bg-white/20 active:scale-95"
                 >
-                  <Minus className="w-5 h-5" />
+                  <RemoveIcon className="w-5 h-5" />
                 </button>
                 <NumberInput
                   min={1}
@@ -388,7 +388,7 @@ export default function PromotionSelectModal({
                   onClick={() => setQty(q => q + 1)}
                   className="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-200 dark:bg-white/10 text-gray-700 dark:text-white hover:bg-gray-300 dark:hover:bg-white/20 active:scale-95"
                 >
-                  <Plus className="w-5 h-5" />
+                  <AddIcon className="w-5 h-5" />
                 </button>
               </div>
 

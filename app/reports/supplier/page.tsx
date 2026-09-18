@@ -10,9 +10,7 @@ import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
-import {
-  Loader2, FileText, Factory, Calendar, Plus, Trash2, Filter
-} from 'lucide-react';
+import { AddIcon, CalendarIcon, DeleteIcon, DocumentIcon, FilterIcon, LoadingIcon, SupplierIcon } from '@/lib/icons';
 import FormSelect from '@/components/ui/FormSelect';
 import Button from '@/components/ui/Button';
 import StatusBadge from '@/components/ui/StatusBadge';
@@ -188,7 +186,7 @@ export default function SupplierReportsPage() {
   if (authLoading || loading) {
     return (
       <Layout title="รายงานซัพพลายเออร์">
-        <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-primary animate-spin" /></div>
+        <div className="flex items-center justify-center py-16"><LoadingIcon className="w-6 h-6 text-primary animate-spin" /></div>
       </Layout>
     );
   }
@@ -208,7 +206,7 @@ export default function SupplierReportsPage() {
                 onChange={value => { setSelectedSupplier(value); setPage(1); }}
                 options={suppliers.map(s => ({ id: s.id, label: s.name }))}
                 clearLabel="ทุก Supplier"
-                icon={<Filter className="w-4 h-4" />}
+                icon={<FilterIcon className="w-4 h-4" />}
               />
             </div>
             <div className="w-36">
@@ -229,7 +227,7 @@ export default function SupplierReportsPage() {
               />
             </div>
           </div>
-          <Button onClick={() => setShowCreateForm(!showCreateForm)} icon={<Plus className="w-4 h-4" />}>
+          <Button onClick={() => setShowCreateForm(!showCreateForm)} icon={<AddIcon className="w-4 h-4" />}>
             สร้าง<span className="hidden md:inline">รายงาน</span>
           </Button>
         </div>
@@ -246,7 +244,7 @@ export default function SupplierReportsPage() {
                   onChange={value => setCreateSupplierId(value)}
                   options={suppliers.map(s => ({ id: s.id, label: s.name, subtitle: statusLabel('supplierType', s.supplier_type) }))}
                   placeholder="เลือก..."
-                  icon={<Factory className="w-4 h-4" />}
+                  icon={<SupplierIcon className="w-4 h-4" />}
                 />
               </div>
               <div>
@@ -273,7 +271,7 @@ export default function SupplierReportsPage() {
                   loading={creating}
                   disabled={!createSupplierId}
                   onClick={handleCreate}
-                  icon={<Plus className="w-4 h-4" />}
+                  icon={<AddIcon className="w-4 h-4" />}
                 >
                   สร้าง Snapshot
                 </Button>
@@ -294,7 +292,7 @@ export default function SupplierReportsPage() {
               alwaysVisible: true,
               render: (s) => (
                 <div className="flex items-center gap-2">
-                  <Factory className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                  <SupplierIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />
                   <span className="text-sm font-medium text-gray-900 dark:text-white">{s.supplier?.name || '-'}</span>
                 </div>
               )
@@ -313,7 +311,7 @@ export default function SupplierReportsPage() {
               label: 'เดือน/ปี',
               render: (s) => (
                 <div className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                  <CalendarIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />
                   <span className="text-sm text-gray-700 dark:text-slate-300">
                     {MONTHS[s.period_month - 1]} {s.period_year + 543}
                   </span>
@@ -354,7 +352,7 @@ export default function SupplierReportsPage() {
                     onClick={e => handleDelete(s.id, e)}
                     className="p-1 text-gray-400 hover:text-red-500 transition-colors"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <DeleteIcon className="w-4 h-4" />
                   </button>
                 ) : null
             },
@@ -369,7 +367,7 @@ export default function SupplierReportsPage() {
               getRowId={(s) => s.id}
               onRowClick={(s) => router.push(`/reports/supplier/${s.id}`)}
               emptyMessage={selectedSupplier || selectedMonth ? 'ไม่พบรายงานที่ตรงกัน' : 'ยังไม่มีรายงาน'}
-              emptyIcon={<FileText className="w-12 h-12 text-gray-300 dark:text-slate-600 opacity-50" />}
+              emptyIcon={<DocumentIcon className="w-12 h-12 text-gray-300 dark:text-slate-600 opacity-50" />}
               currentPage={page}
               totalPages={totalPages}
               totalRecords={filtered.length}

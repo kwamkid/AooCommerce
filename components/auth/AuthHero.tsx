@@ -1,7 +1,8 @@
 'use client';
 
 import Image from 'next/image';
-import { Phone, ScanBarcode, Building2, Handshake, UserRound } from 'lucide-react';
+import { ScanBarcode, UserRound } from 'lucide-react';
+import { ConsignmentIcon, DeptStoreIcon, PhoneIcon } from '@/lib/icons';
 
 // ช่องทางการขายทั้งหมด — เรียงเป็นวงกลมรอบ "เจ้าของธุรกิจ" (hub-and-spoke)
 // แพลตฟอร์มมี SVG ใช้โลโก้จริง; ช่องทาง offline ใช้ไอคอน lucide สีขาว
@@ -12,10 +13,10 @@ const CHANNEL_BUBBLES: Array<{ key: string; node: React.ReactNode }> = [
   { key: 'facebook', node: <Image src="/social/facebook.svg" alt="Facebook" width={40} height={40} /> },
   { key: 'instagram', node: <Image src="/social/instagram.svg" alt="Instagram" width={40} height={40} /> },
   { key: 'line', node: <Image src="/social/line_oa.svg" alt="LINE" width={40} height={40} /> },
-  { key: 'call', node: <Phone className="w-9 h-9 text-white" /> },
+  { key: 'call', node: <PhoneIcon className="w-9 h-9 text-white" /> },
   { key: 'pos', node: <ScanBarcode className="w-9 h-9 text-white" /> },
-  { key: 'department', node: <Building2 className="w-9 h-9 text-white" /> },
-  { key: 'consignment', node: <Handshake className="w-9 h-9 text-white" /> },
+  { key: 'department', node: <DeptStoreIcon className="w-9 h-9 text-white" /> },
+  { key: 'consignment', node: <ConsignmentIcon className="w-9 h-9 text-white" /> },
 ];
 
 const RING_SIZE = 540;   // px — กล่องวงทั้งชุด

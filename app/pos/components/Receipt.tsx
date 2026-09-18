@@ -1,7 +1,7 @@
 // Path: app/pos/components/Receipt.tsx
 'use client';
 
-import { X, Printer } from 'lucide-react';
+import { CloseIcon, PrintIcon } from '@/lib/icons';
 import { formatPrice } from '@/lib/utils/format';
 
 interface ReceiptItem {
@@ -94,10 +94,10 @@ export default function Receipt({ data, onClose, onNewSale }: ReceiptProps) {
               className="p-2 text-gray-600 hover:text-primary transition-colors"
               title="พิมพ์"
             >
-              <Printer className="w-5 h-5" />
+              <PrintIcon className="w-5 h-5" />
             </button>
             <button onClick={onClose} className="p-2 text-gray-600 hover:text-gray-900">
-              <X className="w-5 h-5" />
+              <CloseIcon className="w-5 h-5" />
             </button>
           </div>
         </div>

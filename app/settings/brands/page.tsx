@@ -2,7 +2,8 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Award, Edit2, Factory, PackageSearch, Plus, Trash2 } from 'lucide-react';
+import { PackageSearch } from 'lucide-react';
+import { AddIcon, BrandIcon, DeleteIcon, EditIcon, SupplierIcon } from '@/lib/icons';
 import Layout from '@/components/layout/Layout';
 import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
 import Alert from '@/components/ui/Alert';
@@ -142,9 +143,9 @@ function BrandsPageInner() {
       key: 'products', label: 'สินค้าในแบรนด์', description: 'เพิ่มหรือนำสินค้าออกจากแบรนด์', icon: <PackageSearch />,
       onClick: () => router.push(`/settings/brands/${brand.id}`), primary: true,
     },
-    { key: 'edit', label: 'แก้ไขแบรนด์', icon: <Edit2 />, onClick: () => openForm(brand) },
+    { key: 'edit', label: 'แก้ไขแบรนด์', icon: <EditIcon />, onClick: () => openForm(brand) },
     {
-      key: 'delete', label: 'ลบ', icon: <Trash2 />,
+      key: 'delete', label: 'ลบ', icon: <DeleteIcon />,
       onClick: () => void handleDelete(brand), danger: true, disabled: deletingId === brand.id, dividerBefore: true,
     },
   ];
@@ -154,7 +155,7 @@ function BrandsPageInner() {
   if (featuresFetched && !features.product_brand) {
     return (
       <Layout><Container size="full">
-        <PageHeader icon={<Award />} title="แบรนด์" subtitle="จัดการแบรนด์สินค้า" />
+        <PageHeader icon={<BrandIcon />} title="แบรนด์" subtitle="จัดการแบรนด์สินค้า" />
         <Alert tone="warning" title="ฟีเจอร์แบรนด์ยังไม่ได้เปิดใช้งาน">กรุณาเปิดฟีเจอร์แบรนด์ในการตั้งค่าเพื่อใช้งาน</Alert>
       </Container></Layout>
     );
@@ -163,18 +164,18 @@ function BrandsPageInner() {
   return (
     <Layout>
       <Container size="full">
-        <PageHeader icon={<Award />} title="แบรนด์" subtitle={`แบรนด์สินค้าทั้งหมด ${brands.length} แบรนด์`}
-          actions={<Button variant="primary" icon={<Plus />} onClick={() => openForm()}>เพิ่มแบรนด์</Button>} />
+        <PageHeader icon={<BrandIcon />} title="แบรนด์" subtitle={`แบรนด์สินค้าทั้งหมด ${brands.length} แบรนด์`}
+          actions={<Button variant="primary" icon={<AddIcon />} onClick={() => openForm()}>เพิ่มแบรนด์</Button>} />
         <ListFilterBar value={searchInput} onChange={handleSearchChange}
           placeholder={features.supplier ? 'ค้นหาแบรนด์หรือ Supplier...' : 'ค้นหาแบรนด์...'}
           summary={<Badge tone="orange">{brands.length} แบรนด์</Badge>} />
 
         {loading ? <LoadingCard /> : filteredBrands.length === 0 ? (
           <EmptyCard
-            icon={<Award className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+            icon={<BrandIcon className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
             title={searchQuery ? 'ไม่พบแบรนด์ที่ค้นหา' : 'ยังไม่มีแบรนด์สินค้า'}
             subtitle={searchQuery ? 'ลองเปลี่ยนคำค้น' : 'เพิ่มแบรนด์แรกเพื่อจัดกลุ่มสินค้าให้ลูกค้าหาง่ายขึ้น'}
-            actions={searchQuery ? undefined : <Button variant="primary" icon={<Plus />} onClick={() => openForm()}>เพิ่มแบรนด์</Button>}
+            actions={searchQuery ? undefined : <Button variant="primary" icon={<AddIcon />} onClick={() => openForm()}>เพิ่มแบรนด์</Button>}
           />
         ) : (
           <MasterDataGrid>
@@ -186,7 +187,7 @@ function BrandsPageInner() {
                 href={`/settings/brands/${brand.id}`}
                 subtitle={features.supplier ? (
                   brand.supplier
-                    ? <span className="table-meta"><Factory />{brand.supplier.name}</span>
+                    ? <span className="table-meta"><SupplierIcon />{brand.supplier.name}</span>
                     : 'ยังไม่ผูก Supplier'
                 ) : undefined}
                 actions={<ActionMenu items={actionItems(brand)} />}

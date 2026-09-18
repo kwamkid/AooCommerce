@@ -49,22 +49,7 @@ import Checkbox from '@/components/ui/Checkbox';
 import FormInput from '@/components/ui/FormInput';
 import Badge from '@/components/ui/Badge';
 import Tooltip from '@/components/ui/Tooltip';
-import { Trash2,
-  Plus,
-  Loader2,
-  MapPin,
-  Copy,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  CheckCircle,
-  Send,
-  Warehouse,
-  Store,
-  Settings,
-  Clock,
-  ExternalLink
-} from 'lucide-react';
+import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, CopyIcon, DeleteIcon, ExternalLinkIcon, LoadingIcon, SendIcon, SettingsIcon, StoreIcon, SuccessIcon, TimeIcon, WarehouseIcon } from '@/lib/icons';
 import Link from 'next/link';
 
 import { isValidEmail, EMAIL_INVALID_MESSAGE } from '@/lib/email';
@@ -2686,7 +2671,7 @@ export default function OrderForm({
                 aria-label="ล้างร่างบิลที่กู้มา"
                 className="p-1.5 text-red-600 bg-red-50 dark:bg-red-900/30 dark:text-red-300 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors flex items-center"
               >
-                <Trash2 className="w-4 h-4" />
+                <DeleteIcon className="w-4 h-4" />
               </button>
             </Tooltip>
           )}
@@ -2699,7 +2684,7 @@ export default function OrderForm({
                 aria-label="คัดลอก Order ล่าสุด"
                 className="p-1.5 text-blue-700 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors disabled:opacity-50 flex items-center"
               >
-                {loadingLatestOrder ? <Loader2 className="w-4 h-4 animate-spin" /> : <Copy className="w-4 h-4" />}
+                {loadingLatestOrder ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <CopyIcon className="w-4 h-4" />}
               </button>
             </Tooltip>
           )}
@@ -2722,7 +2707,7 @@ export default function OrderForm({
                 id: wh.id,
                 label: `${wh.is_default ? '⭐ ' : ''}${wh.name}`,
               }))}
-              icon={<Warehouse className="w-4 h-4" />}
+              icon={<WarehouseIcon className="w-4 h-4" />}
               placeholder="-- เลือกคลัง --"
               searchThreshold={99}
             />
@@ -2747,7 +2732,7 @@ export default function OrderForm({
               label: `${c.is_default ? '⭐ ' : ''}${c.name}`,
               subtitle: c.channel_type === 'chat' ? 'Chat' : undefined,
             }))}
-            icon={<Store className="w-4 h-4" />}
+            icon={<StoreIcon className="w-4 h-4" />}
             placeholder="-- ช่องทาง --"
           />
         </div>,
@@ -2938,7 +2923,7 @@ export default function OrderForm({
                   className="mt-1 inline-flex items-center gap-1 text-sm text-primary hover:underline"
                 >
                   ยังไม่ได้ตั้งค่ารอบส่ง — ตั้งค่าเลย
-                  <ExternalLink className="w-3.5 h-3.5" />
+                  <ExternalLinkIcon className="w-3.5 h-3.5" />
                 </Link>
               )}
             </div>
@@ -2965,7 +2950,7 @@ export default function OrderForm({
               className="mt-1 inline-flex items-center gap-1 text-sm text-primary hover:underline"
             >
               ยังไม่ได้ตั้งพื้นที่จัดส่ง — ตั้งค่าเลย
-              <ExternalLink className="w-3.5 h-3.5" />
+              <ExternalLinkIcon className="w-3.5 h-3.5" />
             </Link>
           ) : (
             <>
@@ -3269,9 +3254,9 @@ export default function OrderForm({
                   onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
                   className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 transition-colors mt-1"
                 >
-                  <Settings className="w-3.5 h-3.5" />
+                  <SettingsIcon className="w-3.5 h-3.5" />
                   ตั้งค่าขั้นสูง
-                  <ChevronDown className={`w-3 h-3 transition-transform ${showAdvancedSettings ? 'rotate-180' : ''}`} />
+                  <ChevronDownIcon className={`w-3 h-3 transition-transform ${showAdvancedSettings ? 'rotate-180' : ''}`} />
                 </button>
               )}
 
@@ -3279,7 +3264,7 @@ export default function OrderForm({
               {showAdvancedSettings && !isReadOnly && (
                 <div className="border border-gray-200 dark:border-slate-600 rounded-lg p-4 space-y-3 bg-gray-50 dark:bg-slate-700/30">
                   <div className="flex items-center gap-2 heading-4 text-gray-700 dark:text-slate-200">
-                    <Clock className="w-4 h-4" />
+                    <TimeIcon className="w-4 h-4" />
                     วันหมดอายุบิล
                   </div>
                   <div className="space-y-2.5">
@@ -3548,7 +3533,7 @@ export default function OrderForm({
             disabled={saving}
             onClick={() => goToStep(step - 1)}
             aria-label="ย้อนกลับ"
-            icon={<ChevronLeft className="w-5 h-5" />}
+            icon={<ChevronLeftIcon className="w-5 h-5" />}
           />
         </Tooltip>
       )}
@@ -3561,7 +3546,7 @@ export default function OrderForm({
                 disabled={saving}
                 onClick={goToNextStep}
                 aria-label="ถัดไป"
-                icon={<ChevronRight className="w-5 h-5" />}
+                icon={<ChevronRightIcon className="w-5 h-5" />}
               />
             </Tooltip>
           )
@@ -3680,7 +3665,7 @@ export default function OrderForm({
         <div>
           <div className="text-center">
               <div className="mx-auto w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mb-4">
-                <CheckCircle className="w-10 h-10 text-green-600" />
+                <SuccessIcon className="w-10 h-10 text-green-600" />
               </div>
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">สร้างคำสั่งซื้อสำเร็จ!</h3>
               {savedOrderNumber && (
@@ -3713,7 +3698,7 @@ export default function OrderForm({
                       }`}
                       title="คัดลอกลิงก์"
                     >
-                      {billLinkCopied ? <CheckCircle className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
+                      {billLinkCopied ? <SuccessIcon className="w-5 h-5" /> : <CopyIcon className="w-5 h-5" />}
                     </button>
                   </div>
                   {billLinkCopied && (
@@ -3725,7 +3710,7 @@ export default function OrderForm({
                   <Button
                     variant="primary"
                     fullWidth
-                    icon={<Send className="w-4 h-4" />}
+                    icon={<SendIcon className="w-4 h-4" />}
                     onClick={() => {
                       const billUrl = `${window.location.origin}/bills/${savedOrderId}`;
                       setShowSuccessModal(false);

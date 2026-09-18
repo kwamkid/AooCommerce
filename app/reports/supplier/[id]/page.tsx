@@ -13,7 +13,7 @@ import { generateReportPdf } from '@/lib/supplier-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
 import { thumbUrl } from '@/lib/image-thumb';
 import Button from '@/components/ui/Button';
-import { Loader2, ArrowLeft, Factory, Calendar, Warehouse, Package, BarChart3, ShoppingCart, Printer, CheckCircle2, Send } from 'lucide-react';
+import { BackIcon, LoadingIcon, OrderIcon, PrintIcon, ProductIcon, ReportIcon, SendIcon, SuccessIcon, SupplierIcon, WarehouseIcon } from '@/lib/icons';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import { LoadingCard } from '@/components/ui/StateCard';
 
@@ -206,7 +206,7 @@ export default function SnapshotDetailPage() {
   if (authLoading || loading) {
     return (
       <Layout title="รายงานซัพพลายเออร์">
-        <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-primary animate-spin" /></div>
+        <div className="flex items-center justify-center py-16"><LoadingIcon className="w-6 h-6 text-primary animate-spin" /></div>
       </Layout>
     );
   }
@@ -262,10 +262,10 @@ export default function SnapshotDetailPage() {
         {/* Top bar */}
         <div className="flex items-center justify-between">
           <button onClick={() => router.push('/reports/supplier')} className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300">
-            <ArrowLeft className="w-4 h-4" /> กลับ
+            <BackIcon className="w-4 h-4" /> กลับ
           </button>
           <div className="flex items-center gap-2">
-            <Button size="sm" loading={generatingPdf} onClick={handlePrintPdf} icon={<Printer className="w-4 h-4" />}>
+            <Button size="sm" loading={generatingPdf} onClick={handlePrintPdf} icon={<PrintIcon className="w-4 h-4" />}>
               พิมพ์
             </Button>
             {data.status === 'draft' && (
@@ -274,7 +274,7 @@ export default function SnapshotDetailPage() {
                 disabled={updating}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50"
               >
-                {updating ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                {updating ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <SuccessIcon className="w-4 h-4" />}
                 ยืนยันรายงาน
               </button>
             )}
@@ -284,7 +284,7 @@ export default function SnapshotDetailPage() {
                 disabled={updating}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50"
               >
-                {updating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                {updating ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <SendIcon className="w-4 h-4" />}
                 ส่งให้ Supplier
               </button>
             )}
@@ -303,7 +303,7 @@ export default function SnapshotDetailPage() {
             <div>
               <label className="text-xs text-gray-500 dark:text-slate-400 uppercase mb-1 block">Supplier</label>
               <div className="flex items-center gap-2">
-                <Factory className="w-4 h-4 text-gray-400" />
+                <SupplierIcon className="w-4 h-4 text-gray-400" />
                 <span className="text-sm font-medium text-gray-900 dark:text-white">{data.supplier?.name || '-'}</span>
               </div>
             </div>
@@ -387,7 +387,7 @@ export default function SnapshotDetailPage() {
         {data.stock_items.length > 0 && (
           <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-200 dark:border-slate-700 flex items-center gap-2">
-              <Warehouse className="w-4 h-4 text-gray-500" />
+              <WarehouseIcon className="w-4 h-4 text-gray-500" />
               <h3 className="text-sm font-medium text-gray-900 dark:text-white">Stock คงเหลือ ณ วันที่สร้าง</h3>
             </div>
             {Array.from(stockByWarehouse.entries()).map(([whId, group]) => (
@@ -405,7 +405,7 @@ export default function SnapshotDetailPage() {
                               <img src={thumbUrl(item.variation.product.image, 96)} alt="" loading="lazy" decoding="async" className="w-8 h-8 rounded object-cover flex-shrink-0" />
                             ) : (
                               <div className="w-8 h-8 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                                <Package className="w-4 h-4 text-gray-400" />
+                                <ProductIcon className="w-4 h-4 text-gray-400" />
                               </div>
                             )}
                             <div className="min-w-0">
@@ -431,7 +431,7 @@ export default function SnapshotDetailPage() {
           <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <BarChart3 className="w-4 h-4 text-gray-500" />
+                <ReportIcon className="w-4 h-4 text-gray-500" />
                 <h3 className="text-sm font-medium text-gray-900 dark:text-white">ยอดขายประจำเดือน</h3>
               </div>
               <button
@@ -492,7 +492,7 @@ export default function SnapshotDetailPage() {
         {isCredit && data.receive_items.length > 0 && (
           <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-200 dark:border-slate-700 flex items-center gap-2">
-              <ShoppingCart className="w-4 h-4 text-gray-500" />
+              <OrderIcon className="w-4 h-4 text-gray-500" />
               <h3 className="text-sm font-medium text-gray-900 dark:text-white">รายการรับเข้าประจำเดือน</h3>
             </div>
             {Array.from(receiveGroups.entries()).map(([recId, group]) => (
@@ -533,19 +533,19 @@ export default function SnapshotDetailPage() {
         {/* Empty states */}
         {data.stock_items.length === 0 && (
           <div className="text-center py-8 text-gray-400 dark:text-slate-500">
-            <Warehouse className="w-10 h-10 mx-auto mb-2 opacity-50" />
+            <WarehouseIcon className="w-10 h-10 mx-auto mb-2 opacity-50" />
             <p className="text-sm">ไม่มีสินค้าคงเหลือของ supplier นี้</p>
           </div>
         )}
         {isConsignment && data.sales_items.length === 0 && (
           <div className="text-center py-8 text-gray-400 dark:text-slate-500">
-            <BarChart3 className="w-10 h-10 mx-auto mb-2 opacity-50" />
+            <ReportIcon className="w-10 h-10 mx-auto mb-2 opacity-50" />
             <p className="text-sm">ไม่มียอดขายในเดือนนี้</p>
           </div>
         )}
         {isCredit && data.receive_items.length === 0 && (
           <div className="text-center py-8 text-gray-400 dark:text-slate-500">
-            <ShoppingCart className="w-10 h-10 mx-auto mb-2 opacity-50" />
+            <OrderIcon className="w-10 h-10 mx-auto mb-2 opacity-50" />
             <p className="text-sm">ไม่มีรายการรับเข้าในเดือนนี้</p>
           </div>
         )}

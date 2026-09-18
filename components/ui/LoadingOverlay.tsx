@@ -1,6 +1,6 @@
 'use client';
 
-import { Loader2 } from 'lucide-react';
+import { LoadingIcon } from '@/lib/icons';
 
 interface LoadingOverlayProps {
   isOpen: boolean;
@@ -28,7 +28,7 @@ export default function LoadingOverlay({
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-[90vw] max-w-sm p-6 space-y-4 text-center">
         {/* Spinner */}
         <div className="flex justify-center">
-          <Loader2 className="w-10 h-10 text-primary animate-spin" />
+          <LoadingIcon className="w-10 h-10 text-primary animate-spin" />
         </div>
 
         {/* Title */}

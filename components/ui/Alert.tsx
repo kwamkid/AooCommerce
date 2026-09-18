@@ -1,5 +1,5 @@
 import type { HTMLAttributes, ReactNode } from 'react';
-import { AlertCircle, AlertTriangle, Info, CheckCircle, X } from 'lucide-react';
+import { AlertIcon, CloseIcon, InfoIcon, SuccessIcon, WarningIcon } from '@/lib/icons';
 
 export type AlertTone = 'danger' | 'warning' | 'info' | 'success';
 
@@ -16,10 +16,10 @@ interface AlertProps extends Omit<HTMLAttributes<HTMLDivElement>, 'children' | '
 }
 
 const TONE_CLASSES: Record<AlertTone, { bg: string; border: string; text: string; icon: ReactNode }> = {
-  danger:  { bg: 'bg-red-50 dark:bg-red-900/20',       border: 'border-red-200 dark:border-red-800',     text: 'text-red-700 dark:text-red-400',     icon: <AlertCircle className="w-5 h-5 text-red-500" /> },
-  warning: { bg: 'bg-amber-50 dark:bg-amber-900/20',   border: 'border-amber-200 dark:border-amber-800', text: 'text-amber-700 dark:text-amber-300', icon: <AlertTriangle className="w-5 h-5 text-amber-500" /> },
-  info:    { bg: 'bg-blue-50 dark:bg-blue-900/20',     border: 'border-blue-200 dark:border-blue-800',   text: 'text-blue-700 dark:text-blue-300',   icon: <Info className="w-5 h-5 text-blue-500" /> },
-  success: { bg: 'bg-green-50 dark:bg-green-900/20',   border: 'border-green-200 dark:border-green-800', text: 'text-green-700 dark:text-green-400', icon: <CheckCircle className="w-5 h-5 text-green-500" /> },
+  danger:  { bg: 'bg-red-50 dark:bg-red-900/20',       border: 'border-red-200 dark:border-red-800',     text: 'text-red-700 dark:text-red-400',     icon: <AlertIcon className="w-5 h-5 text-red-500" /> },
+  warning: { bg: 'bg-amber-50 dark:bg-amber-900/20',   border: 'border-amber-200 dark:border-amber-800', text: 'text-amber-700 dark:text-amber-300', icon: <WarningIcon className="w-5 h-5 text-amber-500" /> },
+  info:    { bg: 'bg-blue-50 dark:bg-blue-900/20',     border: 'border-blue-200 dark:border-blue-800',   text: 'text-blue-700 dark:text-blue-300',   icon: <InfoIcon className="w-5 h-5 text-blue-500" /> },
+  success: { bg: 'bg-green-50 dark:bg-green-900/20',   border: 'border-green-200 dark:border-green-800', text: 'text-green-700 dark:text-green-400', icon: <SuccessIcon className="w-5 h-5 text-green-500" /> },
 };
 
 /**
@@ -55,7 +55,7 @@ export default function Alert({
           className={`flex-shrink-0 ${t.text} hover:opacity-70 transition-opacity`}
           aria-label="ปิด"
         >
-          <X className="w-5 h-5" />
+          <CloseIcon className="w-5 h-5" />
         </button>
       )}
     </div>

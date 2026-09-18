@@ -14,7 +14,7 @@ import { LoadingCard, EmptyCard } from '@/components/ui/StateCard';
 import PageHeader from '@/components/ui/PageHeader';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
 import FormSelect from '@/components/ui/FormSelect';
-import { BarChart3, ShoppingCart, Package, Banknote, Tag } from 'lucide-react';
+import { MoneyIcon, OrderIcon, ProductIcon, PromotionIcon, ReportIcon } from '@/lib/icons';
 import { useFeatures } from '@/lib/features-context';
 import { isMarketplacePlatform } from '@/lib/marketplace-platforms';
 import { useAuthGuard } from '@/lib/useAuthGuard';
@@ -137,28 +137,28 @@ export default function PromotionReportPage() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <Card padding="sm">
               <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 mb-1">
-                <Tag className="w-4 h-4" />
+                <PromotionIcon className="w-4 h-4" />
                 <span className="text-sm">โปรโมชั่น</span>
               </div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{summary.total_promotions}</p>
             </Card>
             <Card padding="sm">
               <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 mb-1">
-                <ShoppingCart className="w-4 h-4" />
+                <OrderIcon className="w-4 h-4" />
                 <span className="text-sm">คำสั่งซื้อ</span>
               </div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{summary.total_orders}</p>
             </Card>
             <Card padding="sm">
               <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 mb-1">
-                <Package className="w-4 h-4" />
+                <ProductIcon className="w-4 h-4" />
                 <span className="text-sm">จำนวนชิ้น</span>
               </div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{summary.total_qty}</p>
             </Card>
             <Card padding="sm">
               <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 mb-1">
-                <Banknote className="w-4 h-4" />
+                <MoneyIcon className="w-4 h-4" />
                 <span className="text-sm">ยอดขายรวม</span>
               </div>
               <p className="text-2xl font-bold text-primary">฿{formatPrice(summary.total_sales)}</p>
@@ -172,7 +172,7 @@ export default function PromotionReportPage() {
             <LoadingCard />
           ) : report.length === 0 ? (
             <EmptyCard
-              icon={<BarChart3 className="w-10 h-10 text-gray-400 opacity-50" />}
+              icon={<ReportIcon className="w-10 h-10 text-gray-400 opacity-50" />}
               title="ไม่พบข้อมูลโปรโมชั่นในช่วงเวลานี้"
             />
           ) : (

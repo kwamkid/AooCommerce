@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
-import { X } from 'lucide-react';
+import { CloseIcon } from '@/lib/icons';
 import Button from '@/components/ui/Button';
 import { useToast } from '@/lib/toast-context';
 import {
@@ -123,7 +123,7 @@ export default function InstallAppBanner() {
         aria-label="ปิด"
         className="flex-shrink-0 p-1.5 rounded-lg text-gray-500 dark:text-slate-400 hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors"
       >
-        <X className="w-4 h-4" />
+        <CloseIcon className="w-4 h-4" />
       </button>
     </div>
   );

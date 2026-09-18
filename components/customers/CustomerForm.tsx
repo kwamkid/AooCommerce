@@ -1,27 +1,11 @@
 'use client';
 
+import { CompanyIcon, UserIcon, WholesaleIcon, ConsignmentIcon, StoreIcon } from '@/lib/icons';
 import { useState, useEffect, useRef } from 'react';
 import { PHONE_INPUT_PROPS, isValidThaiPhone, onPhoneChange, toThaiPhone } from '@/lib/numeric-input';
 import dynamic from 'next/dynamic';
-import {
-  Check,
-  MapPin,
-  ExternalLink,
-  Building2,
-  ChevronDown,
-  ChevronUp,
-  MessageCircle,
-  Facebook,
-  User,
-  ShoppingBag,
-  Handshake,
-  Store,
-  Briefcase,
-  Share2,
-  Heart,
-  FileText,
-  Printer,
-} from 'lucide-react';
+import { Facebook, Briefcase, Share2, Heart } from 'lucide-react';
+import { ChatIcon, ChevronDownIcon, ChevronUpIcon, ConfirmIcon, DocumentIcon, ExternalLinkIcon, LocationIcon, PrintIcon } from '@/lib/icons';
 
 // Lazy-loaded type-specific settings panels
 const ConsignmentSettings = dynamic(() => import('./settings/ConsignmentSettings'), { ssr: false });
@@ -93,8 +77,8 @@ const ALL_CUSTOMER_TYPE_OPTIONS = [
   { id: 'affiliate',          label: 'Affiliate',           icon: 'Heart',        requiredFeature: null },
 ];
 const TYPE_ICONS: Record<string, React.ReactNode> = {
-  ShoppingBag: <ShoppingBag className="w-5 h-5" />, Handshake: <Handshake className="w-5 h-5" />,
-  Store: <Store className="w-5 h-5" />, Briefcase: <Briefcase className="w-5 h-5" />,
+  ShoppingBag: <WholesaleIcon className="w-5 h-5" />, Handshake: <ConsignmentIcon className="w-5 h-5" />,
+  Store: <StoreIcon className="w-5 h-5" />, Briefcase: <Briefcase className="w-5 h-5" />,
   Share2: <Share2 className="w-5 h-5" />, Heart: <Heart className="w-5 h-5" />,
 };
 const SALE_TYPE_OPTIONS: Record<string, { id: string; label: string; desc: string }[]> = {
@@ -284,14 +268,14 @@ export default function CustomerForm({
       <div>
         <button type="button" onClick={() => setShowMapSection(prev => !prev)}
           className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 transition-colors">
-          {showMapSection ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          {showMapSection ? <ChevronUpIcon className="w-4 h-4" /> : <ChevronDownIcon className="w-4 h-4" />}
           Google Maps & หมายเหตุจัดส่ง
           {(formData.shipping_google_maps_link || formData.shipping_delivery_notes) && <span className="w-1.5 h-1.5 rounded-full bg-primary ml-0.5" />}
         </button>
         {showMapSection && (
           <div className="mt-3 space-y-3 pl-1">
             <div>
-              <label className={`${labelClass} flex items-center gap-1`}><MapPin className="w-4 h-4" />Google Maps Link</label>
+              <label className={`${labelClass} flex items-center gap-1`}><LocationIcon className="w-4 h-4" />Google Maps Link</label>
               <div className="flex gap-2">
                 <input type="url" value={formData.shipping_google_maps_link || ''}
                   onChange={(e) => setFormData(prev => ({ ...prev, shipping_google_maps_link: e.target.value }))}
@@ -299,7 +283,7 @@ export default function CustomerForm({
                 {formData.shipping_google_maps_link && (
                   <a href={formData.shipping_google_maps_link} target="_blank" rel="noopener noreferrer"
                     className="px-3 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors flex items-center gap-1 text-sm whitespace-nowrap">
-                    <ExternalLink className="w-4 h-4" />เปิดแผนที่
+                    <ExternalLinkIcon className="w-4 h-4" />เปิดแผนที่
                   </a>
                 )}
               </div>
@@ -324,7 +308,7 @@ export default function CustomerForm({
         {requireTax ? (
           <div className="flex items-center gap-2">
             <span className={`${compact ? 'text-sm font-medium' : 'text-lg font-semibold'} text-gray-900 dark:text-white flex items-center gap-2`}>
-              <Building2 className={compact ? "w-4 h-4" : "w-5 h-5"} /> ข้อมูลภาษี
+              <CompanyIcon className={compact ? "w-4 h-4" : "w-5 h-5"} /> ข้อมูลภาษี
             </span>
             {!compact && <span className="text-sm font-normal text-gray-400 dark:text-slate-500">(บังคับสำหรับตัวแทน/ห้าง)</span>}
           </div>
@@ -333,7 +317,7 @@ export default function CustomerForm({
             onClick={() => setFormData(prev => ({ ...prev, needs_tax_invoice: !prev.needs_tax_invoice }))}>
             <Checkbox checked={formData.needs_tax_invoice} onChange={(v) => setFormData(prev => ({ ...prev, needs_tax_invoice: v }))} />
             <span className={`${compact ? 'text-sm font-medium' : 'text-lg font-semibold'} text-gray-900 dark:text-white flex items-center gap-2`}>
-              <Building2 className={compact ? "w-4 h-4" : "w-5 h-5"} /> ใบกำกับภาษี
+              <CompanyIcon className={compact ? "w-4 h-4" : "w-5 h-5"} /> ใบกำกับภาษี
             </span>
             {!compact && <span className="text-sm font-normal text-gray-400 dark:text-slate-500">(สำหรับออกใบกำกับภาษี)</span>}
           </div>
@@ -403,7 +387,7 @@ export default function CustomerForm({
         )}
         <div className="border-t pt-4">
           <h4 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-3 flex items-center gap-2">
-            <MapPin className="w-4 h-4" /> ที่อยู่จัดส่ง
+            <LocationIcon className="w-4 h-4" /> ที่อยู่จัดส่ง
           </h4>
           {renderShippingSection(inputCompact, labelCompact)}
         </div>
@@ -419,7 +403,7 @@ export default function CustomerForm({
             variant="primary"
             className="flex-1"
             loading={isLoading}
-            icon={<Check className="w-4 h-4" />}
+            icon={<ConfirmIcon className="w-4 h-4" />}
           >
             {isLoading ? 'กำลังบันทึก...' : isEditing ? 'บันทึก' : 'สร้างลูกค้า'}
           </Button>
@@ -506,7 +490,7 @@ export default function CustomerForm({
           {linkedContacts.length > 0 && onNavigateToChat && (
             <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
               <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white flex items-center gap-2">
-                <MessageCircle className="w-5 h-5" /> ช่องทางแชท <span className="text-sm font-normal text-gray-500 dark:text-slate-400">({linkedContacts.length})</span>
+                <ChatIcon className="w-5 h-5" /> ช่องทางแชท <span className="text-sm font-normal text-gray-500 dark:text-slate-400">({linkedContacts.length})</span>
               </h3>
               <div className="grid grid-cols-1 gap-3">
                 {linkedContacts.map(lc => (
@@ -514,9 +498,9 @@ export default function CustomerForm({
                     className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors text-left">
                     <div className="relative flex-shrink-0">
                       {lc.picture_url ? <img src={lc.picture_url} alt="" className="w-10 h-10 rounded-full object-cover" />
-                        : <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-slate-600 flex items-center justify-center"><User className="w-5 h-5 text-gray-500 dark:text-slate-400" /></div>}
+                        : <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-slate-600 flex items-center justify-center"><UserIcon className="w-5 h-5 text-gray-500 dark:text-slate-400" /></div>}
                       <div className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center ${lc.platform === 'line' ? 'bg-line' : 'bg-facebook'}`}>
-                        {lc.platform === 'line' ? <MessageCircle className="w-2.5 h-2.5 text-white" /> : <Facebook className="w-2.5 h-2.5 text-white" />}
+                        {lc.platform === 'line' ? <ChatIcon className="w-2.5 h-2.5 text-white" /> : <Facebook className="w-2.5 h-2.5 text-white" />}
                       </div>
                     </div>
                     <div className="flex-1 min-w-0">
@@ -526,7 +510,7 @@ export default function CustomerForm({
                         {lc.last_message_at && <> · {new Date(lc.last_message_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}</>}
                       </p>
                     </div>
-                    <ExternalLink className="w-4 h-4 text-gray-400 dark:text-slate-500 flex-shrink-0" />
+                    <ExternalLinkIcon className="w-4 h-4 text-gray-400 dark:text-slate-500 flex-shrink-0" />
                   </button>
                 ))}
               </div>
@@ -536,7 +520,7 @@ export default function CustomerForm({
           {/* ที่อยู่จัดส่ง */}
           <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
             <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white flex items-center gap-2">
-              <MapPin className="w-5 h-5" /> ที่อยู่จัดส่ง
+              <LocationIcon className="w-5 h-5" /> ที่อยู่จัดส่ง
             </h3>
             {renderShippingSection(inputFull, labelFull)}
           </div>
@@ -567,7 +551,7 @@ export default function CustomerForm({
             <div className="bg-white dark:bg-slate-800 rounded-lg border border-amber-300 dark:border-amber-700/50 p-6 space-y-4">
               <div>
                 <h3 className="text-lg font-semibold text-amber-800 dark:text-amber-300 flex items-center gap-2">
-                  <FileText className="w-5 h-5" /> สัญญาฝากขาย (ม.78(3))
+                  <DocumentIcon className="w-5 h-5" /> สัญญาฝากขาย (ม.78(3))
                 </h3>
                 <p className="text-sm text-amber-600/70 dark:text-amber-400/70 mt-0.5">ต้องยื่นต่อสรรพากรภายใน 15 วันนับจากวันทำสัญญา</p>
               </div>
@@ -618,7 +602,7 @@ export default function CustomerForm({
                       showPdfPreview(blob, `สัญญาฝากขาย ${formData.contract_number}`);
                     } catch (err) { console.error('Print contract error:', err); showToast('ไม่สามารถพิมพ์สัญญาได้', 'error'); }
                   }} className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors flex items-center justify-center gap-2 font-medium">
-                    <Printer className="w-4 h-4" /> พิมพ์สัญญา
+                    <PrintIcon className="w-4 h-4" /> พิมพ์สัญญา
                   </button>
                 </>
               )}
@@ -634,10 +618,10 @@ export default function CustomerForm({
           <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700">
             <button type="button" onClick={() => setShowExtraSection(prev => !prev)} className="w-full flex items-center justify-between p-6 text-left">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                <User className="w-5 h-5" /> ข้อมูลเพิ่มเติม
+                <UserIcon className="w-5 h-5" /> ข้อมูลเพิ่มเติม
                 {!showExtraSection && (formData.contact_person || formData.notes || (selectedTags && selectedTags.length > 0)) && <span className="w-1.5 h-1.5 rounded-full bg-primary" />}
               </h3>
-              {showExtraSection ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+              {showExtraSection ? <ChevronUpIcon className="w-5 h-5 text-gray-400" /> : <ChevronDownIcon className="w-5 h-5 text-gray-400" />}
             </button>
             {showExtraSection && (
               <div className="px-6 pb-6 space-y-4">

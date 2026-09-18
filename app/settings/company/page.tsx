@@ -9,7 +9,8 @@ import { useCompany } from '@/lib/company-context';
 import { can } from '@/lib/permissions';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
-import { Building2, FileText, Phone, Mail, MapPin, Receipt, AlertCircle, User, Briefcase, Landmark, Plus, Edit2, Trash2 } from 'lucide-react';
+import { Briefcase, Landmark } from 'lucide-react';
+import { AddIcon, AlertIcon, CompanyIcon, DeleteIcon, DocumentIcon, EditIcon, EmailIcon, LocationIcon, PhoneIcon, ReceiptIcon, UserIcon } from '@/lib/icons';
 import Card from '@/components/ui/Card';
 import LogoUploader from '@/components/ui/LogoUploader';
 import Button from '@/components/ui/Button';
@@ -326,7 +327,7 @@ export default function CompanySettingsPage() {
           {/* Error alert */}
           {error && (
             <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start space-x-3">
-              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+              <AlertIcon className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
             </div>
           )}
@@ -357,7 +358,7 @@ export default function CompanySettingsPage() {
                     label="ชื่อร้าน/ชื่อแบรนด์ (ทางการค้า)"
                     required
                     requiredMessage="กรุณาระบุชื่อร้านค้า"
-                    icon={<Building2 className="w-5 h-5" />}
+                    icon={<CompanyIcon className="w-5 h-5" />}
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="ชื่อที่แสดงให้ลูกค้าเห็น"
@@ -366,7 +367,7 @@ export default function CompanySettingsPage() {
                   <div className="sm:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">เกี่ยวกับเรา <span className="text-xs font-normal text-gray-400 dark:text-slate-500">(แสดงในส่วนท้ายบิลออนไลน์)</span></label>
                     <div className="relative">
-                      <FileText className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                      <DocumentIcon className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
                       <textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary resize-none" placeholder="อธิบายเกี่ยวกับธุรกิจ" rows={3} disabled={isSaving} />
                     </div>
                   </div>
@@ -374,7 +375,7 @@ export default function CompanySettingsPage() {
                     ref={form.register('phone')}
                     label="โทรศัพท์"
                     type="tel"
-                    icon={<Phone className="w-5 h-5" />}
+                    icon={<PhoneIcon className="w-5 h-5" />}
                     validate={validateCompanyPhone}
                     value={formData.phone}
                     onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
@@ -385,7 +386,7 @@ export default function CompanySettingsPage() {
                     ref={form.register('email')}
                     label="อีเมล"
                     type="email"
-                    icon={<Mail className="w-5 h-5" />}
+                    icon={<EmailIcon className="w-5 h-5" />}
                     pattern="^[^\s@]+@[^\s@]+\.[^\s@]+$"
                     patternMessage="รูปแบบอีเมลไม่ถูกต้อง"
                     value={formData.email}
@@ -396,7 +397,7 @@ export default function CompanySettingsPage() {
                   <div className="sm:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ที่อยู่ <span className="text-xs font-normal text-gray-400 dark:text-slate-500">(ตามที่ต้องการให้แสดงบนบิล/ใบกำกับภาษี)</span></label>
                     <div className="relative">
-                      <MapPin className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                      <LocationIcon className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
                       <textarea value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary resize-none" placeholder="บ้านเลขที่ อาคาร ถนน แขวง/ตำบล เขต/อำเภอ จังหวัด รหัสไปรษณีย์" rows={2} disabled={isSaving} />
                     </div>
                   </div>
@@ -409,7 +410,7 @@ export default function CompanySettingsPage() {
                   only the branch field is, since branches are a VAT concept. */}
               <Card padding="md">
                 <h3 className="heading-3 mb-4 flex items-center">
-                  <Receipt className="w-5 h-5 mr-2 text-primary" />
+                  <ReceiptIcon className="w-5 h-5 mr-2 text-primary" />
                   ข้อมูลภาษี
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -417,7 +418,7 @@ export default function CompanySettingsPage() {
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">รูปแบบการจดทะเบียน</label>
                     <div className="grid grid-cols-3 gap-3">
                       {([
-                        { key: 'individual', label: 'บุคคลธรรมดา', icon: <User className="w-6 h-6" /> },
+                        { key: 'individual', label: 'บุคคลธรรมดา', icon: <UserIcon className="w-6 h-6" /> },
                         { key: 'corporation', label: 'บริษัท (บจก.)', icon: <Briefcase className="w-6 h-6" /> },
                         { key: 'partnership', label: 'ห้างหุ้นส่วน (หจก.)', icon: <Landmark className="w-6 h-6" /> },
                       ] as const).map(({ key, label, icon }) => {
@@ -519,7 +520,7 @@ export default function CompanySettingsPage() {
                     <Button
                       type="button"
                       variant="primary"
-                      icon={<Plus className="w-4 h-4" />}
+                      icon={<AddIcon className="w-4 h-4" />}
                       onClick={openCreateBranch}
                     >
                       เพิ่มสาขา
@@ -568,7 +569,7 @@ export default function CompanySettingsPage() {
                                   className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors"
                                   aria-label="แก้ไข"
                                 >
-                                  <Edit2 className="w-4 h-4" />
+                                  <EditIcon className="w-4 h-4" />
                                 </button>
                                 <button
                                   type="button"
@@ -576,7 +577,7 @@ export default function CompanySettingsPage() {
                                   className="p-1.5 text-gray-400 hover:text-red-600 transition-colors"
                                   aria-label="ลบ"
                                 >
-                                  <Trash2 className="w-4 h-4" />
+                                  <DeleteIcon className="w-4 h-4" />
                                 </button>
                               </>
                             }
@@ -667,7 +668,7 @@ export default function CompanySettingsPage() {
         confirmLabel="ลบ"
         variant="danger"
         loading={deletingBranch}
-        icon={<Trash2 className="w-6 h-6 text-red-600" />}
+        icon={<DeleteIcon className="w-6 h-6 text-red-600" />}
       />
     </Layout>
   );

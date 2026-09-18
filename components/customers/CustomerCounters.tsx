@@ -6,7 +6,7 @@
 // 1 สาขา = 1 คลังฝากขาย ระบบสร้างคลังให้อัตโนมัติตอนเพิ่มสาขา
 
 import { useState } from 'react';
-import { Store, Plus, Edit2, Users } from 'lucide-react';
+import { AddIcon, EditIcon, PeopleIcon, StoreIcon } from '@/lib/icons';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import SaveButton from '@/components/ui/SaveButton';
@@ -240,7 +240,7 @@ export default function CustomerCounters({ customerId, customerType }: { custome
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <Store className="w-4 h-4 text-primary" />
+            <StoreIcon className="w-4 h-4 text-primary" />
             <h3 className="heading-4">สาขาฝากขาย (PC)</h3>
           </div>
           <p className="section-desc">
@@ -249,7 +249,7 @@ export default function CustomerCounters({ customerId, customerType }: { custome
           </p>
         </div>
         {canManage && (
-          <Button variant="secondary" size="sm" icon={<Plus className="w-3.5 h-3.5" />} onClick={openCreate}>
+          <Button variant="secondary" size="sm" icon={<AddIcon className="w-3.5 h-3.5" />} onClick={openCreate}>
             เพิ่มสาขา
           </Button>
         )}
@@ -270,7 +270,7 @@ export default function CustomerCounters({ customerId, customerType }: { custome
               inactive={!c.is_active}
               icon={
                 <div className="w-8 h-8 rounded-lg bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center">
-                  <Store className="w-4 h-4 text-primary" />
+                  <StoreIcon className="w-4 h-4 text-primary" />
                 </div>
               }
               title={c.name}
@@ -288,7 +288,7 @@ export default function CustomerCounters({ customerId, customerType }: { custome
                     className="p-2 text-gray-400 hover:text-primary hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                     title="พนักงาน PC ประจำสาขา"
                   >
-                    <Users className="w-4 h-4" />
+                    <PeopleIcon className="w-4 h-4" />
                   </button>
                   <button
                     type="button"
@@ -296,7 +296,7 @@ export default function CustomerCounters({ customerId, customerType }: { custome
                     className="p-2 text-gray-400 hover:text-primary hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                     title="แก้ไขชื่อสาขา"
                   >
-                    <Edit2 className="w-4 h-4" />
+                    <EditIcon className="w-4 h-4" />
                   </button>
                   <Toggle checked={c.is_active} onChange={() => handleToggle(c)} disabled={togglingId === c.id} />
                 </div>
@@ -311,7 +311,7 @@ export default function CustomerCounters({ customerId, customerType }: { custome
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         title={editingId ? 'แก้ไขสาขา' : 'เพิ่มสาขา'}
-        icon={<Store className="w-5 h-5 text-primary" />}
+        icon={<StoreIcon className="w-5 h-5 text-primary" />}
         size="sm"
         footer={
           <div className="flex justify-end gap-2">
@@ -337,7 +337,7 @@ export default function CustomerCounters({ customerId, customerType }: { custome
         open={pcTarget !== null}
         onClose={() => setPcTarget(null)}
         title={`พนักงาน PC — สาขา${pcTarget?.name || ''}`}
-        icon={<Users className="w-5 h-5 text-primary" />}
+        icon={<PeopleIcon className="w-5 h-5 text-primary" />}
         size="md"
         footer={
           <div className="flex justify-end gap-2">

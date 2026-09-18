@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Search, ChevronDown, Filter } from 'lucide-react';
+import { ChevronDownIcon, FilterIcon, SearchIcon } from '@/lib/icons';
 
 export interface DropdownOption {
   id: string;
@@ -121,10 +121,10 @@ export default function SearchableDropdown({
             <img src={selected.platformIcon} alt="" className="w-3 h-3" />
           </div>
         ) : !isActive ? (
-          defaultIcon || <Filter className="w-4 h-4" />
+          defaultIcon || <FilterIcon className="w-4 h-4" />
         ) : null}
         <span className="whitespace-nowrap">{isActive ? displayLabel : placeholder}</span>
-        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDownIcon className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open && (
@@ -132,7 +132,7 @@ export default function SearchableDropdown({
           {/* Search */}
           <div className="px-2 py-1.5">
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+              <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
               <input
                 ref={searchRef}
                 type="text"
@@ -154,7 +154,7 @@ export default function SearchableDropdown({
                 }`}
               >
                 <div className="w-6 h-6 rounded-full bg-gray-100 dark:bg-slate-600 flex items-center justify-center flex-shrink-0">
-                  <Filter className="w-3.5 h-3.5 text-gray-400 dark:text-slate-400" />
+                  <FilterIcon className="w-3.5 h-3.5 text-gray-400 dark:text-slate-400" />
                 </div>
                 <span>{allLabel}</span>
               </button>
@@ -171,7 +171,7 @@ export default function SearchableDropdown({
               >
                 {o.icon || (
                   <div className="w-6 h-6 rounded-full bg-gray-100 dark:bg-slate-600 flex items-center justify-center flex-shrink-0">
-                    <Filter className="w-3.5 h-3.5 text-gray-400 dark:text-slate-400" />
+                    <FilterIcon className="w-3.5 h-3.5 text-gray-400 dark:text-slate-400" />
                   </div>
                 )}
                 <span className="truncate">{o.label}</span>

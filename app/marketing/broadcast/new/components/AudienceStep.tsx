@@ -26,7 +26,7 @@ import {
   hasAudienceRefine,
   type AudienceOption,
 } from '@/lib/broadcast/audience';
-import { ChevronDown, Tag } from 'lucide-react';
+import { ChevronDownIcon, TagIcon } from '@/lib/icons';
 import type { AudienceCounts, PickedContact, TagRow } from './types';
 
 const DAY_PRESETS = [30, 60, 90, 180];
@@ -138,7 +138,7 @@ export default function AudienceStep({
                   onClick={() => setManualGroup(openGroup === g.key ? '' : g.key)}
                   className="w-full flex items-center gap-2 py-1.5 px-1.5 -mx-1.5 rounded-lg text-left transition-colors hover:bg-gray-50 dark:hover:bg-slate-700/40"
                 >
-                  <ChevronDown
+                  <ChevronDownIcon
                     className={`w-4 h-4 flex-shrink-0 text-gray-500 dark:text-slate-400 transition-transform ${
                       openGroup === g.key ? '' : '-rotate-90'
                     }`}
@@ -230,7 +230,7 @@ export default function AudienceStep({
                   disabled={disabled}
                   options={tags.map(t => ({ id: t.id, label: t.name }))}
                   emptyLabel="เลือกแท็ก..."
-                  icon={<Tag className="w-4 h-4" />}
+                  icon={<TagIcon className="w-4 h-4" />}
                 />
               )}
 

@@ -1,22 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import {
-  TrendingUp,
-  TrendingDown,
-  Package,
-  ShoppingCart,
-  Users,
-  DollarSign,
-  ArrowUpRight,
-  ArrowDownRight,
-  BarChart3,
-  Clock,
-  Zap,
-  Star,
-  ChevronRight,
-  Sparkles,
-} from 'lucide-react';
+import { TrendingDown, ArrowUpRight, ArrowDownRight, Sparkles } from 'lucide-react';
+import { ChevronRightIcon, OrderIcon, PeopleIcon, PriceIcon, ProductIcon, ReportIcon, StarIcon, TimeIcon, TrendUpIcon } from '@/lib/icons';
 
 /* ─────────────────────────────────────────────
    Demo Dashboard — Frontend Design Skill Test
@@ -172,7 +158,7 @@ function StatCard({
   prefix?: string;
   suffix?: string;
   trend: number;
-  icon: typeof TrendingUp;
+  icon: typeof TrendUpIcon;
   sparkData: number[];
   color: string;
   delay?: number;
@@ -266,7 +252,7 @@ export default function DemoFrontendPage() {
             value={48750}
             prefix="฿"
             trend={12.5}
-            icon={DollarSign}
+            icon={PriceIcon}
             sparkData={[20, 35, 28, 42, 38, 55, 48]}
             color="#f59e0b"
             delay={0}
@@ -276,7 +262,7 @@ export default function DemoFrontendPage() {
             value={24}
             trend={8.3}
             suffix=" รายการ"
-            icon={ShoppingCart}
+            icon={OrderIcon}
             sparkData={[12, 18, 15, 22, 20, 28, 24]}
             color="#3b82f6"
             delay={80}
@@ -286,7 +272,7 @@ export default function DemoFrontendPage() {
             value={7}
             trend={-3.2}
             suffix=" ราย"
-            icon={Users}
+            icon={PeopleIcon}
             sparkData={[8, 12, 6, 10, 9, 5, 7]}
             color="#8b5cf6"
             delay={160}
@@ -296,7 +282,7 @@ export default function DemoFrontendPage() {
             value={1284}
             trend={2.1}
             suffix=" ชิ้น"
-            icon={Package}
+            icon={ProductIcon}
             sparkData={[1100, 1050, 1120, 1180, 1200, 1250, 1284]}
             color="#10b981"
             delay={240}
@@ -313,7 +299,7 @@ export default function DemoFrontendPage() {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                  <BarChart3 size={18} className="text-amber-400" />
+                  <ReportIcon size={18} className="text-amber-400" />
                   รายได้รายเดือน
                 </h2>
                 <p className="text-sm text-zinc-500 mt-0.5">ปี 2569</p>
@@ -333,11 +319,11 @@ export default function DemoFrontendPage() {
           <div className="bg-zinc-900/80 backdrop-blur-sm border border-zinc-800/80 rounded-2xl p-6">
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                <Clock size={18} className="text-blue-400" />
+                <TimeIcon size={18} className="text-blue-400" />
                 ออเดอร์ล่าสุด
               </h2>
               <button className="text-xs text-zinc-500 hover:text-amber-400 transition-colors flex items-center gap-0.5">
-                ดูทั้งหมด <ChevronRight size={12} />
+                ดูทั้งหมด <ChevronRightIcon size={12} />
               </button>
             </div>
             <div className="space-y-3">
@@ -377,7 +363,7 @@ export default function DemoFrontendPage() {
         >
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-              <Star size={18} className="text-amber-400" />
+              <StarIcon size={18} className="text-amber-400" />
               สินค้าขายดี
             </h2>
             <span className="text-xs text-zinc-600 font-mono">30 วันล่าสุด</span>
@@ -416,7 +402,7 @@ export default function DemoFrontendPage() {
                   <span
                     className={`inline-flex items-center gap-0.5 text-xs font-mono ${p.trend >= 0 ? 'text-emerald-400' : 'text-red-400'}`}
                   >
-                    {p.trend >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                    {p.trend >= 0 ? <TrendUpIcon size={12} /> : <TrendingDown size={12} />}
                     {p.trend >= 0 ? '+' : ''}{p.trend}%
                   </span>
                 </div>

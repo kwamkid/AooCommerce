@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Megaphone, Play } from 'lucide-react';
+import { Play } from 'lucide-react';
+import { BroadcastIcon } from '@/lib/icons';
 
 /**
  * รูปโฆษณาจาก referral ของ Meta — ที่เดียวที่วาดรูปพวกนี้ (การ์ดหัวสายสนทนา ·
@@ -33,7 +34,7 @@ export default function AdMediaThumb({
 
   const inner = !url || broken ? (
     <div className={`${sizeClass} rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0`}>
-      <Megaphone className="w-1/2 h-1/2 text-blue-500 dark:text-blue-400" />
+      <BroadcastIcon className="w-1/2 h-1/2 text-blue-500 dark:text-blue-400" />
     </div>
   ) : (
     <div className={`${sizeClass} relative rounded-lg overflow-hidden flex-shrink-0 bg-gray-100 dark:bg-slate-700`}>

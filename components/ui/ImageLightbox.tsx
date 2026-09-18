@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { X } from 'lucide-react';
+import { CloseIcon } from '@/lib/icons';
 
 interface ImageLightboxProps {
   /** Image URL — when truthy, lightbox is open. Pass null/undefined to close. */
@@ -42,7 +42,7 @@ export default function ImageLightbox({ src, onClose, alt = 'Image' }: ImageLigh
         className="absolute top-4 right-4 text-white/80 hover:text-white p-2 rounded-full bg-black/30 hover:bg-black/50 transition-colors z-10"
         aria-label="ปิด"
       >
-        <X className="w-6 h-6" />
+        <CloseIcon className="w-6 h-6" />
       </button>
       <img
         src={src}

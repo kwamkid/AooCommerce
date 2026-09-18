@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Globe } from 'lucide-react';
+import { ChevronDownIcon, WebIcon } from '@/lib/icons';
 import { useFeatures } from '@/lib/features-context';
 import { isMarketplacePlatform } from '@/lib/marketplace-platforms';
 
@@ -56,7 +56,7 @@ export default function PlatformChipFilter({ value, onChange, className }: Platf
                   : 'border-gray-200 dark:border-slate-600 text-gray-600 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-700'
               }`}
             >
-              {p.icon ? <img src={p.icon} alt="" className="w-3.5 h-3.5" /> : <Globe className="w-3.5 h-3.5" />}
+              {p.icon ? <img src={p.icon} alt="" className="w-3.5 h-3.5" /> : <WebIcon className="w-3.5 h-3.5" />}
               {p.label}
             </button>
           );
@@ -95,9 +95,9 @@ function MobileDropdown({ platforms, value, onChange, selected }: {
             : 'border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-700'
         }`}
       >
-        {selected.icon ? <img src={selected.icon} alt="" className="w-4 h-4" /> : <Globe className="w-4 h-4" />}
+        {selected.icon ? <img src={selected.icon} alt="" className="w-4 h-4" /> : <WebIcon className="w-4 h-4" />}
         <span>{selected.label}</span>
-        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDownIcon className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
         <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg py-1 min-w-[180px]">
@@ -112,7 +112,7 @@ function MobileDropdown({ platforms, value, onChange, selected }: {
                   : 'text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
               }`}
             >
-              {p.icon ? <img src={p.icon} alt="" className="w-4 h-4" /> : <Globe className="w-4 h-4 text-gray-400 dark:text-slate-500" />}
+              {p.icon ? <img src={p.icon} alt="" className="w-4 h-4" /> : <WebIcon className="w-4 h-4 text-gray-400 dark:text-slate-500" />}
               <span>{p.label}</span>
             </button>
           ))}

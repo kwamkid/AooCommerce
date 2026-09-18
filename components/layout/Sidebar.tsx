@@ -10,53 +10,8 @@ import { useCompany } from '@/lib/company-context';
 import { useFeatures } from '@/lib/features-context';
 import { useHeaderSummary } from '@/lib/header-summary-context';
 import { can, mainRoleOf, ROLE_LEVELS, type Capability, type PermissionSubject } from '@/lib/permissions';
-import {
-  Home,
-  Users,
-  UserCircle,
-  ShoppingCart,
-  BarChart3,
-  Settings,
-  Menu,
-  X,
-  LogOut,
-  Package2,
-  Truck,
-  MessageCircle,
-  MessageSquareText,
-  Megaphone,
-  CreditCard,
-  ChevronDown,
-  PanelLeftClose,
-  PanelLeftOpen,
-  ArrowLeft,
-  ChevronRight,
-  Building2,
-  UserCog,
-  Check,
-  Facebook,
-  Warehouse,
-  ArrowDownToLine,
-  ArrowUpFromLine,
-  ArrowLeftRight,
-  Undo2,
-  ShoppingBag,
-  Tag,
-  Award,
-  Monitor,
-  Receipt,
-  Factory,
-  ClipboardList,
-  ReceiptText,
-  Handshake,
-  FileText,
-  Store,
-  RotateCcw,
-  Pencil,
-  MapPin,
-  Target,
-  Ticket,
-} from 'lucide-react';
+import { PanelLeftClose, PanelLeftOpen, Facebook } from 'lucide-react';
+import { AudienceIcon, BackIcon, BrandIcon, BroadcastIcon, CategoryIcon, ChatIcon, ChecklistIcon, ChevronDownIcon, ChevronRightIcon, CloseIcon, CompanyIcon, ConfirmIcon, CouponIcon, CustomerIcon, DashboardIcon, DealerIcon, DeptStoreIcon, DocumentIcon, EditIcon, FeatureIcon, LocationIcon, LogoutIcon, MemberIcon, MenuIcon, MessageIcon, OrderIcon, PaymentIcon, PosIcon, ProductIcon, PromotionIcon, ReceiptIcon, ReceiptTextIcon, ReportIcon, ReturnNoteIcon, SettingsIcon, ShippingIcon, StockIssueIcon, StockReceiveIcon, StockTransferIcon, StoreIcon, SupplierIcon, SupplierReturnIcon, WarehouseIcon, WholesaleIcon } from '@/lib/icons';
 
 interface MenuItem {
   label: string;
@@ -77,24 +32,24 @@ const menuSections: MenuSection[] = [
   {
     title: 'แคชเชียร์',
     items: [
-      { label: 'Cashier (POS)', href: '/pos', icon: <Monitor className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['pos.sell'] },
-      { label: 'รายการขาย', href: '/pos/orders', icon: <Receipt className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['pos.view'] },
-      { label: 'หน้าขาย PC', href: '/pc', icon: <Store className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['counter.record'] },
+      { label: 'Cashier (POS)', href: '/pos', icon: <PosIcon className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['pos.sell'] },
+      { label: 'รายการขาย', href: '/pos/orders', icon: <ReceiptIcon className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['pos.view'] },
+      { label: 'หน้าขาย PC', href: '/pc', icon: <StoreIcon className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['counter.record'] },
     ]
   },
   {
     title: 'ระบบการขาย',
     items: [
-      { label: 'Chat', href: '/chat', icon: <MessageCircle className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['chat.view'] },
-      { label: 'คำสั่งซื้อ', href: '/orders', icon: <ShoppingCart className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['order.view'] },
-      { label: 'จัดของ & ส่ง', href: '/reports/delivery-summary', icon: <Truck className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['order.view'] },
+      { label: 'Chat', href: '/chat', icon: <ChatIcon className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['chat.view'] },
+      { label: 'คำสั่งซื้อ', href: '/orders', icon: <OrderIcon className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['order.view'] },
+      { label: 'จัดของ & ส่ง', href: '/reports/delivery-summary', icon: <ShippingIcon className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['order.view'] },
     ]
   },
   {
     title: 'สินค้า',
     items: [
-      { label: 'สินค้า', href: '/products', icon: <Package2 className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['product.view'] },
-      { label: 'สินค้าคงคลัง', href: '/inventory', icon: <Warehouse className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['inventory.view'] },
+      { label: 'สินค้า', href: '/products', icon: <ProductIcon className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['product.view'] },
+      { label: 'สินค้าคงคลัง', href: '/inventory', icon: <WarehouseIcon className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['inventory.view'] },
     ]
   },
   {
@@ -103,28 +58,28 @@ const menuSections: MenuSection[] = [
     // เมนูย่อยของกัน · โปรโมชั่นย้ายมาจากกลุ่ม "สินค้า" เพราะมันคือแคมเปญ ไม่ใช่ข้อมูลสินค้า
     title: 'การตลาด',
     items: [
-      { label: 'บรอดแคสต์', href: '/marketing/broadcast', icon: <Megaphone className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['chat.broadcast'] },
-      { label: 'กลุ่มเป้าหมาย', href: '/marketing/audiences', icon: <Target className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['marketing.audiences'] },
-      { label: 'โปรโมชั่น', href: '/promotions', icon: <Tag className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['product.manage'] },
+      { label: 'บรอดแคสต์', href: '/marketing/broadcast', icon: <BroadcastIcon className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['chat.broadcast'] },
+      { label: 'กลุ่มเป้าหมาย', href: '/marketing/audiences', icon: <AudienceIcon className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['marketing.audiences'] },
+      { label: 'โปรโมชั่น', href: '/promotions', icon: <PromotionIcon className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['product.manage'] },
       // คูปอง = ลูกค้ากรอกโค้ดเอง · โปรโมชั่น = ลดอัตโนมัติตามเงื่อนไข — คนละเรื่อง วางคู่กันให้หาเจอ
-      { label: 'คูปองส่วนลด', href: '/marketing/coupons', icon: <Ticket className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['marketing.coupons'] },
+      { label: 'คูปองส่วนลด', href: '/marketing/coupons', icon: <CouponIcon className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['marketing.coupons'] },
     ]
   },
   {
     title: 'Contact',
     items: [
-      { label: 'ซัพพลายเออร์', href: '/settings/suppliers', icon: <Factory className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['masterdata.suppliers'] },
-      { label: 'ลูกค้า', href: '/customers', icon: <UserCircle className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['customer.view'] },
+      { label: 'ซัพพลายเออร์', href: '/settings/suppliers', icon: <SupplierIcon className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['masterdata.suppliers'] },
+      { label: 'ลูกค้า', href: '/customers', icon: <CustomerIcon className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['customer.view'] },
     ]
   },
   {
     title: 'รายงาน',
     items: [
-      { label: 'เอกสารบัญชี', href: '/invoices/tax', icon: <FileText className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['finance.view'] },
-      { label: 'รายงานยอดขาย', href: '/reports/sales', icon: <BarChart3 className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['finance.view'] },
-      { label: 'ยอดขาย PC', href: '/counter-sales', icon: <Store className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['counter.manage'] },
-      { label: 'รายงานโปรโมชั่น', href: '/promotions/report', icon: <Tag className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['product.manage'] },
-      { label: 'รายงานซัพพลายเออร์', href: '/reports/supplier', icon: <Factory className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['report.supplier.view'] }
+      { label: 'เอกสารบัญชี', href: '/invoices/tax', icon: <DocumentIcon className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['finance.view'] },
+      { label: 'รายงานยอดขาย', href: '/reports/sales', icon: <ReportIcon className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['finance.view'] },
+      { label: 'ยอดขาย PC', href: '/counter-sales', icon: <StoreIcon className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['counter.manage'] },
+      { label: 'รายงานโปรโมชั่น', href: '/promotions/report', icon: <PromotionIcon className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['product.manage'] },
+      { label: 'รายงานซัพพลายเออร์', href: '/reports/supplier', icon: <SupplierIcon className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['report.supplier.view'] }
     ]
   }
 ];
@@ -250,7 +205,7 @@ export default function Sidebar() {
       const bulkItem: MenuItem = {
         label: 'แก้ไขแบบชุด',
         href: '/products/bulk',
-        icon: <Pencil className="w-[18px] h-[18px] flex-shrink-0" />,
+        icon: <EditIcon className="w-[18px] h-[18px] flex-shrink-0" />,
         caps: ['product.bulk_edit'],
       };
       if (!bulkItem.caps.some(c => can(subject, c))) return section;
@@ -299,21 +254,21 @@ export default function Sidebar() {
 
   // เมนูในชุด "ตั้งค่าระบบ" — gate ตาม feature flag เหมือนเดิม
   const settingsItems: { href: string; label: string; icon: React.ReactNode; isActive: boolean }[] = [
-    { href: '/settings/company', label: 'ทั่วไป', icon: <Settings className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings' || pathname === '/settings/company' || pathname === '/settings/tags' || pathname === '/settings/consignment' || pathname === '/settings/department-store' },
-    ...(can(subject, 'members.view') ? [{ href: '/settings/members', label: 'จัดการสมาชิก', icon: <UserCog className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/members' }] : []),
-    { href: '/settings/payment-channels', label: 'ช่องทางชำระเงิน', icon: <CreditCard className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/payment-channels' },
-    { href: '/settings/chat-channels', label: 'ช่องทาง Chat', icon: <MessageCircle className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/chat-channels' },
-    ...(features.audience && can(subject, 'masterdata.ad_accounts') ? [{ href: '/settings/ad-accounts', label: 'บัญชีโฆษณา', icon: <Megaphone className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/ad-accounts' }] : []),
-    ...(can(subject, 'chat.reply') ? [{ href: '/settings/saved-replies', label: 'Saved Reply', icon: <MessageSquareText className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/saved-replies' }] : []),
-    { href: '/settings/sales-channels', label: 'ช่องทางการขาย', icon: <Store className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/sales-channels' },
-    ...(features.stock ? [{ href: '/settings/warehouses', label: 'คลังสินค้า', icon: <Warehouse className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/warehouses' }] : []),
-    { href: '/settings/carriers', label: 'ขนส่ง', icon: <Truck className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/carriers' },
-    ...(features.delivery_zone || features.delivery_slot.enabled ? [{ href: '/settings/delivery', label: 'การจัดส่ง', icon: <MapPin className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/delivery' }] : []),
-    ...(features.storefront ? [{ href: '/settings/storefront', label: 'หน้าร้านออนไลน์', icon: <Store className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/storefront' }] : []),
+    { href: '/settings/company', label: 'ทั่วไป', icon: <SettingsIcon className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings' || pathname === '/settings/company' || pathname === '/settings/tags' || pathname === '/settings/consignment' || pathname === '/settings/department-store' },
+    ...(can(subject, 'members.view') ? [{ href: '/settings/members', label: 'จัดการสมาชิก', icon: <MemberIcon className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/members' }] : []),
+    { href: '/settings/payment-channels', label: 'ช่องทางชำระเงิน', icon: <PaymentIcon className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/payment-channels' },
+    { href: '/settings/chat-channels', label: 'ช่องทาง Chat', icon: <ChatIcon className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/chat-channels' },
+    ...(features.audience && can(subject, 'masterdata.ad_accounts') ? [{ href: '/settings/ad-accounts', label: 'บัญชีโฆษณา', icon: <BroadcastIcon className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/ad-accounts' }] : []),
+    ...(can(subject, 'chat.reply') ? [{ href: '/settings/saved-replies', label: 'Saved Reply', icon: <MessageIcon className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/saved-replies' }] : []),
+    { href: '/settings/sales-channels', label: 'ช่องทางการขาย', icon: <StoreIcon className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/sales-channels' },
+    ...(features.stock ? [{ href: '/settings/warehouses', label: 'คลังสินค้า', icon: <WarehouseIcon className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/warehouses' }] : []),
+    { href: '/settings/carriers', label: 'ขนส่ง', icon: <ShippingIcon className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/carriers' },
+    ...(features.delivery_zone || features.delivery_slot.enabled ? [{ href: '/settings/delivery', label: 'การจัดส่ง', icon: <LocationIcon className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/delivery' }] : []),
+    ...(features.storefront ? [{ href: '/settings/storefront', label: 'หน้าร้านออนไลน์', icon: <StoreIcon className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/storefront' }] : []),
     // สาขาฝากขาย (PC) ย้ายไปจัดการในหน้าลูกค้าฝากขายแต่ละราย (การ์ดในหน้า /customers/[id]) แล้ว
-    ...(features.pos ? [{ href: '/settings/pos-terminals', label: 'Cashier (POS)', icon: <Monitor className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/pos-terminals' }] : []),
+    ...(features.pos ? [{ href: '/settings/pos-terminals', label: 'Cashier (POS)', icon: <PosIcon className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/pos-terminals' }] : []),
     // เมนู Marketplace เดิมย้ายไปรวมใน "ช่องทางการขาย" (แท็บ เชื่อมต่อ Marketplace) แล้ว
-    { href: '/settings/features', label: 'Feature เสริม', icon: <Handshake className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/features' },
+    { href: '/settings/features', label: 'Feature เสริม', icon: <FeatureIcon className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/features' },
   ];
 
   // /settings/categories|brands|suppliers อยู่ในหมวดอื่น (สินค้า/ข้อมูลหลัก) — ไม่ต้องสลับ view
@@ -350,7 +305,7 @@ export default function Sidebar() {
           aria-label="เปิดเมนู"
           className="lg:hidden fixed top-safe-2 left-safe-3 z-50 p-2.5 rounded-lg text-primary hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
         >
-          <Menu className="w-6 h-6" />
+          <MenuIcon className="w-6 h-6" />
         </button>
       )}
 
@@ -393,7 +348,7 @@ export default function Sidebar() {
               aria-label="ปิดเมนู"
               className="lg:hidden p-2 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors flex-shrink-0"
             >
-              <X className="w-5 h-5" />
+              <CloseIcon className="w-5 h-5" />
             </button>
           </div>
 
@@ -421,7 +376,7 @@ export default function Sidebar() {
                     />
                   ) : (
                     <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#F4511E] to-[#E0480F] flex items-center justify-center flex-shrink-0">
-                      <Building2 className="w-5 h-5 text-white" />
+                      <CompanyIcon className="w-5 h-5 text-white" />
                     </div>
                   )}
                   <div className="nav-label flex-1 text-left min-w-0">
@@ -432,7 +387,7 @@ export default function Sidebar() {
                       {getRoleLabels(companyRoles)}
                     </p>
                   </div>
-                  <ChevronDown className={`nav-label w-4 h-4 text-gray-400 flex-shrink-0 transition-transform duration-200 ${companyDropdownOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDownIcon className={`nav-label w-4 h-4 text-gray-400 flex-shrink-0 transition-transform duration-200 ${companyDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {companyDropdownOpen && (
                   <>
@@ -455,7 +410,7 @@ export default function Sidebar() {
                               />
                             ) : (
                               <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
-                                <Building2 className="w-4 h-4 text-gray-400" />
+                                <CompanyIcon className="w-4 h-4 text-gray-400" />
                               </div>
                             )}
                             <div className="nav-label flex-1 text-left min-w-0">
@@ -463,7 +418,7 @@ export default function Sidebar() {
                               <p className="text-gray-400 text-xs">{getRoleLabels(m.roles)}</p>
                             </div>
                             {m.company_id === currentCompany?.id && (
-                              <Check className="w-4 h-4 text-primary flex-shrink-0" />
+                              <ConfirmIcon className="w-4 h-4 text-primary flex-shrink-0" />
                             )}
                           </button>
                         ))}
@@ -473,7 +428,7 @@ export default function Sidebar() {
                           onClick={handleAddCompany}
                           className="w-full px-4 py-3 flex items-center gap-3 hover:bg-primary/10 transition-colors text-gray-500 hover:text-primary"
                         >
-                          <Building2 className="w-4 h-4 flex-shrink-0" />
+                          <CompanyIcon className="w-4 h-4 flex-shrink-0" />
                           <span className="text-sm">กลับไปเลือกบริษัท</span>
                         </button>
                       </div>
@@ -493,7 +448,7 @@ export default function Sidebar() {
                 onClick={() => setNavView('main')}
                 className="flex items-center w-full px-3 py-2 rounded-lg mb-2 text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-white transition-colors"
               >
-                <ArrowLeft className="w-[18px] h-[18px] flex-shrink-0" />
+                <BackIcon className="w-[18px] h-[18px] flex-shrink-0" />
                 <span className="nav-label text-sm font-medium ml-3">ย้อนกลับ</span>
               </button>
               <h3 className="nav-section-title text-[11px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-[0.08em] mt-1 mb-1.5 px-3">
@@ -526,7 +481,7 @@ export default function Sidebar() {
                   : 'text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
-              <Home className="w-[18px] h-[18px] flex-shrink-0" />
+              <DashboardIcon className="w-[18px] h-[18px] flex-shrink-0" />
               <span className="nav-label text-sm font-medium">Dashboard</span>
             </Link>
 
@@ -565,7 +520,7 @@ export default function Sidebar() {
                             : 'text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-white'
                         }`}
                       >
-                        <UserCircle className="w-[18px] h-[18px] flex-shrink-0" />
+                        <CustomerIcon className="w-[18px] h-[18px] flex-shrink-0" />
                         <span className="nav-label text-sm font-medium ml-3">ลูกค้าตัวแทน</span>
                       </Link>
                     )}
@@ -577,18 +532,18 @@ export default function Sidebar() {
                           : 'text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-white'
                       }`}
                     >
-                      <Store className="w-[18px] h-[18px] flex-shrink-0" />
+                      <DealerIcon className="w-[18px] h-[18px] flex-shrink-0" />
                       <span className="nav-label text-sm font-medium ml-3">ตัวแทนฝากขาย</span>
-                      <ChevronDown className={`nav-label w-4 h-4 ml-auto transition-transform ${consignmentOpen ? 'rotate-180' : ''}`} />
+                      <ChevronDownIcon className={`nav-label w-4 h-4 ml-auto transition-transform ${consignmentOpen ? 'rotate-180' : ''}`} />
                     </button>
                     {consignmentOpen && (
                       <div className="nav-submenu ml-3 border-l border-gray-200 dark:border-slate-700">
                         <Link href="/replenishments" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/replenishments' || pathname?.startsWith('/replenishments/') ? 'text-[#C2410C] dark:text-orange-300 font-semibold' : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'}`}>
-                          <ArrowUpFromLine className="w-4 h-4" />
+                          <StockIssueIcon className="w-4 h-4" />
                           <span className="nav-label text-sm font-medium">เติมสินค้าตัวแทน</span>
                         </Link>
                         <Link href="/consignment/reports" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/consignment/reports' || pathname?.startsWith('/consignment/reports/') ? 'text-[#C2410C] dark:text-orange-300 font-semibold' : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'}`}>
-                          <ClipboardList className="w-4 h-4" />
+                          <ChecklistIcon className="w-4 h-4" />
                           <span className="nav-label text-sm font-medium">ยอดขายตัวแทน</span>
                         </Link>
                       </div>
@@ -602,7 +557,7 @@ export default function Sidebar() {
                           : 'text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-white'
                       }`}
                     >
-                      <ShoppingBag className="w-[18px] h-[18px] flex-shrink-0" />
+                      <WholesaleIcon className="w-[18px] h-[18px] flex-shrink-0" />
                       <span className="nav-label text-sm font-medium ml-3">ตัวแทนขายขาด</span>
                     </Link>
                   </>
@@ -622,7 +577,7 @@ export default function Sidebar() {
                             : 'text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-white'
                         }`}
                       >
-                        <UserCircle className="w-[18px] h-[18px] flex-shrink-0" />
+                        <CustomerIcon className="w-[18px] h-[18px] flex-shrink-0" />
                         <span className="nav-label text-sm font-medium ml-3">ลูกค้าห้าง</span>
                       </Link>
                     )}
@@ -634,18 +589,18 @@ export default function Sidebar() {
                           : 'text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-white'
                       }`}
                     >
-                      <Building2 className="w-[18px] h-[18px] flex-shrink-0" />
+                      <DeptStoreIcon className="w-[18px] h-[18px] flex-shrink-0" />
                       <span className="nav-label text-sm font-medium ml-3">ห้างฝากขาย</span>
-                      <ChevronDown className={`nav-label w-4 h-4 ml-auto transition-transform ${deptStoreOpen ? 'rotate-180' : ''}`} />
+                      <ChevronDownIcon className={`nav-label w-4 h-4 ml-auto transition-transform ${deptStoreOpen ? 'rotate-180' : ''}`} />
                     </button>
                     {deptStoreOpen && (
                       <div className="nav-submenu ml-3 border-l border-gray-200 dark:border-slate-700">
                         <Link href="/department-orders" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/department-orders' || pathname?.startsWith('/department-orders/') ? 'text-[#C2410C] dark:text-orange-300 font-semibold' : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'}`}>
-                          <Truck className="w-4 h-4" />
+                          <ShippingIcon className="w-4 h-4" />
                           <span className="nav-label text-sm font-medium">ส่งห้าง</span>
                         </Link>
                         <Link href="/department-store/reports" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/department-store/reports' || pathname?.startsWith('/department-store/reports/') ? 'text-[#C2410C] dark:text-orange-300 font-semibold' : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'}`}>
-                          <ClipboardList className="w-4 h-4" />
+                          <ChecklistIcon className="w-4 h-4" />
                           <span className="nav-label text-sm font-medium">ยอดขายห้าง</span>
                         </Link>
                       </div>
@@ -659,7 +614,7 @@ export default function Sidebar() {
                           : 'text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-white'
                       }`}
                     >
-                      <ShoppingBag className="w-[18px] h-[18px] flex-shrink-0" />
+                      <WholesaleIcon className="w-[18px] h-[18px] flex-shrink-0" />
                       <span className="nav-label text-sm font-medium ml-3">ห้างขายขาด</span>
                     </Link>
                   </>
@@ -692,21 +647,21 @@ export default function Sidebar() {
                         >
                           {item.icon}
                           <span className="nav-label text-sm font-medium ml-3">{item.label}</span>
-                          <ChevronDown className={`nav-label w-4 h-4 ml-auto transition-transform ${productsOpen ? 'rotate-180' : ''}`} />
+                          <ChevronDownIcon className={`nav-label w-4 h-4 ml-auto transition-transform ${productsOpen ? 'rotate-180' : ''}`} />
                         </button>
                         {productsOpen && (
                           <div className="nav-submenu ml-3 border-l border-gray-200 dark:border-slate-700">
                             <Link href="/products" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/products' ? 'text-[#C2410C] dark:text-orange-300 font-semibold' : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'}`}>
-                              <Package2 className="w-4 h-4" />
+                              <ProductIcon className="w-4 h-4" />
                               <span className="nav-label text-sm font-medium">รายการสินค้า</span>
                             </Link>
                             <Link href="/settings/categories" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/categories' ? 'text-[#C2410C] dark:text-orange-300 font-semibold' : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'}`}>
-                              <Tag className="w-4 h-4" />
+                              <CategoryIcon className="w-4 h-4" />
                               <span className="nav-label text-sm font-medium">หมวดหมู่</span>
                             </Link>
                             {features.product_brand && (
                             <Link href="/settings/brands" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/brands' ? 'text-[#C2410C] dark:text-orange-300 font-semibold' : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'}`}>
-                              <Award className="w-4 h-4" />
+                              <BrandIcon className="w-4 h-4" />
                               <span className="nav-label text-sm font-medium">แบรนด์</span>
                             </Link>
                             )}
@@ -731,40 +686,40 @@ export default function Sidebar() {
                         >
                           {item.icon}
                           <span className="nav-label text-sm font-medium ml-3">{item.label}</span>
-                          <ChevronDown className={`nav-label w-4 h-4 ml-auto transition-transform ${accountingOpen ? 'rotate-180' : ''}`} />
+                          <ChevronDownIcon className={`nav-label w-4 h-4 ml-auto transition-transform ${accountingOpen ? 'rotate-180' : ''}`} />
                         </button>
                         {accountingOpen && (
                           <div className="nav-submenu ml-3 border-l border-gray-200 dark:border-slate-700">
                             <Link href="/invoices/tax" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/invoices/tax' ? 'text-[#C2410C] dark:text-orange-300 font-semibold' : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'}`}>
-                              <FileText className="w-4 h-4" />
+                              <DocumentIcon className="w-4 h-4" />
                               <span className="nav-label text-sm font-medium">ใบกำกับภาษี</span>
                             </Link>
                             <Link href="/invoices/receipts" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/invoices/receipts' ? 'text-[#C2410C] dark:text-orange-300 font-semibold' : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'}`}>
-                              <Receipt className="w-4 h-4" />
+                              <ReceiptIcon className="w-4 h-4" />
                               <span className="nav-label text-sm font-medium">ใบเสร็จรับเงิน</span>
                             </Link>
                             <Link href="/invoices/abbreviated" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/invoices/abbreviated' ? 'text-[#C2410C] dark:text-orange-300 font-semibold' : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'}`}>
-                              <ReceiptText className="w-4 h-4" />
+                              <ReceiptTextIcon className="w-4 h-4" />
                               <span className="nav-label text-sm font-medium">ใบกำกับอย่างย่อ</span>
                             </Link>
                             <Link href="/invoices/billing" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/invoices/billing' ? 'text-[#C2410C] dark:text-orange-300 font-semibold' : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'}`}>
-                              <FileText className="w-4 h-4" />
+                              <DocumentIcon className="w-4 h-4" />
                               <span className="nav-label text-sm font-medium">ใบแจ้งหนี้</span>
                             </Link>
                             <Link href="/invoices/delivery-notes" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/invoices/delivery-notes' ? 'text-[#C2410C] dark:text-orange-300 font-semibold' : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'}`}>
-                              <Truck className="w-4 h-4" />
+                              <ShippingIcon className="w-4 h-4" />
                               <span className="nav-label text-sm font-medium">ใบส่งสินค้า</span>
                             </Link>
                             <Link href="/return-notes" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/return-notes' || pathname?.startsWith('/return-notes/') ? 'text-[#C2410C] dark:text-orange-300 font-semibold' : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'}`}>
-                              <RotateCcw className="w-4 h-4" />
+                              <ReturnNoteIcon className="w-4 h-4" />
                               <span className="nav-label text-sm font-medium">ใบรับคืน</span>
                             </Link>
                             <Link href="/credit-notes" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/credit-notes' || pathname?.startsWith('/credit-notes/') ? 'text-[#C2410C] dark:text-orange-300 font-semibold' : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'}`}>
-                              <ReceiptText className="w-4 h-4" />
+                              <ReceiptTextIcon className="w-4 h-4" />
                               <span className="nav-label text-sm font-medium">ใบลดหนี้</span>
                             </Link>
                             <Link href="/statements" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/statements' || pathname?.startsWith('/statements/') ? 'text-[#C2410C] dark:text-orange-300 font-semibold' : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'}`}>
-                              <ClipboardList className="w-4 h-4" />
+                              <ChecklistIcon className="w-4 h-4" />
                               <span className="nav-label text-sm font-medium">ใบวางบิล</span>
                             </Link>
                           </div>
@@ -795,35 +750,35 @@ export default function Sidebar() {
                               {item.badge}
                             </span>
                           )}
-                          <ChevronDown className={`nav-label w-4 h-4 ml-auto transition-transform ${inventoryOpen ? 'rotate-180' : ''}`} />
+                          <ChevronDownIcon className={`nav-label w-4 h-4 ml-auto transition-transform ${inventoryOpen ? 'rotate-180' : ''}`} />
                         </button>
                         {inventoryOpen && (
                           <div className="nav-submenu ml-3 border-l border-gray-200 dark:border-slate-700">
                             <Link href="/inventory" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/inventory' ? 'text-[#C2410C] dark:text-orange-300 font-semibold' : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'}`}>
-                              <Warehouse className="w-4 h-4" />
+                              <WarehouseIcon className="w-4 h-4" />
                               <span className="nav-label text-sm font-medium">สต๊อกสินค้า</span>
                             </Link>
                             {features.supplier && (
                             <Link href="/inventory/purchase-orders" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/inventory/purchase-orders' || pathname === '/inventory/purchase-order' || pathname?.startsWith('/inventory/purchase-orders/') ? 'text-[#C2410C] dark:text-orange-300 font-semibold' : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'}`}>
-                              <ClipboardList className="w-4 h-4" />
+                              <ChecklistIcon className="w-4 h-4" />
                               <span className="nav-label text-sm font-medium">ใบสั่งซื้อ (PO)</span>
                             </Link>
                             )}
                             <Link href="/inventory/receives" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/inventory/receives' || pathname === '/inventory/receive' || pathname?.startsWith('/inventory/receives/') ? 'text-[#C2410C] dark:text-orange-300 font-semibold' : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'}`}>
-                              <ArrowDownToLine className="w-4 h-4" />
+                              <StockReceiveIcon className="w-4 h-4" />
                               <span className="nav-label text-sm font-medium">รายการรับเข้า</span>
                             </Link>
                             <Link href="/inventory/issues" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/inventory/issues' || pathname === '/inventory/issue' || pathname?.startsWith('/inventory/issues/') ? 'text-[#C2410C] dark:text-orange-300 font-semibold' : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'}`}>
-                              <ArrowUpFromLine className="w-4 h-4" />
+                              <StockIssueIcon className="w-4 h-4" />
                               <span className="nav-label text-sm font-medium">รายการเบิกออก</span>
                             </Link>
                             <Link href="/inventory/transfers" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/inventory/transfers' || pathname === '/inventory/transfer' || pathname?.startsWith('/inventory/transfers/') ? 'text-[#C2410C] dark:text-orange-300 font-semibold' : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'}`}>
-                              <ArrowLeftRight className="w-4 h-4" />
+                              <StockTransferIcon className="w-4 h-4" />
                               <span className="nav-label text-sm font-medium">รายการโอนย้าย</span>
                             </Link>
                             {features.supplier && (
                             <Link href="/inventory/supplier-returns" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/inventory/supplier-returns' || pathname === '/inventory/supplier-return' || pathname?.startsWith('/inventory/supplier-returns/') ? 'text-[#C2410C] dark:text-orange-300 font-semibold' : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'}`}>
-                              <Undo2 className="w-4 h-4" />
+                              <SupplierReturnIcon className="w-4 h-4" />
                               <span className="nav-label text-sm font-medium">คืนของ Supplier</span>
                             </Link>
                             )}
@@ -871,9 +826,9 @@ export default function Sidebar() {
                 onClick={() => setNavView('settings')}
                 className="flex items-center w-full px-3 py-2 rounded-lg text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-white transition-colors"
               >
-                <Settings className="w-[18px] h-[18px] flex-shrink-0" />
+                <SettingsIcon className="w-[18px] h-[18px] flex-shrink-0" />
                 <span className="nav-label text-sm font-medium ml-3 flex-1 text-left">ตั้งค่า</span>
-                <ChevronRight className="nav-label w-4 h-4 text-gray-400 flex-shrink-0" />
+                <ChevronRightIcon className="nav-label w-4 h-4 text-gray-400 flex-shrink-0" />
               </button>
             </div>
           )}
@@ -884,7 +839,7 @@ export default function Sidebar() {
               onClick={() => signOut()}
               className="flex items-center space-x-3 w-full px-3 py-2 text-gray-600 dark:text-slate-300 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 rounded-lg transition-colors"
             >
-              <LogOut className="w-[18px] h-[18px] flex-shrink-0" />
+              <LogoutIcon className="w-[18px] h-[18px] flex-shrink-0" />
               <span className="nav-label text-sm font-medium">ออกจากระบบ</span>
             </button>
           </div>

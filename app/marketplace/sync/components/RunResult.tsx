@@ -9,7 +9,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Package, PlayCircle, Undo2 } from 'lucide-react';
+import { PlayCircle } from 'lucide-react';
+import { ForwardIcon, ProductIcon, ReverseIcon } from '@/lib/icons';
 import Alert from '@/components/ui/Alert';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
@@ -90,7 +91,7 @@ export default function RunResult({ runId, onBack, onOpenRun, onRecheck }: Props
   if (notFound || !detail) {
     return (
       <EmptyCard
-        icon={<Package className="w-10 h-10 text-gray-300 dark:text-slate-600" />}
+        icon={<ProductIcon className="w-10 h-10 text-gray-300 dark:text-slate-600" />}
         title="ไม่พบรอบนี้"
         subtitle="รายการก่อน 16 ก.ย. 2569 ไม่ได้บันทึกเป็นรอบ จึงเปิดดูย้อนหลังไม่ได้"
         actions={<Button variant="primary" onClick={onBack}>เสร็จเรียบร้อย</Button>}
@@ -199,7 +200,7 @@ export default function RunResult({ runId, onBack, onOpenRun, onRecheck }: Props
         return (
           <span className="inline-flex items-center justify-end gap-1.5 body-text">
             <span>{before === null ? '—' : formatNumber(before)}</span>
-            <ArrowRight className="w-3.5 h-3.5" aria-hidden />
+            <ForwardIcon className="w-3.5 h-3.5" aria-hidden />
             <span className="font-medium">{item.after === null ? '—' : formatNumber(item.after)}</span>
           </span>
         );
@@ -408,7 +409,7 @@ export default function RunResult({ runId, onBack, onOpenRun, onRecheck }: Props
               )}
               <Button
                 variant="secondary"
-                icon={<Undo2 className="w-4 h-4" />}
+                icon={<ReverseIcon className="w-4 h-4" />}
                 disabled={!revertability.can_revert}
                 onClick={revertability.can_revert ? doRevert : undefined}
               >

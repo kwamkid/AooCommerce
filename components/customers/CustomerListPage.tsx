@@ -26,19 +26,8 @@ import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
 import { formatPrice } from '@/lib/utils/format';
 import { useFeatures } from '@/lib/features-context';
-import {
-  UserCircle,
-  Plus,
-  Loader2,
-  Phone,
-  Mail,
-  Trash2,
-  Tags,
-  ExternalLink,
-  Copy,
-  RefreshCw,
-  KeyRound,
-} from 'lucide-react';
+import { Tags } from 'lucide-react';
+import { AddIcon, CopyIcon, CustomerIcon, DeleteIcon, EmailIcon, ExternalLinkIcon, LoadingIcon, PasswordIcon, PhoneIcon, RefreshIcon } from '@/lib/icons';
 import TagBadge, { Tag } from '@/components/ui/TagBadge';
 import PlatformChipFilter from '@/app/components/PlatformChipFilter';
 import FormSelect from '@/components/ui/FormSelect';
@@ -323,28 +312,28 @@ function CustomerListContent({ scope }: { scope: CustomerScope }) {
       items.push({
         key: 'portal-link',
         label: 'ลิงก์ Portal',
-        icon: <ExternalLink className="w-4 h-4" />,
+        icon: <ExternalLinkIcon className="w-4 h-4" />,
         onClick: () => window.open(`/portal/consignment/${customer.portal_token}`, '_blank'),
       });
       items.push({
         key: 'portal-copy',
         label: 'คัดลอกลิงก์',
-        icon: <Copy className="w-4 h-4" />,
+        icon: <CopyIcon className="w-4 h-4" />,
         onClick: () => { copy(`${window.location.origin}/portal/consignment/${customer.portal_token}`, 'ลิงก์'); },
       });
       items.push({
         key: 'portal-code',
         label: customer.portal_access_code ? `รหัส: ${customer.portal_access_code}` : 'รหัส Portal: ยังไม่มี',
-        icon: <KeyRound className="w-4 h-4" />,
+        icon: <PasswordIcon className="w-4 h-4" />,
         onClick: customer.portal_access_code
           ? () => copy(customer.portal_access_code!, 'รหัส')
           : undefined,
-        suffix: customer.portal_access_code ? <Copy className="w-3.5 h-3.5 text-gray-400" /> : undefined,
+        suffix: customer.portal_access_code ? <CopyIcon className="w-3.5 h-3.5 text-gray-400" /> : undefined,
       });
       items.push({
         key: 'portal-regen',
         label: 'สร้างรหัสใหม่',
-        icon: regeneratingCodeId === customer.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />,
+        icon: regeneratingCodeId === customer.id ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <RefreshIcon className="w-4 h-4" />,
         onClick: () => handleRegenerateCode(customer.id),
         disabled: regeneratingCodeId === customer.id,
       });
@@ -352,7 +341,7 @@ function CustomerListContent({ scope }: { scope: CustomerScope }) {
     items.push({
       key: 'delete',
       label: 'ลบ',
-      icon: <Trash2 className="w-4 h-4" />,
+      icon: <DeleteIcon className="w-4 h-4" />,
       danger: true,
       onClick: () => handleDeleteCustomer(customer.id, customer.name),
     });
@@ -375,13 +364,13 @@ function CustomerListContent({ scope }: { scope: CustomerScope }) {
                 onClick={(e) => e.stopPropagation()}
                 className="inline-flex items-center gap-1 data-secondary text-gray-500 dark:text-slate-400 hover:text-blue-600"
               >
-                <Phone className="w-3 h-3" />
+                <PhoneIcon className="w-3 h-3" />
                 {c.phone}
               </a>
             )}
             {c.email && (
               <span className="inline-flex items-center gap-1 data-secondary text-gray-500 dark:text-slate-400">
-                <Mail className="w-3 h-3" />
+                <EmailIcon className="w-3 h-3" />
                 {c.email}
               </span>
             )}
@@ -497,12 +486,12 @@ function CustomerListContent({ scope }: { scope: CustomerScope }) {
         <div className="flex items-center gap-3 mb-1.5 text-sm text-gray-500 dark:text-slate-400">
           {customer.phone && (
             <a href={`tel:${customer.phone}`} onClick={e => e.stopPropagation()} className="inline-flex items-center gap-1 hover:text-blue-600">
-              <Phone className="w-3 h-3" />{customer.phone}
+              <PhoneIcon className="w-3 h-3" />{customer.phone}
             </a>
           )}
           {customer.email && (
             <span className="inline-flex items-center gap-1">
-              <Mail className="w-3 h-3" />{customer.email}
+              <EmailIcon className="w-3 h-3" />{customer.email}
             </span>
           )}
         </div>
@@ -569,7 +558,7 @@ function CustomerListContent({ scope }: { scope: CustomerScope }) {
         <PageHeader
           title={scopeConfig.title}
           subtitle={scopeConfig.subtitle}
-          icon={<UserCircle />}
+          icon={<CustomerIcon />}
           actions={<>
             {can(userProfile, 'masterdata.tags') && (
               <Button
@@ -582,7 +571,7 @@ function CustomerListContent({ scope }: { scope: CustomerScope }) {
             )}
             <Button
               variant="primary"
-              icon={<Plus className="w-5 h-5" />}
+              icon={<AddIcon className="w-5 h-5" />}
               onClick={() => router.push(
                 scopeConfig.defaultNewType
                   ? `/customers/new?type=${scopeConfig.defaultNewType}`
@@ -693,7 +682,7 @@ function CustomerListContent({ scope }: { scope: CustomerScope }) {
               <div className="flex items-center gap-2">
                 <Button
                   variant="danger"
-                  icon={<Trash2 className="w-4 h-4" />}
+                  icon={<DeleteIcon className="w-4 h-4" />}
                   loading={bulkDeleting}
                   onClick={handleBulkDelete}
                 >
@@ -721,7 +710,7 @@ function CustomerListContent({ scope }: { scope: CustomerScope }) {
           onPageChange={(p) => { setCurrentPage(p); syncUrl({ page: p }); }}
           onRecordsPerPageChange={(v) => { setRowsPerPage(v); syncUrl({ limit: v, page: 1 }); }}
           emptyMessage="ไม่พบข้อมูลลูกค้า"
-          emptyIcon={<UserCircle className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+          emptyIcon={<CustomerIcon className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
         />
       </Container>
 

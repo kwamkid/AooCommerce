@@ -14,9 +14,8 @@ import { formatThaiDateTime } from '@/lib/utils/format';
 import type { WatchdogIssue } from '@/lib/marketplace/watchdog';
 import ChannelBadge from '@/components/ui/ChannelBadge';
 import { QUOTA_SCOPE_LABELS, type QuotaTarget } from '@/lib/marketplace/platforms';
-import {
-  RefreshCw, ShieldAlert, ShieldCheck, Zap, Radio, AlertTriangle, Store,
-} from 'lucide-react';
+import { ShieldAlert, Radio } from 'lucide-react';
+import { FastIcon, RefreshIcon, SecurityIcon, StoreIcon, WarningIcon } from '@/lib/icons';
 
 interface DailyRow { day: string; integration: string; success: number; error: number }
 interface Heartbeat { integration: string; status: string; error_message: string | null; created_at: string }
@@ -171,7 +170,7 @@ export default function ApiMonitorPage() {
           <div className="bg-slate-900 border border-slate-700/50 rounded-xl overflow-hidden">
             <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-700/50">
               <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-400" /> สิ่งที่ต้องดูตอนนี้
+                <WarningIcon className="w-4 h-4 text-amber-400" /> สิ่งที่ต้องดูตอนนี้
               </h2>
               <span className="text-xs text-slate-500">
                 {data?.watchdog_last_run
@@ -181,7 +180,7 @@ export default function ApiMonitorPage() {
             </div>
             {(data?.issues || []).length === 0 ? (
               <p className="px-4 py-3 text-sm text-emerald-400/90 flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4" /> ไม่มีเรื่องค้าง — ทุกร้านซิงค์ตามปกติ
+                <SecurityIcon className="w-4 h-4" /> ไม่มีเรื่องค้าง — ทุกร้านซิงค์ตามปกติ
               </p>
             ) : (
               <ul className="divide-y divide-slate-700/50">
@@ -241,7 +240,7 @@ export default function ApiMonitorPage() {
             ))
           ) : (
             <div className="flex items-center gap-2 text-sm text-emerald-400/90 bg-slate-900 border border-slate-700/50 rounded-xl px-4 py-2.5">
-              <ShieldCheck className="w-4 h-4" /> Circuit breaker ปิดทุก platform — ระบบยิง API ปกติ
+              <SecurityIcon className="w-4 h-4" /> Circuit breaker ปิดทุก platform — ระบบยิง API ปกติ
             </div>
           )}
 
@@ -267,7 +266,7 @@ export default function ApiMonitorPage() {
               disabled={refreshing}
               className="flex items-center gap-2 px-3 py-2 text-sm text-slate-300 border border-slate-700/60 rounded-lg hover:bg-slate-800 disabled:opacity-50"
             >
-              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} /> รีเฟรช
+              <RefreshIcon className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} /> รีเฟรช
             </button>
           </div>
 
@@ -284,7 +283,7 @@ export default function ApiMonitorPage() {
               <p className={`text-xs mt-1 ${heartbeatTone.cls}`}>{heartbeatTone.label}{heartbeat?.status === 'error' && !breakerActive ? ' · รอบล่าสุดมี error' : ''}</p>
             </div>
             <div className={statCard}>
-              <p className="text-xs text-slate-400 mb-1 flex items-center gap-1"><Zap className="w-3 h-3" /> Webhook 24 ชม.</p>
+              <p className="text-xs text-slate-400 mb-1 flex items-center gap-1"><FastIcon className="w-3 h-3" /> Webhook 24 ชม.</p>
               <p className="text-lg font-bold text-white">
                 <span className="text-emerald-400">{whCount('processed')}</span>
                 <span className="text-slate-500 text-sm font-normal"> ok · </span>
@@ -330,7 +329,7 @@ export default function ApiMonitorPage() {
           {/* Problem shops */}
           <div className="bg-slate-900 border border-slate-700/50 rounded-xl p-4">
             <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-              <Store className="w-4 h-4 text-slate-400" /> ร้านที่มีปัญหา (ทุก platform ทุกบริษัท)
+              <StoreIcon className="w-4 h-4 text-slate-400" /> ร้านที่มีปัญหา (ทุก platform ทุกบริษัท)
             </h3>
             {(data!.accounts || []).length === 0 ? (
               <p className="text-sm text-slate-500">ไม่มี — token ทุกร้านปกติ</p>
@@ -356,7 +355,7 @@ export default function ApiMonitorPage() {
           {deadForPlatform.length > 0 && (
             <div className="bg-slate-900 border border-red-900/40 rounded-xl p-4">
               <h3 className="text-sm font-semibold text-red-300 mb-3 flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4" /> Dead letters ล่าสุด — {PLATFORM_LABEL[platform]} (retry ครบแล้วยัง fail ต้อง sync มือ)
+                <WarningIcon className="w-4 h-4" /> Dead letters ล่าสุด — {PLATFORM_LABEL[platform]} (retry ครบแล้วยัง fail ต้อง sync มือ)
               </h3>
               <div className="space-y-2">
                 {deadForPlatform.map(d => (

@@ -21,9 +21,8 @@ import { EmptyCard, LoadingCard } from '@/components/ui/StateCard';
 import StatusBadge from '@/components/ui/StatusBadge';
 import DocListFilters, { type DocListUser, type DocListWarehouse } from '../components/DocListFilters';
 import { useDocListParams } from '../components/useDocListParams';
-import {
-  Loader2, ArrowRightLeft, Plus, Warehouse, Eye, Printer, Ban, X,
-} from 'lucide-react';
+import { ArrowRightLeft } from 'lucide-react';
+import { AddIcon, BanIcon, CloseIcon, LoadingIcon, PrintIcon, ViewIcon, WarehouseIcon } from '@/lib/icons';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 
 interface Transfer {
@@ -189,20 +188,20 @@ function TransferListContent() {
     {
       key: 'view',
       label: 'ดูรายละเอียด',
-      icon: <Eye className="w-4 h-4" />,
+      icon: <ViewIcon className="w-4 h-4" />,
       onClick: () => router.push(`/inventory/transfers/${t.id}`),
     },
     {
       key: 'print',
       label: 'พิมพ์',
-      icon: printingId === t.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />,
+      icon: printingId === t.id ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <PrintIcon className="w-4 h-4" />,
       onClick: () => handlePrint(t.id),
       disabled: printingId === t.id,
     },
     ...((t.status === 'pending' || t.status === 'shipping') ? [{
       key: 'cancel',
       label: 'ยกเลิก',
-      icon: <Ban className="w-4 h-4" />,
+      icon: <BanIcon className="w-4 h-4" />,
       danger: true,
       dividerBefore: true,
       onClick: () => setConfirmCancel(t),
@@ -220,7 +219,7 @@ function TransferListContent() {
           <Button
             variant="primary"
             onClick={() => router.push('/inventory/transfer')}
-            icon={<Plus className="w-4 h-4" />}
+            icon={<AddIcon className="w-4 h-4" />}
             aria-label="สร้างใบโอนย้าย"
             className="whitespace-nowrap flex-shrink-0"
           >
@@ -264,14 +263,14 @@ function TransferListContent() {
             title={hasActiveFilters ? 'ไม่พบรายการที่ตรงกับตัวกรอง' : 'ยังไม่มีรายการโอนย้ายในแท็บนี้'}
             subtitle={hasActiveFilters ? 'ลองขยายช่วงวันที่หรือล้างตัวกรอง' : undefined}
             actions={hasActiveFilters
-              ? <Button variant="secondary" icon={<X className="w-4 h-4" />} onClick={clearAll}>ล้างตัวกรอง</Button>
+              ? <Button variant="secondary" icon={<CloseIcon className="w-4 h-4" />} onClick={clearAll}>ล้างตัวกรอง</Button>
               : undefined}
           />
         ) : (
           <div className="relative">
             {fetching && (
               <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/60 dark:bg-slate-900/60 pointer-events-none">
-                <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                <LoadingIcon className="w-8 h-8 text-primary animate-spin" />
               </div>
             )}
             <DataTable<Transfer>
@@ -290,7 +289,7 @@ function TransferListContent() {
                   key: 'fromWarehouse', label: 'คลังต้นทาง',
                   render: (t) => (
                     <div className="flex items-center gap-1.5">
-                      <Warehouse className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                      <WarehouseIcon className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                       <span className="data-text text-gray-700 dark:text-slate-300">{t.from_warehouse?.name || '-'}</span>
                     </div>
                   ),
@@ -299,7 +298,7 @@ function TransferListContent() {
                   key: 'toWarehouse', label: 'คลังปลายทาง',
                   render: (t) => (
                     <div className="flex items-center gap-1.5">
-                      <Warehouse className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                      <WarehouseIcon className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                       <span className="data-text text-gray-700 dark:text-slate-300">{t.to_warehouse?.name || '-'}</span>
                     </div>
                   ),
@@ -366,7 +365,7 @@ function TransferListContent() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 mb-1">
-                    <Warehouse className="w-3.5 h-3.5 text-gray-400" />
+                    <WarehouseIcon className="w-3.5 h-3.5 text-gray-400" />
                     <span className="data-text text-gray-700 dark:text-slate-300">{t.from_warehouse?.name || '-'}</span>
                     <ArrowRightLeft className="w-3 h-3 text-gray-400" />
                     <span className="data-text text-gray-700 dark:text-slate-300">{t.to_warehouse?.name || '-'}</span>

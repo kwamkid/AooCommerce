@@ -14,7 +14,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { Minus, Plus } from 'lucide-react';
+import { AddIcon, RemoveIcon } from '@/lib/icons';
 import Cropper, { type Area, type Point } from 'react-easy-crop';
 import smartcrop from 'smartcrop';
 import Button from './Button';
@@ -119,7 +119,7 @@ export default function ImageCropper({
           disabled={zoom <= ZOOM_MIN}
           aria-label="ซูมออก"
         >
-          <Minus className="w-4 h-4" />
+          <RemoveIcon className="w-4 h-4" />
         </Button>
         <input
           type="range"
@@ -138,7 +138,7 @@ export default function ImageCropper({
           disabled={zoom >= ZOOM_MAX}
           aria-label="ซูมเข้า"
         >
-          <Plus className="w-4 h-4" />
+          <AddIcon className="w-4 h-4" />
         </Button>
       </div>
 

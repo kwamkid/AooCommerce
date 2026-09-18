@@ -18,7 +18,7 @@ import { useAuthGuard } from '@/lib/useAuthGuard';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch, invalidateApiCache } from '@/lib/api-client';
-import { Target, Trash2 } from 'lucide-react';
+import { AudienceIcon, DeleteIcon } from '@/lib/icons';
 import AudienceForm from '../components/AudienceForm';
 import type { AudienceView } from '../components/types';
 
@@ -58,7 +58,7 @@ export default function EditAudiencePage({ params }: { params: Promise<{ id: str
         + ' จะถูกลบด้วย — โฆษณาที่ใช้กลุ่มนี้อยู่จะหยุดหาคนใหม่',
       variant: 'danger',
       confirmLabel: 'ลบกลุ่ม',
-      confirmIcon: <Trash2 className="w-4 h-4" />,
+      confirmIcon: <DeleteIcon className="w-4 h-4" />,
     });
     if (!ok) return;
     setDeleting(true);
@@ -89,7 +89,7 @@ export default function EditAudiencePage({ params }: { params: Promise<{ id: str
       <Layout>
         <Container size="full">
           <EmptyCard
-            icon={<Target className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+            icon={<AudienceIcon className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
             title="ไม่พบกลุ่มเป้าหมายนี้"
             subtitle="อาจถูกลบไปแล้ว"
             actions={
@@ -106,7 +106,7 @@ export default function EditAudiencePage({ params }: { params: Promise<{ id: str
   const menu: ActionItem[] = [{
     key: 'delete',
     label: 'ลบกลุ่ม',
-    icon: <Trash2 className="w-4 h-4" />,
+    icon: <DeleteIcon className="w-4 h-4" />,
     danger: true,
     disabled: deleting,
     onClick: handleDelete,

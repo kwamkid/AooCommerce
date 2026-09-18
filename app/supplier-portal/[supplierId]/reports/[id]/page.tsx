@@ -4,7 +4,7 @@ import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { FullPageLoading } from '@/components/ui/Loading';
-import { ArrowLeft, Warehouse, BarChart3, AlertTriangle, ShoppingCart } from 'lucide-react';
+import { BackIcon, OrderIcon, ReportIcon, WarehouseIcon, WarningIcon } from '@/lib/icons';
 
 interface VariationInfo {
   id: string;
@@ -121,7 +121,7 @@ export default function PortalReportDetailPage() {
   if (error || !data) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen text-gray-500">
-        <AlertTriangle className="w-12 h-12 mb-3 text-red-400" />
+        <WarningIcon className="w-12 h-12 mb-3 text-red-400" />
         <p className="text-lg font-medium">{error || 'ไม่พบข้อมูล'}</p>
       </div>
     );
@@ -143,7 +143,7 @@ export default function PortalReportDetailPage() {
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-4">
       <button onClick={() => router.push(`/supplier-portal/${supplierId}`)} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700">
-        <ArrowLeft className="w-4 h-4" /> กลับ
+        <BackIcon className="w-4 h-4" /> กลับ
       </button>
 
       <h1 className="text-lg font-bold text-gray-900 dark:text-white">
@@ -181,7 +181,7 @@ export default function PortalReportDetailPage() {
       {data.stock_items.length > 0 && (
         <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-200 dark:border-slate-700 flex items-center gap-2">
-            <Warehouse className="w-4 h-4 text-gray-500" />
+            <WarehouseIcon className="w-4 h-4 text-gray-500" />
             <h3 className="text-sm font-medium text-gray-900 dark:text-white">Stock คงเหลือ</h3>
           </div>
           {Array.from(stockByWarehouse.entries()).map(([whId, group]) => (
@@ -209,7 +209,7 @@ export default function PortalReportDetailPage() {
       {isConsignment && data.sales_items.length > 0 && (
         <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-200 dark:border-slate-700 flex items-center gap-2">
-            <BarChart3 className="w-4 h-4 text-gray-500" />
+            <ReportIcon className="w-4 h-4 text-gray-500" />
             <h3 className="text-sm font-medium text-gray-900 dark:text-white">ยอดขาย</h3>
           </div>
           <table className="w-full text-sm">
@@ -246,7 +246,7 @@ export default function PortalReportDetailPage() {
       {isCredit && data.receive_items.length > 0 && (
         <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-200 dark:border-slate-700 flex items-center gap-2">
-            <ShoppingCart className="w-4 h-4 text-gray-500" />
+            <OrderIcon className="w-4 h-4 text-gray-500" />
             <h3 className="text-sm font-medium text-gray-900 dark:text-white">รายการรับเข้า</h3>
           </div>
           <table className="w-full text-sm">

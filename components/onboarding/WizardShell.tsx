@@ -2,7 +2,7 @@
 
 import { type ReactNode, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, ArrowLeft, ArrowRight, Building2 } from 'lucide-react';
+import { BackIcon, CompanyIcon, ConfirmIcon, ForwardIcon } from '@/lib/icons';
 import Button from '@/components/ui/Button';
 import { useToast } from '@/lib/toast-context';
 import { useCompany } from '@/lib/company-context';
@@ -135,7 +135,7 @@ export default function WizardShell({ step, nextDisabled, onNext, nextHref, fini
               />
             ) : (
               <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-                <Building2 className="w-5 h-5" />
+                <CompanyIcon className="w-5 h-5" />
               </div>
             )}
             <div className="min-w-0">
@@ -164,7 +164,7 @@ export default function WizardShell({ step, nextDisabled, onNext, nextHref, fini
                           : 'bg-gray-200 dark:bg-slate-700 text-gray-500 dark:text-slate-400'
                       }`}
                     >
-                      {isCompleted ? <Check className="w-4 h-4" /> : i + 1}
+                      {isCompleted ? <ConfirmIcon className="w-4 h-4" /> : i + 1}
                     </div>
                     <div className={`mt-1.5 text-sm font-medium ${isCurrent ? 'text-primary' : 'text-gray-500 dark:text-slate-400'}`}>
                       {s.label}
@@ -192,7 +192,7 @@ export default function WizardShell({ step, nextDisabled, onNext, nextHref, fini
             variant="ghost"
             onClick={handleBack}
             disabled={(!prevStep && !canExitToPicker) || submitting}
-            icon={<ArrowLeft className="w-4 h-4" />}
+            icon={<BackIcon className="w-4 h-4" />}
           >
             {canExitToPicker && !prevStep ? 'กลับไปเลือกบริษัท' : 'ย้อนกลับ'}
           </Button>
@@ -201,7 +201,7 @@ export default function WizardShell({ step, nextDisabled, onNext, nextHref, fini
             onClick={handleNext}
             disabled={nextDisabled}
             loading={submitting}
-            iconRight={!isLastStep ? <ArrowRight className="w-4 h-4" /> : undefined}
+            iconRight={!isLastStep ? <ForwardIcon className="w-4 h-4" /> : undefined}
           >
             {isLastStep ? (finishLabel || 'เสร็จสิ้น') : 'ถัดไป'}
           </Button>

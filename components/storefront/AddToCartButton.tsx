@@ -5,7 +5,7 @@
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Minus, Plus, Check } from 'lucide-react';
+import { AddIcon, ConfirmIcon, RemoveIcon } from '@/lib/icons';
 import { addToCart } from '@/lib/storefront-cart';
 import { thumbUrl } from '@/lib/image-thumb';
 import { flyToCart, findProductImage, FLY_DURATION } from '@/lib/storefront-fly-to-cart';
@@ -173,9 +173,9 @@ export default function AddToCartButton({
   const buyControls = (inBar: boolean) => (
     <>
       <div className="sf-qty" role="group" aria-label="จำนวน">
-        <button type="button" onClick={() => { setQty(q => Math.max(1, q - 1)); setAdded(false); }} aria-label="ลดจำนวน"><Minus strokeWidth={2} aria-hidden="true" /></button>
+        <button type="button" onClick={() => { setQty(q => Math.max(1, q - 1)); setAdded(false); }} aria-label="ลดจำนวน"><RemoveIcon strokeWidth={2} aria-hidden="true" /></button>
         <span aria-live="polite">{qty}</span>
-        <button type="button" onClick={() => { setQty(q => Math.min(99, q + 1)); setAdded(false); }} aria-label="เพิ่มจำนวน"><Plus strokeWidth={2} aria-hidden="true" /></button>
+        <button type="button" onClick={() => { setQty(q => Math.min(99, q + 1)); setAdded(false); }} aria-label="เพิ่มจำนวน"><AddIcon strokeWidth={2} aria-hidden="true" /></button>
       </div>
       <button
         ref={inBar ? undefined : btnRef}
@@ -185,7 +185,7 @@ export default function AddToCartButton({
       >
         <span className="sf-cta-face" key={added ? 'done' : 'idle'}>
           {added
-            ? <><Check strokeWidth={2.2} aria-hidden="true" />เพิ่มลงตะกร้าแล้ว</>
+            ? <><ConfirmIcon strokeWidth={2.2} aria-hidden="true" />เพิ่มลงตะกร้าแล้ว</>
             : <>{inBar ? 'ใส่ตะกร้า' : <>หยิบใส่ตะกร้า · {formatStorePrice(selected.price * qty)}</>}</>}
         </span>
       </button>

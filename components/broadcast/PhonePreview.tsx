@@ -18,10 +18,8 @@
 'use client';
 
 import { useEffect, useRef, type ReactNode } from 'react';
-import {
-  BatteryFull, Camera, ChevronLeft, Image as ImageIcon, Info, Menu, Mic, Phone, Plus, Search, Signal,
-  Smile, ThumbsUp, Video, Wifi,
-} from 'lucide-react';
+import { BatteryFull, Mic, Signal, Smile, ThumbsUp, Video, Wifi } from 'lucide-react';
+import { AddIcon, CameraIcon, ChevronLeftIcon, ImageIcon, InfoIcon, MenuIcon, PhoneIcon, SearchIcon } from '@/lib/icons';
 import UserAvatar from '@/components/ui/UserAvatar';
 
 export interface PhoneChatMessage {
@@ -106,21 +104,21 @@ export default function PhonePreview({
         </div>
         {/* Messenger วางรูปโปรไฟล์ไว้บนแถบหัวห้องและใช้ไอคอนคนละชุดกับ LINE */}
         <div className="phone-mock-header">
-          <ChevronLeft className={`w-5 h-5 flex-shrink-0 ${isMessenger ? 'text-[#0084FF]' : ''}`} aria-hidden="true" />
+          <ChevronLeftIcon className={`w-5 h-5 flex-shrink-0 ${isMessenger ? 'text-[#0084FF]' : ''}`} aria-hidden="true" />
           {isMessenger && <span className="flex-shrink-0">{avatar}</span>}
           <p className="flex-1 min-w-0 truncate body-text font-semibold">{name || 'บัญชีของร้าน'}</p>
           <span className={`flex items-center gap-3 ${isMessenger ? 'text-[#0084FF]' : ''}`} aria-hidden="true">
             {isMessenger ? (
               <>
-                <Phone className="w-4 h-4" />
+                <PhoneIcon className="w-4 h-4" />
                 <Video className="w-4 h-4" />
-                <Info className="w-4 h-4" />
+                <InfoIcon className="w-4 h-4" />
               </>
             ) : (
               <>
-                <Search className="w-4 h-4" />
-                <Phone className="w-4 h-4" />
-                <Menu className="w-4 h-4" />
+                <SearchIcon className="w-4 h-4" />
+                <PhoneIcon className="w-4 h-4" />
+                <MenuIcon className="w-4 h-4" />
               </>
             )}
           </span>
@@ -176,8 +174,8 @@ export default function PhonePreview({
         <div className="phone-mock-input" aria-hidden="true">
           {isMessenger ? (
             <>
-              <Plus className="w-5 h-5 text-[#0084FF]" />
-              <Camera className="w-5 h-5 text-[#0084FF]" />
+              <AddIcon className="w-5 h-5 text-[#0084FF]" />
+              <CameraIcon className="w-5 h-5 text-[#0084FF]" />
               <ImageIcon className="w-5 h-5 text-[#0084FF]" />
               <Mic className="w-5 h-5 text-[#0084FF]" />
               <span className="flex-1 h-8 rounded-full bg-gray-100 px-3 flex items-center subtitle-text">Aa</span>
@@ -185,7 +183,7 @@ export default function PhonePreview({
             </>
           ) : (
             <>
-              <Plus className="w-5 h-5" />
+              <AddIcon className="w-5 h-5" />
               <ImageIcon className="w-5 h-5" />
               <span className="flex-1 h-8 rounded-full bg-gray-100 px-3 flex items-center subtitle-text">Aa</span>
               <Smile className="w-5 h-5" />

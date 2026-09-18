@@ -8,22 +8,8 @@ import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
 import Pagination from '@/app/components/Pagination';
-import {
-  Search,
-  Loader2,
-  ChevronDown,
-  ChevronRight,
-  CheckCircle2,
-  XCircle,
-  ArrowUpRight,
-  ArrowDownLeft,
-  Clock,
-  RefreshCw,
-  Copy,
-  Check,
-  ExternalLink,
-  ScrollText,
-} from 'lucide-react';
+import { ArrowUpRight, ArrowDownLeft, ScrollText } from 'lucide-react';
+import { ChevronDownIcon, ChevronRightIcon, ConfirmIcon, CopyIcon, ErrorIcon, ExternalLinkIcon, LoadingIcon, RefreshIcon, SearchIcon, SuccessIcon, TimeIcon } from '@/lib/icons';
 import FormSelect from '@/components/ui/FormSelect';
 import { useMarketplaceGuard } from '@/lib/useMarketplaceGuard';
 import { LoadingCard } from '@/components/ui/StateCard';
@@ -270,7 +256,7 @@ export default function ShopeeLogsPage() {
               disabled={loading}
               className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg text-sm font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50"
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               รีเฟรช
             </button>
           }
@@ -318,7 +304,7 @@ export default function ShopeeLogsPage() {
           <div className="flex flex-wrap items-center gap-3">
             {/* Search */}
             <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 type="text"
                 placeholder="ค้นหาเลข order เช่น 260219..."
@@ -375,7 +361,7 @@ export default function ShopeeLogsPage() {
             <LoadingCard />
           ) : logs.length === 0 ? (
             <div className="text-center py-20 text-gray-500 dark:text-slate-400">
-              <Clock className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <TimeIcon className="w-12 h-12 mx-auto mb-3 opacity-50" />
               <p className="text-lg font-medium">ยังไม่มี Log</p>
               <p className="text-sm mt-1">Log จะปรากฏเมื่อมีการ Sync หรือรับ Webhook จาก Shopee</p>
             </div>
@@ -502,9 +488,9 @@ function LogRow({
       <tr className="data-tr cursor-pointer" onClick={onToggle}>
         <td className="pl-3 pr-1 py-3">
           {isExpanded ? (
-            <ChevronDown className="w-4 h-4 text-gray-400" />
+            <ChevronDownIcon className="w-4 h-4 text-gray-400" />
           ) : (
-            <ChevronRight className="w-4 h-4 text-gray-400" />
+            <ChevronRightIcon className="w-4 h-4 text-gray-400" />
           )}
         </td>
         <td className="px-3 py-3 whitespace-nowrap">
@@ -538,7 +524,7 @@ function LogRow({
                 className="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline"
               >
                 {displayLabel}
-                <ExternalLink className="w-3 h-3" />
+                <ExternalLinkIcon className="w-3 h-3" />
               </a>
             ) : (
               <OrderLink referenceId={log.reference_id} label={displayLabel} />
@@ -626,7 +612,7 @@ function MobileLogCard({
                   className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline"
                 >
                   {displayLabel}
-                  <ExternalLink className="w-3 h-3" />
+                  <ExternalLinkIcon className="w-3 h-3" />
                 </a>
               ) : (
                 <OrderLink referenceId={log.reference_id} label={displayLabel} />
@@ -644,9 +630,9 @@ function MobileLogCard({
         </div>
         <div className="ml-2 flex-shrink-0">
           {isExpanded ? (
-            <ChevronDown className="w-4 h-4 text-gray-400" />
+            <ChevronDownIcon className="w-4 h-4 text-gray-400" />
           ) : (
-            <ChevronRight className="w-4 h-4 text-gray-400" />
+            <ChevronRightIcon className="w-4 h-4 text-gray-400" />
           )}
         </div>
       </div>
@@ -673,12 +659,12 @@ function DirectionBadge({ direction }: { direction: 'outgoing' | 'incoming' }) {
 
 function StatusIcon({ status }: { status: string }) {
   if (status === 'success') {
-    return <CheckCircle2 className="w-5 h-5 text-green-500 inline-block" />;
+    return <SuccessIcon className="w-5 h-5 text-green-500 inline-block" />;
   }
   if (status === 'error') {
-    return <XCircle className="w-5 h-5 text-red-500 inline-block" />;
+    return <ErrorIcon className="w-5 h-5 text-red-500 inline-block" />;
   }
-  return <Clock className="w-5 h-5 text-yellow-500 inline-block" />;
+  return <TimeIcon className="w-5 h-5 text-yellow-500 inline-block" />;
 }
 
 function OrderLink({ referenceId, label }: { referenceId: string; label: string }) {
@@ -765,9 +751,9 @@ function OrderLink({ referenceId, label }: { referenceId: string; label: string 
       >
         {label}
         {loading ? (
-          <Loader2 className="w-3 h-3 animate-spin" />
+          <LoadingIcon className="w-3 h-3 animate-spin" />
         ) : (
-          <ExternalLink className="w-3 h-3" />
+          <ExternalLinkIcon className="w-3 h-3" />
         )}
       </a>
       {notFound && (
@@ -776,7 +762,7 @@ function OrderLink({ referenceId, label }: { referenceId: string; label: string 
           disabled={syncing}
           className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium rounded bg-orange-100 text-orange-700 hover:bg-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:hover:bg-orange-900/50 disabled:opacity-50"
         >
-          <RefreshCw className={`w-3 h-3 ${syncing ? 'animate-spin' : ''}`} />
+          <RefreshIcon className={`w-3 h-3 ${syncing ? 'animate-spin' : ''}`} />
           Re-sync
         </button>
       )}
@@ -804,9 +790,9 @@ function CopyButton({ text }: { text: string }) {
       title="คัดลอก"
     >
       {copied ? (
-        <Check className="w-3.5 h-3.5 text-green-500" />
+        <ConfirmIcon className="w-3.5 h-3.5 text-green-500" />
       ) : (
-        <Copy className="w-3.5 h-3.5 text-gray-400 dark:text-slate-500" />
+        <CopyIcon className="w-3.5 h-3.5 text-gray-400 dark:text-slate-500" />
       )}
     </button>
   );

@@ -5,7 +5,8 @@ import SuperAdminLayout from '../components/SuperAdminLayout';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
-import { Languages, Plus, Edit2, Trash2, Loader2, X, Download, Search, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Languages, ToggleLeft, ToggleRight } from 'lucide-react';
+import { AddIcon, CloseIcon, DeleteIcon, DownloadIcon, EditIcon, LoadingIcon, SearchIcon } from '@/lib/icons';
 import { LoadingCard } from '@/components/ui/StateCard';
 import FormSelect from '@/components/ui/FormSelect';
 import { NUMERIC_TEXT_INPUT_PROPS, onNumericChange } from '@/lib/numeric-input';
@@ -223,7 +224,7 @@ export default function SuperAdminErrorTranslations() {
                 disabled={seeding}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-violet-400 border border-violet-500/30 rounded-lg hover:bg-violet-500/10 transition-colors disabled:opacity-50"
               >
-                <Download className="w-4 h-4" />
+                <DownloadIcon className="w-4 h-4" />
                 {seeding ? 'กำลัง Seed...' : 'Seed ค่าเริ่มต้น'}
               </button>
             )}
@@ -231,7 +232,7 @@ export default function SuperAdminErrorTranslations() {
               onClick={openCreate}
               className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-700 transition-colors"
             >
-              <Plus className="w-4 h-4" />
+              <AddIcon className="w-4 h-4" />
               เพิ่ม Error
             </button>
           </div>
@@ -240,7 +241,7 @@ export default function SuperAdminErrorTranslations() {
         {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
               value={search}
@@ -344,10 +345,10 @@ export default function SuperAdminErrorTranslations() {
                         {t.id ? (
                           <div className="flex items-center justify-center gap-1">
                             <button onClick={() => openEdit(t)} className="p-1.5 hover:bg-slate-600 rounded-lg transition-colors" title="แก้ไข">
-                              <Edit2 className="w-4 h-4 text-slate-400" />
+                              <EditIcon className="w-4 h-4 text-slate-400" />
                             </button>
                             <button onClick={() => handleDelete(t)} className="p-1.5 hover:bg-red-500/10 rounded-lg transition-colors" title="ลบ">
-                              <Trash2 className="w-4 h-4 text-red-400" />
+                              <DeleteIcon className="w-4 h-4 text-red-400" />
                             </button>
                           </div>
                         ) : (
@@ -396,10 +397,10 @@ export default function SuperAdminErrorTranslations() {
                   {t.id && (
                     <div className="flex items-center gap-1">
                       <button onClick={() => openEdit(t)} className="p-1.5 hover:bg-slate-600 rounded-lg transition-colors" title="แก้ไข">
-                        <Edit2 className="w-4 h-4 text-slate-400" />
+                        <EditIcon className="w-4 h-4 text-slate-400" />
                       </button>
                       <button onClick={() => handleDelete(t)} className="p-1.5 hover:bg-red-500/10 rounded-lg transition-colors" title="ลบ">
-                        <Trash2 className="w-4 h-4 text-red-400" />
+                        <DeleteIcon className="w-4 h-4 text-red-400" />
                       </button>
                     </div>
                   )}
@@ -423,7 +424,7 @@ export default function SuperAdminErrorTranslations() {
                 {editingId ? 'แก้ไข Error Translation' : 'เพิ่ม Error Translation'}
               </h2>
               <button onClick={() => setShowModal(false)} className="p-1 hover:bg-slate-700 rounded-lg transition-colors">
-                <X className="w-5 h-5 text-slate-400" />
+                <CloseIcon className="w-5 h-5 text-slate-400" />
               </button>
             </div>
 
@@ -507,7 +508,7 @@ export default function SuperAdminErrorTranslations() {
                 disabled={saving}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-700 disabled:opacity-50 transition-colors"
               >
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                {saving ? <LoadingIcon className="w-4 h-4 animate-spin" /> : null}
                 {editingId ? 'อัพเดท' : 'เพิ่ม'}
               </button>
             </div>

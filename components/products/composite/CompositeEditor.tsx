@@ -6,7 +6,7 @@
  * All state lives in useCompositeEditor (the form owns it so it can validate + build the payload).
  */
 import { useMemo } from 'react';
-import { Plus, Trash2, RefreshCw, Loader2, ImagePlus } from 'lucide-react';
+import { AddIcon, DeleteIcon, ImageAddIcon, LoadingIcon, RefreshIcon } from '@/lib/icons';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
@@ -109,7 +109,7 @@ function SlotCard({ editor, slot, index }: { editor: CompositeEditorState; slot:
           <Button
             variant="ghost"
             size="sm"
-            icon={<Trash2 className="w-4 h-4" />}
+            icon={<DeleteIcon className="w-4 h-4" />}
             onClick={() => editor.removeSlot(slot.key)}
             aria-label="ลบส่วนประกอบนี้"
           >
@@ -129,7 +129,7 @@ function SlotCard({ editor, slot, index }: { editor: CompositeEditorState; slot:
             <Button
               variant="secondary"
               size="sm"
-              icon={<RefreshCw className="w-4 h-4" />}
+              icon={<RefreshIcon className="w-4 h-4" />}
               onClick={() => editor.clearProduct(slot.key)}
             >
               เปลี่ยนสินค้า
@@ -141,7 +141,7 @@ function SlotCard({ editor, slot, index }: { editor: CompositeEditorState; slot:
             <SlotProductPicker editor={editor} slotKey={slot.key} />
             {loading && (
               <p className="mt-2 flex items-center gap-2 text-base text-gray-500 dark:text-slate-400">
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <LoadingIcon className="w-4 h-4 animate-spin" />
                 กำลังโหลดตัวเลือก...
               </p>
             )}
@@ -273,7 +273,7 @@ function ComboImageCell({ row, images, onChange }: {
         <div className="pointer-events-none absolute inset-[2px] overflow-hidden rounded-[10px] bg-white dark:bg-slate-800">
           <img src={fallback} alt="" className="w-full h-full object-cover opacity-45" />
           <span className="absolute inset-0 flex items-center justify-center">
-            <ImagePlus className="w-5 h-5 text-gray-600 dark:text-slate-200" />
+            <ImageAddIcon className="w-5 h-5 text-gray-600 dark:text-slate-200" />
           </span>
         </div>
       )}
@@ -453,7 +453,7 @@ export default function CompositeEditor({ editor, images, onImagesChange }: { ed
           ))}
         </div>
         <div className="mt-4">
-          <Button variant="secondary" icon={<Plus className="w-4 h-4" />} onClick={editor.addSlot}>
+          <Button variant="secondary" icon={<AddIcon className="w-4 h-4" />} onClick={editor.addSlot}>
             เพิ่มส่วนประกอบ
           </Button>
         </div>

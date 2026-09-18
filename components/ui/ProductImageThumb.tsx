@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { Package, Search } from 'lucide-react';
+import { ProductIcon, SearchIcon } from '@/lib/icons';
 import ImageLightbox from './ImageLightbox';
 import { thumbUrl } from '@/lib/image-thumb';
 
@@ -109,7 +109,7 @@ export default function ProductImageThumb({
     const fallbackSizeClass = ratio === 'auto' ? SIZE_CLASS.square[size] : sizeClass;
     return (
       <div className={`${fallbackSizeClass} rounded-md bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0 ${className}`}>
-        {fallbackIcon ?? <Package className={`${FALLBACK_ICON_CLASS[size]} text-gray-400 dark:text-slate-500`} />}
+        {fallbackIcon ?? <ProductIcon className={`${FALLBACK_ICON_CLASS[size]} text-gray-400 dark:text-slate-500`} />}
       </div>
     );
   }
@@ -149,7 +149,7 @@ export default function ProductImageThumb({
       >
         {image}
         <span className="absolute inset-0 flex items-center justify-center bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-          <Search className={ZOOM_ICON_CLASS[size]} />
+          <SearchIcon className={ZOOM_ICON_CLASS[size]} />
         </span>
       </button>
       <ImageLightbox src={open ? src : null} onClose={() => setOpen(false)} alt={alt} />

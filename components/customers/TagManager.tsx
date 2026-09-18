@@ -22,7 +22,8 @@ import { Tag as TagType, TAG_COLORS } from '@/components/ui/TagBadge';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch, invalidateApiCache } from '@/lib/api-client';
-import { Edit2, Trash2, Tags, Loader2 } from 'lucide-react';
+import { Tags } from 'lucide-react';
+import { DeleteIcon, EditIcon, LoadingIcon } from '@/lib/icons';
 
 interface TagManagerProps {
   /** เรียกทุกครั้งที่รายการแท็กเปลี่ยน (สร้าง/แก้/ลบ) พร้อมรายการล่าสุด */
@@ -299,7 +300,7 @@ export default function TagManager({ onChanged }: TagManagerProps) {
                   <Button
                     variant="ghost"
                     size="sm"
-                    icon={<Edit2 className="w-4 h-4" />}
+                    icon={<EditIcon className="w-4 h-4" />}
                     onClick={() => startEdit(tag)}
                     aria-label={`แก้ไขแท็ก ${tag.name}`}
                   />
@@ -307,8 +308,8 @@ export default function TagManager({ onChanged }: TagManagerProps) {
                     variant="ghost"
                     size="sm"
                     icon={deletingId === tag.id
-                      ? <Loader2 className="w-4 h-4 animate-spin" />
-                      : <Trash2 className="w-4 h-4" />}
+                      ? <LoadingIcon className="w-4 h-4 animate-spin" />
+                      : <DeleteIcon className="w-4 h-4" />}
                     disabled={deletingId === tag.id}
                     onClick={() => handleDelete(tag)}
                     aria-label={`ลบแท็ก ${tag.name}`}

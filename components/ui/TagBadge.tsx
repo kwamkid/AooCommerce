@@ -1,6 +1,6 @@
 'use client';
 
-import { X } from 'lucide-react';
+import { CloseIcon } from '@/lib/icons';
 
 export interface Tag {
   id: string;
@@ -49,7 +49,7 @@ export default function TagBadge({ tag, size = 'md', onRemove }: TagBadgeProps) 
           onClick={(e) => { e.stopPropagation(); onRemove(); }}
           className="ml-0.5 hover:opacity-70 transition-opacity"
         >
-          <X className="w-3 h-3" />
+          <CloseIcon className="w-3 h-3" />
         </button>
       )}
     </span>

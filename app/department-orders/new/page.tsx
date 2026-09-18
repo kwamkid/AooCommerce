@@ -2,7 +2,7 @@
 
 import Layout from '@/components/layout/Layout';
 import PageHeader from '@/components/ui/PageHeader';
-import { Building2 } from 'lucide-react';
+import { DeptStoreIcon } from '@/lib/icons';
 import DealerOrderForm from '@/components/dealer/DealerOrderForm';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import { LoadingCard } from '@/components/ui/StateCard';
@@ -17,7 +17,7 @@ export default function NewDepartmentOrderPage() {
       <div className="space-y-4">
         <PageHeader
           backHref="/department-orders"
-          icon={<Building2 />}
+          icon={<DeptStoreIcon />}
           title="สร้างใบส่งห้าง"
         />
 

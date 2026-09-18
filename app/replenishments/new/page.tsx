@@ -10,10 +10,7 @@ import Modal from '@/components/ui/Modal';
 import FormInput from '@/components/ui/FormInput';
 import { useFormValidation } from '@/lib/useFormValidation';
 import { LoadingCard } from '@/components/ui/StateCard';
-import {
-  ArrowUpFromLine, Warehouse, Send, Copy, CheckCircle2,
-  Loader2, Printer, XCircle,
-} from 'lucide-react';
+import { CopyIcon, ErrorIcon, PrintIcon, SendIcon, StockIssueIcon, SuccessIcon, WarehouseIcon } from '@/lib/icons';
 import PageHeader from '@/components/ui/PageHeader';
 import ReplenishmentForm, { type ReplenishmentFormState } from '@/components/replenishments/ReplenishmentForm';
 import FormSelect from '@/components/ui/FormSelect';
@@ -235,7 +232,7 @@ function NewReplenishmentPageContent() {
         {/* Header */}
         <PageHeader
           backHref="/replenishments"
-          icon={<ArrowUpFromLine />}
+          icon={<StockIssueIcon />}
           title={
             <span className="inline-flex items-center gap-2 flex-wrap">
               {title}
@@ -254,7 +251,7 @@ function NewReplenishmentPageContent() {
               <Button
                 variant="secondary"
                 size="sm"
-                icon={formState.printing ? undefined : <Printer className="w-4 h-4" />}
+                icon={formState.printing ? undefined : <PrintIcon className="w-4 h-4" />}
                 loading={formState.printing}
                 onClick={formState.handlePrint}
               >
@@ -265,7 +262,7 @@ function NewReplenishmentPageContent() {
                 <Button
                   variant="secondary"
                   size="sm"
-                  icon={<Copy className="w-4 h-4" />}
+                  icon={<CopyIcon className="w-4 h-4" />}
                   onClick={copyReceiveLink}
                   className="!border-amber-300 dark:!border-amber-700 !bg-amber-50 dark:!bg-amber-900/20 !text-amber-700 dark:!text-amber-400 hover:!bg-amber-100 dark:hover:!bg-amber-900/30"
                 >
@@ -277,7 +274,7 @@ function NewReplenishmentPageContent() {
                 <Button
                   variant="primary"
                   size="sm"
-                  icon={<Send className="w-4 h-4" />}
+                  icon={<SendIcon className="w-4 h-4" />}
                   onClick={() => setShowShipModal(true)}
                 >
                   จัดส่ง
@@ -288,7 +285,7 @@ function NewReplenishmentPageContent() {
                 <Button
                   variant="success"
                   size="sm"
-                  icon={formState.confirmSubmitting ? undefined : <CheckCircle2 className="w-4 h-4" />}
+                  icon={formState.confirmSubmitting ? undefined : <SuccessIcon className="w-4 h-4" />}
                   loading={formState.confirmSubmitting}
                   onClick={formState.handleConfirm}
                 >
@@ -300,7 +297,7 @@ function NewReplenishmentPageContent() {
                 <Button
                   variant="danger"
                   size="sm"
-                  icon={<XCircle className="w-4 h-4" />}
+                  icon={<ErrorIcon className="w-4 h-4" />}
                   onClick={() => setShowCancelConfirm(true)}
                 >
                   ยกเลิก
@@ -320,7 +317,7 @@ function NewReplenishmentPageContent() {
                 id: w.id,
                 label: `${w.is_default ? '⭐ ' : ''}${w.name}`,
               }))}
-              icon={<Warehouse className="w-4 h-4" />}
+              icon={<WarehouseIcon className="w-4 h-4" />}
               placeholder="-- เลือกคลัง --"
               searchThreshold={99}
               disabled={isEdit}
@@ -342,7 +339,7 @@ function NewReplenishmentPageContent() {
         onClose={() => !shipSubmitting && setShowShipModal(false)}
         title={
           <span className="flex items-center gap-2">
-            <Send className="w-5 h-5 text-primary" /> จัดส่งสินค้า
+            <SendIcon className="w-5 h-5 text-primary" /> จัดส่งสินค้า
           </span>
         }
         size="md"
@@ -360,7 +357,7 @@ function NewReplenishmentPageContent() {
               variant="primary"
               fullWidth
               loading={shipSubmitting}
-              icon={!shipSubmitting ? <Send className="w-4 h-4" /> : undefined}
+              icon={!shipSubmitting ? <SendIcon className="w-4 h-4" /> : undefined}
               onClick={handleShip}
             >
               จัดส่ง

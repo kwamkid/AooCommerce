@@ -5,7 +5,7 @@ import ProductSearchInput from '@/components/ui/ProductSearchInput';
 import PriceDiscountCombo from '@/components/ui/PriceDiscountCombo';
 import NumberInput from '@/components/ui/NumberInput';
 import ProductImageThumb, { type ThumbSize } from '@/components/ui/ProductImageThumb';
-import { Trash2, ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDownIcon, ChevronRightIcon, DeleteIcon } from '@/lib/icons';
 import { productDisplayName, productSubtitle } from '@/lib/product-display';
 import type { PromotionItemForm } from './types';
 import type { UsePromotionFormReturn } from './usePromotionForm';
@@ -202,7 +202,7 @@ export default function BuyGetSection({ hook }: Props) {
                         onClick={() => handleRemoveProductVariations(productId)}
                         className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <DeleteIcon className="w-4 h-4" />
                       </button>
                     </div>
                   );
@@ -232,7 +232,7 @@ export default function BuyGetSection({ hook }: Props) {
                         })}
                         className="flex items-center gap-0.5 px-2 py-1 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-600 transition-colors flex-shrink-0"
                       >
-                        {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                        {isExpanded ? <ChevronDownIcon className="w-4 h-4" /> : <ChevronRightIcon className="w-4 h-4" />}
                         <span className="text-xs">{variations.length}</span>
                       </button>
                       <button
@@ -240,7 +240,7 @@ export default function BuyGetSection({ hook }: Props) {
                         onClick={() => handleRemoveProductVariations(productId)}
                         className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <DeleteIcon className="w-4 h-4" />
                       </button>
                     </div>
 

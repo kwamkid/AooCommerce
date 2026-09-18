@@ -7,11 +7,8 @@ import Container from '@/components/ui/Container';
 import { LoadingCard } from '@/components/ui/StateCard';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
-import {
-  Loader2, ArrowLeft, ClipboardList, Save, Printer,
-  CheckCircle, MapPin, FileText, Receipt, Copy,
-  BadgeCheck, XCircle, AlertCircle, ExternalLink,
-} from 'lucide-react';
+import { BadgeCheck } from 'lucide-react';
+import { AlertIcon, BackIcon, ChecklistIcon, ErrorIcon, ExternalLinkIcon, LoadingIcon, PrintIcon, SaveIcon } from '@/lib/icons';
 import Link from 'next/link';
 import { useCompany } from '@/lib/company-context';
 import { formatNumber } from '@/lib/utils/format';
@@ -649,11 +646,11 @@ function EditReportContent() {
               href="/consignment/reports"
               className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
             >
-              <ArrowLeft className="w-5 h-5 text-gray-500" />
+              <BackIcon className="w-5 h-5 text-gray-500" />
             </Link>
             <div>
               <div className="flex items-center gap-2">
-                <ClipboardList className="w-5 h-5 text-primary" />
+                <ChecklistIcon className="w-5 h-5 text-primary" />
                 <h1 className="text-xl font-bold text-gray-900 dark:text-white">{report.report_number}</h1>
                 <StatusBadge domain="report" status={report.status} />
               </div>
@@ -672,7 +669,7 @@ function EditReportContent() {
                 onClick={handlePrintReport}
                 className="border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors flex items-center gap-1.5 text-sm"
               >
-                <Printer className="w-4 h-4" />
+                <PrintIcon className="w-4 h-4" />
                 พิมพ์ใบแจ้งหนี้
               </button>
             )}
@@ -682,14 +679,14 @@ function EditReportContent() {
                   onClick={handlePrintStatement}
                   className="border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors flex items-center gap-1.5 text-sm"
                 >
-                  <Printer className="w-4 h-4" />
+                  <PrintIcon className="w-4 h-4" />
                   พิมพ์ใบวางบิล
                 </button>
                 <Link
                   href={`/statements/${report.statement_id}`}
                   className="border border-indigo-300 dark:border-indigo-600 text-indigo-600 dark:text-indigo-400 px-3 py-2 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors flex items-center gap-1.5 text-sm"
                 >
-                  <ExternalLink className="w-4 h-4" />
+                  <ExternalLinkIcon className="w-4 h-4" />
                   ดูใบวางบิล
                 </Link>
               </>
@@ -701,7 +698,7 @@ function EditReportContent() {
                 disabled={actionLoading === 'cancel'}
                 className="border border-red-300 text-red-600 dark:text-red-400 px-3 py-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-1.5 text-sm disabled:opacity-50"
               >
-                {actionLoading === 'cancel' ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+                {actionLoading === 'cancel' ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <ErrorIcon className="w-4 h-4" />}
                 ยกเลิกออเดอร์
               </button>
             )}
@@ -709,7 +706,7 @@ function EditReportContent() {
             {/* Focus button: พร้อมวางบิล — deduct stock + auto-issue TAX + ST + print */}
             {['draft', 'received'].includes(report.status) && (
               <Button variant="success" onClick={() => setBillConfirmOpen(true)} disabled={actionLoading === 'confirm' || items.length === 0 || hasOverDestStock}>
-                {actionLoading === 'confirm' ? <Loader2 className="w-4 h-4 animate-spin" /> : <BadgeCheck className="w-4 h-4" />}
+                {actionLoading === 'confirm' ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <BadgeCheck className="w-4 h-4" />}
                 พร้อมวางบิล
               </Button>
             )}
@@ -720,7 +717,7 @@ function EditReportContent() {
                 disabled={submitting || items.length === 0}
                 className="btn-primary"
               >
-                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                {submitting ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <SaveIcon className="w-4 h-4" />}
                 บันทึกแก้ไข
               </button>
             )}
@@ -758,7 +755,7 @@ function EditReportContent() {
         {/* Report Info (due date, etc.) */}
         {report.due_date && (
           <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400">
-            <AlertCircle className="w-4 h-4" />
+            <AlertIcon className="w-4 h-4" />
             ครบกำหนดชำระ: <span className="font-medium text-gray-700 dark:text-slate-300">{formatDate(report.due_date)}</span>
           </div>
         )}
@@ -862,7 +859,7 @@ function EditReportContent() {
         icon={<BadgeCheck className="w-6 h-6 text-emerald-600" />}
         title="พร้อมวางบิล"
         confirmLabel={actionLoading === 'confirm' ? 'กำลังดำเนินการ...' : 'ยืนยันพร้อมวางบิล'}
-        confirmIcon={actionLoading === 'confirm' ? <Loader2 className="w-4 h-4 animate-spin" /> : <BadgeCheck className="w-4 h-4" />}
+        confirmIcon={actionLoading === 'confirm' ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <BadgeCheck className="w-4 h-4" />}
         loading={actionLoading === 'confirm'}
       >
         {report && (

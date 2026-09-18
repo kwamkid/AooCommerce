@@ -1,7 +1,7 @@
 'use client';
 
 import { useAuth } from '@/lib/auth-context';
-import { LogOut } from 'lucide-react';
+import { LogoutIcon } from '@/lib/icons';
 
 /**
  * ชิปบอกตัวตนบนหน้า onboarding — รูป/ชื่อ/อีเมลของคนที่ login + ปุ่มออกจากระบบ
@@ -40,7 +40,7 @@ export default function SignedInUser() {
         title="ออกจากระบบ"
         className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors flex-shrink-0"
       >
-        <LogOut className="w-4 h-4" />
+        <LogoutIcon className="w-4 h-4" />
       </button>
     </div>
   );

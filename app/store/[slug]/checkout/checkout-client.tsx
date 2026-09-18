@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { PHONE_INPUT_PROPS, onPhoneChange } from '@/lib/numeric-input';
-import { Copy } from 'lucide-react';
+import { CopyIcon } from '@/lib/icons';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCart, clearCart } from '@/lib/storefront-cart';
@@ -795,7 +795,7 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
                       ))}
                     </div>
                     <button type="button" className="sf-btn-ghost sf-btn-sm" onClick={fillTaxFromBuyer}>
-                      <Copy strokeWidth={1.75} aria-hidden="true" />ใช้ที่อยู่ผู้สั่ง
+                      <CopyIcon strokeWidth={1.75} aria-hidden="true" />ใช้ที่อยู่ผู้สั่ง
                     </button>
                   </div>
                   {/* เรียงตามที่คนกรอกจริง: ใคร → อยู่ไหน → เลขอ้างอิง (เจ้าของสั่ง 2026-09-16) */}

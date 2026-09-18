@@ -38,7 +38,8 @@ import { apiFetch, invalidateApiCache } from '@/lib/api-client';
 import { formatNumber, formatThaiDateTime } from '@/lib/utils/format';
 import { audienceLabel, describeAudienceRefine } from '@/lib/broadcast/audience';
 import type { AudienceTemplateKey } from '@/lib/audiences/templates';
-import { Edit2, LayoutTemplate, Loader2, Plus, RefreshCw, Target, Trash2, Users } from 'lucide-react';
+import { LayoutTemplate } from 'lucide-react';
+import { AddIcon, AudienceIcon, DeleteIcon, EditIcon, LoadingIcon, PeopleIcon, RefreshIcon } from '@/lib/icons';
 import type { AudienceSyncView, AudienceView, ChatSourceAccount } from './components/types';
 import { isSyncRunning, latestCounts, reachHelpLines, syncStatusLook } from './components/sync-view';
 
@@ -167,7 +168,7 @@ export default function AudiencesPage() {
         + ' จะถูกลบด้วย — โฆษณาที่ใช้กลุ่มนี้อยู่จะหยุดหาคนใหม่',
       variant: 'danger',
       confirmLabel: 'ลบกลุ่ม',
-      confirmIcon: <Trash2 className="w-4 h-4" />,
+      confirmIcon: <DeleteIcon className="w-4 h-4" />,
     });
     if (!ok) return;
     setBusyId(row.id);
@@ -221,7 +222,7 @@ export default function AudiencesPage() {
                   ? <ChannelBadge channel={{ platform: s.platform, picture_url: s.picture_url ?? null }} size="sm" />
                   : (
                     <span className="w-6 h-6 rounded-full bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-300 flex items-center justify-center flex-shrink-0">
-                      <Users className="w-3.5 h-3.5" />
+                      <PeopleIcon className="w-3.5 h-3.5" />
                     </span>
                   )}
                 <span className="data-text text-gray-700 dark:text-slate-300 truncate">{s.name}</span>
@@ -248,7 +249,7 @@ export default function AudiencesPage() {
           return r.syncs.some(s => isSyncRunning(s))
             ? (
               <span className="data-muted text-gray-400 dark:text-slate-500 inline-flex items-center gap-1">
-                <Loader2 className="w-3 h-3 animate-spin" />
+                <LoadingIcon className="w-3 h-3 animate-spin" />
                 กำลังนับ
               </span>
             )
@@ -284,7 +285,7 @@ export default function AudiencesPage() {
                 <Badge
                   tone={look.tone}
                   size="sm"
-                  icon={look.spinning ? <Loader2 className="w-3 h-3 animate-spin" /> : undefined}
+                  icon={look.spinning ? <LoadingIcon className="w-3 h-3 animate-spin" /> : undefined}
                 >
                   {look.label}
                 </Badge>
@@ -322,7 +323,7 @@ export default function AudiencesPage() {
           {
             key: 'sync',
             label: 'sync ไป Meta ตอนนี้',
-            icon: <RefreshCw className="w-4 h-4" />,
+            icon: <RefreshIcon className="w-4 h-4" />,
             disabled: r.syncs.length === 0 || anySyncing || busyId === r.id,
             description: r.syncs.length === 0 ? 'ยังไม่ได้ผูกกับบัญชีโฆษณาไหนเลย' : undefined,
             onClick: () => handleSyncNow(r),
@@ -330,13 +331,13 @@ export default function AudiencesPage() {
           {
             key: 'edit',
             label: 'แก้ไข',
-            icon: <Edit2 className="w-4 h-4" />,
+            icon: <EditIcon className="w-4 h-4" />,
             onClick: () => router.push(`/marketing/audiences/${r.id}`),
           },
           {
             key: 'delete',
             label: 'ลบ',
-            icon: <Trash2 className="w-4 h-4" />,
+            icon: <DeleteIcon className="w-4 h-4" />,
             danger: true,
             dividerBefore: true,
             disabled: busyId === r.id,
@@ -360,7 +361,7 @@ export default function AudiencesPage() {
       {confirmDialog}
       <Container size="full">
         <PageHeader
-          icon={<Target />}
+          icon={<AudienceIcon />}
           title="กลุ่มเป้าหมาย"
           subtitle="บันทึกกลุ่มลูกค้าไว้ sync ไป Meta เพื่อยิงโฆษณา · อัปเดตรายชื่อให้เองทุกวัน"
           actions={
@@ -372,7 +373,7 @@ export default function AudiencesPage() {
               >
                 สร้างจากแม่แบบ
               </Button>
-              <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => router.push('/marketing/audiences/new')}>
+              <Button variant="primary" icon={<AddIcon className="w-4 h-4" />} onClick={() => router.push('/marketing/audiences/new')}>
                 สร้างกลุ่ม
               </Button>
             </>
@@ -414,7 +415,7 @@ export default function AudiencesPage() {
               <Button
                 variant="secondary"
                 size="sm"
-                icon={<Plus className="w-4 h-4" />}
+                icon={<AddIcon className="w-4 h-4" />}
                 onClick={() => router.push('/marketing/audiences/new')}
               >
                 สร้างเองตั้งแต่ต้น
@@ -430,7 +431,7 @@ export default function AudiencesPage() {
             getRowId={(r) => r.id}
             onRowClick={(r) => router.push(`/marketing/audiences/${r.id}`)}
             emptyMessage="ยังไม่มีกลุ่มเป้าหมาย"
-            emptyIcon={<Target className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+            emptyIcon={<AudienceIcon className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
             currentPage={page}
             totalPages={Math.max(1, Math.ceil(rows.length / recordsPerPage))}
             totalRecords={rows.length}

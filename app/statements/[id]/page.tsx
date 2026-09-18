@@ -6,10 +6,7 @@ import Layout from '@/components/layout/Layout';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { formatPrice } from '@/lib/utils/format';
-import {
-  ArrowLeft, Loader2, FileText, CreditCard,
-  CheckCircle2, AlertCircle, Clock, Receipt, Printer,
-} from 'lucide-react';
+import { AlertIcon, BackIcon, DocumentIcon, LoadingIcon, PaymentIcon, PrintIcon, ReceiptIcon, SuccessIcon, TimeIcon } from '@/lib/icons';
 import { showPdfPreview } from '@/lib/print-pdf';
 import { generateStatementPdf } from '@/lib/statement-pdf';
 import { LoadingCard } from '@/components/ui/StateCard';
@@ -305,11 +302,11 @@ export default function StatementDetailPage() {
               onClick={() => router.push('/statements')}
               className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
             >
-              <ArrowLeft className="w-6 h-6 text-gray-600 dark:text-slate-300" />
+              <BackIcon className="w-6 h-6 text-gray-600 dark:text-slate-300" />
             </button>
             <div>
               <div className="flex items-center gap-2">
-                <FileText className="w-5 h-5 text-indigo-500" />
+                <DocumentIcon className="w-5 h-5 text-indigo-500" />
                 <h1 className="text-xl font-bold text-gray-900 dark:text-white">{statement.statement_number}</h1>
                 <StatusBadge domain="statement" status={statement.status} />
               </div>
@@ -319,13 +316,13 @@ export default function StatementDetailPage() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button variant="secondary" icon={<Printer className="w-4 h-4" />} onClick={handlePrint}>
+            <Button variant="secondary" icon={<PrintIcon className="w-4 h-4" />} onClick={handlePrint}>
               พิมพ์ใบวางบิล
             </Button>
             {isDraft && (
               <Button
                 variant="primary"
-                icon={confirming ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                icon={confirming ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <SuccessIcon className="w-4 h-4" />}
                 onClick={handleConfirm}
                 disabled={confirming}
               >
@@ -335,7 +332,7 @@ export default function StatementDetailPage() {
             {canRecordPayment && (
               <Button
                 variant="primary"
-                icon={<CreditCard className="w-4 h-4" />}
+                icon={<PaymentIcon className="w-4 h-4" />}
                 onClick={() => {
                   setPayAmount(String(statement.outstanding_amount));
                   setShowPayModal(true);
@@ -347,7 +344,7 @@ export default function StatementDetailPage() {
             {canIssueInvoices && (
               <Button
                 variant="secondary"
-                icon={issuingInvoices ? <Loader2 className="w-4 h-4 animate-spin" /> : <Receipt className="w-4 h-4" />}
+                icon={issuingInvoices ? <LoadingIcon className="w-4 h-4 animate-spin" /> : <ReceiptIcon className="w-4 h-4" />}
                 onClick={handleIssueInvoices}
                 disabled={issuingInvoices}
               >
@@ -374,7 +371,7 @@ export default function StatementDetailPage() {
               <div className="flex justify-between">
                 <span className="text-gray-500 dark:text-slate-400">วันครบกำหนด</span>
                 <span className={`flex items-center gap-1 ${statement.due_date && new Date(statement.due_date) < new Date() && statement.status !== 'paid' ? 'text-red-600 font-medium' : 'text-gray-900 dark:text-white'}`}>
-                  {statement.due_date && new Date(statement.due_date) < new Date() && statement.status !== 'paid' && <AlertCircle className="w-3.5 h-3.5" />}
+                  {statement.due_date && new Date(statement.due_date) < new Date() && statement.status !== 'paid' && <AlertIcon className="w-3.5 h-3.5" />}
                   {formatDate(statement.due_date)}
                 </span>
               </div>
@@ -531,11 +528,11 @@ export default function StatementDetailPage() {
                 <div key={payment.id} className="p-4 flex items-center justify-between">
                   <div>
                     <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-green-500" />
+                      <SuccessIcon className="w-4 h-4 text-green-500" />
                       <span className="text-sm font-medium text-green-600 dark:text-green-400">฿{formatPrice(payment.amount)}</span>
                     </div>
                     <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-400">
-                      <Clock className="w-3 h-3" />
+                      <TimeIcon className="w-3 h-3" />
                       {new Date(payment.paid_at).toLocaleString('th-TH', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                       {payment.payment_method && <span>· {payment.payment_method}</span>}
                       {payment.reference && <span>· Ref: {payment.reference}</span>}
@@ -555,7 +552,7 @@ export default function StatementDetailPage() {
       <Modal
         open={showPayModal}
         onClose={() => setShowPayModal(false)}
-        icon={<CreditCard className="w-5 h-5" />}
+        icon={<PaymentIcon className="w-5 h-5" />}
         title="บันทึกการชำระเงิน"
         size="md"
         footer={
@@ -564,7 +561,7 @@ export default function StatementDetailPage() {
             <Button
               variant="success"
               loading={paySubmitting}
-              icon={<CreditCard className="w-4 h-4" />}
+              icon={<PaymentIcon className="w-4 h-4" />}
               onClick={handleRecordPayment}
             >
               บันทึก

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { User, Warehouse, X } from 'lucide-react';
+import { CloseIcon, UserIcon, WarehouseIcon } from '@/lib/icons';
 import SearchInput from '@/components/ui/SearchInput';
 import DateRangePicker from '@/components/ui/DateRangePicker';
 import FormSelect from '@/components/ui/FormSelect';
@@ -109,7 +109,7 @@ export default function DocListFilters({
               options={warehouseOptions}
               clearLabel={warehouseLabel}
               placeholder="คลัง"
-              icon={<Warehouse className="w-4 h-4" />}
+              icon={<WarehouseIcon className="w-4 h-4" />}
               searchPlaceholder="ค้นหาคลัง..."
             />
           </div>
@@ -123,7 +123,7 @@ export default function DocListFilters({
               options={userOptions}
               clearLabel="ทุกคน"
               placeholder="ผู้ทำรายการ"
-              icon={<User className="w-4 h-4" />}
+              icon={<UserIcon className="w-4 h-4" />}
               searchPlaceholder="ค้นหาผู้ทำรายการ..."
             />
           </div>
@@ -132,7 +132,7 @@ export default function DocListFilters({
           <Tooltip text="ล้างตัวกรอง">
             <Button
               variant="ghost"
-              icon={<X className="w-4 h-4" />}
+              icon={<CloseIcon className="w-4 h-4" />}
               onClick={onClear}
               aria-label="ล้างตัวกรอง"
             >

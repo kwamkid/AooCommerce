@@ -1,10 +1,8 @@
 'use client';
 
 import type { HTMLAttributes, ReactNode } from 'react';
-import {
-  ShoppingBag, Banknote, FileText, Package, ClipboardList, ReceiptText,
-  Undo2, Tag, Percent, Megaphone, ArrowLeftRight, Boxes, ShoppingCart, Layers, RefreshCw,
-} from 'lucide-react';
+import { Boxes, Layers } from 'lucide-react';
+import { BroadcastIcon, ChecklistIcon, DocumentIcon, MoneyIcon, OrderIcon, ProductIcon, PromotionIcon, ReceiptTextIcon, RefreshIcon, ReverseIcon, StockTransferIcon, TagIcon, WholesaleIcon } from '@/lib/icons';
 import type { LucideIcon } from 'lucide-react';
 import { statusMeta, type StatusDomain } from '@/lib/status-labels';
 
@@ -29,29 +27,29 @@ import { statusMeta, type StatusDomain } from '@/lib/status-labels';
 // จึงไม่เปลี่ยนไอคอนตามสถานะ — เปลี่ยนไอคอนของโดเมนไหนก็แก้บรรทัดเดียวที่นี่
 // ─────────────────────────────────────────────────────────────────────
 const DOMAIN_ICON: Record<StatusDomain, LucideIcon> = {
-  order:                 ShoppingBag,
-  orderDealer:           ShoppingBag,
-  customerOrder:         ShoppingBag,
-  payment:               Banknote,
-  customerPayment:       Banknote,
-  statement:             FileText,
-  replenishment:         Package,
-  report:                ClipboardList,
-  creditNote:            ReceiptText,
-  creditNoteType:        Tag,
-  taxDoc:                FileText,
-  returnNote:            Undo2,
-  promotion:             Percent,
-  transfer:              ArrowLeftRight,
+  order:                 WholesaleIcon,
+  orderDealer:           WholesaleIcon,
+  customerOrder:         WholesaleIcon,
+  payment:               MoneyIcon,
+  customerPayment:       MoneyIcon,
+  statement:             DocumentIcon,
+  replenishment:         ProductIcon,
+  report:                ChecklistIcon,
+  creditNote:            ReceiptTextIcon,
+  creditNoteType:        TagIcon,
+  taxDoc:                DocumentIcon,
+  returnNote:            ReverseIcon,
+  promotion:             PromotionIcon,
+  transfer:              StockTransferIcon,
   stockDoc:              Boxes,
   stockLevel:            Layers,
-  purchaseOrder:         ShoppingCart,
-  purchaseOrderSupplier: ShoppingCart,
-  broadcast:             Megaphone,
-  syncRun:               RefreshCw,
-  posOrder:              ShoppingBag,
-  supplierReport:        ClipboardList,
-  supplierType:          Tag,
+  purchaseOrder:         OrderIcon,
+  purchaseOrderSupplier: OrderIcon,
+  broadcast:             BroadcastIcon,
+  syncRun:               RefreshIcon,
+  posOrder:              WholesaleIcon,
+  supplierReport:        ChecklistIcon,
+  supplierType:          TagIcon,
 };
 
 /** อยากให้บางสถานะใช้ไอคอนต่างจากตระกูล เติมที่นี่ (ว่าง = ใช้ไอคอนตระกูลทุกสถานะ) */

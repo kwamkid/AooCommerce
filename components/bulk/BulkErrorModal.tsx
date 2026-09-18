@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertCircle, AlertTriangle, FileSpreadsheet, Download } from 'lucide-react';
+import { AlertIcon, DownloadIcon, ExcelIcon, WarningIcon } from '@/lib/icons';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 
@@ -37,14 +37,14 @@ export default function BulkErrorModal({ report, onClose, onDownloadTemplate }: 
       open={!!report}
       onClose={onClose}
       size="lg"
-      icon={<AlertCircle className="w-6 h-6 text-red-500" />}
+      icon={<AlertIcon className="w-6 h-6 text-red-500" />}
       title="ไฟล์มีปัญหา"
       footer={
         <div className="flex items-center justify-end gap-2">
           {onDownloadTemplate && (
             <Button
               variant="secondary"
-              icon={<Download className="w-4 h-4" />}
+              icon={<DownloadIcon className="w-4 h-4" />}
               onClick={() => {
                 onClose();
                 void onDownloadTemplate();
@@ -68,7 +68,7 @@ export default function BulkErrorModal({ report, onClose, onDownloadTemplate }: 
 
           {report.headerIssues.length > 0 && (
             <ErrorSection
-              icon={<FileSpreadsheet className="w-4 h-4" />}
+              icon={<ExcelIcon className="w-4 h-4" />}
               title="Header / Column"
               tone="red"
               issues={report.headerIssues}
@@ -77,7 +77,7 @@ export default function BulkErrorModal({ report, onClose, onDownloadTemplate }: 
 
           {report.rowIssues.length > 0 && (
             <ErrorSection
-              icon={<AlertCircle className="w-4 h-4" />}
+              icon={<AlertIcon className="w-4 h-4" />}
               title="ข้อมูลในแถว"
               tone="red"
               issues={report.rowIssues}
@@ -87,7 +87,7 @@ export default function BulkErrorModal({ report, onClose, onDownloadTemplate }: 
 
           {report.otherIssues.length > 0 && (
             <ErrorSection
-              icon={<AlertTriangle className="w-4 h-4" />}
+              icon={<WarningIcon className="w-4 h-4" />}
               title="อื่นๆ"
               tone="amber"
               issues={report.otherIssues}

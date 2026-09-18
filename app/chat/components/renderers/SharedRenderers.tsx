@@ -1,6 +1,7 @@
 'use client';
 
-import { Play, FileText, Download, Music, Loader2 } from 'lucide-react';
+import { Play, Music } from 'lucide-react';
+import { DocumentIcon, DownloadIcon, LoadingIcon } from '@/lib/icons';
 import { ChatMessage } from '@/app/chat/lib/chatTypes';
 import { hasHtmlMarkup, parseRichText } from '@/app/chat/lib/richText';
 import { lineStickerUrl, lineSticonUrl } from '@/lib/chat/line-sticker';
@@ -62,7 +63,7 @@ export function ImageBubble({ msg, onOpenLightbox, onImageLoad }: RendererProps)
       />
       {sending && (
         <span className="absolute inset-0 flex items-center justify-center">
-          <Loader2 className="w-7 h-7 animate-spin text-gray-600 dark:text-white drop-shadow" />
+          <LoadingIcon className="w-7 h-7 animate-spin text-gray-600 dark:text-white drop-shadow" />
         </span>
       )}
     </div>
@@ -118,7 +119,7 @@ export function ImageAlbumBubble({ msg, onOpenLightbox, onImageLoad }: RendererP
             {/* วงหมุนอยู่ในช่องของตัวเอง — เห็นทีละใบว่าใบไหนอัปเสร็จแล้ว */}
             {item.pending && (
               <span className="absolute inset-0 flex items-center justify-center">
-                <Loader2 className="w-6 h-6 animate-spin text-gray-600 dark:text-white drop-shadow" />
+                <LoadingIcon className="w-6 h-6 animate-spin text-gray-600 dark:text-white drop-shadow" />
               </span>
             )}
             {isLast && (
@@ -242,7 +243,7 @@ export function FileBubble({ msg, direction }: RendererProps) {
           : 'border-white/20 hover:bg-white/10'
       }`}
     >
-      <FileText className={`w-8 h-8 flex-shrink-0 ${direction === 'incoming' ? 'text-blue-500' : 'text-white/80'}`} />
+      <DocumentIcon className={`w-8 h-8 flex-shrink-0 ${direction === 'incoming' ? 'text-blue-500' : 'text-white/80'}`} />
       <div className="flex-1 min-w-0">
         <p className={`text-sm font-medium truncate ${direction === 'incoming' ? 'text-gray-900 dark:text-white' : 'text-white'}`}>
           {fileName}
@@ -253,7 +254,7 @@ export function FileBubble({ msg, direction }: RendererProps) {
           </p>
         )}
       </div>
-      <Download className={`w-4 h-4 flex-shrink-0 ${direction === 'incoming' ? 'text-gray-400' : 'text-white/60'}`} />
+      <DownloadIcon className={`w-4 h-4 flex-shrink-0 ${direction === 'incoming' ? 'text-gray-400' : 'text-white/60'}`} />
     </a>
   );
 }

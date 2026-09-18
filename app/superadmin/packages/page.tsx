@@ -6,7 +6,7 @@ import { apiFetch } from '@/lib/api-client';
 import { formatNumber } from '@/lib/utils/format';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
-import { Package, Plus, Edit2, Trash2, Users, X } from 'lucide-react';
+import { AddIcon, CloseIcon, DeleteIcon, EditIcon, PeopleIcon, SubscriptionIcon } from '@/lib/icons';
 import { LoadingCard } from '@/components/ui/StateCard';
 import Button from '@/components/ui/Button';
 import SaveButton from '@/components/ui/SaveButton';
@@ -168,7 +168,7 @@ export default function SuperAdminPackages() {
         {/* Add Button */}
         <div className="flex justify-end">
           <button onClick={openCreate} className="flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-medium transition-colors">
-            <Plus className="w-4 h-4" /> เพิ่ม<span className="hidden md:inline"> Package</span>
+            <AddIcon className="w-4 h-4" /> เพิ่ม<span className="hidden md:inline"> Package</span>
           </button>
         </div>
 
@@ -176,7 +176,7 @@ export default function SuperAdminPackages() {
           <LoadingCard />
         ) : packages.length === 0 ? (
           <div className="text-center py-16">
-            <Package className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+            <SubscriptionIcon className="w-12 h-12 text-slate-600 mx-auto mb-3" />
             <p className="text-slate-400">ยังไม่มี package</p>
           </div>
         ) : (
@@ -190,11 +190,11 @@ export default function SuperAdminPackages() {
                   </div>
                   <div className="flex gap-1">
                     <button onClick={() => openEdit(pkg)} className="p-1.5 text-slate-400 hover:text-violet-400 transition-colors">
-                      <Edit2 className="w-4 h-4" />
+                      <EditIcon className="w-4 h-4" />
                     </button>
                     {pkg.is_active && (
                       <button onClick={() => handleDelete(pkg.id, pkg.name)} className="p-1.5 text-slate-400 hover:text-red-400 transition-colors">
-                        <Trash2 className="w-4 h-4" />
+                        <DeleteIcon className="w-4 h-4" />
                       </button>
                     )}
                   </div>
@@ -233,7 +233,7 @@ export default function SuperAdminPackages() {
                 )}
 
                 <div className="pt-3 border-t border-slate-700/50 flex items-center gap-2 text-slate-400">
-                  <Users className="w-4 h-4" />
+                  <PeopleIcon className="w-4 h-4" />
                   <span>{pkg.subscriber_count} subscribers</span>
                 </div>
               </div>
@@ -253,7 +253,7 @@ export default function SuperAdminPackages() {
               <h2 className="text-lg font-semibold text-white">
                 {editingId ? 'แก้ไข Package' : 'สร้าง Package ใหม่'}
               </h2>
-              <button onClick={() => setShowModal(false)} className="p-1 text-slate-400 hover:text-slate-200"><X className="w-5 h-5" /></button>
+              <button onClick={() => setShowModal(false)} className="p-1 text-slate-400 hover:text-slate-200"><CloseIcon className="w-5 h-5" /></button>
             </div>
 
             <div className="p-6 space-y-4">

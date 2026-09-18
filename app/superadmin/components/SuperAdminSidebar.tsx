@@ -5,27 +5,16 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import {
-  LayoutDashboard,
-  Building2,
-  Package,
-  Menu,
-  X,
-  LogOut,
-  Shield,
-  Activity,
-  Gauge,
-  Languages,
-  KeyRound,
-} from 'lucide-react';
+import { LayoutDashboard, Shield, Activity, Gauge, Languages } from 'lucide-react';
+import { CloseIcon, CompanyIcon, LogoutIcon, MenuIcon, PasswordIcon, SubscriptionIcon } from '@/lib/icons';
 
 const menuItems = [
   { label: 'Dashboard', href: '/superadmin', icon: <LayoutDashboard className="w-5 h-5" /> },
-  { label: 'Companies', href: '/superadmin/companies', icon: <Building2 className="w-5 h-5" /> },
-  { label: 'Packages', href: '/superadmin/packages', icon: <Package className="w-5 h-5" /> },
+  { label: 'Companies', href: '/superadmin/companies', icon: <CompanyIcon className="w-5 h-5" /> },
+  { label: 'Packages', href: '/superadmin/packages', icon: <SubscriptionIcon className="w-5 h-5" /> },
   { label: 'API Logs', href: '/superadmin/api-logs', icon: <Activity className="w-5 h-5" /> },
   { label: 'API Monitor', href: '/superadmin/api-monitor', icon: <Gauge className="w-5 h-5" /> },
-  { label: 'App ของบริษัท', href: '/superadmin/marketplace-apps', icon: <KeyRound className="w-5 h-5" /> },
+  { label: 'App ของบริษัท', href: '/superadmin/marketplace-apps', icon: <PasswordIcon className="w-5 h-5" /> },
   { label: 'Error Translations', href: '/superadmin/error-translations', icon: <Languages className="w-5 h-5" /> },
 ];
 
@@ -57,7 +46,7 @@ export default function SuperAdminSidebar() {
           aria-label="เปิดเมนู"
           className="lg:hidden fixed top-safe-2 left-safe-3 z-50 p-2.5 rounded-lg hover:bg-white/10 active:bg-white/15 transition-colors"
         >
-          <Menu className="w-6 h-6 text-violet-400" />
+          <MenuIcon className="w-6 h-6 text-violet-400" />
         </button>
       )}
 
@@ -83,7 +72,7 @@ export default function SuperAdminSidebar() {
               aria-label="ปิดเมนู"
               className="lg:hidden p-2 rounded-lg text-slate-400 hover:text-violet-400 hover:bg-white/10 transition-colors flex-shrink-0"
             >
-              <X className="w-5 h-5" />
+              <CloseIcon className="w-5 h-5" />
             </button>
           </div>
 
@@ -135,7 +124,7 @@ export default function SuperAdminSidebar() {
               onClick={() => signOut()}
               className="flex items-center space-x-3 w-full px-3 py-2 text-slate-300 hover:bg-red-500/10 hover:text-red-500 rounded-lg transition-colors"
             >
-              <LogOut className="w-5 h-5" />
+              <LogoutIcon className="w-5 h-5" />
               <span className="text-[16px] font-medium">ออกจากระบบ</span>
             </button>
           </div>

@@ -8,7 +8,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Check, Pipette } from 'lucide-react';
+import { Pipette } from 'lucide-react';
+import { ConfirmIcon } from '@/lib/icons';
 import Modal from './Modal';
 import Button from './Button';
 import FormInput from './FormInput';
@@ -143,7 +144,7 @@ export default function ColorPicker({
                         }`}
                         style={{ background: hex }}
                       >
-                        {active && <Check className="w-5 h-5" style={{ color: contrastOn(hex) }} />}
+                        {active && <ConfirmIcon className="w-5 h-5" style={{ color: contrastOn(hex) }} />}
                       </span>
                       <span className="helper-text text-gray-500 font-mono">{hex}</span>
                     </button>
@@ -171,7 +172,7 @@ export default function ColorPicker({
                     }`}
                     style={{ background: p.value }}
                   >
-                    {active && <Check className="w-5 h-5" style={{ color: contrastOn(p.value) }} />}
+                    {active && <ConfirmIcon className="w-5 h-5" style={{ color: contrastOn(p.value) }} />}
                   </span>
                   <span className="helper-text text-gray-500 text-center leading-tight">{p.name}</span>
                 </button>

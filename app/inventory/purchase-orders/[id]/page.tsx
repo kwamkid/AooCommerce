@@ -14,7 +14,7 @@ import { generatePOPdf } from '@/lib/supplier-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
 import type { ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import type { DateValueType } from '@/components/ui/DateRangePicker';
-import { FileText } from 'lucide-react';
+import { DocumentIcon } from '@/lib/icons';
 import { LoadingCard } from '@/components/ui/StateCard';
 
 import type { PurchaseOrderDetail, EditItem, Supplier, WarehouseItem } from '../components/types';
@@ -319,7 +319,7 @@ export default function PurchaseOrderDetailPage() {
         {isEditable ? (
           (editItems.length > 0 || editNotes) && (
             <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5"><FileText className="w-4 h-4 inline mr-1.5 -mt-0.5" /> หมายเหตุ</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5"><DocumentIcon className="w-4 h-4 inline mr-1.5 -mt-0.5" /> หมายเหตุ</label>
               <textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} rows={3} placeholder="หมายเหตุสำหรับ PO นี้..."
                 className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500" />
             </div>

@@ -7,7 +7,7 @@
 // **ทุกแถวต้องมีทั้งวิธีแก้และปุ่มพาไปหน้าที่แก้ได้จริง** — บอกว่าพังเฉย ๆ ไม่พอ
 
 import Link from 'next/link';
-import { AlertTriangle, ChevronRight } from 'lucide-react';
+import { ChevronRightIcon, WarningIcon } from '@/lib/icons';
 import Card from '@/components/ui/Card';
 import ChannelBadge from '@/components/ui/ChannelBadge';
 import { useHeaderSummary } from '@/lib/header-summary-context';
@@ -23,7 +23,7 @@ export default function SystemIssuesCard({ className = '' }: { className?: strin
   return (
     <Card padding="none" className={className}>
       <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-100 dark:border-slate-700">
-        <AlertTriangle className="w-5 h-5 text-amber-500" />
+        <WarningIcon className="w-5 h-5 text-amber-500" />
         <h3 className="heading-3">เรื่องที่ต้องแก้ ({issues.length})</h3>
       </div>
       <ul className="divide-y divide-gray-100 dark:divide-slate-700">
@@ -50,7 +50,7 @@ export default function SystemIssuesCard({ className = '' }: { className?: strin
             </div>
             <Link href={issue.url} className="btn btn-sm btn-secondary flex-shrink-0 self-start sm:self-auto">
               {issue.actionLabel}
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRightIcon className="w-4 h-4" />
             </Link>
           </li>
         ))}

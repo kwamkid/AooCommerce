@@ -11,10 +11,8 @@ import { LoadingCard } from '@/components/ui/StateCard';
 import { useFeatures } from '@/lib/features-context';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { apiFetch } from '@/lib/api-client';
-import {
-  Package2, Warehouse, Activity,
-  ArrowDownToLine, ArrowUpFromLine, ArrowLeftRight, FileSpreadsheet, Undo2,
-} from 'lucide-react';
+import { Activity } from 'lucide-react';
+import { ExcelIcon, ProductIcon, ReverseIcon, StockIssueIcon, StockReceiveIcon, StockTransferIcon, WarehouseIcon } from '@/lib/icons';
 import { WarehouseItem, TabKey } from './components/types';
 import StockTab from './components/StockTab';
 import MovementsTab from './components/MovementsTab';
@@ -75,28 +73,28 @@ function InventoryPageContent() {
   return (
     <Container size="full">
       <PageHeader
-        icon={<Package2 />}
+        icon={<ProductIcon />}
         title="สินค้าคงคลัง"
         subtitle="จัดการสต็อกสินค้าและดูประวัติการเคลื่อนไหว"
         actions={
           <>
             <Button
               variant="primary"
-              icon={<ArrowDownToLine className="w-4 h-4" />}
+              icon={<StockReceiveIcon className="w-4 h-4" />}
               onClick={() => router.push('/inventory/receive')}
             >
               รับเข้า
             </Button>
             <Button
               variant="secondary"
-              icon={<ArrowUpFromLine className="w-4 h-4" />}
+              icon={<StockIssueIcon className="w-4 h-4" />}
               onClick={() => router.push('/inventory/issue')}
             >
               เบิกออก
             </Button>
             <Button
               variant="secondary"
-              icon={<ArrowLeftRight className="w-4 h-4" />}
+              icon={<StockTransferIcon className="w-4 h-4" />}
               onClick={() => router.push('/inventory/transfer')}
             >
               โอนย้าย
@@ -105,7 +103,7 @@ function InventoryPageContent() {
             {features.supplier && (
               <Button
                 variant="secondary"
-                icon={<Undo2 className="w-4 h-4" />}
+                icon={<ReverseIcon className="w-4 h-4" />}
                 onClick={() => router.push('/inventory/supplier-return')}
               >
                 คืนของ Supplier
@@ -113,7 +111,7 @@ function InventoryPageContent() {
             )}
             <Button
               variant="secondary"
-              icon={<FileSpreadsheet className="w-4 h-4" />}
+              icon={<ExcelIcon className="w-4 h-4" />}
               onClick={() => router.push('/inventory/bulk-stock-update')}
             >
               อัปเดตแบบชุด
@@ -127,7 +125,7 @@ function InventoryPageContent() {
         activeKey={activeTab}
         onSelect={k => setActiveTab(k as TabKey)}
         tabs={[
-          { key: 'stock', label: 'สินค้าคงคลัง', icon: <Warehouse className="w-4 h-4" /> },
+          { key: 'stock', label: 'สินค้าคงคลัง', icon: <WarehouseIcon className="w-4 h-4" /> },
           { key: 'movements', label: 'ความเคลื่อนไหว', icon: <Activity className="w-4 h-4" /> },
         ]}
       />

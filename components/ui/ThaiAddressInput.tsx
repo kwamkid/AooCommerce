@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { searchAddress, ThaiAddress } from '@/lib/thai-address-data';
 import { shouldDropUp, useDropUp } from '@/lib/useDropUp';
-import { MapPin } from 'lucide-react';
+import { LocationIcon } from '@/lib/icons';
 
 interface ThaiAddressInputProps {
   district: string;
@@ -360,7 +360,7 @@ export default function ThaiAddressInput({
                 borderColor: dropdownStyle.borderColor || '#f3f4f6',
               } : undefined}
             >
-              <MapPin className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" style={dropdownStyle ? { color: '#9ca3af' } : undefined} />
+              <LocationIcon className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" style={dropdownStyle ? { color: '#9ca3af' } : undefined} />
               <div className="flex-1 min-w-0 leading-relaxed">
                 <span className={activeField === 'district' ? 'font-medium text-primary' : ''} style={dropdownStyle && activeField !== 'district' ? { color: dropdownStyle.color } : undefined}>{addr.district}</span>
                 <span className={dropdownStyle ? 'mx-0.5' : 'text-gray-400 mx-0.5'} style={dropdownStyle ? { color: '#9ca3af' } : undefined}>&raquo;</span>

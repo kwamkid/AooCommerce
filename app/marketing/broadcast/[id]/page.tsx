@@ -42,7 +42,8 @@ import {
   BROADCAST_ATTRIBUTION_DAYS,
   type StoredAudienceFilter,
 } from '@/lib/broadcast/audience';
-import { Megaphone, MessageSquare, RefreshCw, XCircle } from 'lucide-react';
+import { MessageSquare } from 'lucide-react';
+import { BroadcastIcon, ErrorIcon, RefreshIcon } from '@/lib/icons';
 
 /** ต้องตรงกับ RECIPIENT_FILTERS ของ /api/broadcasts/[id] (server ปฏิเสธค่าที่ไม่รู้จัก) */
 type RecipientFilter = 'all' | 'replied' | 'ordered' | 'failed' | 'awaiting';
@@ -190,7 +191,7 @@ export default function BroadcastReportPage() {
       description: 'บรอดแคสต์ใบนี้จะไม่ถูกส่งเมื่อถึงเวลา — สร้างใหม่ได้เสมอ',
       variant: 'danger',
       confirmLabel: 'ยกเลิกการตั้งเวลา',
-      confirmIcon: <XCircle className="w-4 h-4" />,
+      confirmIcon: <ErrorIcon className="w-4 h-4" />,
     });
     if (!ok) return;
     setCancelling(true);
@@ -220,7 +221,7 @@ export default function BroadcastReportPage() {
       <Layout>
         <Container size="6xl">
           <EmptyCard
-            icon={<Megaphone className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+            icon={<BroadcastIcon className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
             title="ไม่พบบรอดแคสต์นี้"
             subtitle="อาจถูกลบไปแล้ว หรือเป็นของบริษัทอื่น"
             actions={
@@ -327,7 +328,7 @@ export default function BroadcastReportPage() {
             <>
               <Button
                 variant="secondary"
-                icon={<RefreshCw className="w-4 h-4" />}
+                icon={<RefreshIcon className="w-4 h-4" />}
                 onClick={() => router.push(`/marketing/broadcast/new?from=${b.id}`)}
               >
                 ส่งซ้ำกลุ่มนี้
@@ -342,7 +343,7 @@ export default function BroadcastReportPage() {
                 </Button>
               )}
               {b.status === 'scheduled' && (
-                <Button variant="danger" icon={<XCircle className="w-4 h-4" />} loading={cancelling} onClick={handleCancelSchedule}>
+                <Button variant="danger" icon={<ErrorIcon className="w-4 h-4" />} loading={cancelling} onClick={handleCancelSchedule}>
                   ยกเลิกการตั้งเวลา
                 </Button>
               )}
@@ -386,13 +387,13 @@ export default function BroadcastReportPage() {
             {/* ไม่มีรายชื่อให้ดู = แทนที่การ์ดทั้งใบ ไม่ใช่ยัด EmptyCard ไว้ในการ์ด (กล่องซ้อนกล่อง) */}
             {notSentYet ? (
               <EmptyCard
-                icon={<Megaphone className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+                icon={<BroadcastIcon className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
                 title="ยังไม่มีผู้รับให้ดู — ใบนี้ยังไม่ได้ส่ง"
                 subtitle="พอถึงเวลาส่งแล้ว รายชื่อผู้รับกับผลรายคนจะขึ้นตรงนี้"
               />
             ) : !chatAccountId ? (
               <EmptyCard
-                icon={<Megaphone className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+                icon={<BroadcastIcon className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
                 title="ช่องทางนี้ตามผลรายคนไม่ได้"
                 subtitle="ข้อความไปโผล่ในแชทฝั่งแพลตฟอร์ม ซึ่งเราไม่มีห้องนั้นในระบบ"
               />
@@ -413,7 +414,7 @@ export default function BroadcastReportPage() {
                     getRowId={(r) => r.contact_id}
                     onRowClick={(r) => router.push(`/chat?platform=line&account=${chatAccountId}&contact_id=${r.contact_id}`)}
                     emptyMessage="ไม่มีผู้รับในตัวกรองนี้"
-                    emptyIcon={<Megaphone className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+                    emptyIcon={<BroadcastIcon className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
                     currentPage={page}
                     totalPages={Math.max(1, Math.ceil(data.recipients.total / recordsPerPage))}
                     totalRecords={data.recipients.total}
@@ -462,7 +463,7 @@ export default function BroadcastReportPage() {
                   variant="secondary"
                   fullWidth
                   className="justify-start"
-                  icon={<RefreshCw className="w-4 h-4" />}
+                  icon={<RefreshIcon className="w-4 h-4" />}
                   onClick={() => router.push(`/marketing/broadcast/new?from=${b.id}`)}
                 >
                   ส่งซ้ำกลุ่มนี้

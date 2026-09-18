@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowDownToLine, ArrowUpFromLine, RefreshCw } from 'lucide-react';
+import { RefreshIcon, StockIssueIcon, StockReceiveIcon } from '@/lib/icons';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import Radio from '@/components/ui/Radio';
@@ -100,7 +100,7 @@ export default function ProductSyncModal({ open, onClose, productId, accountId, 
       open={open}
       onClose={close}
       title={`ซิงค์สินค้ากับ ${shopName}`}
-      icon={<RefreshCw className="w-5 h-5" />}
+      icon={<RefreshIcon className="w-5 h-5" />}
       size="lg"
       footer={
         <div className="flex justify-end gap-2">
@@ -142,7 +142,7 @@ export default function ProductSyncModal({ open, onClose, productId, accountId, 
               }`}
             >
               <div className="flex items-center gap-2 mb-1">
-                <ArrowDownToLine className="w-4 h-4 text-primary" />
+                <StockReceiveIcon className="w-4 h-4 text-primary" />
                 <Radio checked={direction === 'pull'} onChange={() => { setDirection('pull'); setPreview(null); }} label="ดึงจาก Shopee" />
               </div>
               <p className="text-sm text-gray-500 dark:text-slate-400">เอาข้อมูลบนร้านมาทับในระบบเรา</p>
@@ -158,7 +158,7 @@ export default function ProductSyncModal({ open, onClose, productId, accountId, 
               }`}
             >
               <div className="flex items-center gap-2 mb-1">
-                <ArrowUpFromLine className="w-4 h-4 text-primary" />
+                <StockIssueIcon className="w-4 h-4 text-primary" />
                 <Radio checked={direction === 'push'} onChange={() => { setDirection('push'); setPreview(null); }} label="ส่งขึ้น Shopee" />
               </div>
               <p className="text-sm text-gray-500 dark:text-slate-400">เอาข้อมูลในระบบเราไปทับบนร้าน</p>

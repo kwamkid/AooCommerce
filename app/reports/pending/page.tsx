@@ -13,19 +13,7 @@ import StatusBadge, { InfoChip } from '@/components/ui/StatusBadge';
 import Badge from '@/components/ui/Badge';
 import { getBadgeColor } from '@/lib/status-tab-colors';
 
-import {
-  FileText,
-  Calendar,
-  Users,
-  ChevronDown,
-  ChevronRight,
-  Phone,
-  User,
-  ShoppingCart,
-  AlertCircle,
-  Clock,
-  DollarSign
-} from 'lucide-react';
+import { AlertIcon, CalendarIcon, ChevronDownIcon, ChevronRightIcon, DocumentIcon, OrderIcon, PeopleIcon, PhoneIcon, PriceIcon, TimeIcon, UserIcon } from '@/lib/icons';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 
 // Interfaces
@@ -182,7 +170,7 @@ export default function PendingReportPage() {
       {/* Header */}
       <PageHeader
         className="mb-6"
-        icon={<FileText />}
+        icon={<DocumentIcon />}
         title="รายงานยอดค้างชำระ"
         subtitle="ติดตามยอดค้างชำระจากลูกค้า"
       />
@@ -200,7 +188,7 @@ export default function PendingReportPage() {
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center">
-                <AlertCircle className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                <AlertIcon className="w-5 h-5 text-orange-600 dark:text-orange-400" />
               </div>
               <div>
                 <p className="text-sm text-gray-500 dark:text-slate-400">จำนวนออเดอร์ค้าง</p>
@@ -212,7 +200,7 @@ export default function PendingReportPage() {
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-lg flex items-center justify-center">
-                <DollarSign className="w-5 h-5 text-red-600 dark:text-red-400" />
+                <PriceIcon className="w-5 h-5 text-red-600 dark:text-red-400" />
               </div>
               <div>
                 <p className="text-sm text-gray-500 dark:text-slate-400">ยอดค้างชำระรวม</p>
@@ -224,7 +212,7 @@ export default function PendingReportPage() {
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
-                <Clock className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                <TimeIcon className="w-5 h-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
                 <p className="text-sm text-gray-500 dark:text-slate-400">ออเดอร์เก่าสุด</p>
@@ -238,7 +226,7 @@ export default function PendingReportPage() {
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center">
-                <Calendar className="w-5 h-5 text-green-600 dark:text-green-400" />
+                <CalendarIcon className="w-5 h-5 text-green-600 dark:text-green-400" />
               </div>
               <div>
                 <p className="text-sm text-gray-500 dark:text-slate-400">ออเดอร์ใหม่สุด</p>
@@ -264,7 +252,7 @@ export default function PendingReportPage() {
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
-              <Users className="w-4 h-4 inline mr-1" />
+              <PeopleIcon className="w-4 h-4 inline mr-1" />
               ลูกค้า
             </button>
             <button
@@ -275,7 +263,7 @@ export default function PendingReportPage() {
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
-              <ShoppingCart className="w-4 h-4 inline mr-1" />
+              <OrderIcon className="w-4 h-4 inline mr-1" />
               ออเดอร์
             </button>
           </div>
@@ -288,7 +276,7 @@ export default function PendingReportPage() {
       ) : groupedData.length === 0 ? (
         <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-12">
           <div className="flex flex-col items-center justify-center">
-            <FileText className="w-16 h-16 text-gray-300 mb-4" />
+            <DocumentIcon className="w-16 h-16 text-gray-300 mb-4" />
             <p className="text-gray-500 text-lg">ไม่มียอดค้างชำระ</p>
             <p className="text-gray-400 text-sm">ลูกค้าทุกรายชำระเงินครบถ้วนแล้ว</p>
           </div>
@@ -336,12 +324,12 @@ export default function PendingReportPage() {
                       <td className="px-6 py-4 text-center">
                         <div className="text-sm">
                           <div className="flex items-center justify-center gap-1 text-gray-600 dark:text-slate-400">
-                            <User className="w-3 h-3" />
+                            <UserIcon className="w-3 h-3" />
                             {item.contactPerson}
                           </div>
                           {item.phone !== '-' && (
                             <div className="flex items-center justify-center gap-1 text-gray-500 dark:text-slate-400">
-                              <Phone className="w-3 h-3" />
+                              <PhoneIcon className="w-3 h-3" />
                               {item.phone}
                             </div>
                           )}
@@ -355,9 +343,9 @@ export default function PendingReportPage() {
                       </td>
                       <td className="px-6 py-4 text-center">
                         {expandedRows.has(item.customerId || `customer-${index}`) ? (
-                          <ChevronDown className="w-5 h-5 text-gray-400" />
+                          <ChevronDownIcon className="w-5 h-5 text-gray-400" />
                         ) : (
-                          <ChevronRight className="w-5 h-5 text-gray-400" />
+                          <ChevronRightIcon className="w-5 h-5 text-gray-400" />
                         )}
                       </td>
                     </tr>
@@ -461,13 +449,13 @@ export default function PendingReportPage() {
                   <div className="flex flex-wrap gap-3 text-sm text-gray-600 dark:text-slate-400 mb-2">
                     {item.contactPerson && (
                       <span className="flex items-center gap-1">
-                        <User className="w-3 h-3" />
+                        <UserIcon className="w-3 h-3" />
                         {item.contactPerson}
                       </span>
                     )}
                     {item.phone !== '-' && (
                       <span className="flex items-center gap-1">
-                        <Phone className="w-3 h-3" />
+                        <PhoneIcon className="w-3 h-3" />
                         {item.phone}
                       </span>
                     )}

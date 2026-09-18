@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { ReceiveRef, POItem } from './types';
-import { ArrowDownToLine, ChevronDown, ChevronUp, Package } from 'lucide-react';
+import { ChevronDownIcon, ChevronUpIcon, ProductIcon, StockReceiveIcon } from '@/lib/icons';
 import { thumbUrl } from '@/lib/image-thumb';
 
 interface Props {
@@ -27,7 +27,7 @@ export default function POReceivesSection({ receives, poItems }: Props) {
     <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
       <div className="px-4 py-3 border-b border-gray-200 dark:border-slate-700">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-          <ArrowDownToLine className="w-4 h-4 text-green-600" /> ประวัติรับของ ({receives.length} ครั้ง)
+          <StockReceiveIcon className="w-4 h-4 text-green-600" /> ประวัติรับของ ({receives.length} ครั้ง)
         </h3>
       </div>
       <div className="divide-y divide-gray-100 dark:divide-slate-700">
@@ -63,8 +63,8 @@ export default function POReceivesSection({ receives, poItems }: Props) {
                   </span>
                   {hasItems && (
                     isExpanded
-                      ? <ChevronUp className="w-4 h-4 text-gray-400" />
-                      : <ChevronDown className="w-4 h-4 text-gray-400" />
+                      ? <ChevronUpIcon className="w-4 h-4 text-gray-400" />
+                      : <ChevronDownIcon className="w-4 h-4 text-gray-400" />
                   )}
                 </div>
               </div>
@@ -86,7 +86,7 @@ export default function POReceivesSection({ receives, poItems }: Props) {
                             <img src={thumbUrl(item.variation.product.image, 96)} alt="" loading="lazy" decoding="async" className="w-7 h-7 rounded object-cover flex-shrink-0" />
                           ) : (
                             <div className="w-7 h-7 bg-gray-200 dark:bg-slate-600 rounded flex items-center justify-center flex-shrink-0">
-                              <Package className="w-3.5 h-3.5 text-gray-400" />
+                              <ProductIcon className="w-3.5 h-3.5 text-gray-400" />
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
