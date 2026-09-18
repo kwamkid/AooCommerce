@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   AlertTriangle, ArrowRightLeft, CheckCircle2, ClipboardList, Factory,
-  Package2, PackageMinus, Plus, Star, Warehouse,
+  Package2, PackageMinus, Plus, Star, Undo2, Warehouse,
 } from 'lucide-react';
 import Layout from '@/components/layout/Layout';
 import Alert from '@/components/ui/Alert';
@@ -32,7 +32,7 @@ import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { useServerSearch, type ServerSearchPage } from '@/lib/useServerSearch';
 import { useToast } from '@/lib/toast-context';
 
-export type StockDocMode = 'receive' | 'issue' | 'transfer';
+export type StockDocMode = 'receive' | 'issue' | 'transfer' | 'supplier_return';
 
 // ── ค่าคงที่ต่อโหมด ────────────────────────────────────────────────────────
 
@@ -80,6 +80,20 @@ const MODES: Record<StockDocMode, ModeConfig> = {
     emptyMessage: 'เพิ่มสินค้าโดยพิมพ์ค้นหาด้านบน',
     errorFallback: 'เกิดข้อผิดพลาดในการเบิกออกสินค้า',
   },
+  supplier_return: {
+    title: 'คืนของให้ Supplier',
+    listHref: '/inventory/supplier-returns',
+    listLabel: 'รายการคืนของ Supplier',
+    crumb: 'คืนของให้ Supplier',
+    endpoint: '/api/inventory/supplier-returns',
+    saveLabel: 'บันทึกใบคืน',
+    confirmTitle: 'ยืนยันคืนของให้ Supplier',
+    confirmDescription: 'ของจะถูกตัดออกจากคลังทันที และบันทึกเป็นใบคืนให้ Supplier',
+    confirmLabel: 'ยืนยันคืนของ',
+    confirmIcon: <Undo2 className="w-6 h-6 text-primary" />,
+    emptyMessage: 'เพิ่มสินค้าที่จะคืนโดยพิมพ์ค้นหาด้านบน',
+    errorFallback: 'เกิดข้อผิดพลาดในการคืนของ',
+  },
   transfer: {
     title: 'โอนย้ายสินค้า',
     listHref: '/inventory/transfers',
@@ -101,6 +115,16 @@ const REASON_OPTIONS = [
   { value: 'เสียหาย', label: 'เสียหาย' },
   { value: 'หมดอายุ', label: 'หมดอายุ' },
   { value: 'ตัวอย่าง', label: 'ตัวอย่าง' },
+  { value: 'อื่นๆ', label: 'อื่นๆ' },
+];
+
+/** เหตุผลคืนของให้ supplier — ของที่คืนเพราะสภาพ ไม่ใช่เพราะเราเบิกไปใช้ */
+const RETURN_REASON_OPTIONS = [
+  { value: 'ชำรุด', label: 'ชำรุด' },
+  { value: 'กล่องเสีย', label: 'กล่องเสีย' },
+  { value: 'ส่งผิดรุ่น', label: 'ส่งผิดรุ่น' },
+  { value: 'หมดอายุ', label: 'หมดอายุ' },
+  { value: 'ขายไม่ออก', label: 'ขายไม่ออก (ของฝากขาย)' },
   { value: 'อื่นๆ', label: 'อื่นๆ' },
 ];
 
@@ -338,7 +362,7 @@ export default function StockDocForm({ mode }: { mode: StockDocMode }) {
 
   const suppliersFetchedRef = useRef(false);
   useEffect(() => {
-    if (mode !== 'receive' || !allowed || !features.supplier || suppliersFetchedRef.current) return;
+    if ((mode !== 'receive' && mode !== 'supplier_return') || !allowed || !features.supplier || suppliersFetchedRef.current) return;
     suppliersFetchedRef.current = true;
     apiFetch('/api/suppliers')
       .then(async res => { if (res.ok) setSuppliers(((await res.json()).data || []) as SupplierOption[]); })
@@ -529,7 +553,7 @@ export default function StockDocForm({ mode }: { mode: StockDocMode }) {
         map.set(idx, 'จำนวนต้องมากกว่า 0');
         return;
       }
-      if (mode === 'issue' && !line.reason.trim()) {
+      if ((mode === 'issue' || mode === 'supplier_return') && !line.reason.trim()) {
         map.set(idx, 'กรุณาเลือกเหตุผล');
         return;
       }
@@ -553,7 +577,9 @@ export default function StockDocForm({ mode }: { mode: StockDocMode }) {
     && !!sourceWarehouseId
     && lines.length > 0
     && lineErrors.size === 0
-    && (mode !== 'transfer' || (!!destWarehouseId && !sameWarehouse));
+    && (mode !== 'transfer' || (!!destWarehouseId && !sameWarehouse))
+    // คืนของต้องรู้ว่าคืนให้ใคร — ไม่มี supplier แล้วใบนี้ไร้ความหมาย
+    && (mode !== 'supplier_return' || !!supplierId);
 
   // ── บันทึก ──────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
@@ -614,6 +640,13 @@ export default function StockDocForm({ mode }: { mode: StockDocMode }) {
           items: lines.map(l => ({ variation_id: l.variation_id, quantity: l.quantity, reason: l.reason })),
           notes: notes || undefined,
         };
+      } else if (mode === 'supplier_return') {
+        payload = {
+          warehouse_id: sourceWarehouseId,
+          supplier_id: supplierId,
+          items: lines.map(l => ({ variation_id: l.variation_id, quantity: l.quantity, reason: l.reason })),
+          notes: notes || undefined,
+        };
       } else {
         payload = {
           from_warehouse_id: sourceWarehouseId,
@@ -658,7 +691,7 @@ export default function StockDocForm({ mode }: { mode: StockDocMode }) {
         ? ['stock_badge', 'po_quantity', 'qty', 'unit_cost', 'total']
         : ['stock_badge', 'qty', 'unit_cost', 'total'];
     }
-    if (mode === 'issue') return ['stock_badge', 'qty', 'reason'];
+    if (mode === 'issue' || mode === 'supplier_return') return ['stock_badge', 'qty', 'reason'];
     return ['stock_source', 'stock_dest', 'qty'];
   }, [mode, receiveMode]);
 
@@ -672,7 +705,7 @@ export default function StockDocForm({ mode }: { mode: StockDocMode }) {
     image: l.image,
     quantity: l.quantity,
     unit_cost: mode === 'receive' ? l.unit_cost : undefined,
-    reason: mode === 'issue' ? l.reason : undefined,
+    reason: mode === 'issue' || mode === 'supplier_return' ? l.reason : undefined,
     po_quantity: l.po_quantity,
     stock_source: mode === 'transfer' ? (sourceStock[l.variation_id]?.available ?? null) : undefined,
     stock_dest: mode === 'transfer' ? (destStock[l.variation_id]?.quantity ?? null) : undefined,
@@ -751,12 +784,15 @@ export default function StockDocForm({ mode }: { mode: StockDocMode }) {
           </Card>
         )}
 
-        {/* Supplier + ดีลของล็อตนี้ (โหมดรับเข้าใหม่) — จาก PO จะเติมให้เองจากใบสั่งซื้อ */}
-        {mode === 'receive' && features.supplier && receiveMode === 'manual' && (
+        {/* Supplier + ดีลของล็อตนี้ — โหมดรับเข้าใหม่ (เลือกได้) และโหมดคืนของ (บังคับ)
+            โหมดรับเข้าจาก PO จะเติมให้เองจากใบสั่งซื้อ */}
+        {(mode === 'supplier_return' || (mode === 'receive' && receiveMode === 'manual')) && features.supplier && (
           <Card padding="md">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
               <div className="flex-1">
-                <label className="field-label">Supplier</label>
+                <label className="field-label">
+                  Supplier {mode === 'supplier_return' && <span className="text-red-500">*</span>}
+                </label>
                 <EntitySearchInput
                   value={supplierId}
                   onChange={id => { setSupplierId(id); applySupplierDefaults(id, suppliers); }}
@@ -767,7 +803,7 @@ export default function StockDocForm({ mode }: { mode: StockDocMode }) {
                   emptyMessage="ไม่พบ Supplier"
                 />
               </div>
-              {supplierId && (
+              {supplierId && mode === 'receive' && (
                 <div className="flex-1">
                   <label className="field-label">ดีลของล็อตนี้</label>
                   <FormSelect
@@ -783,7 +819,7 @@ export default function StockDocForm({ mode }: { mode: StockDocMode }) {
                   <p className="helper-text mt-1">{DEAL_OPTIONS.find(d => d.id === dealType)?.hint}</p>
                 </div>
               )}
-              {supplierId && dealType === 'credit' && (
+              {supplierId && mode === 'receive' && dealType === 'credit' && (
                 <div className="sm:w-48">
                   <label className="field-label">ครบกำหนดจ่าย</label>
                   <input
@@ -893,7 +929,7 @@ export default function StockDocForm({ mode }: { mode: StockDocMode }) {
             stockMap={stockMap}
             disableStockWarning={mode === 'receive'}
             disableOutOfStock={enforceStock}
-            reasonOptions={mode === 'issue' ? REASON_OPTIONS : undefined}
+            reasonOptions={mode === 'issue' ? REASON_OPTIONS : mode === 'supplier_return' ? RETURN_REASON_OPTIONS : undefined}
             products={productSearch.results}
             loadingProducts={productSearch.loading}
             onProductSearchChange={productSearch.search}

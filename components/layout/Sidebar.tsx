@@ -39,6 +39,7 @@ import {
   ArrowDownToLine,
   ArrowUpFromLine,
   ArrowLeftRight,
+  Undo2,
   ShoppingBag,
   Tag,
   Award,
@@ -820,6 +821,12 @@ export default function Sidebar() {
                               <ArrowLeftRight className="w-4 h-4" />
                               <span className="nav-label text-sm font-medium">รายการโอนย้าย</span>
                             </Link>
+                            {features.supplier && (
+                            <Link href="/inventory/supplier-returns" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/inventory/supplier-returns' || pathname === '/inventory/supplier-return' || pathname?.startsWith('/inventory/supplier-returns/') ? 'text-[#C2410C] dark:text-orange-300 font-semibold' : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'}`}>
+                              <Undo2 className="w-4 h-4" />
+                              <span className="nav-label text-sm font-medium">คืนของ Supplier</span>
+                            </Link>
+                            )}
                           </div>
                         )}
                       </div>

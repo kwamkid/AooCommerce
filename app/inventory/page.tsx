@@ -8,11 +8,12 @@ import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
 import Button from '@/components/ui/Button';
 import { LoadingCard } from '@/components/ui/StateCard';
+import { useFeatures } from '@/lib/features-context';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { apiFetch } from '@/lib/api-client';
 import {
   Package2, Warehouse, Activity,
-  ArrowDownToLine, ArrowUpFromLine, ArrowLeftRight, FileSpreadsheet,
+  ArrowDownToLine, ArrowUpFromLine, ArrowLeftRight, FileSpreadsheet, Undo2,
 } from 'lucide-react';
 import { WarehouseItem, TabKey } from './components/types';
 import StockTab from './components/StockTab';
@@ -28,6 +29,7 @@ const MOVEMENT_PARAMS = ['from', 'to', 'wh', 'dealer', 'type', 'ref', 'q', 'vari
 function InventoryPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { features } = useFeatures();
 
   // `history` / `monitor` คือชื่อแท็บเดิมก่อนยุบรวม — ลิงก์เก่าที่ผู้ใช้บุ๊กมาร์กไว้ต้องยังเข้าได้
   const tabParam = searchParams.get('tab');
@@ -99,6 +101,16 @@ function InventoryPageContent() {
             >
               โอนย้าย
             </Button>
+            {/* คืนของให้ supplier — ของออกจากคลังเหมือนเบิกออก แต่มีคู่สัญญาและผลต่อยอดเงิน */}
+            {features.supplier && (
+              <Button
+                variant="secondary"
+                icon={<Undo2 className="w-4 h-4" />}
+                onClick={() => router.push('/inventory/supplier-return')}
+              >
+                คืนของ Supplier
+              </Button>
+            )}
             <Button
               variant="secondary"
               icon={<FileSpreadsheet className="w-4 h-4" />}

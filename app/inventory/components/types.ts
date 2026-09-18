@@ -224,6 +224,7 @@ export const REFERENCE_TYPE_LABELS: Record<string, string> = {
   transfer: 'โอนย้าย',
   receive: 'ใบรับเข้า',
   issue: 'ใบเบิกออก',
+  supplier_return: 'ใบคืนของ Supplier',
   manual: 'ปรับปรุงสต๊อก',
   credit_note: 'ใบลดหนี้',
   consignment_report: 'รายงานฝากขาย',
@@ -243,6 +244,7 @@ export function MOVEMENT_REFERENCE_LINK(type: string | null, id: string | null):
     case 'transfer': return `/inventory/transfers/${id}`;
     case 'receive': return `/inventory/receives/${id}`;
     case 'issue': return `/inventory/issues/${id}`;
+    case 'supplier_return': return `/inventory/supplier-returns/${id}`;
     // งานซิงค์สต็อกทุกแพลตฟอร์ม (`shopee_sync` · `lazada_sync` · …) และการย้อนรอบ
     // อ้าง `reference_id` = id ของ "รอบ" (`marketplace_sync_runs`) → เปิดดูรอบนั้นได้เลย
     case 'marketplace_sync_revert': return `/marketplace/sync?run=${id}`;

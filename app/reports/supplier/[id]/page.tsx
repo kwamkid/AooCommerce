@@ -74,6 +74,9 @@ interface SnapshotData {
   total_payable_amount: number | null;
   total_received_quantity: number;
   total_received_amount: number;
+  /** ของที่คืน supplier ในรอบนี้ — ดีลเครดิตถูกหักออกจากยอดที่ต้องจ่ายแล้ว */
+  total_returned_quantity: number | null;
+  total_returned_amount: number | null;
   notes: string | null;
   created_at: string;
   supplier: { id: string; name: string; supplier_type: string; contact_name: string | null; phone: string | null; email: string | null; payment_terms: number } | null;
@@ -354,6 +357,16 @@ export default function SnapshotDetailPage() {
                 )}
               </div>
             </>
+          )}
+          {!!data.total_returned_quantity && data.total_returned_quantity > 0 && (
+            <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
+              <p className="text-xs text-gray-500 dark:text-slate-400 mb-1">คืนของในรอบนี้</p>
+              <p className="text-lg font-bold text-gray-900 dark:text-white">{data.total_returned_quantity.toLocaleString()} ชิ้น</p>
+              <p className="text-xs text-gray-500">
+                ฿{formatCurrency(data.total_returned_amount || 0)}
+                {isCredit ? ' · หักจากยอดที่ต้องจ่ายแล้ว' : ''}
+              </p>
+            </div>
           )}
           {isCredit && (
             <>

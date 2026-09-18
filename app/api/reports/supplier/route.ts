@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
         snapshot_date, status,
         total_stock_remaining, total_sold_quantity, total_sold_amount, total_payable_amount,
         total_received_quantity, total_received_amount,
+        total_returned_quantity, total_returned_amount,
         notes, created_by, created_at
       `)
       .eq('company_id', auth.companyId)
@@ -184,6 +185,8 @@ export async function POST(request: NextRequest) {
     let totalPayableAmount: number | null = 0;
     let totalReceivedQuantity = 0;
     let totalReceivedAmount = 0;
+    let totalReturnedQuantity = 0;
+    let totalReturnedAmount = 0;
 
     if (variationIds.length > 0) {
       // === Freeze stock snapshot ===
@@ -314,6 +317,37 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ── ของที่คืน supplier ในรอบนี้ ──
+    // ผลต่อเงินต่างกันตามดีล (ดู .claude/rules/domains/inventory.md):
+    // credit = หักออกจากยอดที่ต้องจ่าย · consignment = หักของที่ถืออยู่ · cash = รอเงินคืน
+    {
+      const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
+      const nextMonth = month === 12 ? 1 : month + 1;
+      const nextYear = month === 12 ? year + 1 : year;
+      const monthEnd = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`;
+
+      const { data: returnNotes } = await supabaseAdmin
+        .from('supplier_return_notes')
+        .select('id, total_amount, items:supplier_return_note_items(quantity)')
+        .eq('company_id', auth.companyId)
+        .eq('supplier_id', supplier_id)
+        .eq('status', 'issued')
+        .gte('return_date', monthStart)
+        .lt('return_date', monthEnd);
+
+      for (const note of returnNotes || []) {
+        totalReturnedAmount += Number(note.total_amount) || 0;
+        for (const item of ((note.items || []) as { quantity: number | string }[])) {
+          totalReturnedQuantity += Number(item.quantity) || 0;
+        }
+      }
+
+      // ดีลเครดิต: ของที่คืนไปแล้วไม่ต้องจ่าย — หักออกจากยอดรับเข้าของรอบ (ไม่ให้ติดลบ)
+      if (supplier.supplier_type === 'credit' && totalReturnedAmount > 0) {
+        totalReceivedAmount = Math.max(0, totalReceivedAmount - totalReturnedAmount);
+      }
+    }
+
     // Update totals on snapshot header
     await supabaseAdmin
       .from('supplier_snapshots')
@@ -324,6 +358,8 @@ export async function POST(request: NextRequest) {
         total_payable_amount: totalPayableAmount == null ? null : Math.round(totalPayableAmount * 100) / 100,
         total_received_quantity: totalReceivedQuantity,
         total_received_amount: totalReceivedAmount,
+        total_returned_quantity: totalReturnedQuantity,
+        total_returned_amount: Math.round(totalReturnedAmount * 100) / 100,
       })
       .eq('id', snapshot.id);
 

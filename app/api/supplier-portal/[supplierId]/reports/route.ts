@@ -24,6 +24,7 @@ export async function GET(
       .select(`
         id, supplier_type, period_year, period_month, snapshot_date, status,
         total_stock_remaining, total_sold_quantity, total_sold_amount, total_payable_amount,
+        total_returned_quantity, total_returned_amount,
         total_received_quantity, total_received_amount,
         created_at
       `)
