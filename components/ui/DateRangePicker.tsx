@@ -2,8 +2,9 @@
 
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { DayPicker, DateRange } from 'react-day-picker';
-import { format, isValid, isSameDay, isLastDayOfMonth, startOfMonth, endOfMonth, subDays, startOfDay, addMonths, subMonths } from 'date-fns';
+import { format, isValid, isSameDay, isLastDayOfMonth, addMonths, subMonths } from 'date-fns';
 import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon } from '@/lib/icons';
+import { DATE_RANGE_PRESETS, type DateRangePresetDef } from '@/lib/date-range-presets';
 
 // Re-export DateValueType so consumers don't need to change imports
 export type DateValueType = {
@@ -66,19 +67,11 @@ const THAI_MONTHS_FULL = [
 
 type ViewMode = 'calendar' | 'months' | 'years';
 
-interface Shortcut {
-  label: string;
-  getValue: () => { from: Date; to: Date };
-}
-
-const SHORTCUTS: Shortcut[] = [
-  { label: 'วันนี้', getValue: () => { const t = startOfDay(new Date()); return { from: t, to: t }; } },
-  { label: 'เมื่อวาน', getValue: () => { const y = subDays(startOfDay(new Date()), 1); return { from: y, to: y }; } },
-  { label: '7 วันที่แล้ว', getValue: () => ({ from: subDays(startOfDay(new Date()), 6), to: startOfDay(new Date()) }) },
-  { label: '30 วันที่แล้ว', getValue: () => ({ from: subDays(startOfDay(new Date()), 29), to: startOfDay(new Date()) }) },
-  { label: 'เดือนนี้', getValue: () => ({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) }) },
-  { label: 'เดือนที่แล้ว', getValue: () => { const pm = subMonths(new Date(), 1); return { from: startOfMonth(pm), to: endOfMonth(pm) }; } },
-];
+// ปุ่มลัดมาจากทะเบียนกลาง `lib/date-range-presets` — ที่เดียวกับที่หน้า list ใช้ตั้ง
+// ช่วงเริ่มต้น ⛔ ห้ามเพิ่มช่วงเวลาตรงนี้เอง (เดี๋ยว "เดือนนี้" ของปุ่มลัดกับของค่าเริ่มต้น
+// จะแปลไม่เหมือนกัน) — เพิ่มในทะเบียนแล้วได้ทั้งสองที่พร้อมกัน
+type Shortcut = DateRangePresetDef;
+const SHORTCUTS: Shortcut[] = DATE_RANGE_PRESETS;
 
 // Shared DayPicker classNames
 // Two layers per day: the <td> carries the range *band*, the <button> inside is always a

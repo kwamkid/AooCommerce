@@ -14,6 +14,7 @@
 
 import { useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { getDateRangePreset, type DateRangePreset } from '@/lib/date-range-presets';
 
 export const LIST_DEFAULT_LIMIT = 20;
 
@@ -30,11 +31,16 @@ export interface ListFilterOptions {
   /** ช่องทั้งหมดของหน้านี้ — key = ชื่อ query param ที่จะใช้ใน URL */
   fields: Record<string, ListFilterField>;
   /**
-   * ช่วงวันที่เริ่มต้นเมื่อ URL ไม่ได้ระบุ (จำนวนวันย้อนหลัง รวมวันนี้)
-   * ใส่เมื่อหน้ามีช่อง `from`/`to` — ค่าเริ่มต้น **ไม่เขียนลง URL** จนกว่าผู้ใช้จะเลือกเอง
+   * ช่วงวันที่เริ่มต้นเมื่อ URL ไม่ได้ระบุ — ใส่เมื่อหน้ามีช่อง `from`/`to`
+   *
+   * รับได้ 2 แบบ: ชื่อช่วงจากทะเบียนกลาง (`'today'` · `'this_week'` · `'this_month'` …
+   * ชุดเดียวกับปุ่มลัดใน `DateRangePicker`) หรือจำนวนวันย้อนหลังรวมวันนี้ (`30`)
+   *
+   * ค่าเริ่มต้น **ไม่เขียนลง URL** จนกว่าผู้ใช้จะเลือกเอง — ลิงก์ที่ไม่มี `?from=` จึงแปลว่า
+   * "ช่วงมาตรฐานของหน้านี้" ไม่ใช่ช่วงที่ค้างจากวันที่กดลิงก์
    * ไม่ใส่ = ไม่มีช่วงเริ่มต้น (ดูทั้งหมด)
    */
-  defaultDays?: number;
+  defaultRange?: DateRangePreset | number;
   defaultLimit?: number;
 }
 
@@ -118,9 +124,14 @@ export function useListFilterParams(
   const urlTo = searchParams.get('to') || '';
   const hasUrlDates = !!(urlFrom || urlTo);
   const defaultRange = useMemo(() => {
-    if (!options.defaultDays) return { from: '', to: '' };
-    return { from: dayOffset(-(options.defaultDays - 1)), to: dayOffset(0) };
-  }, [options.defaultDays]);
+    const preset = options.defaultRange;
+    if (!preset) return { from: '', to: '' };
+    if (typeof preset === 'number') {
+      return { from: dayOffset(-(preset - 1)), to: dayOffset(0) };
+    }
+    const { from, to } = getDateRangePreset(preset);
+    return { from: toDateParam(from), to: toDateParam(to) };
+  }, [options.defaultRange]);
   const effectiveFrom = hasUrlDates ? urlFrom : defaultRange.from;
   const effectiveTo = hasUrlDates ? urlTo : defaultRange.to;
 
