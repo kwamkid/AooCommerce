@@ -60,6 +60,8 @@ interface AccountPickerProps {
    */
   platformFilter?: string | null;
   onPlatformFilterChange?: (platform: string | null) => void;
+  /** เมาส์ชี้ไอคอนแพลตฟอร์ม — หน้าแชทใช้ prefetch รายชื่อของแพลตฟอร์มนั้นไว้ก่อนกด */
+  onPlatformHover?: (platform: string | null) => void;
 }
 
 export default function AccountPicker({
@@ -75,6 +77,7 @@ export default function AccountPicker({
   iconOnly = false,
   platformFilter = null,
   onPlatformFilterChange,
+  onPlatformHover,
 }: AccountPickerProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -166,6 +169,23 @@ export default function AccountPicker({
         <div className={`absolute top-full mt-1 z-50 ${iconOnly ? 'right-0 w-[280px]' : 'left-0 right-0'} bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg max-h-72 overflow-hidden flex flex-col`}>
           {showPlatformRow && (
             <div className="px-2 pt-2 pb-1.5 border-b border-gray-100 dark:border-slate-700 flex items-center gap-1">
+              {/* "ทั้งหมด" นำหน้าเสมอ — ไม่มีปุ่มนี้คนจะไม่รู้ว่ากดไอคอนซ้ำเพื่อยกเลิกได้ */}
+              <Tooltip text="ทุกแพลตฟอร์ม" box="inline-flex">
+                <button
+                  type="button"
+                  aria-label="ทุกแพลตฟอร์ม"
+                  aria-pressed={!platformFilter}
+                  onMouseEnter={() => onPlatformHover?.(null)}
+                  onClick={() => { onPlatformFilterChange?.(null); if (!multiple) { setOpen(false); setSearch(''); } }}
+                  className={`w-9 h-9 rounded-lg flex items-center justify-center border transition-colors ${
+                    !platformFilter
+                      ? 'border-primary bg-orange-50/60 dark:bg-orange-950/20 text-primary'
+                      : 'border-transparent text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  <Layers className="w-5 h-5" />
+                </button>
+              </Tooltip>
               {platforms.map(p => {
                 const active = platformFilter === p;
                 return (
@@ -174,6 +194,7 @@ export default function AccountPicker({
                       type="button"
                       aria-label={p}
                       aria-pressed={active}
+                      onMouseEnter={() => onPlatformHover?.(p)}
                       onClick={() => { onPlatformFilterChange?.(active ? null : p); if (!multiple) { setOpen(false); setSearch(''); } }}
                       className={`w-9 h-9 rounded-lg flex items-center justify-center border transition-colors ${
                         active

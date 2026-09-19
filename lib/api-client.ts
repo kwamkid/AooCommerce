@@ -36,6 +36,10 @@ const CACHED_GET_PATHS: { match: (url: string) => boolean; ttlMs: number }[] = [
   // ข้อความในห้องแชท — หน้าแชท prefetch (peek) ตอนเมาส์ชี้รายชื่อ แล้วคลิกใช้ผลเดิมทันที
   // ข้อความใหม่ที่เข้าระหว่างนั้น realtime patch เอง และหน้าแชทล้าง cache ของห้องนั้นทุก event
   { match: u => u.startsWith('/api/chat/messages?'), ttlMs: 20_000 },
+  // รายชื่อแชท — สลับตัวกรองแพลตฟอร์ม/ช่องทางไปมาแล้วขึ้นทันที + prefetch ตอนเมาส์ชี้ไอคอนแพลตฟอร์ม
+  // realtime ของหน้าแชท (ข้อความเข้า · แถว contact เปลี่ยน) เรียก invalidateApiCache('/api/chat/contacts') ทุกครั้ง
+  // จึงไม่มีทางได้รายการค้างเก่ากว่าเหตุการณ์ล่าสุด · TTL สั้นเป็นตาข่ายรับอีกชั้น
+  { match: u => u.startsWith('/api/chat/contacts?'), ttlMs: 20_000 },
   // จำนวนผู้รับของทุกกลุ่มในโมดัลเลือกกลุ่ม — ผู้ใช้เปิด/ปิดโมดัลกลับไปมาระหว่างแต่งข้อความ
   { match: u => u.startsWith('/api/broadcasts/audience-counts?'), ttlMs: 60_000 },
   // รายการกลุ่มเป้าหมาย — กดย้อนกลับมาจากหน้ากลุ่มแล้วขึ้นทันที · ทุกจุดที่เขียน (สร้าง/แก้/ลบ/sync)

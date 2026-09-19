@@ -409,6 +409,39 @@ function UnifiedChatPageContent() {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
+  /**
+   * ประกอบ query ของ /api/chat/contacts จากตัวกรองปัจจุบัน — **ที่เดียว** ให้ effect โหลดครั้งแรก ·
+   * โหลดเพิ่ม · prefetch ตอนเมาส์ชี้ ได้ URL ตรงกันเป๊ะ (cache ของ apiFetch key ด้วย URL)
+   */
+  const buildContactsQuery = (overrides: { platform?: string | null; account?: string | null; offset?: number } = {}) => {
+    const params = new URLSearchParams();
+    const account = overrides.account !== undefined ? overrides.account : filterAccountId;
+    const platform = overrides.platform !== undefined ? overrides.platform : (filterPlatform === 'all' ? null : filterPlatform);
+    if (account) params.set('account_id', account);
+    else if (platform) params.set('platform', platform);
+    if (debouncedSearch) params.set('search', debouncedSearch);
+    if (filterUnread) params.set('unread_only', 'true');
+    if (filterLinked === 'linked') params.set('linked_only', 'true');
+    if (filterLinked === 'unlinked') params.set('unlinked_only', 'true');
+    if (filterFollowUp) params.set('follow_up', filterFollowUp);
+    if (filterOrderDaysRange) {
+      params.set('order_days_min', filterOrderDaysRange.min.toString());
+      if (filterOrderDaysRange.max !== null) params.set('order_days_max', filterOrderDaysRange.max.toString());
+    }
+    if (filterTag) params.set('tag', filterTag);
+    params.set('limit', '30');
+    params.set('offset', String(overrides.offset ?? 0));
+    return params.toString();
+  };
+  const buildContactsQueryRef = useRef(buildContactsQuery);
+  buildContactsQueryRef.current = buildContactsQuery;
+
+  /** เมาส์ชี้ไอคอนแพลตฟอร์มในตัวเลือกช่องทาง → ดึงหน้าแรกของแพลตฟอร์มนั้นเข้า cache ไว้ก่อนกด */
+  const prefetchPlatformContacts = useCallback((platform: string | null) => {
+    const qs = buildContactsQueryRef.current({ platform, account: null });
+    apiFetch(`/api/chat/contacts?${qs}`).catch(() => {});
+  }, []);
+
   // Fetch contacts — use simple approach without AbortController for initial load
   const fetchIdRef = useRef(0);
   useEffect(() => {
@@ -417,23 +450,7 @@ function UnifiedChatPageContent() {
       setLoadingContacts(true);
       (async () => {
         try {
-          const params = new URLSearchParams();
-          if (filterAccountId) params.set('account_id', filterAccountId);
-          else if (filterPlatform !== 'all') params.set('platform', filterPlatform);
-          if (debouncedSearch) params.set('search', debouncedSearch);
-          if (filterUnread) params.set('unread_only', 'true');
-          if (filterLinked === 'linked') params.set('linked_only', 'true');
-          if (filterLinked === 'unlinked') params.set('unlinked_only', 'true');
-          if (filterFollowUp) params.set('follow_up', filterFollowUp);
-          if (filterOrderDaysRange) {
-            params.set('order_days_min', filterOrderDaysRange.min.toString());
-            if (filterOrderDaysRange.max !== null) params.set('order_days_max', filterOrderDaysRange.max.toString());
-          }
-          if (filterTag) params.set('tag', filterTag);
-          params.set('limit', '30');
-          params.set('offset', '0');
-
-          const response = await apiFetch(`/api/chat/contacts?${params.toString()}`);
+          const response = await apiFetch(`/api/chat/contacts?${buildContactsQueryRef.current()}`);
           if (fetchIdRef.current !== id) return; // stale
           if (!response.ok) throw new Error('Failed to fetch contacts');
 
@@ -768,6 +785,7 @@ function UnifiedChatPageContent() {
 
     type Row = Record<string, unknown>;
     const handleNewMessage = (payload: RealtimePostgresChangesPayload<Row>, contactIdField: string) => {
+      invalidateApiCache('/api/chat/contacts');
       const raw = payload.new as Row;
       const newMsg = raw as unknown as ChatMessage;
       const msgContactId = raw[contactIdField] as string | undefined;
@@ -836,6 +854,8 @@ function UnifiedChatPageContent() {
     };
 
     const handleContactChange = (payload: RealtimePostgresChangesPayload<Row>) => {
+      // รายชื่อที่ cache ไว้ (apiFetch 20 วิ) เก่ากว่าเหตุการณ์นี้แล้ว — ล้างก่อน patch แถวในที่
+      invalidateApiCache('/api/chat/contacts');
       const row = payload.new as Row | undefined;
       const oldRow = payload.old as Partial<Row> | undefined;
 
@@ -984,6 +1004,8 @@ function UnifiedChatPageContent() {
 
   const fetchContactsRef = useRef<AbortController | null>(null);
   const fetchContacts = async (loadMore = false) => {
+    // เรียกตรงนี้ = ต้องการของสดจริง (หลังผูกลูกค้า/แก้แท็ก ฯลฯ) — ห้ามได้ชุดที่ cache ไว้
+    if (!loadMore) invalidateApiCache('/api/chat/contacts');
     // Abort any in-flight request to prevent duplicate calls
     if (fetchContactsRef.current) fetchContactsRef.current.abort();
     const controller = new AbortController();
@@ -2956,6 +2978,7 @@ function UnifiedChatPageContent() {
                   iconOnly
                   platformFilter={filterAccountId ? null : filterPlatform === 'all' ? null : filterPlatform}
                   onPlatformFilterChange={(p) => setFilterParams({ platform: p || 'all', account: '' })}
+                  onPlatformHover={prefetchPlatformContacts}
                 />
               </div>
             </div>
@@ -2977,12 +3000,14 @@ function UnifiedChatPageContent() {
 
           {/* Contacts List — overscroll-contain กันลากสุดรายชื่อแล้ว main เด้งตาม */}
           <div className="flex-1 overflow-y-auto overscroll-contain">
-            {loadingContacts ? (
+            {/* กำลังโหลดแต่มีรายชื่อชุดก่อนอยู่ = โชว์ชุดก่อนจาง ๆ ไว้ (สลับตัวกรองแล้วจอไม่วูบเป็นวงกลมหมุน
+                ทุกครั้ง — ความรู้สึก "ช้า" ส่วนใหญ่มาจากตรงนี้ ไม่ใช่เวลาโหลดจริง) · วงกลมหมุนเฉพาะโหลดครั้งแรก */}
+            {loadingContacts && contacts.length === 0 ? (
               <div className="flex items-center justify-center py-8"><LoadingIcon className="w-6 h-6 text-gray-400 animate-spin" /></div>
             ) : contacts.length === 0 ? (
               <div className="text-center py-8 text-gray-500 dark:text-slate-400"><ChatIcon className="w-12 h-12 mx-auto mb-2 text-gray-300" /><p>ยังไม่มีข้อความ</p></div>
             ) : (
-              <>
+              <div className={loadingContacts ? 'opacity-50 transition-opacity' : 'transition-opacity'}>
                 {(() => {
                   const sorted = sortMode === 'unread'
                     ? [...contacts].sort((a, b) => {
@@ -3074,7 +3099,7 @@ function UnifiedChatPageContent() {
                 <div ref={contactsEndRef} className="py-2">
                   {loadingMoreContacts && (<div className="flex items-center justify-center py-2"><LoadingIcon className="w-5 h-5 text-gray-400 animate-spin" /></div>)}
                 </div>
-              </>
+              </div>
             )}
           </div>
         </div>
