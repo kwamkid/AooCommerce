@@ -2795,10 +2795,10 @@ function UnifiedChatPageContent() {
       <div className="chat-container flex relative bg-white dark:bg-slate-800 md:rounded-lg md:border border-gray-200 dark:border-slate-700 overflow-hidden">
         {/* Contacts Sidebar */}
         <div className={`w-full md:w-80 border-r border-gray-200 dark:border-slate-700 flex flex-col ${mobileView !== 'contacts' ? 'hidden md:flex' : 'flex'} ${rightPanel ? 'md:hidden xl:flex' : ''}`}>
-          {/* Header */}
-          <div className="p-3 md:p-4 border-b border-gray-200 dark:border-slate-700">
-            {/* Row 1: หัวข้อ + ตัวเลขยังไม่อ่านรวม | เรียง · เฉพาะยังไม่อ่าน · กรอง */}
-            <div className="flex items-center gap-2 mb-2">
+          {/* Header — สูง 81px เท่าหัวห้องแชทและหัวแผงขวา (เส้นใต้หัวตรงกันทั้งสามคอลัมน์)
+              แถวช่องทาง/ค้นหาจึงย้ายไปเป็นแถบของตัวเองใต้เส้น ไม่งั้นหัวคอลัมน์นี้สูงกว่าเพื่อน */}
+          <div className="px-3 md:px-4 md:min-h-[81px] flex items-center border-b border-gray-200 dark:border-slate-700">
+            <div className="flex-1 flex items-center gap-2 py-3 md:py-0">
               {/* ตัวเลขยังไม่อ่านโชว์เต็มจำนวนติดหัวข้อ (ไม่ตัดเป็น "9+") — เป็นที่เดียวที่บอกยอดรวม
                   ทุกขนาดจอแล้ว หลังยุบแถวหัวข้อของเดสก์ท็อปทิ้ง */}
               <h2 className="flex-1 min-w-0 flex items-center gap-1.5 text-lg font-semibold text-gray-900 dark:text-white">
@@ -2907,7 +2907,9 @@ function UnifiedChatPageContent() {
                 )}
               </div>
             </div>
-            {/* Row 2: ช่องทาง | ค้นหา — อยู่แถวเดียวกันตามที่ผู้ใช้ขอ (ประหยัดที่แนวตั้งบนมือถือ) */}
+          </div>
+          <div className="p-3 md:px-4 md:py-3 border-b border-gray-200 dark:border-slate-700">
+            {/* ช่องทาง | ค้นหา — อยู่แถวเดียวกันตามที่ผู้ใช้ขอ (ประหยัดที่แนวตั้งบนมือถือ) */}
             <div className="flex gap-2">
               {/* ตัวเลือกช่องทาง — ใช้ AccountPicker ตัวเดียวกับหน้าสร้างบรอดแคสต์
                   (โหมดเลือกอันเดียว + แถว "ทุกช่องทาง") · รูปแพลตฟอร์มอยู่มุมล่างของ
@@ -3121,33 +3123,35 @@ function UnifiedChatPageContent() {
                     return (<>
                       {avatarEl}
                       <div className="min-w-0 flex-1 overflow-hidden" style={{ maxWidth: 'calc(100vw - 220px)' }}>
+                        {/* บรรทัด 1: ชื่อลูกค้า + ขั้นการติดตาม + นัดทักอีกครั้ง (ชิปกดเปิดแผงติดตามได้) */}
                         <h3 className="font-medium text-gray-900 dark:text-white flex items-center gap-1.5 min-w-0">
-                          <span className="flex-shrink-0"><PlatformIcon contact={selectedContact} size={16} /></span>
                           <span className="truncate">{selectedContact.nickname || selectedContact.display_name}</span>
+                          {lead && (() => {
+                            const st = leadStages.find(x => x.key === lead.stage);
+                            const dueLabel = followUpLabel(lead.follow_up_at);
+                            if (!st && !dueLabel) return null;
+                            return (
+                              <button type="button" onClick={handleOpenLead} className="flex items-center gap-1 flex-shrink-0">
+                                {st && (
+                                  <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded ${STAGE_CHIP_CLASS[st.color]}`}>{st.name}</span>
+                                )}
+                                {dueLabel && (
+                                  <span className={`text-[11px] px-1.5 py-0.5 rounded-full ${dueLabel.overdue ? 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'}`}>
+                                    {dueLabel.text}
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })()}
                         </h3>
-                    {/* สถานะการติดตาม + นัดทักอีกครั้ง — แตะได้ทั้งแถบเพื่อเปิดแผ่น */}
-                    {lead && (() => {
-                      const st = leadStages.find(x => x.key === lead.stage);
-                      const dueLabel = followUpLabel(lead.follow_up_at);
-                      return (
-                        <button type="button" onClick={() => handleOpenLead()} className="flex items-center gap-1.5 mt-0.5">
-                          {st && (
-                            <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded ${STAGE_CHIP_CLASS[st.color]}`}>{st.name}</span>
-                          )}
-                          {dueLabel && (
-                            <span className={`text-[11px] px-1.5 py-0.5 rounded-full ${dueLabel.overdue ? 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'}`}>
-                              {dueLabel.text}
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })()}
-                    {/* ตั้งชื่อเล่นแล้วต้องยังเห็นชื่อจริงบนแพลตฟอร์มด้วย — ไม่งั้นเทียบกับหน้าจอ LINE/FB ไม่ได้ */}
-                    {(selectedContact.nickname || selectedContact.account_name) && (
-                      <p className="text-xs text-gray-500 dark:text-slate-400 truncate">
-                        {[selectedContact.nickname ? selectedContact.display_name : null, selectedContact.account_name].filter(Boolean).join(' · ')}
-                      </p>
-                    )}
+                    {/* บรรทัด 2: ช่องทาง + ชื่อเพจ/OA/ร้าน (ตั้งชื่อเล่นแล้วต่อท้ายด้วยชื่อจริงบนแพลตฟอร์ม —
+                        ไม่งั้นเทียบกับหน้าจอ LINE/FB ไม่ได้) */}
+                    <p className="text-xs text-gray-500 dark:text-slate-400 truncate flex items-center gap-1">
+                      <span className="flex-shrink-0"><PlatformIcon contact={selectedContact} size={12} /></span>
+                      <span className="truncate">
+                        {[selectedContact.account_name, selectedContact.nickname ? selectedContact.display_name : null].filter(Boolean).join(' · ')}
+                      </span>
+                    </p>
                     {/* ที่มาจากโฆษณาไม่ต้องขึ้นที่หัวห้อง — การ์ด "ลูกค้าทักมาจากโฆษณา" ในห้องกับ
                         ประวัติในแผงโปรไฟล์บอกอยู่แล้ว (ซ้ำสามที่ เจ้าของสั่งถอด 19 ก.ย. 2026) */}
                     {selectedContact.customer && lastOrderLabel(selectedContact, true) && (() => {
