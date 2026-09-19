@@ -272,8 +272,6 @@ interface OrderFormProps {
   customerSectionHandledByHost?: boolean;
   // Callback to send bill to customer via LINE Chat (only from LINE Chat new order)
   onSendBillToChat?: (orderId: string, orderNumber: string, billUrl: string) => void;
-  // Print mode: 'order' = order slip, 'packing' = packing list, null = normal view
-  printMode?: 'order' | 'packing' | null;
   // Portal target for warehouse picker (renders into parent header)
   warehousePortalRef?: RefObject<HTMLDivElement | null>;
   // Portal target for sales channel picker (renders into parent header)
@@ -319,7 +317,6 @@ export default function OrderForm({
   embedded = false,
   customerSectionHandledByHost = false,
   onSendBillToChat,
-  printMode = null,
   warehousePortalRef,
   salesChannelPortalRef,
   headerActionsRef,
@@ -2460,194 +2457,6 @@ export default function OrderForm({
   };
 
   // Print-only view
-  const printView = printMode && (
-    <div className="hidden print:block bg-white text-black p-6 text-sm">
-      {/* Print Header */}
-      <div className="flex justify-between items-start mb-4 pb-3 border-b-2 border-black">
-        <div>
-          <div className="text-xs text-gray-500 uppercase tracking-wide">
-            {printMode === 'order' ? 'ใบออเดอร์' : 'ใบจัดของ (Packing List)'}
-          </div>
-        </div>
-        <div className="text-right text-xs text-gray-500">
-          {deliveryDate && (
-            <div>วันที่ส่ง: {new Date(deliveryDate + 'T00:00:00').toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
-          )}
-          <div>พิมพ์เมื่อ: {new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
-        </div>
-      </div>
-
-      {/* Customer info - username only */}
-      {selectedCustomer && (
-        <div className="mb-4 text-sm">
-          <span className="text-gray-500">ลูกค้า:</span> <span className="font-medium">{selectedCustomer.name}</span>
-        </div>
-      )}
-
-      {/* คำสั่งพิเศษของบิล — ชุดเดียวกับการ์ดแดงในใบจัดของ/ใบคำสั่งซื้อ (lib/pdf-utils.ts)
-          เงื่อนไขต้องตรงกับที่ส่งขึ้น API (doSave) ไม่งั้นพิมพ์ออกมาไม่ตรงกับบิลจริง */}
-      {printMode === 'order' && (() => {
-        const lines: string[] = [];
-        if (shipToOther && giftHidePrice) lines.push('ห้ามแนบใบเสร็จ / ราคา');
-        if (shipToOther && documentByPost) lines.push('ส่งเอกสารทางไปรษณีย์');
-        if (giftCardEnabled && shipToOther && giftCardOn) {
-          const message = giftMessage.trim();
-          const toFrom = [giftTo.trim() ? `ถึง ${giftTo.trim()}` : '', giftFrom.trim() ? `จาก ${giftFrom.trim()}` : '']
-            .filter(Boolean).join('  ');
-          lines.push(`แนบการ์ดอวยพร${message ? ` — "${message}"` : ''}${toFrom ? ` ${toFrom}` : ''}`);
-        }
-        if (taxInvoiceRequested) lines.push('ขอใบกำกับภาษี');
-        if (lines.length === 0) return null;
-        return (
-          <div className="mb-4 text-sm text-red-600 font-medium">
-            {lines.map((line, i) => <div key={i}>{line}</div>)}
-          </div>
-        );
-      })()}
-
-      {/* Products per branch */}
-      {branchOrders.map((branch, branchIndex) => (
-        <div key={branchIndex} className="mb-4">
-          {branchOrders.length > 1 && (
-            <div className="font-medium text-xs text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1">
-              <span>{branch.address_name}</span>
-            </div>
-          )}
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="border-b-2 border-gray-800">
-                {printMode === 'packing' && <th className="py-1.5 text-left w-8"></th>}
-                <th className="py-1.5 text-left w-[72px]">รูป</th>
-                <th className="py-1.5 text-left">สินค้า</th>
-                <th className="py-1.5 text-center w-16">จำนวน</th>
-                {printMode === 'order' && (
-                  <>
-                    <th className="py-1.5 text-right w-20">ราคา</th>
-                    <th className="py-1.5 text-right w-20">ส่วนลด</th>
-                    <th className="py-1.5 text-right w-24">รวม</th>
-                  </>
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {branch.products.map((product, productIndex) => {
-                const productTotal = calculateProductTotal(product);
-                const discountAmount = product.discount_type === 'percent'
-                  ? (product.unit_price * product.quantity * product.discount_value / 100)
-                  : product.discount_value;
-                return (
-                  <tr key={productIndex} className="border-b border-gray-200">
-                    {printMode === 'packing' && (
-                      <td className="py-2 text-center align-middle">
-                        <span className="inline-block w-5 h-5 border-2 border-gray-400 rounded-sm"></span>
-                      </td>
-                    )}
-                    <td className="py-2 align-middle">
-                      <ProductImageThumb src={product.image} alt={product.product_name} size="lg" />
-                    </td>
-                    <td className="py-2 align-middle">
-                      <div className="font-semibold text-sm">{product.product_name}</div>
-                      <div className="text-xs text-gray-400">{product.product_code}</div>
-                    </td>
-                    <td className="py-2 text-center align-middle text-base font-bold">{product.quantity}</td>
-                    {printMode === 'order' && (
-                      <>
-                        <td className="py-2 text-right align-middle">฿{formatNumber(product.unit_price)}</td>
-                        <td className="py-2 text-right align-middle text-gray-500">
-                          {discountAmount > 0 ? `-฿${formatPrice(discountAmount)}` : '-'}
-                        </td>
-                        <td className="py-2 text-right align-middle font-medium">฿{formatPrice(productTotal)}</td>
-                      </>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {/* Branch shipping fee */}
-          {printMode === 'order' && branch.shipping_fee > 0 && (
-            <div className="flex justify-between text-xs text-gray-500 mt-1 px-1">
-              <span>ค่าจัดส่ง</span>
-              <span>฿{formatPrice(branch.shipping_fee)}</span>
-            </div>
-          )}
-        </div>
-      ))}
-
-      {/* Order Summary - only for order mode */}
-      {printMode === 'order' && (
-        <div className="border-t-2 border-gray-800 pt-3 mt-4">
-          <div className="flex justify-end">
-            <div className="w-64 space-y-1.5 text-sm">
-              <div className="flex justify-between text-gray-600">
-                <span>ยอดรวมสินค้า</span>
-                <span>฿{formatPrice(itemsTotal)}</span>
-              </div>
-              {totalShippingFee > 0 && (
-                <div className="flex justify-between text-gray-600">
-                  <span>ค่าจัดส่ง</span>
-                  <span>฿{formatPrice(totalShippingFee)}</span>
-                </div>
-              )}
-              {giftCardFee > 0 && (
-                <div className="flex justify-between text-gray-600">
-                  <span>การ์ดอวยพร</span>
-                  <span>฿{formatPrice(giftCardFee)}</span>
-                </div>
-              )}
-              {orderDiscount > 0 && (
-                <div className="flex justify-between text-gray-600">
-                  <span>ส่วนลดรวม</span>
-                  <span>-฿{formatPrice(orderDiscountType === 'percent' ? (itemsTotal + totalShippingFee) * orderDiscount / 100 : orderDiscount)}</span>
-                </div>
-              )}
-              {vatRegistered && (
-                <>
-                  <div className="flex justify-between text-gray-600 pt-1 border-t border-gray-300">
-                    <span>ยอดก่อน VAT</span>
-                    <span>฿{formatPrice(subtotal)}</span>
-                  </div>
-                  <div className="flex justify-between text-gray-600">
-                    <span>VAT 7%</span>
-                    <span>฿{formatPrice(vat)}</span>
-                  </div>
-                </>
-              )}
-              {storedExchangeCredit > 0 ? (
-                <>
-                  <div className="flex justify-between font-bold text-base pt-1.5 border-t-2 border-black">
-                    <span>ยอดรวมก่อนหักเครดิต</span>
-                    <span>฿{formatPrice(total)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm text-green-700">
-                    <span>เครดิตจากการเปลี่ยนสินค้า</span>
-                    <span>-฿{formatPrice(storedExchangeCredit)}</span>
-                  </div>
-                  <div className="flex justify-between font-bold text-lg pt-1.5 mt-1 border-t-2 border-black">
-                    <span>ยอดชำระสุทธิ</span>
-                    <span>฿{formatPrice(Math.max(0, total - storedExchangeCredit))}</span>
-                  </div>
-                </>
-              ) : (
-                <div className={`flex justify-between font-bold text-base pt-1.5 border-t-2 border-black`}>
-                  <span>ยอดรวมสุทธิ</span>
-                  <span>฿{formatPrice(total)}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Notes */}
-      {notes && (
-        <div className="mt-4 pt-3 border-t border-gray-300">
-          <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">หมายเหตุ</div>
-          <div className="text-sm whitespace-pre-wrap">{notes}</div>
-        </div>
-      )}
-    </div>
-  );
 
   // ── ชิ้นส่วนของฟอร์ม (D1) ────────────────────────────────────────────────
   // แตกเป็น fragment เพื่อให้จอกว้าง (เรียงเหมือนเดิมทุกประการ) กับจอแคบ (wizard)
@@ -3559,13 +3368,12 @@ export default function OrderForm({
 
   return (
     <>
-    {printView}
     {/* wizard: ฟอร์มสูงเต็มพื้นที่ที่เลื่อนได้ของ panel เพื่อดันแถบล่างไปติดก้นจอจริง
         (sticky อย่างเดียวไม่พอ — บิลเปล่า ๆ เนื้อหาสั้น แถบจะไปค้างกลางจอ) */}
     <form
       ref={formRef}
       onSubmit={handleSubmit}
-      className={`space-y-4 ${useWizard ? 'min-h-full flex flex-col' : ''} ${printMode ? 'print:hidden' : ''}`}
+      className={`space-y-4 ${useWizard ? 'min-h-full flex flex-col' : ''}`}
     >
       {portalsFragment}
 

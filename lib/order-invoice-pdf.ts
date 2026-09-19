@@ -142,9 +142,14 @@ function getPaymentStatusLabel(status: string): string {
 interface GenerateOptions {
   data: OrderInvoiceData;
   company?: CompanyInfo;
+  /**
+   * `'order'` = **ใบสั่งซื้อ** (ยืนยันรายการ/ยอดให้ลูกค้า — ยังไม่ใช่ใบแจ้งหนี้ ไม่ใช่ใบเสร็จ)
+   * เนื้อหาชุดเดียวกับใบแจ้งหนี้ ต่างแค่หัวเอกสาร · ไม่ส่ง = ตั้งหัวตามสถานะการจ่ายเงิน
+   */
+  docType?: 'order';
 }
 
-export async function generateOrderInvoicePdf({ data, company }: GenerateOptions): Promise<Blob> {
+export async function generateOrderInvoicePdf({ data, company, docType }: GenerateOptions): Promise<Blob> {
   if (!company) {
     company = (await fetchCompanyInfo()) || undefined;
   }
@@ -154,8 +159,8 @@ export async function generateOrderInvoicePdf({ data, company }: GenerateOptions
 
   const isPaid = data.payment_status === 'paid';
   const vatRegistered = company?.vat_registered || false;
-  const theme = isPaid ? THEMES.paid : THEMES.unpaid;
-  const docTitle = getDocumentTitle(data.payment_status, vatRegistered);
+  const theme = docType === 'order' || !isPaid ? THEMES.unpaid : THEMES.paid;
+  const docTitle = docType === 'order' ? 'ใบสั่งซื้อ' : getDocumentTitle(data.payment_status, vatRegistered);
   const dateStr = formatPdfDate(data.order_date || data.created_at);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

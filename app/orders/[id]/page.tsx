@@ -124,7 +124,6 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
   const [marketplaceBuyer, setMarketplaceBuyer] = useState<MarketplaceBuyer | null>(null);
 
   // Print
-  const [printMode, setPrintMode] = useState<'order' | 'packing' | null>(null);
   const [showPrintMenu, setShowPrintMenu] = useState(false);
   const [showActionMenu, setShowActionMenu] = useState(false);
 
@@ -584,13 +583,21 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
     }
   };
 
-  const handlePrint = (mode: 'order' | 'packing') => {
+  // ใบสั่งซื้อ = เอกสารเดียวกับใบแจ้งหนี้ (รายการ+ราคา+ยอด) แค่หัวเอกสารต่าง —
+  // ออกเป็น PDF ตัวเดียวกับเอกสารอื่น (เดิม window.print() หน้าเว็บ = จุดสุดท้ายในระบบ)
+  const handlePrintOrder = async () => {
+    if (!fullOrderData) return;
     setShowPrintMenu(false);
-    setPrintMode(mode);
-    setTimeout(() => {
-      window.print();
-      setPrintMode(null);
-    }, 150);
+    setGeneratingPdf(true);
+    try {
+      const blob = await generateOrderInvoicePdf({ data: fullOrderData, docType: 'order' });
+      showPdfPreview(blob, `ใบสั่งซื้อ ${fullOrderData.order_number || ''}`.trim());
+    } catch (err) {
+      console.error('Error generating order PDF:', err);
+      showToast('สร้าง PDF ไม่สำเร็จ', 'error');
+    } finally {
+      setGeneratingPdf(false);
+    }
   };
 
   const handlePrintInvoice = async () => {
@@ -1161,11 +1168,12 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                       </button>
                     )}
                     <button
-                      onClick={() => handlePrint('order')}
-                      className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5"
+                      onClick={handlePrintOrder}
+                      disabled={generatingPdf}
+                      className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5 disabled:opacity-50"
                     >
                       <DocumentIcon className="w-4 h-4 text-gray-400" />
-                      ใบออเดอร์
+                      ใบสั่งซื้อ
                     </button>
                     {['processing', 'shipping', 'completed'].includes(orderStatus) && (
                       <button
@@ -1800,7 +1808,6 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
           customerSectionHandledByHost
           onSuccess={handleOrderSaved}
           onCancel={() => router.push('/orders')}
-          printMode={printMode}
           warehousePortalRef={warehouseRef}
           salesChannelPortalRef={salesChannelRef}
         />
