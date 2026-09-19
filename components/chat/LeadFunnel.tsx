@@ -26,9 +26,12 @@ interface Props {
 }
 
 export default function LeadFunnel({ stages, currentKey, onSelect }: Props) {
-  const firstClosed = stages.findIndex(s => !s.is_open);
-  const funnel = firstClosed >= 0 ? stages.slice(0, firstClosed + 1) : stages;
-  const outcomes = firstClosed >= 0 ? stages.slice(firstClosed + 1) : [];
+  // ขั้นตั้งต้น ("ยังไม่ระบุ" — ทุกห้องเริ่มที่นี่โดยไม่มีใครกด) ไม่ใช่ขั้นที่คนเลือก จึงไม่วาดเป็นช่อง
+  // (เจ้าของทัก 19 ก.ย. 2026: "ทักใหม่" ก็แค่ทักมา ไม่ได้บอกอะไร) — ยังเป็นค่าใน DB อยู่ เพื่อรู้ว่ายังไม่ได้ติด
+  const visible = stages.filter(s => !s.is_default);
+  const firstClosed = visible.findIndex(s => !s.is_open);
+  const funnel = firstClosed >= 0 ? visible.slice(0, firstClosed + 1) : visible;
+  const outcomes = firstClosed >= 0 ? visible.slice(firstClosed + 1) : [];
   const currentIdx = funnel.findIndex(s => s.key === currentKey);
 
   return (
@@ -42,7 +45,6 @@ export default function LeadFunnel({ stages, currentKey, onSelect }: Props) {
               key={s.key}
               type="button"
               aria-pressed={current}
-              title={`${s.name}${s.auto_managed ? ' · ระบบติดให้เองเมื่อส่งบิล/ลูกค้าจ่ายเงิน' : ''}`}
               onClick={() => onSelect(s.key)}
               className={`lead-funnel-step ${current ? `lead-funnel-current ${activeBg(s.color)}` : done ? 'lead-funnel-done' : ''}`}
             >

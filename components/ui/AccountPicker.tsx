@@ -119,12 +119,12 @@ export default function AccountPicker({
   return (
     <div className="relative" ref={rootRef}>
       {iconOnly ? (
+        <Tooltip text={selected[0]?.name || (platformFilter ? `เฉพาะ ${platformFilter}` : placeholder)} box="inline-flex">
         <button
           type="button"
           disabled={disabled || accounts.length === 0}
           onClick={() => { setOpen(o => !o); setSearch(''); }}
           aria-label={selected[0]?.name || placeholder}
-          title={selected[0]?.name || placeholder}
           className={`h-[42px] w-[42px] flex items-center justify-center border rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
             selected.length > 0 || platformFilter
               ? 'border-primary bg-orange-50/60 dark:bg-orange-950/20'
@@ -137,6 +137,7 @@ export default function AccountPicker({
               ? <PlatformIcon id={platformFilter} size={20} />
               : <WebIcon className="w-4 h-4" />}
         </button>
+        </Tooltip>
       ) : (
       <button
         type="button"

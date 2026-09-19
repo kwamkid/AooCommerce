@@ -3055,7 +3055,7 @@ function UnifiedChatPageContent() {
                     {/* Avatar with channel profile badge · วงแหวน = ขั้นในกรวยขาย · จุดแดง = เลยกำหนดทัก */}
                     <div className={`relative flex-shrink-0 rounded-full ${(() => {
                       const st = contact.lead ? leadStages.find(x => x.key === contact.lead!.stage) : null;
-                      return st ? `ring-2 ring-offset-1 dark:ring-offset-slate-800 ${STAGE_RING_CLASS[st.color]}` : '';
+                      return st && !st.is_default ? `ring-2 ring-offset-1 dark:ring-offset-slate-800 ${STAGE_RING_CLASS[st.color]}` : '';
                     })()}`}>
                       <ContactAvatar contact={contact} sizeClass="w-12 h-12" color={contactPlatformColor(contact)} />
                       {contact.lead?.follow_up_at && followUpLabel(contact.lead.follow_up_at)?.overdue && (
@@ -3097,7 +3097,8 @@ function UnifiedChatPageContent() {
                       )}
                       {/* ติดตามลูกค้า — ขั้น + นัด (ถ้าเคยติดตาม) */}
                       {contact.lead && (() => {
-                        const st = leadStages.find(x => x.key === contact.lead!.stage);
+                        const found = leadStages.find(x => x.key === contact.lead!.stage);
+                        const st = found && !found.is_default ? found : null;   // ยังไม่ระบุ = ไม่ต้องมีชิป
                         const dueLabel = followUpLabel(contact.lead!.follow_up_at);
                         if (!st && !dueLabel) return null;
                         return (
@@ -3170,7 +3171,8 @@ function UnifiedChatPageContent() {
                     );
                     // วงแหวนรอบรูปบอกขั้นการติดตามโดยไม่ต้องเปิดอะไร — ปุ่มเปิดแผ่นอยู่ในแถวไอคอนขวา
                     // (เจ้าของขอ 19 ก.ย. 2026: แตะรูปแล้วเปิดแผ่นดูไม่ออกว่ากดได้)
-                    const leadStage = lead ? leadStages.find(st => st.key === lead.stage) : null;
+                    const leadStageFound = lead ? leadStages.find(st => st.key === lead.stage) : null;
+                    const leadStage = leadStageFound && !leadStageFound.is_default ? leadStageFound : null;
                     const avatarEl = (
                       <div className={`relative flex-shrink-0 rounded-full ${leadStage ? `ring-2 ring-offset-1 dark:ring-offset-slate-800 ${STAGE_RING_CLASS[leadStage.color]}` : ''}`}>
                         {avatarInner}
@@ -3184,7 +3186,8 @@ function UnifiedChatPageContent() {
                         <h3 className="font-medium text-gray-900 dark:text-white flex items-center gap-1.5 min-w-0">
                           <span className="truncate">{selectedContact.nickname || selectedContact.display_name}</span>
                           {lead && (() => {
-                            const st = leadStages.find(x => x.key === lead.stage);
+                            const found = leadStages.find(x => x.key === lead.stage);
+                            const st = found && !found.is_default ? found : null;
                             const dueLabel = followUpLabel(lead.follow_up_at);
                             if (!st && !dueLabel) return null;
                             return (

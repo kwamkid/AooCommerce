@@ -205,7 +205,6 @@ export default function LeadSheet({
               size="sm"
               fullWidth
               variant={picked ? 'primary' : 'secondary'}
-              title={formatShortThaiDate(p.date)}
               onClick={() => save({ follow_up_at: p.date.toISOString() }, `ทักอีกที ${formatShortThaiDate(p.date)}`, true)}
             >
               {p.label}

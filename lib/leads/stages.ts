@@ -25,7 +25,8 @@ export interface LeadStage {
 }
 
 export const DEFAULT_LEAD_STAGES: LeadStage[] = [
-  { key: 'new',        name: 'ทักใหม่',     color: 'gray',   sort_order: 10, is_open: true,  is_default: true,  auto_managed: true },
+  // ขั้นตั้งต้นของทุกห้อง — "ยังไม่ระบุ" ไม่ใช่ขั้นที่คนเลือก จอไม่วาดเป็นปุ่ม/ชิป (เห็นเฉพาะป้ายในแผงติดตาม)
+  { key: 'new',        name: 'ยังไม่ระบุ',   color: 'gray',   sort_order: 10, is_open: true,  is_default: true,  auto_managed: true },
   { key: 'talking',    name: 'กำลังคุย',    color: 'blue',   sort_order: 20, is_open: true,  is_default: false, auto_managed: false },
   { key: 'interested', name: 'สนใจ',        color: 'orange', sort_order: 30, is_open: true,  is_default: false, auto_managed: false },
   { key: 'quoted',     name: 'รอโอน',       color: 'amber',  sort_order: 40, is_open: true,  is_default: false, auto_managed: true },
