@@ -1,5 +1,12 @@
 // Path: app/api/reports/sales/route.ts
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { fetchAllRows } from '@/lib/supabase-paging';
+
+/** แถวออเดอร์ของรายงานขาย — ตัวช่วยจัดกลุ่มข้างล่างรับเป็น any อยู่แล้ว */
+interface SalesOrderRow {
+  order_date: string;
+  [key: string]: unknown;
+}
 import { NextRequest, NextResponse } from 'next/server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -197,22 +204,26 @@ export async function GET(request: NextRequest) {
     }
 
     // === Date/Customer groupBy: summary from RPC + orders for drilldown (no order_items) ===
-    let ordersQuery = supabaseAdmin
-      .from('orders')
-      .select(`
-        id, order_number, order_date, subtotal, discount_amount, vat_amount,
-        total_amount, payment_status, customer_id,
-        customers (customer_code, name)
-      `)
-      .eq('company_id', companyId)
-      .neq('order_status', 'cancelled');
-    if (startDate) ordersQuery = ordersQuery.gte('order_date', startDate);
-    if (endDate) ordersQuery = ordersQuery.lte('order_date', endDate);
-    ordersQuery = ordersQuery.order('order_date', { ascending: false });
+    // ⚠️ ช่วงวันที่กว้าง ๆ มีออเดอร์เกิน 1,000 ใบแน่ — ตัดเงียบแล้วทั้งตารางย่อยและยอดรวม
+    //    (กรณีที่ RPC ใช้ไม่ได้ต้องคิดจากแถวเหล่านี้) ต่ำกว่าความจริง
+    const ordersQuery = (rangeFrom: number, rangeTo: number) => {
+      let q = supabaseAdmin
+        .from('orders')
+        .select(`
+          id, order_number, order_date, subtotal, discount_amount, vat_amount,
+          total_amount, payment_status, customer_id,
+          customers (customer_code, name)
+        `)
+        .eq('company_id', companyId)
+        .neq('order_status', 'cancelled');
+      if (startDate) q = q.gte('order_date', startDate);
+      if (endDate) q = q.lte('order_date', endDate);
+      return q.order('order_date', { ascending: false }).range(rangeFrom, rangeTo);
+    };
 
     const [summaryResult, ordersResult] = await Promise.all([
       supabaseAdmin.rpc('get_sales_summary', rpcParams),
-      ordersQuery,
+      fetchAllRows<SalesOrderRow>(ordersQuery),
     ]);
 
     if (ordersResult.error) {
@@ -220,7 +231,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: ordersResult.error.message }, { status: 500 });
     }
 
-    const orders = ordersResult.data || [];
+    const orders = ordersResult.rows;
 
     // Summary: prefer RPC, fallback to JS
     let summary;
@@ -246,21 +257,21 @@ export async function GET(request: NextRequest) {
 
 // Full legacy fallback (when RPCs don't exist)
 async function legacyReport(companyId: string, startDate: string | null, endDate: string | null, groupBy: string) {
-  let query = supabaseAdmin
-    .from('orders')
-    .select(`
-      id, order_number, order_date, subtotal, discount_amount, vat_amount,
-      total_amount, payment_status, customer_id,
-      customers (id, customer_code, name),
-      order_items (id, product_name, product_code, variation_label, quantity, unit_price, discount_amount, total)
-    `)
-    .eq('company_id', companyId)
-    .neq('order_status', 'cancelled');
-  if (startDate) query = query.gte('order_date', startDate);
-  if (endDate) query = query.lte('order_date', endDate);
-  query = query.order('order_date', { ascending: false });
-
-  const { data: orders, error } = await query;
+  const { rows: orders, error } = await fetchAllRows<SalesOrderRow>((rangeFrom, rangeTo) => {
+    let query = supabaseAdmin
+      .from('orders')
+      .select(`
+        id, order_number, order_date, subtotal, discount_amount, vat_amount,
+        total_amount, payment_status, customer_id,
+        customers (id, customer_code, name),
+        order_items (id, product_name, product_code, variation_label, quantity, unit_price, discount_amount, total)
+      `)
+      .eq('company_id', companyId)
+      .neq('order_status', 'cancelled');
+    if (startDate) query = query.gte('order_date', startDate);
+    if (endDate) query = query.lte('order_date', endDate);
+    return query.order('order_date', { ascending: false }).range(rangeFrom, rangeTo);
+  });
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

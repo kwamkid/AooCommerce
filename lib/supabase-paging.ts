@@ -13,6 +13,14 @@
 /** เพดานแถวต่อ response ที่ Supabase Cloud บังคับ */
 export const SUPABASE_PAGE_CAP = 1000;
 
+/**
+ * จำนวน id ต่อรอบของ `fetchAllRowsByIds`
+ *
+ * ไม่ได้ตั้งเพราะเพดานแถว (ตัวนั้น `fetchAllRows` จัดการให้แล้ว) แต่เพราะ `.in()` ที่ยาว
+ * เกินไปทำให้ URL ของ PostgREST ยาวจนโดนตัด — id เป็น uuid 36 ตัวอักษร 300 ตัว ≈ 11KB
+ */
+export const ID_CHUNK_SIZE = 300;
+
 export interface PagedResult<T> {
   rows: T[];
   /** จำนวนแถวทั้งหมด — ได้ค่าเมื่อ query ใส่ `{ count: 'exact' }` เท่านั้น */
@@ -34,6 +42,35 @@ interface PageResponse<T> {
  * ถ้า query ใส่ `{ count: 'exact' }` มาด้วย จะรู้จำนวนหน้าที่เหลือตั้งแต่หน้าแรก
  * แล้วยิงหน้าที่เหลือ**ขนานกัน** · ถ้าไม่มี count จะไล่ทีละหน้าจนกว่าจะได้ไม่เต็มหน้า
  */
+/**
+ * ดึงแถวของรายการ id ที่ยาวเกินกว่าจะใส่ `.in()` ทีเดียวได้
+ *
+ * ⚠️ **`.in()` ชนเพดานสองชั้น** และเป็นกับดักที่เจอบ่อยกว่า `fetchAllRows` ธรรมดา:
+ * ส่ง id ไป 3,000 ตัวก็ยังได้แถวกลับมาแค่ 1,000 (ชั้นแรก) และถ้า id ชุดนั้นมาจาก query
+ * ที่ไม่ได้แบ่งหน้าก็ขาดตั้งแต่ต้นทางอีกชั้น — ต้องแก้ทั้งสองชั้นถึงจะได้ครบจริง
+ *
+ * @param ids รายการ id ทั้งหมด (ซ้ำได้ ไม่ต้องตัดเอง)
+ * @param run `(idChunk, from, to) => query.in('x', idChunk).range(from, to)`
+ */
+export async function fetchAllRowsByIds<T>(
+  ids: readonly string[],
+  run: (idChunk: string[], from: number, to: number) => PromiseLike<PageResponse<T>>,
+  opts: { chunkSize?: number } = {},
+): Promise<PagedResult<T>> {
+  const unique = [...new Set(ids)];
+  if (!unique.length) return { rows: [], count: 0, error: null };
+
+  const size = Math.max(1, opts.chunkSize ?? ID_CHUNK_SIZE);
+  let rows: T[] = [];
+  for (let i = 0; i < unique.length; i += size) {
+    const part = unique.slice(i, i + size);
+    const page = await fetchAllRows<T>((from, to) => run(part, from, to));
+    if (page.error) return { rows, count: null, error: page.error };
+    rows = rows.concat(page.rows);
+  }
+  return { rows, count: rows.length, error: null };
+}
+
 export async function fetchAllRows<T>(
   run: (from: number, to: number) => PromiseLike<PageResponse<T>>,
   opts: { from?: number; to?: number } = {},

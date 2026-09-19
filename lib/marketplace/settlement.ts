@@ -5,6 +5,7 @@
 // → เพิ่ม marketplace ใหม่ไม่ต้องเขียน logic เขียน DB ซ้ำ
 
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { fetchAllRowsByIds } from '@/lib/supabase-paging';
 import { FEE_BUCKETS, type NormalizedSettlement } from './fee-types';
 
 export interface SaveSettlementParams {
@@ -39,10 +40,16 @@ export async function computeOrderCogs(
   const out = new Map<string, { value: number | null; basis: CogsBasis }>();
   if (!orderIds.length) return out;
 
-  const { data: items } = await supabaseAdmin
+  // ⚠️ ผลของฟังก์ชันนี้ถูกเขียนลง `marketplace_settlements` ถาวร — ขาดไปแถวเดียว
+  //    กำไรขั้นต้นของออเดอร์นั้นก็ผิดค้างอยู่ใน DB · ผู้เรียก backfill ส่งมาได้ทีละ 500 ใบ
+  //    ซึ่งมีรายการสินค้ารวมกันเกิน 1,000 แถวสบาย ๆ
+  const { rows: items } = await fetchAllRowsByIds<{
+    order_id: string; variation_id: string | null; quantity: number; unit_cost: number | null;
+  }>(orderIds, (idChunk, from, to) => supabaseAdmin
     .from('order_items')
     .select('order_id, variation_id, quantity, unit_cost')
-    .in('order_id', orderIds);
+    .in('order_id', idChunk)
+    .range(from, to));
 
   if (!items?.length) {
     orderIds.forEach(id => out.set(id, { value: null, basis: null }));

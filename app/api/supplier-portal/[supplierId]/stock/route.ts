@@ -1,6 +1,7 @@
 // Path: app/api/supplier-portal/[supplierId]/stock/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { fetchAllRowsByIds } from '@/lib/supabase-paging';
 import { validatePortalAccess, getSupplierVariationIds } from '@/lib/supplier-portal/validate';
 
 // GET - Stock for supplier's products
@@ -24,14 +25,17 @@ export async function GET(
     }
 
     // Fetch inventory
-    const { data: inventory } = await supabaseAdmin
+    const { rows: inventory } = await fetchAllRowsByIds<{
+      warehouse_id: string; variation_id: string; quantity: number;
+    }>(variationIds, (idChunk, from, to) => supabaseAdmin
       .from('inventory')
       .select('warehouse_id, variation_id, quantity')
       .eq('company_id', companyId)
-      .in('variation_id', variationIds)
-      .gt('quantity', 0);
+      .in('variation_id', idChunk)
+      .gt('quantity', 0)
+      .range(from, to));
 
-    if (!inventory || inventory.length === 0) {
+    if (inventory.length === 0) {
       return NextResponse.json({ stock: [] });
     }
 

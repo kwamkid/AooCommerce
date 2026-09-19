@@ -1,6 +1,15 @@
 // Path: app/api/reports/pending/route.ts
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { fetchAllRows } from '@/lib/supabase-paging';
 import { NextRequest, NextResponse } from 'next/server';
+
+/** แถวออเดอร์ค้างชำระ — ระบุเฉพาะฟิลด์ที่รายงานนี้อ่านตรง ๆ (ลูกค้าปล่อยเป็น unknown
+ *  เพราะ PostgREST ประกาศ join เป็นอาร์เรย์ แต่ของจริงมาเป็นก้อนเดียว) */
+interface PendingOrderRow {
+  delivery_date: string | null;
+  order_date: string;
+  [key: string]: unknown;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,7 +30,9 @@ export async function GET(request: NextRequest) {
     console.log('Group by:', groupBy);
 
     // ดึง orders ที่ยังไม่ชำระ (payment_status = pending) และไม่ถูกยกเลิก
-    const { data: orders, error } = await supabaseAdmin
+    // ⚠️ ยอดลูกหนี้รวมคิดจากแถวที่ดึงมาทั้งหมด — ใบค้างชำระสะสมเกิน 1,000 ใบได้ง่าย
+    //    (ยิ่งร้านที่ขายเครดิต) ตัดเงียบเมื่อไหร่ ยอดค้างที่รายงานก็ต่ำกว่าความจริง
+    const { rows: orders, error } = await fetchAllRows<PendingOrderRow>((rangeFrom, rangeTo) => supabaseAdmin
       .from('orders')
       .select(`
         id,
@@ -47,9 +58,8 @@ export async function GET(request: NextRequest) {
       .eq('company_id', companyId)
       .eq('payment_status', 'pending')
       .neq('order_status', 'cancelled')
-      .order('delivery_date', { ascending: true });
-
-    console.log('Query result - orders count:', orders?.length, 'error:', error);
+      .order('delivery_date', { ascending: true })
+      .range(rangeFrom, rangeTo));
 
     if (error) {
       console.error('Error fetching pending orders:', error);

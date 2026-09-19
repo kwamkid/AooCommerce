@@ -1,6 +1,7 @@
 // Path: lib/supplier-portal/validate.ts
 // 3-layer portal validation: supplier_id → portal_enabled → company feature
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { fetchAllRows, fetchAllRowsByIds } from '@/lib/supabase-paging';
 
 interface PortalContext {
   supplierId: string;
@@ -100,20 +101,25 @@ export async function getSupplierVariationIds(supplierId: string, companyId: str
 
   if (!brands || brands.length === 0) return [];
 
-  const { data: products } = await supabaseAdmin
+  // ⚠️ ฟังก์ชันนี้เป็นต้นทางของทุกหน้าใน supplier portal (สต็อก · ยอดขาย · รายงาน)
+  //    ขาดตรงนี้ = supplier เห็นของและยอดขายไม่ครบทุกหน้าพร้อมกัน
+  const { rows: products } = await fetchAllRows<{ id: string }>((from, to) => supabaseAdmin
     .from('products')
     .select('id')
     .eq('company_id', companyId)
     .eq('is_active', true)
-    .in('brand_id', brands.map(b => b.id));
+    .in('brand_id', brands.map(b => b.id))
+    .range(from, to));
 
-  if (!products || products.length === 0) return [];
+  if (products.length === 0) return [];
 
-  const { data: variations } = await supabaseAdmin
-    .from('product_variations')
-    .select('id')
-    .in('product_id', products.map(p => p.id))
-    .eq('is_active', true);
+  const { rows: variations } = await fetchAllRowsByIds<{ id: string }>(
+    products.map(p => p.id), (idChunk, from, to) => supabaseAdmin
+      .from('product_variations')
+      .select('id')
+      .in('product_id', idChunk)
+      .eq('is_active', true)
+      .range(from, to));
 
-  return (variations || []).map(v => v.id);
+  return variations.map(v => v.id);
 }

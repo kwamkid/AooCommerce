@@ -1,6 +1,7 @@
 // Path: app/api/reports/supplier/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
+import { fetchAllRows, fetchAllRowsByIds } from '@/lib/supabase-paging';
 
 // GET - List snapshots (optionally filtered by supplier)
 export async function GET(request: NextRequest) {
@@ -134,24 +135,30 @@ export async function POST(request: NextRequest) {
     const brandIds = (brands || []).map(b => b.id);
     let variationIds: string[] = [];
 
+    // ⚠️ ทุก query ในรายงานนี้ต้องได้ครบ — ตัวเลขที่ออกไปถูก freeze ลงสแนปช็อตถาวร
+    //    (ยอดขาย · ยอดที่ต้องจ่าย supplier · สต็อกคงเหลือ) ขาดแถวเดียวคือจ่ายเงินผิด
+    //    และแก้ย้อนหลังไม่ได้ · ที่ร้ายกว่าคือ `.in()` ชนเพดานซ้ำอีกชั้นหนึ่ง
     if (brandIds.length > 0) {
-      const { data: products } = await supabaseAdmin
+      const { rows: products } = await fetchAllRows<{ id: string }>((from, to) => supabaseAdmin
         .from('products')
         .select('id')
         .eq('company_id', auth.companyId)
         .eq('is_active', true)
-        .in('brand_id', brandIds);
+        .in('brand_id', brandIds)
+        .range(from, to));
 
-      const productIds = (products || []).map(p => p.id);
+      const productIds = products.map(p => p.id);
 
       if (productIds.length > 0) {
-        const { data: variations } = await supabaseAdmin
-          .from('product_variations')
-          .select('id')
-          .in('product_id', productIds)
-          .eq('is_active', true);
+        const { rows: variations } = await fetchAllRowsByIds<{ id: string }>(
+          productIds, (idChunk, from, to) => supabaseAdmin
+            .from('product_variations')
+            .select('id')
+            .in('product_id', idChunk)
+            .eq('is_active', true)
+            .range(from, to));
 
-        variationIds = (variations || []).map(v => v.id);
+        variationIds = variations.map(v => v.id);
       }
     }
 
@@ -190,14 +197,17 @@ export async function POST(request: NextRequest) {
 
     if (variationIds.length > 0) {
       // === Freeze stock snapshot ===
-      const { data: inventoryData } = await supabaseAdmin
+      const { rows: inventoryData } = await fetchAllRowsByIds<{
+        warehouse_id: string; variation_id: string; quantity: number;
+      }>(variationIds, (idChunk, from, to) => supabaseAdmin
         .from('inventory')
         .select('warehouse_id, variation_id, quantity')
         .eq('company_id', auth.companyId)
-        .in('variation_id', variationIds)
-        .gt('quantity', 0);
+        .in('variation_id', idChunk)
+        .gt('quantity', 0)
+        .range(from, to));
 
-      if (inventoryData && inventoryData.length > 0) {
+      if (inventoryData.length > 0) {
         const stockRows = inventoryData.map(inv => ({
           snapshot_id: snapshot.id,
           warehouse_id: inv.warehouse_id,
@@ -217,19 +227,23 @@ export async function POST(request: NextRequest) {
       if (supplier.supplier_type === 'consignment') {
         // === Consignment: Sales data ===
         // Query completed orders in the period with items matching supplier's variations
-        const { data: orderItems } = await supabaseAdmin
+        const { rows: orderItems } = await fetchAllRowsByIds<{
+          variation_id: string; quantity: number; subtotal: number | null; unit_cost: number | null;
+          order: unknown;
+        }>(variationIds, (idChunk, from, to) => supabaseAdmin
           .from('order_items')
           .select(`
             variation_id, quantity, subtotal, unit_cost,
             order:orders!inner(id, source, pos_terminal_id, order_date, order_status)
           `)
-          .in('variation_id', variationIds)
+          .in('variation_id', idChunk)
           .gte('order.order_date', startDate)
           .lt('order.order_date', endDate)
           .eq('order.order_status', 'completed')
-          .eq('order.company_id', auth.companyId);
+          .eq('order.company_id', auth.companyId)
+          .range(from, to));
 
-        if (orderItems && orderItems.length > 0) {
+        if (orderItems.length > 0) {
           // Group by variation_id + source + pos_terminal_id
           // `payable` = เงินที่ต้องจ่าย supplier ของบรรทัดนั้น — มาจาก order_items.unit_cost
           // ที่ถูก snapshot ไว้ตอนขายด้วยสูตร ฐาน × (1 − ส่วนแบ่งที่เราได้) (lib/consignment-cost.ts)
@@ -292,13 +306,19 @@ export async function POST(request: NextRequest) {
 
         if (receives && receives.length > 0) {
           const receiveIds = receives.map(r => r.id);
-          const { data: receiveItems } = await supabaseAdmin
+          // ⛔ ใส่ `.in()` สองชั้น (receive + variation) ไม่ได้ — id ชุดที่สองยาวเป็นพัน
+          //    ทำให้ URL ของ PostgREST บวม · กรองตัวเลือกของ supplier ฝั่งนี้แทน
+          const supplierVariations = new Set(variationIds);
+          const { rows: allReceiveItems } = await fetchAllRowsByIds<{
+            receive_id: string; variation_id: string; quantity: number; unit_cost: number | null;
+          }>(receiveIds, (idChunk, from, to) => supabaseAdmin
             .from('inventory_receive_items')
             .select('receive_id, variation_id, quantity, unit_cost')
-            .in('receive_id', receiveIds)
-            .in('variation_id', variationIds);
+            .in('receive_id', idChunk)
+            .range(from, to));
+          const receiveItems = allReceiveItems.filter(ri => supplierVariations.has(ri.variation_id));
 
-          if (receiveItems && receiveItems.length > 0) {
+          if (receiveItems.length > 0) {
             const receiveMap = Object.fromEntries(receives.map(r => [r.id, r]));
             const recRows = receiveItems.map(ri => ({
               snapshot_id: snapshot.id,

@@ -1,6 +1,7 @@
 // Path: app/api/supplier-portal/[supplierId]/sales/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { fetchAllRowsByIds } from '@/lib/supabase-paging';
 import { validatePortalAccess, getSupplierVariationIds } from '@/lib/supplier-portal/validate';
 
 // GET - Sales data (consignment only)
@@ -40,19 +41,23 @@ export async function GET(
     const endDate = `${endYear}-${String(endMonth).padStart(2, '0')}-01`;
 
     // Query completed orders
-    const { data: orderItems } = await supabaseAdmin
+    // ⚠️ ยอดขายที่ supplier เห็น — ขาดแถวไหนคือเขาเห็นยอดต่ำกว่าจริงและไม่มีทางรู้
+    const { rows: orderItems } = await fetchAllRowsByIds<{
+      variation_id: string; quantity: number; subtotal: number | null; order: unknown;
+    }>(variationIds, (idChunk, from, to) => supabaseAdmin
       .from('order_items')
       .select(`
         variation_id, quantity, subtotal,
         order:orders!inner(id, source, pos_terminal_id, order_date, order_status)
       `)
-      .in('variation_id', variationIds)
+      .in('variation_id', idChunk)
       .gte('order.order_date', startDate)
       .lt('order.order_date', endDate)
       .eq('order.order_status', 'completed')
-      .eq('order.company_id', companyId);
+      .eq('order.company_id', companyId)
+      .range(from, to));
 
-    if (!orderItems || orderItems.length === 0) {
+    if (orderItems.length === 0) {
       return NextResponse.json({ sales: [], total_quantity: 0, total_revenue: 0 });
     }
 

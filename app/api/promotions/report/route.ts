@@ -1,6 +1,15 @@
 // Path: app/api/promotions/report/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { fetchAllRows } from '@/lib/supabase-paging';
+
+interface PromotionReportRow {
+  promotion_id: string | null;
+  quantity: number | null;
+  total: number | null;
+  order: unknown;
+  promotion: unknown;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,6 +25,9 @@ export async function GET(request: NextRequest) {
 
     // Build query: aggregate order_items by promotion_id
     // JOIN promotions for name/type, JOIN orders for filters
+    // ⚠️ รายงานนี้รวมยอดเองจากแถวที่ดึงมา — ตัดที่ 1,000 แถวเมื่อไหร่ ตัวเลขผลโปรโมชัน
+    //    ก็ต่ำกว่าจริงโดยไม่มีอะไรบอก · ห่อทั้งก้อนเพราะเงื่อนไขต่อทีละชั้นตามตัวกรอง
+    const { rows, error } = await fetchAllRows<PromotionReportRow>((rangeFrom, rangeTo) => {
     let query = supabaseAdmin
       .from('order_items')
       .select(`
@@ -60,7 +72,8 @@ export async function GET(request: NextRequest) {
       query = query.lte('order.created_at', `${dateTo}T23:59:59.999`);
     }
 
-    const { data: rows, error } = await query;
+      return query.range(rangeFrom, rangeTo);
+    });
 
     if (error) {
       console.error('[Promotion Report] Query error:', error);

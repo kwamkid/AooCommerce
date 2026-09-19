@@ -1,4 +1,31 @@
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { fetchAllRows, fetchAllRowsByIds } from '@/lib/supabase-paging';
+
+/** แถวออเดอร์ของใบสรุปจัดส่ง — ลูกค้า/ที่อยู่เป็น join ที่โค้ดข้างล่าง cast เองอยู่แล้ว */
+interface DeliveryOrderRow {
+  id: string;
+  order_number: string;
+  order_date: string;
+  delivery_date: string;
+  order_status: string;
+  payment_status: string | null;
+  payment_method: string | null;
+  total_amount: number | null;
+  notes: string | null;
+  internal_notes: string | null;
+  [key: string]: unknown;
+}
+interface DeliveryOrderItemRow {
+  id: string;
+  order_id: string;
+  variation_id: string | null;
+  product_id: string;
+  product_code: string;
+  product_name: string;
+  variation_label: string | null;
+  quantity: number;
+  [key: string]: unknown;
+}
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
@@ -25,6 +52,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Step 1: Fetch orders in date range (exclude cancelled)
+    // ⚠️ ใบนี้คือสิ่งที่คนจัดของถือไปหยิบสินค้า — ขาดแถวไหนคือของไม่ได้ออกจากคลังจริง ๆ
+    const { rows: orders, error: ordersError } = await fetchAllRows<DeliveryOrderRow>((rangeFrom, rangeTo) => {
     let ordersQuery = supabaseAdmin
       .from('orders')
       .select(`
@@ -62,15 +91,15 @@ export async function GET(request: NextRequest) {
     if (paymentStatus === 'paid') ordersQuery = ordersQuery.eq('payment_status', 'paid');
     else if (paymentStatus === 'unpaid') ordersQuery = ordersQuery.neq('payment_status', 'paid');
 
-    const { data: orders, error: ordersError } = await ordersQuery
-      .order('delivery_date', { ascending: true });
+      return ordersQuery.order('delivery_date', { ascending: true }).range(rangeFrom, rangeTo);
+    });
 
     if (ordersError) {
       console.error('Orders fetch error:', ordersError);
       return NextResponse.json({ error: ordersError.message }, { status: 500 });
     }
 
-    const orderIds = orders?.map(o => o.id) || [];
+    const orderIds = orders.map(o => o.id);
 
     if (orderIds.length === 0) {
       return NextResponse.json({
@@ -85,7 +114,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Step 2: Fetch order items (include variation_id for variation images)
-    const { data: orderItems, error: itemsError } = await supabaseAdmin
+    // ⛔ `.in('order_id', …)` ชนเพดานอีกชั้น — ออเดอร์ 600 ใบก็มีรายการเกิน 1,000 แถวแล้ว
+    const { rows: orderItems, error: itemsError } = await fetchAllRowsByIds<DeliveryOrderItemRow>(
+      orderIds, (idChunk, rangeFrom, rangeTo) => supabaseAdmin
       .from('order_items')
       .select(`
         id,
@@ -98,15 +129,16 @@ export async function GET(request: NextRequest) {
         quantity,
         unit_price
       `)
-      .in('order_id', orderIds)
-      .eq('company_id', companyId);
+      .in('order_id', idChunk)
+      .eq('company_id', companyId)
+      .range(rangeFrom, rangeTo));
 
     if (itemsError) {
       console.error('Order items fetch error:', itemsError);
       return NextResponse.json({ error: itemsError.message }, { status: 500 });
     }
 
-    const orderItemIds = orderItems?.map(i => i.id) || [];
+    const orderItemIds = orderItems.map(i => i.id);
 
     if (orderItemIds.length === 0) {
       return NextResponse.json({
