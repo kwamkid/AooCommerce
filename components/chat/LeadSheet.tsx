@@ -12,7 +12,7 @@
 //    คือข้อความที่เขามองไม่เห็น · อะไรที่ "ยังไม่มี" (นัด · ตัวนับรอโอน) ไม่ต้องวาดที่ว่างไว้รอ
 // ⚠️ ห้ามแยกเป็นแผ่นของ "ห้องแชท" — นัดผูกกับคน (lead) คนเดียวทักหลายช่องทางต้องได้นัดเดียว
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import Modal from '@/components/ui/Modal';
@@ -20,8 +20,9 @@ import FormSelect from '@/components/ui/FormSelect';
 import FormInput from '@/components/ui/FormInput';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
+import DateRangePicker, { type DateValueType } from '@/components/ui/DateRangePicker';
 import LeadStageIcon from './LeadStageIcon';
-import { CalendarIcon, MemberIcon } from '@/lib/icons';
+import { MemberIcon } from '@/lib/icons';
 import { DEFAULT_LEAD_STAGES, STAGE_ACTIVE_CLASS, STAGE_CHIP_CLASS, type LeadStage } from '@/lib/leads/stages';
 import {
   followUpPresets, formatShortThaiDate, followUpLabel, waitingDays, FOLLOW_UP_HOUR,
@@ -56,8 +57,6 @@ export default function LeadSheet({ open, contactId, platform, contactName, onCl
   const [lead, setLead] = useState<LeadData | null>(null);
   const [saving, setSaving] = useState(false);
   const [note, setNote] = useState('');
-  /** เปิดช่องปฏิทินของเครื่อง — แยกเป็นปุ่มเพราะ input date ซ้อนใต้ปุ่มกดไม่ติดบนบางเบราว์เซอร์ */
-  const dateInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open || !contactId) return;
@@ -183,34 +182,25 @@ export default function LeadSheet({ open, contactId, platform, contactName, onCl
           );
         })}
 
-        {/* เลือกวันเอง — กดแล้วเปิดปฏิทินของเครื่องตรง ๆ (showPicker) ช่องจริงซ่อนไว้ */}
-        <Button
-          size="sm"
-          fullWidth
-          variant="secondary"
-          disabled={saving}
-          icon={<CalendarIcon />}
-          onClick={() => {
-            const el = dateInputRef.current;
-            if (!el) return;
-            // Safari/บางเบราว์เซอร์ไม่มี showPicker — ตกไปใช้ focus+click ของช่องจริง
-            if (typeof el.showPicker === 'function') el.showPicker();
-            else { el.focus(); el.click(); }
-          }}
-        >
-          เลือกวัน
-        </Button>
-        <input
-          ref={dateInputRef}
-          type="date"
-          aria-label="เลือกวันนัดเอง"
-          className="sr-only"
-          onChange={e => {
-            if (!e.target.value) return;
-            const d = new Date(`${e.target.value}T${String(FOLLOW_UP_HOUR).padStart(2, '0')}:00:00`);
-            save({ follow_up_at: d.toISOString() }, `ทักอีกที ${formatShortThaiDate(d)}`, true);
-          }}
-        />
+        {/* เลือกวันเอง — ปฏิทินของระบบ (ตัวเดียวกับทุกหน้า) เลือกแล้วบันทึกทันที */}
+        <div className="col-span-2">
+          <DateRangePicker
+            asSingle
+            useRange={false}
+            disabled={saving}
+            minDate={new Date()}
+            placeholder="เลือกวันเอง"
+            popupDirection="up"
+            value={lead?.follow_up_at ? { startDate: lead.follow_up_at, endDate: lead.follow_up_at } : null}
+            onChange={(v: DateValueType) => {
+              const raw = v?.startDate;
+              if (!raw) return;
+              const d = typeof raw === 'string' ? new Date(raw) : new Date(raw);
+              d.setHours(FOLLOW_UP_HOUR, 0, 0, 0);
+              save({ follow_up_at: d.toISOString() }, `ทักอีกที ${formatShortThaiDate(d)}`, true);
+            }}
+          />
+        </div>
       </div>
 
       {/* ผู้รับผิดชอบ + โน้ต อยู่แถวเดียวกัน (สองอย่างนี้เป็นของเสริม ไม่ควรกินคนละบรรทัด) */}
