@@ -320,7 +320,9 @@ export default function ProductSearchInput({
           setShowDropdown(true);
           searchRef.current?.focus();
         }}
-        className="flex items-center gap-2 px-3 py-1.5 border border-dashed border-gray-300 dark:border-slate-600 rounded-lg hover:border-primary transition-colors cursor-text" style={{ backgroundColor: '#63f5b121' }}
+        // พื้นกล่อง: จางเขียวบนธีมสว่าง (บอกว่า "ช่องเพิ่ม") · ธีมมืดใช้พื้นเทาของระบบ — ของเดิม
+        // เป็นสีเขียวมิ้นต์ค่าตายตัวซึ่งดูผิดที่บนพื้นมืด (เจ้าของทัก 19 ก.ย. 2026)
+        className="flex items-center gap-2 px-3 py-1.5 border border-dashed border-gray-300 dark:border-slate-600 rounded-lg bg-emerald-50/50 dark:bg-slate-700/40 hover:border-primary transition-colors cursor-text"
       >
         <AddIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />
         <input
@@ -357,7 +359,7 @@ export default function ProductSearchInput({
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           autoFocus={autoFocus}
-          className="flex-1 outline-none bg-transparent text-base text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500"
+          className="flex-1 outline-none !bg-transparent text-base text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500"
         />
         {effectiveLoading && (
           <LoadingIcon className="w-4 h-4 text-gray-400 animate-spin flex-shrink-0" />
