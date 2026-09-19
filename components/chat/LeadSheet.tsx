@@ -17,11 +17,11 @@ import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import FormSelect from '@/components/ui/FormSelect';
 import FormInput from '@/components/ui/FormInput';
-import { CloseIcon, CalendarIcon, ConfirmIcon, MemberIcon } from '@/lib/icons';
-import {
-  DEFAULT_LEAD_STAGES, STAGE_ACTIVE_CLASS, STAGE_CHIP_CLASS,
-  type LeadStage,
-} from '@/lib/leads/stages';
+import Button from '@/components/ui/Button';
+import Badge from '@/components/ui/Badge';
+import LeadStageIcon from './LeadStageIcon';
+import { CloseIcon, CalendarIcon, MemberIcon } from '@/lib/icons';
+import { DEFAULT_LEAD_STAGES, STAGE_CHIP_CLASS, type LeadStage } from '@/lib/leads/stages';
 import {
   followUpPresets, formatShortThaiDate, followUpLabel, waitingDays, FOLLOW_UP_HOUR,
 } from '@/lib/leads/followup-presets';
@@ -114,7 +114,8 @@ export default function LeadSheet({ open, contactId, platform, contactName, onCl
         {/* หัว + สถานะปัจจุบัน อยู่บรรทัดเดียวกัน — ของเดิมกินสามบรรทัดโดยไม่ได้บอกอะไรเพิ่ม */}
         <div className="flex items-center gap-2 mb-3">
           <span className="font-medium text-gray-900 dark:text-white truncate">{contactName}</span>
-          <span className={`text-xs font-semibold px-2 py-0.5 rounded flex-shrink-0 ${STAGE_CHIP_CLASS[current?.color || 'gray']}`}>
+          <span className={`text-xs font-semibold px-2 py-0.5 rounded flex-shrink-0 inline-flex items-center gap-1 ${STAGE_CHIP_CLASS[current?.color || 'gray']}`}>
+            <LeadStageIcon stageKey={currentKey} className="w-3.5 h-3.5" />
             {current?.name || currentKey}
           </span>
           {lead?.stage_source === 'system' && (
@@ -132,25 +133,22 @@ export default function LeadSheet({ open, contactId, platform, contactName, onCl
           </div>
         )}
 
-        <div className="grid grid-cols-4 gap-1.5">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5">
           {stages.map(s => {
             const active = s.key === currentKey;
             return (
-              <button
+              <Button
                 key={s.key}
+                size="sm"
+                fullWidth
+                variant={active ? 'primary' : 'secondary'}
                 disabled={saving}
-                onClick={() => save({ stage: s.key }, `เปลี่ยนเป็น “${s.name}”`)}
-                aria-pressed={active}
+                icon={<LeadStageIcon stageKey={s.key} />}
                 title={s.auto_managed ? 'ระบบติดให้เองเมื่อส่งบิล/ลูกค้าจ่ายเงิน' : undefined}
-                className={`rounded-lg border px-1 py-1.5 text-sm leading-tight transition-colors disabled:opacity-60 ${
-                  active
-                    ? `border-2 font-semibold ${STAGE_ACTIVE_CLASS[s.color]}`
-                    : 'border-gray-200 dark:border-slate-600 text-gray-700 dark:text-slate-200 hover:border-primary'
-                }`}
+                onClick={() => save({ stage: s.key }, `เปลี่ยนเป็น “${s.name}”`)}
               >
-                {active && <ConfirmIcon className="w-3 h-3 inline-block mr-0.5 -mt-0.5" />}
                 {s.name}
-              </button>
+              </Button>
             );
           })}
         </div>
@@ -159,50 +157,53 @@ export default function LeadSheet({ open, contactId, platform, contactName, onCl
         <div className="flex items-center justify-between mt-3.5 mb-1.5">
           <span className="text-xs font-semibold text-gray-500 dark:text-slate-400">ทักอีกทีเมื่อ</span>
           {lead?.follow_up_at && (
-            <span className={`text-xs flex items-center gap-1.5 ${due?.overdue ? 'text-red-600' : 'text-amber-600'}`}>
+            <Badge
+              tone={due?.overdue ? 'red' : 'amber'}
+              size="sm"
+              onRemove={saving ? undefined : () => save({ follow_up_at: null }, 'ยกเลิกนัดแล้ว')}
+              removeLabel="ยกเลิกนัด"
+            >
               {formatShortThaiDate(lead.follow_up_at)} {FOLLOW_UP_HOUR}:00
-              <button
-                disabled={saving}
-                onClick={() => save({ follow_up_at: null }, 'ยกเลิกนัดแล้ว')}
-                className="text-gray-400 hover:text-red-500"
-                aria-label="ยกเลิกนัด"
-              >
-                <CloseIcon className="w-3.5 h-3.5" />
-              </button>
-            </span>
+            </Badge>
           )}
         </div>
 
-        <div className="grid grid-cols-4 gap-1.5">
-          {followUpPresets().map(p => (
-            <button
-              key={p.key}
-              disabled={saving}
-              title={formatShortThaiDate(p.date)}
-              onClick={() => save({ follow_up_at: p.date.toISOString() }, `ทักอีกที ${formatShortThaiDate(p.date)}`, true)}
-              className="rounded-lg border border-gray-200 dark:border-slate-600 px-1 py-1.5 leading-tight hover:border-primary disabled:opacity-60 text-gray-700 dark:text-slate-200"
-            >
-              <span className="block text-sm font-medium">{p.label}</span>
-              <span className="block text-[10px] text-gray-400 dark:text-slate-400">{formatShortThaiDate(p.date)}</span>
-            </button>
-          ))}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5">
+          {followUpPresets().map(p => {
+            const picked = !!lead?.follow_up_at && Math.abs(new Date(lead.follow_up_at).getTime() - p.date.getTime()) < 36e5;
+            return (
+              <Button
+                key={p.key}
+                size="sm"
+                fullWidth
+                variant={picked ? 'primary' : 'secondary'}
+                disabled={saving}
+                title={formatShortThaiDate(p.date)}
+                onClick={() => save({ follow_up_at: p.date.toISOString() }, `ทักอีกที ${formatShortThaiDate(p.date)}`, true)}
+              >
+                {p.label}
+                <span className="opacity-60 ml-1">{formatShortThaiDate(p.date).replace(/^\S+\s/, '')}</span>
+              </Button>
+            );
+          })}
 
-          {/* เลือกวันเอง = ปุ่มปฏิทินในตารางเดียวกัน (input ซ่อนทับไว้) ไม่ใช่ช่องเต็มบรรทัด */}
-          <label className="rounded-lg border border-dashed border-gray-300 dark:border-slate-600 px-1 py-1.5 flex flex-col items-center justify-center cursor-pointer hover:border-primary text-gray-500 dark:text-slate-300 relative">
-            <CalendarIcon className="w-4 h-4" />
-            <span className="text-[10px] mt-0.5">เลือกวัน</span>
+          {/* เลือกวันเอง — ปุ่มเดียวกับตัวอื่น มีช่องวันที่ซ้อนทับให้กดแล้วเปิดปฏิทินของเครื่อง */}
+          <div className="relative">
+            <Button size="sm" fullWidth variant="secondary" disabled={saving} icon={<CalendarIcon />} tabIndex={-1}>
+              เลือกวัน
+            </Button>
             <input
               type="date"
               disabled={saving}
               aria-label="เลือกวันนัดเอง"
-              className="absolute inset-0 opacity-0 cursor-pointer"
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
               onChange={e => {
                 if (!e.target.value) return;
                 const d = new Date(`${e.target.value}T${String(FOLLOW_UP_HOUR).padStart(2, '0')}:00:00`);
                 save({ follow_up_at: d.toISOString() }, `ทักอีกที ${formatShortThaiDate(d)}`, true);
               }}
             />
-          </label>
+          </div>
         </div>
 
         {/* ผู้รับผิดชอบ + โน้ต อยู่แถวเดียวกัน (สองอย่างนี้เป็นของเสริม ไม่ควรกินคนละบรรทัด) */}
