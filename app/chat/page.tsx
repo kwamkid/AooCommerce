@@ -3626,7 +3626,7 @@ function UnifiedChatPageContent() {
           <div className="hidden md:flex flex-1 flex-col border-l border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 min-h-[81px]">
               <div className="flex items-center gap-3"><LeadIcon className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">ติดตามลูกค้า</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.nickname || selectedContact.display_name}</p></div></div>
-              <Tooltip text="ปิด"><button onClick={() => setRightPanel(null)} aria-label="ปิด" className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"><CloseIcon className="w-5 h-5" /></button></Tooltip>
+              <Tooltip text="ปิด"><button onClick={() => setRightPanel(null)} aria-label="ปิด" className="icon-btn"><CloseIcon /></button></Tooltip>
             </div>
             <div className="flex-1 overflow-y-auto">
               <LeadSheet
@@ -3650,7 +3650,7 @@ function UnifiedChatPageContent() {
           <div className="hidden md:flex flex-1 flex-col border-l border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 min-h-[81px]">
               <div className="flex items-center gap-3"><History className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">ประวัติออเดอร์</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.name}</p></div></div>
-              <Tooltip text="ปิด"><button onClick={() => setRightPanel(null)} aria-label="ปิด" className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"><CloseIcon className="w-5 h-5" /></button></Tooltip>
+              <Tooltip text="ปิด"><button onClick={() => setRightPanel(null)} aria-label="ปิด" className="icon-btn"><CloseIcon /></button></Tooltip>
             </div>
             <div className="flex-1 overflow-y-auto p-4">
               {loadingHistory ? (<div className="flex items-center justify-center py-8"><LoadingIcon className="w-6 h-6 text-gray-400 animate-spin" /></div>) : orderHistory.length === 0 ? (<div className="text-center py-8 text-gray-500 dark:text-slate-400"><History className="w-12 h-12 mx-auto mb-2 text-gray-300" /><p>ยังไม่มีประวัติออเดอร์</p></div>) : (<div className="space-y-3">{orderHistory.map(renderOrderCard)}</div>)}
@@ -3664,7 +3664,7 @@ function UnifiedChatPageContent() {
               <div className="flex items-center gap-3"><UserIcon className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">{selectedContact.customer ? 'ข้อมูลลูกค้า' : 'โปรไฟล์'}</h2>{selectedContact.customer && <p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.customer_code}</p>}</div></div>
               <div className="flex items-center gap-2">
                 {selectedContact.customer && <button onClick={handleOpenEditCustomer} className="px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 rounded-lg transition-colors">แก้ไข</button>}
-                <Tooltip text="ปิด"><button onClick={() => setRightPanel(null)} aria-label="ปิด" className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"><CloseIcon className="w-5 h-5" /></button></Tooltip>
+                <Tooltip text="ปิด"><button onClick={() => setRightPanel(null)} aria-label="ปิด" className="icon-btn"><CloseIcon /></button></Tooltip>
               </div>
             </div>
             <div className="flex-1 overflow-y-auto p-4">
@@ -3691,7 +3691,7 @@ function UnifiedChatPageContent() {
           <div className="hidden md:flex flex-1 flex-col border-l border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 min-h-[81px]">
               <div className="flex items-center gap-3"><UserIcon className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">แก้ไขข้อมูลลูกค้า</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.customer_code}</p></div></div>
-              <Tooltip text="ปิด"><button onClick={() => setRightPanel('profile')} aria-label="ปิด" className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"><CloseIcon className="w-5 h-5" /></button></Tooltip>
+              <Tooltip text="ปิด"><button onClick={() => setRightPanel('profile')} aria-label="ปิด" className="icon-btn"><CloseIcon /></button></Tooltip>
             </div>
             <div className="flex-1 overflow-y-auto p-4"><CustomerForm compact={true} initialData={editCustomerInitialData} onSubmit={handleUpdateCustomerInChat} onCancel={() => setRightPanel('profile')} isEditing={true} isLoading={editingCustomer} allTags={allTags} selectedTags={profileTags} onTagsChange={setProfileTags} onTagCreated={(tag) => setAllTags(prev => [...prev, tag])}/></div>
           </div>
@@ -3704,7 +3704,7 @@ function UnifiedChatPageContent() {
               <div className="flex items-center gap-2">
                 <div ref={headerActionsRef} className="flex items-center gap-2" />
                 <div ref={warehousePortalRef} />
-                <Tooltip text="ปิด"><button onClick={() => setRightPanel(null)} aria-label="ปิด" className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"><CloseIcon className="w-5 h-5" /></button></Tooltip>
+                <Tooltip text="ปิด"><button onClick={() => setRightPanel(null)} aria-label="ปิด" className="icon-btn"><CloseIcon /></button></Tooltip>
               </div>
             </div>
             <div className="flex-1 overflow-y-auto px-4 pt-4"><OrderForm key={selectedOrderId} editOrderId={selectedOrderId} embedded={true} warehousePortalRef={warehousePortalRef} headerActionsRef={headerActionsRef} onSuccess={() => { setRightPanel('history'); showToast('บันทึกการแก้ไขสำเร็จ!'); if (selectedContact?.customer) fetchOrderHistory(selectedContact.customer.id); }} onCancel={() => setRightPanel('history')} /></div>

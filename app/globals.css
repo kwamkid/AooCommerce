@@ -428,7 +428,7 @@ h6:where(.heading-1, .heading-2, .heading-3, .heading-4) {
     @apply flex items-center justify-end gap-2;
   }
   .modal-close-btn {
-    @apply flex-shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors;
+    @apply flex-shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:text-slate-100 dark:hover:bg-slate-600 transition-colors;
   }
   .modal-title {
     @apply text-xl font-semibold text-gray-900 dark:text-white truncate;
