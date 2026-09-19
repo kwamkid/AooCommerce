@@ -65,15 +65,20 @@ export const STAGE_CHIP_CLASS: Record<LeadStageColor, string> = {
   violet: 'bg-violet-50 text-violet-700',
 };
 
-/** คลาสของปุ่มขั้นที่ "ติดอยู่ตอนนี้" — พื้นทึบ ตัวอักษรขาว */
+/**
+ * คลาสของปุ่มขั้นที่ "ติดอยู่ตอนนี้" — พื้นทึบสีประจำขั้น ตัวอักษรขาว
+ *
+ * ⚠️ ต้องมี `!` นำทุกคลาส — ปุ่มพวกนี้เป็น `<Button>` ของ design system ซึ่งมี `.btn-*`
+ * ใน globals.css ที่ชนะ utility ของ Tailwind เสมอ (ดู ui-design-system.md)
+ */
 export const STAGE_ACTIVE_CLASS: Record<LeadStageColor, string> = {
-  gray:   'bg-gray-600 text-white border-gray-600 ring-gray-200',
-  blue:   'bg-blue-600 text-white border-blue-600 ring-blue-100',
-  orange: 'bg-orange-600 text-white border-orange-600 ring-orange-100',
-  amber:  'bg-amber-600 text-white border-amber-600 ring-amber-100',
-  green:  'bg-green-600 text-white border-green-600 ring-green-100',
-  red:    'bg-red-600 text-white border-red-600 ring-red-100',
-  violet: 'bg-violet-600 text-white border-violet-600 ring-violet-100',
+  gray:   '!bg-gray-600 !text-white !border-gray-600',
+  blue:   '!bg-blue-600 !text-white !border-blue-600',
+  orange: '!bg-orange-600 !text-white !border-orange-600',
+  amber:  '!bg-amber-600 !text-white !border-amber-600',
+  green:  '!bg-green-600 !text-white !border-green-600',
+  red:    '!bg-red-600 !text-white !border-red-600',
+  violet: '!bg-violet-600 !text-white !border-violet-600',
 };
 
 /** สีเส้นวงแหวนรอบรูปโปรไฟล์ในรายชื่อแชท */
