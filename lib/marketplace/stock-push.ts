@@ -17,6 +17,7 @@
 // สิ่งที่ทำไปในรอบนั้นบันทึกที่ `lib/marketplace/sync-runs.ts` (หัวรอบ + รายแถว) เพื่อให้ย้อนได้
 
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { fetchAllRows } from '@/lib/supabase-paging';
 import { resolveAccountWarehouseId } from '@/lib/marketplace/warehouse';
 import { getStockConfig } from '@/lib/stock-utils';
 import { adjustStock } from '@/lib/stock-service';
@@ -204,12 +205,15 @@ export async function readInventoryLevels(
 
 /** link ทุกใบของร้าน (รวมใบที่ปิดซิงค์ — พรีวิวต้องโชว์ให้เห็นว่ามีอยู่) */
 async function loadAccountLinks(accountId: string): Promise<StockLinkRow[]> {
-  const { data } = await supabaseAdmin
+  // ⚠️ ร้านที่ผูกเกิน 1,000 SKU เคยไม่มีวันได้พุชสต็อกให้ตัวที่เกิน และพรีวิวก็ไม่โชว์
+  //    (ทั้งขา pull และขา push อ่านจากฟังก์ชันนี้ตัวเดียว)
+  const { rows } = await fetchAllRows((from, to) => supabaseAdmin
     .from('marketplace_product_links')
     .select(PREVIEW_LINK_COLUMNS)
     .eq('account_id', accountId)
-    .not('variation_id', 'is', null);
-  return (data || []) as unknown as StockLinkRow[];
+    .not('variation_id', 'is', null)
+    .range(from, to));
+  return rows as unknown as StockLinkRow[];
 }
 
 /**

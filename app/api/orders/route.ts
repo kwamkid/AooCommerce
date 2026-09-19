@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse, after } from 'next/server';
 import { parseGiftCard } from '@/lib/gift-card';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
+import { chunkIds, fetchAllRows, fetchAllRowsByIds } from '@/lib/supabase-paging';
 import { resolveOrderWarehouse } from '@/lib/stock/order-warehouse';
 import {
   reserveOrderStockOnce,
@@ -1255,6 +1256,11 @@ export async function GET(request: NextRequest) {
 
     // Lightweight: return only IDs matching the current filters (for "select all")
     if (searchParams.get('ids_only') === 'true') {
+      // ⚠️ ปุ่ม "เลือกทั้งหมด" ต้องได้ครบจริง — เดิมใส่ `.limit(5000)` ซึ่ง **หลอกตา**
+      //    เพราะ PostgREST ตัดที่ 1,000 แถวก่อนเสมอ (อ่านโค้ดแล้วนึกว่ากันไว้แล้ว)
+      //    ⇒ ร้านที่มีออเดอร์ค้างเกินพันใบ กดเลือกทั้งหมดแล้วได้แค่ 1,000 ใบแรก
+      //    แล้ว bulk action ข้างล่างก็ทำงานแค่นั้นโดยตอบว่าสำเร็จ
+      const { rows, error: idsError } = await fetchAllRows<{ id: string }>((rangeFrom, rangeTo) => {
       let query = supabaseAdmin
         .from('orders')
         .select('id')
@@ -1287,11 +1293,12 @@ export async function GET(request: NextRequest) {
         query = query.eq('shipping_carrier', shippingCarrier).neq('fulfillment_status', 'on_hold');
       }
 
-      const { data: rows, error: idsError } = await query.limit(5000);
+      return query.range(rangeFrom, rangeTo);
+      });
       if (idsError) {
         return NextResponse.json({ error: idsError.message }, { status: 500 });
       }
-      return NextResponse.json({ ids: (rows || []).map((r: { id: string }) => r.id) });
+      return NextResponse.json({ ids: rows.map(r => r.id) });
     }
 
     // Build RPC params — new params (p_order_type, p_platform) only sent when non-null
@@ -1353,9 +1360,12 @@ export async function GET(request: NextRequest) {
       if (needsFilter) {
         result.orders = filtered;
         // RPC counts are wrong — query correct counts directly
+        // ⚠️ ตัวเลขบนแท็บนับจากแถวที่ดึงมาจริง — ร้านที่มีออเดอร์เกินพันใบเคยเห็นตัวนับ
+        //    ตันอยู่ที่ 1,000 ตลอดกาล (ดึงแค่คอลัมน์เดียวจึงไล่หน้าได้ไม่แพง)
+        const { rows: countRows } = await fetchAllRows<{ order_status: string }>((rangeFrom, rangeTo) => {
         let countQuery = supabaseAdmin
           .from('orders')
-          .select('order_status', { count: 'exact', head: false })
+          .select('order_status')
           .eq('company_id', auth.companyId);
         if (source === 'exclude_pos') countQuery = countQuery.neq('source', 'pos');
         if (flowType) countQuery = countQuery.in('flow_type', flowType.split(','));
@@ -1364,8 +1374,9 @@ export async function GET(request: NextRequest) {
             countQuery = countQuery.neq('flow_type', ft.trim());
           }
         }
-        const { data: countRows } = await countQuery;
-        if (countRows) {
+        return countQuery.range(rangeFrom, rangeTo);
+        });
+        {
           const sc: Record<string, number> = { all: countRows.length, new: 0, ready_to_ship: 0, processing: 0, shipping: 0, completed: 0, cancelled: 0 };
           for (const r of countRows) {
             const s = (r as any).order_status;
@@ -1382,12 +1393,15 @@ export async function GET(request: NextRequest) {
     if (customerTypeFilter && result?.orders) {
       const filterTypes = customerTypeFilter.split(',');
       // Get all customer IDs matching the filter types
-      const { data: matchingCustomers } = await supabaseAdmin
+      // ⛔ ชนเพดานสองชั้น: รายชื่อลูกค้าตัดที่ 1,000 แล้ว `.in()` ข้างล่างก็ตัดอีก
+      //    ⇒ ออเดอร์ของลูกค้าที่อยู่ท้ายรายชื่อหายจากทั้งตารางและตัวนับ
+      const { rows: matchingCustomers } = await fetchAllRows<{ id: string }>((rangeFrom, rangeTo) => supabaseAdmin
         .from('customers')
         .select('id')
         .eq('company_id', auth.companyId)
-        .in('customer_type', filterTypes);
-      const validCustIds = new Set((matchingCustomers || []).map((c: { id: string }) => c.id));
+        .in('customer_type', filterTypes)
+        .range(rangeFrom, rangeTo));
+      const validCustIds = new Set(matchingCustomers.map(c => c.id));
 
       // Filter orders
       result.orders = (result.orders as any[]).filter((o: any) => validCustIds.has(o.customer_id));
@@ -1395,14 +1409,17 @@ export async function GET(request: NextRequest) {
 
       // Recalculate statusCounts from ALL orders of this customer_type (not just current page/status)
       const flowTypes = flowType ? flowType.split(',') : null;
-      let countQuery = supabaseAdmin
-        .from('orders')
-        .select('order_status')
-        .eq('company_id', auth.companyId)
-        .in('customer_id', [...validCustIds]);
-      if (flowTypes) countQuery = countQuery.in('flow_type', flowTypes);
-      const { data: allStatusRows } = await countQuery;
-      if (allStatusRows) {
+      const { rows: allStatusRows } = await fetchAllRowsByIds<{ order_status: string }>(
+        [...validCustIds], (idChunk, rangeFrom, rangeTo) => {
+          let countQuery = supabaseAdmin
+            .from('orders')
+            .select('order_status')
+            .eq('company_id', auth.companyId)
+            .in('customer_id', idChunk);
+          if (flowTypes) countQuery = countQuery.in('flow_type', flowTypes);
+          return countQuery.range(rangeFrom, rangeTo);
+        });
+      {
         const counts: Record<string, number> = { all: allStatusRows.length };
         for (const row of allStatusRows) {
           counts[row.order_status] = (counts[row.order_status] || 0) + 1;
@@ -1525,16 +1542,24 @@ export async function PUT(request: NextRequest) {
 
       if (action === 'bulk_accept') {
         // Accept orders in ready_to_ship OR new (credit flow) status
-        const { data: ordersToAccept } = await supabaseAdmin
+        // ⚠️ `validIds` มาจากปุ่ม "เลือกทั้งหมด" จึงยาวเกินพันได้ — `.in()` ที่ยาวเกินไป
+        //    ทำให้ได้ออเดอร์กลับมาไม่ครบ แล้วรายงานว่าสำเร็จทั้งที่ทำแค่บางส่วน
+        const { rows: ordersToAccept } = await fetchAllRowsByIds<{
+          id: string; source: string | null; /** ออเดอร์ marketplace มีเสมอ — โค้ดขาส่งข้างล่างถือว่ามีอยู่แล้ว */
+          external_order_sn: string; external_status: string | null;
+          marketplace_account_id: string | null; is_split: boolean | null; payment_status: string | null;
+          flow_type: string | null; order_status: string;
+        }>(validIds, (idChunk, rangeFrom, rangeTo) => supabaseAdmin
           .from('orders')
           .select('id, source, external_order_sn, external_status, marketplace_account_id, is_split, payment_status, flow_type, order_status')
-          .in('id', validIds)
+          .in('id', idChunk)
           .eq('company_id', auth.companyId)
-          .in('order_status', ['ready_to_ship', 'new']);
+          .in('order_status', ['ready_to_ship', 'new'])
+          .range(rangeFrom, rangeTo));
 
         // Credit flow orders can skip to processing from 'new'
         const creditFlowTypes = ['w_credit', 'c_consign', 'd_statement'];
-        const manualOrders = (ordersToAccept || []).filter(o => o.source !== 'shopee' && (
+        const manualOrders = ordersToAccept.filter(o => o.source !== 'shopee' && (
           o.order_status === 'ready_to_ship' ||
           (o.order_status === 'new' && creditFlowTypes.includes(o.flow_type || ''))
         ));
@@ -1688,15 +1713,18 @@ export async function PUT(request: NextRequest) {
 
       if (action === 'bulk_cancel') {
         // Cancel orders + handle stock (unreserve for new/ready_to_ship)
-        const { data: ordersToCancel } = await supabaseAdmin
+        const { rows: ordersToCancel } = await fetchAllRowsByIds<{
+          id: string; order_number: string; order_status: string; warehouse_id: string | null;
+        }>(validIds, (idChunk, rangeFrom, rangeTo) => supabaseAdmin
           .from('orders')
           .select('id, order_number, order_status, warehouse_id')
-          .in('id', validIds)
+          .in('id', idChunk)
           .eq('company_id', auth.companyId)
-          .neq('order_status', 'cancelled');
+          .neq('order_status', 'cancelled')
+          .range(rangeFrom, rangeTo));
 
         let cancelledCount = 0;
-        for (const order of ordersToCancel || []) {
+        for (const order of ordersToCancel) {
           const { error } = await supabaseAdmin
             .from('orders')
             .update({
@@ -1738,30 +1766,34 @@ export async function PUT(request: NextRequest) {
       }
 
       if (action === 'hold') {
-        const { error } = await supabaseAdmin
-          .from('orders')
-          .update({
-            fulfillment_status: 'on_hold',
-            hold_reason: hold_reason || null,
-            updated_at: new Date().toISOString(),
-          })
-          .in('id', validIds)
-          .eq('company_id', auth.companyId);
-        if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+        for (const idChunk of chunkIds(validIds)) {
+          const { error } = await supabaseAdmin
+            .from('orders')
+            .update({
+              fulfillment_status: 'on_hold',
+              hold_reason: hold_reason || null,
+              updated_at: new Date().toISOString(),
+            })
+            .in('id', idChunk)
+            .eq('company_id', auth.companyId);
+          if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+        }
         return NextResponse.json({ success: true });
       }
 
       if (action === 'unhold') {
-        const { error } = await supabaseAdmin
-          .from('orders')
-          .update({
-            fulfillment_status: 'pending',
-            hold_reason: null,
-            updated_at: new Date().toISOString(),
-          })
-          .in('id', validIds)
-          .eq('company_id', auth.companyId);
-        if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+        for (const idChunk of chunkIds(validIds)) {
+          const { error } = await supabaseAdmin
+            .from('orders')
+            .update({
+              fulfillment_status: 'pending',
+              hold_reason: null,
+              updated_at: new Date().toISOString(),
+            })
+            .in('id', idChunk)
+            .eq('company_id', auth.companyId);
+          if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+        }
         return NextResponse.json({ success: true });
       }
 
@@ -1781,14 +1813,18 @@ export async function PUT(request: NextRequest) {
         }
 
         // Fetch orders to process stock deduction
-        const { data: ordersToShip, error: fetchErr } = await supabaseAdmin
+        const { rows: ordersToShip, error: fetchErr } = await fetchAllRowsByIds<{
+          id: string; order_number: string; order_status: string; warehouse_id: string | null;
+          is_split: boolean | null; source: string | null; marketplace_account_id: string | null;
+        }>(validIds, (idChunk, rangeFrom, rangeTo) => supabaseAdmin
           .from('orders')
           .select('id, order_number, order_status, warehouse_id, is_split, source, marketplace_account_id')
-          .in('id', validIds)
+          .in('id', idChunk)
           .eq('company_id', auth.companyId)
-          .eq('order_status', 'processing');
+          .eq('order_status', 'processing')
+          .range(rangeFrom, rangeTo));
 
-        console.log('[BULK_SHIP] validIds:', validIds, 'found:', ordersToShip?.length, 'fetchErr:', fetchErr?.message);
+        console.log('[BULK_SHIP] validIds:', validIds.length, 'found:', ordersToShip.length, 'fetchErr:', fetchErr?.message);
 
         let shippedCount = 0;
         const allVarIds: string[] = [];

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse, after } from 'next/server';
 import { checkAuthWithCompany, supabaseAdmin, can } from '@/lib/supabase-admin';
+import { fetchAllRows } from '@/lib/supabase-paging';
 import { ensureValidToken, getShopeeCategories, ShopeeAccountRow } from '@/lib/shopee/api';
 import { guardFeature } from '@/lib/package-gates-server';
 
@@ -20,6 +21,10 @@ export async function GET(request: NextRequest) {
     const productIds = searchParams.get('product_ids'); // comma-separated
     const platform = searchParams.get('platform');
 
+    // ⚠️ ส่งตารางลิงก์ทั้งบริษัทให้หน้าเว็บกรองเอง — ร้านที่ผูกเกิน 1,000 SKU เห็นไม่ครบ
+    //    (ยังมีเพดาน response 4.5MB ของ Vercel รออยู่อีกชั้น — ถ้าโตกว่านี้ต้องย้ายไป
+    //     แบ่งหน้า/ค้นฝั่ง server จริงจัง ไม่ใช่แค่ไล่หน้าให้ครบ)
+    const { rows: links, error } = await fetchAllRows((rangeFrom, rangeTo) => {
     let query = supabaseAdmin
       .from('marketplace_product_links')
       .select(`
@@ -76,16 +81,15 @@ export async function GET(request: NextRequest) {
     if (productIds) query = query.in('product_id', productIds.split(','));
     if (platform) query = query.eq('platform', platform);
 
-    query = query.order('created_at', { ascending: false });
-
-    const { data: links, error } = await query;
+    return query.order('created_at', { ascending: false }).range(rangeFrom, rangeTo);
+    });
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     // Enrich links with shop_id from shopee_accounts
-    const accountIds = [...new Set((links || []).map((l: { account_id: string }) => l.account_id))];
+    const accountIds = [...new Set(links.map((l: { account_id: string }) => l.account_id))];
     let shopIdMap: Record<string, string> = {};
     if (accountIds.length > 0) {
       const { data: accounts } = await supabaseAdmin

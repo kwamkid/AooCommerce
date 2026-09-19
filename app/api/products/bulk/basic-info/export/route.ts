@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { fetchAllRows } from '@/lib/supabase-paging';
 
 /**
  * GET /api/products/bulk/basic-info/export
@@ -24,14 +25,18 @@ export async function GET(request: NextRequest) {
     // Resolve sku/barcode matches via product_variations → product_ids first
     let varProductIds: string[] = [];
     if (search) {
-      const { data: varMatches } = await supabaseAdmin
+      const { rows: varMatches } = await fetchAllRows<{ product_id: string }>((from, to) => supabaseAdmin
         .from('product_variations')
         .select('product_id')
         .eq('company_id', auth.companyId)
-        .or(`sku.ilike.%${search}%,barcode.ilike.%${search}%`);
-      varProductIds = [...new Set((varMatches || []).map(v => v.product_id).filter(Boolean))];
+        .or(`sku.ilike.%${search}%,barcode.ilike.%${search}%`)
+        .range(from, to));
+      varProductIds = [...new Set(varMatches.map(v => v.product_id).filter(Boolean))];
     }
 
+    // ⚠️ ไฟล์ export ที่ได้แค่ 1,000 แถวแรกอันตรายกว่าที่คิด — ผู้ใช้แก้ในไฟล์นั้นแล้ว
+    //    นำเข้ากลับ โดยเข้าใจว่าเห็นสินค้าครบร้าน (ของจริงไม่ครบตั้งแต่ตอนโหลด)
+    const { rows: data, error } = await fetchAllRows((rangeFrom, rangeTo) => {
     let q = supabaseAdmin
       .from('products')
       .select('id, code, name, description, is_active, brand_id, category_id, brand:product_brands(id, name), category:product_categories(id, name)')
@@ -51,9 +56,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    q = q.order('name');
-
-    const { data, error } = await q;
+    return q.order('name').range(rangeFrom, rangeTo);
+    });
     if (error) {
       console.error('basic-info export error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });

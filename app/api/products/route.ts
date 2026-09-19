@@ -595,21 +595,25 @@ export async function GET(request: NextRequest) {
     // return more we have to fire several .range() pages and concatenate).
     let varProductIds: string[] = [];
     if (searchQuery) {
-      const { data: varMatches } = await supabaseAdmin
+      // ⚠️ ตัวกรองขั้นต้นก็ต้องครบ ไม่งั้นค้นด้วย SKU แล้ว "ไม่เจอ" ทั้งที่มีของอยู่
+      //    (ขั้นถัดไปใช้ fetchAllRows อยู่แล้ว แต่ตรงนี้ตกหล่น)
+      const { rows: varMatches } = await fetchAllRows<{ product_id: string }>((from, to) => supabaseAdmin
         .from('product_variations')
         .select('product_id')
         .eq('company_id', auth.companyId)
-        .or(`sku.ilike.%${searchQuery}%,barcode.ilike.%${searchQuery}%`);
-      varProductIds = [...new Set((varMatches || []).map(v => v.product_id).filter(Boolean))];
+        .or(`sku.ilike.%${searchQuery}%,barcode.ilike.%${searchQuery}%`)
+        .range(from, to));
+      varProductIds = [...new Set(varMatches.map(v => v.product_id).filter(Boolean))];
     }
 
     let linkedProductIds: string[] = [];
     if (shopAccountFilter) {
-      const { data: linkedProducts } = await supabaseAdmin
+      const { rows: linkedProducts } = await fetchAllRows<{ product_id: string }>((from, to) => supabaseAdmin
         .from('marketplace_product_links')
         .select('product_id')
-        .eq('account_id', shopAccountFilter);
-      linkedProductIds = [...new Set((linkedProducts || []).map(lp => lp.product_id).filter(Boolean))];
+        .eq('account_id', shopAccountFilter)
+        .range(from, to));
+      linkedProductIds = [...new Set(linkedProducts.map(lp => lp.product_id).filter(Boolean))];
       if (linkedProductIds.length === 0) {
         return NextResponse.json({
           products: [],

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
+import { fetchAllRows } from '@/lib/supabase-paging';
 import { getStockConfig } from '@/lib/stock-utils';
 import { guardFeature } from '@/lib/package-gates-server';
 
@@ -27,13 +28,16 @@ export async function PUT(request: NextRequest) {
     if (body.all === true && typeof body.min_stock === 'number' && body.min_stock >= 0) {
       const minStock = Math.floor(body.min_stock);
       // Get all active variation IDs for this company
-      const { data: allVariations } = await supabaseAdmin
+      // ⚠️ "ตั้งค่าขั้นต่ำให้ทุกตัว" ต้องได้ครบจริง — เดิมได้ id มาแค่ 1,000 ตัวแล้วตอบว่า
+      //    updated: 1000 ซึ่งดูเหมือนทำงานปกติ แต่สินค้าที่เหลือไม่ถูกแตะเลย
+      const { rows: allVariations } = await fetchAllRows<{ id: string }>((from, to) => supabaseAdmin
         .from('product_variations')
         .select('id, product:products!inner(company_id, is_active)')
         .eq('products.company_id', auth.companyId!)
-        .eq('products.is_active', true);
+        .eq('products.is_active', true)
+        .range(from, to));
 
-      const ids = (allVariations || []).map((v: { id: string }) => v.id);
+      const ids = allVariations.map(v => v.id);
       if (ids.length === 0) {
         return NextResponse.json({ success: true, updated: 0 });
       }

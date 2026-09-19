@@ -964,12 +964,15 @@ export interface StorefrontBrand {
  * ยุบตาม **slug** ได้เลย ต่างจากหมวด เพราะ RPC กรองแบรนด์ด้วย slug ตรง ๆ
  */
 export const getStorefrontBrands = cache(async (companyId: string): Promise<StorefrontBrand[]> => {
-  const { data } = await supabaseAdmin
+  // ⚠️ ยุบ facet จากสินค้าทั้งร้าน — ร้านที่มีสินค้าเกิน 1,000 ตัวเคยมีแบรนด์หายจาก
+  //    แถบกรองหน้าร้าน (ลูกค้าหาของยี่ห้อนั้นไม่เจอเลย) · ฟังก์ชันข้าง ๆ ใช้ตัวนี้อยู่แล้ว
+  const { rows: data } = await fetchAllRows((from, to) => supabaseAdmin
     .from('products')
     .select('brand:product_brands ( name, slug, logo_url )')
     .eq('company_id', companyId)
     .eq('is_active', true)
-    .eq('storefront_visible', true);
+    .eq('storefront_visible', true)
+    .range(from, to));
   const bySlug = new Map<string, StorefrontBrand>();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   for (const row of (data as any[] | null) || []) {
@@ -1016,12 +1019,14 @@ export interface StorefrontCategory {
  * `resolveCategoryParam` แปลง slug → **ชื่อ** แล้ว RPC กรองด้วยชื่อ ⇒ ยังเห็นสินค้าของทุกแถวครบ
  */
 export const getStorefrontCategories = cache(async (companyId: string): Promise<StorefrontCategory[]> => {
-  const { data } = await supabaseAdmin
+  // ⚠️ เหตุผลเดียวกับแบรนด์ — หมวดหายจากแถบกรองเมื่อร้านโตเกิน 1,000 สินค้า
+  const { rows: data } = await fetchAllRows((from, to) => supabaseAdmin
     .from('products')
     .select('category:product_categories ( name, slug )')
     .eq('company_id', companyId)
     .eq('is_active', true)
-    .eq('storefront_visible', true);
+    .eq('storefront_visible', true)
+    .range(from, to));
   const byName = new Map<string, string>();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   for (const row of (data as any[] | null) || []) {

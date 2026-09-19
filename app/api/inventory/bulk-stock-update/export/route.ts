@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { fetchAllRows } from '@/lib/supabase-paging';
 import { guardFeature } from '@/lib/package-gates-server';
 
 export async function GET(request: NextRequest) {
@@ -39,6 +40,8 @@ export async function GET(request: NextRequest) {
     const orderedWarehouses = warehouseIds.map(id => warehouseMap.get(id)!).filter(Boolean);
 
     // Pull variations + product join (filtered by brand if specified)
+    // ⚠️ ไฟล์ template ที่ขาดสินค้าตั้งแต่ตัวที่ 1,001 = ผู้ใช้กรอกสต็อกได้ไม่ครบร้าน
+    const { rows: variations, error } = await fetchAllRows((rangeFrom, rangeTo) => {
     let productQuery = supabaseAdmin
       .from('product_variations')
       .select('id, product_id, variation_label, sku, barcode, is_active, product:products!inner(id, code, name, is_active, is_composite, brand_id, brand:product_brands(id, name))')
@@ -51,9 +54,8 @@ export async function GET(request: NextRequest) {
       productQuery = productQuery.in('product.brand_id', brandIds);
     }
 
-    productQuery = productQuery.order('product_id');
-
-    const { data: variations, error } = await productQuery;
+    return productQuery.order('product_id').range(rangeFrom, rangeTo);
+    });
 
     if (error) {
       console.error('Template fetch error:', error);
@@ -61,14 +63,16 @@ export async function GET(request: NextRequest) {
     }
 
     // Stock per (variation_id, warehouse_id)
-    const { data: inv } = await supabaseAdmin
-      .from('inventory')
-      .select('variation_id, warehouse_id, quantity')
-      .eq('company_id', auth.companyId)
-      .in('warehouse_id', warehouseIds);
+    const { rows: inv } = await fetchAllRows<{ variation_id: string; warehouse_id: string; quantity: number }>(
+      (from, to) => supabaseAdmin
+        .from('inventory')
+        .select('variation_id, warehouse_id, quantity')
+        .eq('company_id', auth.companyId)
+        .in('warehouse_id', warehouseIds)
+        .range(from, to));
 
     const stockMap = new Map<string, number>();
-    for (const r of inv || []) {
+    for (const r of inv) {
       stockMap.set(`${r.variation_id}|${r.warehouse_id}`, r.quantity || 0);
     }
 

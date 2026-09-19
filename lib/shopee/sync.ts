@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { fetchAllRows } from '@/lib/supabase-paging';
 import { resolveAccountWarehouseId } from '@/lib/marketplace/warehouse';
 import { newCustomerCode } from '@/lib/customer-code';
 import { normalizeShopeeEscrow } from '@/lib/shopee/settlement';
@@ -521,7 +522,9 @@ export async function syncIncompleteOrders(
   console.log(`[Shopee Sync] syncIncompleteOrders: shop_id=${account.shop_id}`);
 
   // Find orders that are not yet at a terminal state (COMPLETED / CANCELLED)
-  const { data: incompleteOrders, error: fetchError } = await supabaseAdmin
+  // ⚠️ ใบที่ตกนอก 1,000 แถวแรกจะไม่ถูกดึงสถานะใหม่ **ตลอดไป** (ค้างสถานะเก่าถาวร)
+  const { rows: incompleteOrders, error: fetchError } = await fetchAllRows<{ external_order_sn: string }>(
+    (from, to) => supabaseAdmin
     .from('orders')
     .select('external_order_sn')
     .eq('company_id', companyId)
@@ -529,7 +532,8 @@ export async function syncIncompleteOrders(
     .eq('marketplace_account_id', account.id)
     .not('external_status', 'in', '("COMPLETED","CANCELLED","IN_CANCEL")')
     .not('external_order_sn', 'is', null)
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: true })
+    .range(from, to));
 
   if (fetchError) {
     console.error(`[Shopee Sync] Failed to fetch incomplete orders:`, fetchError);

@@ -64,39 +64,40 @@ export async function GET(request: NextRequest) {
     }
 
     // Get status counts for the same filters (excluding status filter)
-    let countQuery = supabaseAdmin
-      .from('integration_logs')
-      .select('status', { count: 'exact', head: false })
-      .eq('company_id', companyId)
-      .eq('integration', integration);
+    // ⚠️ เดิมดึงแถวมานับเองด้วย `allRows.length` — `integration_logs` โตเร็วที่สุดในระบบ
+    //    ตัวเลขจึงตันอยู่ที่ 1,000 เสมอ และเปลืองแบนด์วิดท์มหาศาลเพื่อจะนับอย่างเดียว
+    //    ⇒ ให้ DB นับให้ (`head: true` = ไม่ส่งแถวกลับมาเลย) ยิงสามสถานะขนานกัน
+    const buildCountQuery = (status?: string) => {
+      let q = supabaseAdmin
+        .from('integration_logs')
+        .select('id', { count: 'exact', head: true })
+        .eq('company_id', companyId)
+        .eq('integration', integration);
 
-    if (direction && direction !== 'all') {
-      countQuery = countQuery.eq('direction', direction);
-    }
-    if (action && action !== 'all') {
-      const actions = action.split(',');
-      if (actions.length === 1) {
-        countQuery = countQuery.eq('action', actions[0]);
-      } else {
-        countQuery = countQuery.in('action', actions);
+      if (direction && direction !== 'all') q = q.eq('direction', direction);
+      if (action && action !== 'all') {
+        const actions = action.split(',');
+        q = actions.length === 1 ? q.eq('action', actions[0]) : q.in('action', actions);
       }
-    }
-    if (search) {
-      countQuery = countQuery.or(`reference_id.ilike.%${search}%,reference_label.ilike.%${search}%,error_message.ilike.%${search}%,api_path.ilike.%${search}%,action.ilike.%${search}%`);
-    }
-    if (dateFrom) {
-      countQuery = countQuery.gte('created_at', `${dateFrom}T00:00:00`);
-    }
-    if (dateTo) {
-      countQuery = countQuery.lte('created_at', `${dateTo}T23:59:59`);
-    }
+      if (search) {
+        q = q.or(`reference_id.ilike.%${search}%,reference_label.ilike.%${search}%,error_message.ilike.%${search}%,api_path.ilike.%${search}%,action.ilike.%${search}%`);
+      }
+      if (dateFrom) q = q.gte('created_at', `${dateFrom}T00:00:00`);
+      if (dateTo) q = q.lte('created_at', `${dateTo}T23:59:59`);
+      if (status) q = q.eq('status', status);
+      return q;
+    };
 
-    const { data: allRows } = await countQuery;
+    const [allCount, successCount, errorCount] = await Promise.all([
+      buildCountQuery(),
+      buildCountQuery('success'),
+      buildCountQuery('error'),
+    ]);
 
     const statusCounts = {
-      all: allRows?.length || 0,
-      success: allRows?.filter(r => r.status === 'success').length || 0,
-      error: allRows?.filter(r => r.status === 'error').length || 0,
+      all: allCount.count ?? 0,
+      success: successCount.count ?? 0,
+      error: errorCount.count ?? 0,
     };
 
     // Batch-resolve order UUIDs + product names for reference links

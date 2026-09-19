@@ -43,6 +43,17 @@ interface PageResponse<T> {
  * แล้วยิงหน้าที่เหลือ**ขนานกัน** · ถ้าไม่มี count จะไล่ทีละหน้าจนกว่าจะได้ไม่เต็มหน้า
  */
 /**
+ * แบ่ง id เป็นชุด ๆ สำหรับ `.in()` — ใช้กับ **การเขียน** (update/delete) ที่ไม่ได้อ่านแถวกลับ
+ * (การอ่านใช้ `fetchAllRowsByIds` ซึ่งแบ่งให้แล้วและไล่หน้าให้ด้วย)
+ */
+export function chunkIds<T>(ids: readonly T[], size = ID_CHUNK_SIZE): T[][] {
+  const step = Math.max(1, size);
+  const out: T[][] = [];
+  for (let i = 0; i < ids.length; i += step) out.push(ids.slice(i, i + step) as T[]);
+  return out;
+}
+
+/**
  * ดึงแถวของรายการ id ที่ยาวเกินกว่าจะใส่ `.in()` ทีเดียวได้
  *
  * ⚠️ **`.in()` ชนเพดานสองชั้น** และเป็นกับดักที่เจอบ่อยกว่า `fetchAllRows` ธรรมดา:

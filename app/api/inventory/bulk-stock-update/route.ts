@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse, after } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
+import { fetchAllRows } from '@/lib/supabase-paging';
 import { getStockConfig } from '@/lib/stock-utils';
 import { adjustStock } from '@/lib/stock-service';
 import { guardFeature } from '@/lib/package-gates-server';
@@ -70,10 +71,13 @@ export async function POST(request: NextRequest) {
     for (const w of warehouses || []) warehouseMap.set(w.id, w);
 
     // Pre-fetch all variations for company
-    const { data: allVariations } = await supabaseAdmin
+    // ⚠️ ร้านที่มีตัวเลือกเกิน 1,000 ตัวเคยได้แค่ชุดแรก แล้วแถวที่เหลือในไฟล์ขึ้นว่า
+    //    "ไม่พบ SKU" ทั้งที่มีอยู่จริง (อาการเดียวกับบั๊กค้นสินค้าไม่เจอ 7 ก.ย. 2569)
+    const { rows: allVariations } = await fetchAllRows((from, to) => supabaseAdmin
       .from('product_variations')
       .select('id, product_id, variation_label, sku, barcode, product:products(id, name, company_id, is_composite)')
-      .eq('company_id', auth.companyId);
+      .eq('company_id', auth.companyId)
+      .range(from, to));
 
     type VariationRow = {
       id: string;
@@ -84,18 +88,20 @@ export async function POST(request: NextRequest) {
       product: { id: string; name: string; company_id: string; is_composite: boolean | null } | null;
     };
 
-    const variations = (allVariations || []) as unknown as VariationRow[];
+    const variations = allVariations as unknown as VariationRow[];
     const byId = new Map<string, VariationRow>();
     for (const v of variations) byId.set(v.id, v);
 
     // Pre-fetch current stock for all (variation_id, warehouse_id) referenced
-    const { data: invRows } = await supabaseAdmin
-      .from('inventory')
-      .select('variation_id, warehouse_id, quantity')
-      .eq('company_id', auth.companyId)
-      .in('warehouse_id', requestedWarehouseIds);
+    const { rows: invRows } = await fetchAllRows<{ variation_id: string; warehouse_id: string; quantity: number }>(
+      (from, to) => supabaseAdmin
+        .from('inventory')
+        .select('variation_id, warehouse_id, quantity')
+        .eq('company_id', auth.companyId)
+        .in('warehouse_id', requestedWarehouseIds)
+        .range(from, to));
     const stockMap = new Map<string, number>();
-    for (const r of invRows || []) {
+    for (const r of invRows) {
       stockMap.set(`${r.variation_id}|${r.warehouse_id}`, r.quantity || 0);
     }
 

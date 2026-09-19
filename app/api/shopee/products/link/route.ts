@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, can, supabaseAdmin } from '@/lib/supabase-admin';
+import { fetchAllRows } from '@/lib/supabase-paging';
 
 // GET - Fetch marketplace links for an account
 export async function GET(request: NextRequest) {
@@ -16,11 +17,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'account_id is required' }, { status: 400 });
     }
 
-    const { data, error } = await supabaseAdmin
+    // ⚠️ หน้าเทียบสินค้าใช้ชุดนี้ตัดสินว่า "ผูกแล้วหรือยัง" — ขาดไปคือโชว์ว่ายังไม่ผูก
+    //    ทั้งที่ผูกแล้ว แล้วผู้ใช้กดผูกซ้ำ
+    const { rows: data, error } = await fetchAllRows((from, to) => supabaseAdmin
       .from('marketplace_product_links')
       .select('id, product_id, variation_id, external_item_id')
       .eq('company_id', companyId)
-      .eq('account_id', accountId);
+      .eq('account_id', accountId)
+      .range(from, to));
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
