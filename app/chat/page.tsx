@@ -2787,19 +2787,6 @@ function UnifiedChatPageContent() {
                   <EmailIcon className="w-4 h-4" />
                 </button>
               </Tooltip>
-              <Tooltip text={filterFollowUp ? 'เฉพาะคนที่ถึงกำหนดทัก (กดเพื่อยกเลิก)' : 'เฉพาะคนที่ถึงกำหนดทัก'}>
-                <button onClick={() => setFilterParams({ followup: filterFollowUp ? '' : 'due' })}
-                  aria-label="เฉพาะคนที่ถึงกำหนดทัก"
-                  className={`h-[42px] w-[42px] flex-shrink-0 flex items-center justify-center border rounded-lg transition-colors ${filterFollowUp ? 'bg-amber-500 border-amber-500 text-white' : 'border-gray-300 dark:border-slate-500 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'}`}>
-                  <TimeIcon className="w-4 h-4" />
-                </button>
-              </Tooltip>
-              <Tooltip text="คิวติดตามทั้งหมด">
-                <Link href="/chat/follow-ups" aria-label="คิวติดตาม"
-                  className="h-[42px] w-[42px] flex-shrink-0 flex items-center justify-center border border-gray-300 dark:border-slate-500 rounded-lg text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
-                  <ChecklistIcon className="w-4 h-4" />
-                </Link>
-              </Tooltip>
               <div className="relative h-[42px]" data-filter-popover>
                 <Tooltip text="กรองรายชื่อ">
                   <button onClick={() => setShowFilterPopover(!showFilterPopover)}
@@ -2815,6 +2802,26 @@ function UnifiedChatPageContent() {
                       {hasActiveFilter && (<button onClick={() => { setFilterParams({ linked: 'all', tag: '', account: '', platform: 'all', sort: 'time', unread: '', followup: '' }); setFilterOrderDaysRange(null); setShowFilterPopover(false); }} className="text-xs text-red-500 hover:text-red-600">ล้างทั้งหมด</button>)}
                     </div>
                     <div className="p-3 space-y-4">
+                      {/* การติดตาม — กรองคนที่มีนัดค้าง + ทางไปคิวเต็ม (แถวหัวแน่นแล้ว ปุ่มจึงอยู่ในนี้) */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="text-base font-medium text-gray-600 dark:text-slate-400">การติดตาม</label>
+                          <Link href="/chat/follow-ups" onClick={() => setShowFilterPopover(false)}
+                            className="text-xs text-primary hover:underline flex items-center gap-1">
+                            <ChecklistIcon className="w-3.5 h-3.5" />คิวทั้งหมด
+                          </Link>
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={() => { setFilterParams({ followup: filterFollowUp === 'due' ? '' : 'due' }); setShowFilterPopover(false); }}
+                            className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors flex items-center justify-center gap-1 ${filterFollowUp === 'due' ? 'bg-amber-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`}>
+                            <TimeIcon className="w-4 h-4" /><span>ถึงกำหนด</span>
+                          </button>
+                          <button onClick={() => { setFilterParams({ followup: filterFollowUp === 'overdue' ? '' : 'overdue' }); setShowFilterPopover(false); }}
+                            className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors flex items-center justify-center gap-1 ${filterFollowUp === 'overdue' ? 'bg-red-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`}>
+                            <AlertIcon className="w-4 h-4" /><span>เลยกำหนด</span>
+                          </button>
+                        </div>
+                      </div>
                       <div>
                         <label className="text-base font-medium text-gray-600 dark:text-slate-400 mb-2 block">สถานะลูกค้า</label>
                         <div className="flex gap-2">
