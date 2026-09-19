@@ -46,18 +46,29 @@ export interface FollowUpPreset {
   date: Date;
 }
 
-/** ปุ่มมาตรฐาน — เรียงจากใกล้ไปไกล (ของที่กดบ่อยสุดอยู่ซ้ายบน) */
+/**
+ * ปุ่มมาตรฐาน — เรียงจากใกล้ไปไกล (ของที่กดบ่อยสุดอยู่ซ้ายบน)
+ * "อังคาร" = วันอังคารถัดไปจริง ๆ จึงชนกับ "2 วัน"/"3 วัน" ได้ (เช่นวันนี้เสาร์) —
+ * วันซ้ำกันตัดตัวหลังทิ้ง ไม่งั้นผู้ใช้เห็นสองปุ่มที่ให้ผลเดียวกันแล้วงง
+ */
 export function followUpPresets(now: Date = new Date()): FollowUpPreset[] {
-  return [
-    { key: 'd1',  label: 'พรุ่งนี้',    date: addDays(1, now) },
-    { key: 'd2',  label: '2 วัน',      date: addDays(2, now) },
-    { key: 'd3',  label: '3 วัน',      date: addDays(3, now) },
-    { key: 'tue', label: 'อังคารหน้า', date: nextWeekday(2, now) },
-    { key: 'd7',  label: '7 วัน',      date: addDays(7, now) },
-    { key: 'm1',  label: '1 เดือน',    date: addMonths(1, now) },
-    { key: 'm3',  label: '3 เดือน',    date: addMonths(3, now) },
-    { key: 'y1',  label: '1 ปี',       date: addMonths(12, now) },
+  const all: FollowUpPreset[] = [
+    { key: 'd1',  label: 'พรุ่งนี้', date: addDays(1, now) },
+    { key: 'd2',  label: '2 วัน',   date: addDays(2, now) },
+    { key: 'd3',  label: '3 วัน',   date: addDays(3, now) },
+    { key: 'tue', label: 'อังคาร',  date: nextWeekday(2, now) },
+    { key: 'd7',  label: '7 วัน',   date: addDays(7, now) },
+    { key: 'm1',  label: '1 เดือน', date: addMonths(1, now) },
+    { key: 'm3',  label: '3 เดือน', date: addMonths(3, now) },
+    { key: 'y1',  label: '1 ปี',    date: addMonths(12, now) },
   ];
+  const seen = new Set<number>();
+  return all.filter(p => {
+    const t = p.date.getTime();
+    if (seen.has(t)) return false;
+    seen.add(t);
+    return true;
+  });
 }
 
 /** ปุ่มชุดสั้นสำหรับที่แคบ (ปัดแถว · แถบหลังส่งข้อความ) */

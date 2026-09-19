@@ -1,6 +1,8 @@
 'use client';
 
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
+import { useDropUp } from '@/lib/useDropUp';
 import { DayPicker, DateRange } from 'react-day-picker';
 import { format, isValid, isSameDay, isLastDayOfMonth, addMonths, subMonths } from 'date-fns';
 import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon } from '@/lib/icons';
@@ -32,6 +34,12 @@ interface DateRangePickerProps {
    * เช่นร้านที่หยุดวันอาทิตย์ ส่ง [0] แล้ววันอาทิตย์จะกดไม่ได้ทั้งปฏิทิน
    */
   disabledDaysOfWeek?: number[];
+  /**
+   * วาดปฏิทินที่ body (portal) แทนซ้อนใต้ช่อง — ใช้เมื่อช่องอยู่ในกล่องที่ตัดของล้น
+   * (โมดัล · การ์ด overflow-hidden · แถว DataTable) ไม่งั้นปฏิทินโดนขอบกล่องตัด · z-index ช่วยไม่ได้
+   * (เกณฑ์เดียวกับ `portal` ของ FormSelect — พลิกขึ้นเองเมื่อข้างล่างไม่พอ)
+   */
+  portal?: boolean;
 }
 
 // Helpers
@@ -195,8 +203,10 @@ export default function DateRangePicker({
   popupDirection = 'down',
   popupAlign = 'left',
   minDate,
+  portal = false,
 }: DateRangePickerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('calendar');
   const [displayMonth, setDisplayMonth] = useState<Date>(new Date());
@@ -254,14 +264,26 @@ export default function DateRangePicker({
   useEffect(() => {
     if (!open) return;
     const handleClick = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-        setViewMode('calendar');
-      }
+      const target = e.target as Node;
+      if (containerRef.current?.contains(target)) return;
+      if (portal && popupRef.current?.contains(target)) return;
+      setOpen(false);
+      setViewMode('calendar');
     };
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
-  }, [open]);
+  }, [open, portal]);
+
+  // portal: ตำแหน่ง fixed จากช่อง — พลิกขึ้นเองเมื่อข้างล่างไม่พอ (เกณฑ์กลางใน lib/useDropUp.ts)
+  const { dropUp, rect, height: popupH } = useDropUp(containerRef, {
+    open: open && portal,
+    estimatedHeight: 340,
+    dropdownRef: popupRef,
+    recalcOnScroll: true,
+  });
+  const portalStyle = portal && rect
+    ? { position: 'fixed' as const, top: dropUp ? rect.top - popupH - 4 : rect.bottom + 4, left: rect.left }
+    : undefined;
 
   // Close on ESC
   useEffect(() => {
@@ -444,8 +466,15 @@ export default function DateRangePicker({
       </button>
 
       {/* Popup */}
-      {open && (
-        <div className={`absolute z-50 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-xl shadow-xl overflow-hidden ${popupDirection === 'up' ? 'bottom-full mb-1' : 'mt-1'} ${popupAlign === 'right' ? 'right-0' : 'left-0'}`}>
+      {open && (() => {
+        const popup = (
+        <div
+          ref={popupRef}
+          style={portalStyle}
+          className={`z-[9999] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-xl shadow-xl overflow-hidden ${
+            portal ? '' : `absolute ${popupDirection === 'up' ? 'bottom-full mb-1' : 'mt-1'} ${popupAlign === 'right' ? 'right-0' : 'left-0'}`
+          }`}
+        >
           <div className="flex">
             {/* Shortcuts */}
             {showShortcuts && !isSingle && (
@@ -627,7 +656,9 @@ export default function DateRangePicker({
             </div>
           </div>
         </div>
-      )}
+        );
+        return portal ? createPortal(popup, document.body) : popup;
+      })()}
     </div>
   );
 }

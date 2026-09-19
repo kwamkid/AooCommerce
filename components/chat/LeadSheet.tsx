@@ -190,7 +190,7 @@ export default function LeadSheet({ open, contactId, platform, contactName, onCl
             disabled={saving}
             minDate={new Date()}
             placeholder="เลือกวันเอง"
-            popupDirection="up"
+            portal
             value={lead?.follow_up_at ? { startDate: lead.follow_up_at, endDate: lead.follow_up_at } : null}
             onChange={(v: DateValueType) => {
               const raw = v?.startDate;
