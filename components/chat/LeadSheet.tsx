@@ -17,7 +17,6 @@ import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import Modal from '@/components/ui/Modal';
 import FormSelect from '@/components/ui/FormSelect';
-import FormInput from '@/components/ui/FormInput';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import DateRangePicker, { type DateValueType } from '@/components/ui/DateRangePicker';
@@ -40,26 +39,38 @@ export interface LeadData {
   reminded_count: number;
 }
 
+export interface LeadMember { id: string; name: string }
+
 interface Props {
   open: boolean;
   contactId: string;
   platform: string;
   contactName: string;
+  /**
+   * ค่าที่หน้าแชทโหลดไว้แล้วตอนเลือกห้อง — แผ่นวาดได้ทันทีไม่ต้องรอ (เดิมเปิดมาว่างแล้วค่อยเด้งเนื้อ)
+   * ส่งครบ = ไม่ยิง API ตอนเปิดเลย
+   */
+  initialLead?: LeadData | null;
+  initialStages?: LeadStage[];
+  initialMembers?: LeadMember[];
   onClose: () => void;
   /** แจ้งหน้าที่เรียกให้ patch แถวของตัวเอง — หน้าแชทไม่ต้องดึงรายชื่อใหม่ทั้งก้อน */
   onChanged?: (lead: LeadData) => void;
 }
 
-export default function LeadSheet({ open, contactId, platform, contactName, onClose, onChanged }: Props) {
+export default function LeadSheet({
+  open, contactId, platform, contactName, initialLead, initialStages, initialMembers, onClose, onChanged,
+}: Props) {
   const { showToast } = useToast();
-  const [stages, setStages] = useState<LeadStage[]>(DEFAULT_LEAD_STAGES);
-  const [members, setMembers] = useState<{ id: string; name: string }[]>([]);
-  const [lead, setLead] = useState<LeadData | null>(null);
+  const [stages, setStages] = useState<LeadStage[]>(initialStages?.length ? initialStages : DEFAULT_LEAD_STAGES);
+  const [members, setMembers] = useState<LeadMember[]>(initialMembers || []);
+  const [lead, setLead] = useState<LeadData | null>(initialLead ?? null);
   const [saving, setSaving] = useState(false);
-  const [note, setNote] = useState('');
 
+  // หน้าแชทส่งค่าล่าสุดมาให้อยู่แล้ว — ยิง API เฉพาะเมื่อยังไม่มีอะไรเลย (เปิดจากที่ที่ไม่ได้โหลดไว้)
   useEffect(() => {
     if (!open || !contactId) return;
+    if (initialLead !== undefined && initialStages?.length && initialMembers) return;
     let cancelled = false;
     apiFetch(`/api/leads?contact_id=${contactId}&platform=${platform}`)
       .then(r => r.json())
@@ -68,11 +79,10 @@ export default function LeadSheet({ open, contactId, platform, contactName, onCl
         if (Array.isArray(data.stages) && data.stages.length > 0) setStages(data.stages);
         setMembers(Array.isArray(data.members) ? data.members : []);
         setLead(data.lead || null);
-        setNote(data.lead?.follow_up_note || '');
       })
       .catch(() => { if (!cancelled) showToast('โหลดข้อมูลการติดตามไม่สำเร็จ', 'error'); });
     return () => { cancelled = true; };
-  }, [open, contactId, platform, showToast]);
+  }, [open, contactId, platform, initialLead, initialStages, initialMembers, showToast]);
 
   const save = useCallback(async (patch: Record<string, unknown>, message: string, closeAfter = false) => {
     setSaving(true);
@@ -101,6 +111,10 @@ export default function LeadSheet({ open, contactId, platform, contactName, onCl
   const current = stages.find(s => s.key === currentKey) || stages[0];
   const due = followUpLabel(lead?.follow_up_at);
   const waiting = currentKey === 'quoted' ? waitingDays(lead?.quote_sent_at) : null;
+  const presets = followUpPresets();
+  const matchesPreset = (iso: string, d: Date) => Math.abs(new Date(iso).getTime() - d.getTime()) < 36e5;
+  /** นัดที่ตั้งจากปฏิทินเอง (ไม่ตรงปุ่มไหน) — ให้ช่องปฏิทินเป็นตัวแสดงวันแทน */
+  const customPicked = !!lead?.follow_up_at && !presets.some(p => matchesPreset(lead.follow_up_at!, p.date));
 
   return (
     <Modal
@@ -164,8 +178,8 @@ export default function LeadSheet({ open, contactId, platform, contactName, onCl
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5">
-        {followUpPresets().map(p => {
-          const picked = !!lead?.follow_up_at && Math.abs(new Date(lead.follow_up_at).getTime() - p.date.getTime()) < 36e5;
+        {presets.map(p => {
+          const picked = !!lead?.follow_up_at && matchesPreset(lead.follow_up_at, p.date);
           return (
             <Button
               key={p.key}
@@ -182,29 +196,28 @@ export default function LeadSheet({ open, contactId, platform, contactName, onCl
           );
         })}
 
-        {/* เลือกวันเอง — ปฏิทินของระบบ (ตัวเดียวกับทุกหน้า) เลือกแล้วบันทึกทันที */}
-        <div className="col-span-2">
-          <DateRangePicker
-            asSingle
-            useRange={false}
-            disabled={saving}
-            minDate={new Date()}
-            placeholder="เลือกวันเอง"
-            portal
-            value={lead?.follow_up_at ? { startDate: lead.follow_up_at, endDate: lead.follow_up_at } : null}
-            onChange={(v: DateValueType) => {
-              const raw = v?.startDate;
-              if (!raw) return;
-              const d = typeof raw === 'string' ? new Date(raw) : new Date(raw);
-              d.setHours(FOLLOW_UP_HOUR, 0, 0, 0);
-              save({ follow_up_at: d.toISOString() }, `ทักอีกที ${formatShortThaiDate(d)}`, true);
-            }}
-          />
-        </div>
+        {/* เลือกวันเอง — ช่องสุดท้ายในตารางเดียวกัน ขนาดเท่าปุ่ม (size sm) กดแล้วค่อยเป็นปฏิทิน
+            แสดงวันที่ในช่องเฉพาะเมื่อนัดปัจจุบันไม่ตรงกับปุ่มไหนเลย (ตรงปุ่ม = ปุ่มนั้นไฮไลต์อยู่แล้ว) */}
+        <DateRangePicker
+          asSingle
+          useRange={false}
+          size="sm"
+          portal
+          disabled={saving}
+          minDate={new Date()}
+          placeholder="เลือกวัน"
+          value={customPicked ? { startDate: lead!.follow_up_at, endDate: lead!.follow_up_at } : null}
+          onChange={(v: DateValueType) => {
+            const raw = v?.startDate;
+            if (!raw) return;
+            const d = new Date(raw);
+            d.setHours(FOLLOW_UP_HOUR, 0, 0, 0);
+            save({ follow_up_at: d.toISOString() }, `ทักอีกที ${formatShortThaiDate(d)}`, true);
+          }}
+        />
       </div>
 
-      {/* ผู้รับผิดชอบ + โน้ต อยู่แถวเดียวกัน (สองอย่างนี้เป็นของเสริม ไม่ควรกินคนละบรรทัด) */}
-      <div className="grid grid-cols-2 gap-2 mt-3.5">
+      <div className="mt-3.5">
         <FormSelect
           value={lead?.assigned_to || ''}
           onChange={v => save({ assigned_to: v || null }, v ? 'มอบหมายแล้ว' : 'ปลดผู้รับผิดชอบแล้ว')}
@@ -213,13 +226,6 @@ export default function LeadSheet({ open, contactId, platform, contactName, onCl
           placeholder="ผู้รับผิดชอบ"
           icon={<MemberIcon className="w-4 h-4" />}
           portal
-          disabled={saving}
-        />
-        <FormInput
-          value={note}
-          onChange={e => setNote(e.target.value)}
-          onBlur={() => { if ((lead?.follow_up_note || '') !== note) save({ follow_up_note: note }, 'บันทึกโน้ตแล้ว'); }}
-          placeholder="โน้ต เช่น รอเงินเดือนออก"
           disabled={saving}
         />
       </div>

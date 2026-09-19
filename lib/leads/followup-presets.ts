@@ -60,7 +60,7 @@ export function followUpPresets(now: Date = new Date()): FollowUpPreset[] {
     { key: 'd7',  label: '7 วัน',   date: addDays(7, now) },
     { key: 'm1',  label: '1 เดือน', date: addMonths(1, now) },
     { key: 'm3',  label: '3 เดือน', date: addMonths(3, now) },
-    { key: 'y1',  label: '1 ปี',    date: addMonths(12, now) },
+    { key: 'm6',  label: '6 เดือน', date: addMonths(6, now) },
   ];
   const seen = new Set<number>();
   return all.filter(p => {

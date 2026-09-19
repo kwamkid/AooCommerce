@@ -30,6 +30,7 @@ import type { CustomerFormData } from '@/components/customers/customer-payload';
 import { buildCustomerPayload } from '@/components/customers/customer-payload';
 import TagBadge, { Tag } from '@/components/ui/TagBadge';
 import TagInput from '@/components/ui/TagInput';
+import FormInput from '@/components/ui/FormInput';
 import { diffTagIds, patchCustomerTags, patchContactTags } from '@/lib/tag-links';
 import Tooltip from '@/components/ui/Tooltip';
 import { useStorefrontLinks } from '@/lib/useStorefrontLinks';
@@ -54,7 +55,7 @@ import { can } from '@/lib/permissions';
 import { filterSavedReplies, splitFrequentReplies, type SavedReply } from '@/lib/chat/saved-replies';
 import { applySavedReplyVars } from '@/lib/chat/saved-reply-vars';
 import { resolveContactName } from '@/lib/chat/contact-name';
-import type { LeadData } from '@/components/chat/LeadSheet';
+import type { LeadData, LeadMember } from '@/components/chat/LeadSheet';
 import { DEFAULT_LEAD_STAGES, STAGE_CHIP_CLASS, STAGE_RING_CLASS, type LeadStage } from '@/lib/leads/stages';
 import { followUpLabel, quickFollowUpPresets, formatShortThaiDate } from '@/lib/leads/followup-presets';
 // **ไม่ใช้ dynamic()** — ตัวนี้เล็ก (ไม่มี dep หนัก) และถูกกดบ่อยที่สุดในหน้านี้
@@ -149,6 +150,9 @@ function UnifiedChatPageContent() {
   const [leadSheetOpen, setLeadSheetOpen] = useState(false);
   const [lead, setLead] = useState<LeadData | null>(null);
   const [leadStages, setLeadStages] = useState<LeadStage[]>(DEFAULT_LEAD_STAGES);
+  /** คนที่ตั้งเป็นผู้รับผิดชอบได้ — มากับ /api/leads ครั้งแรก ใช้ซ้ำทุกห้อง */
+  const [leadMembers, setLeadMembers] = useState<LeadMember[] | null>(null);
+  const [leadNote, setLeadNote] = useState('');
   /** เพิ่งทักไปแล้วและเมื่อกี้ยังมีนัดค้าง → โชว์แถบ "ทักอีกที?" เหนือกล่องพิมพ์ */
   const [askFollowUpAgain, setAskFollowUpAgain] = useState(false);
   const leadRef = useRef<LeadData | null>(null);
@@ -579,7 +583,9 @@ function UnifiedChatPageContent() {
       .then(data => {
         if (cancelled) return;
         setLead(data.lead || null);
+        setLeadNote(data.lead?.follow_up_note || '');
         if (Array.isArray(data.stages) && data.stages.length > 0) setLeadStages(data.stages);
+        if (Array.isArray(data.members)) setLeadMembers(data.members);
       })
       .catch(() => { /* โหลดไม่ได้ = ไม่โชว์ป้าย ไม่ขวางการคุย */ });
     return () => { cancelled = true; };
@@ -2462,6 +2468,31 @@ function UnifiedChatPageContent() {
           />
         </div>
 
+        {/* โน้ตติดตาม — เตือนตัวเองว่านัดไว้ทำไม (ขึ้นในคิวติดตาม) · ย้ายออกจากแผ่นติดตามให้แผ่นเตี้ยลง */}
+        <div className="pb-3 border-b border-gray-100 dark:border-slate-700">
+          <label className="text-base font-medium text-gray-700 dark:text-slate-300 mb-1.5 block">โน้ตติดตาม</label>
+          <FormInput
+            value={leadNote}
+            onChange={e => setLeadNote(e.target.value)}
+            onBlur={async () => {
+              if (!selectedContact || (lead?.follow_up_note || '') === leadNote) return;
+              try {
+                const res = await apiFetch('/api/leads', {
+                  method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ contact_id: selectedContact.id, platform: selectedContact.source || selectedContact.platform, follow_up_note: leadNote }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'บันทึกโน้ตไม่สำเร็จ');
+                setLead(data.lead);
+              } catch (e) {
+                showToast(e instanceof Error ? e.message : 'บันทึกโน้ตไม่สำเร็จ', 'error');
+              }
+            }}
+            placeholder="เช่น รอเงินเดือนออก / รอรูปจากลูกค้า"
+            size="sm"
+          />
+        </div>
+
         {/* Meta — event ที่บอกแพลตฟอร์มโฆษณาไปแล้วสำหรับห้องนี้
             (ไม่มี event สักใบ = ไม่ต้องมีบล็อกนี้เลย ห้ามโชว์หัวข้อว่างเปล่า) */}
         {selectedContact.platform === 'facebook' && !!metaEvents?.length && (() => {
@@ -3072,20 +3103,14 @@ function UnifiedChatPageContent() {
                     const avatarInner = (
                       <ContactAvatar contact={selectedContact} sizeClass="w-9 h-9 md:w-10 md:h-10 text-sm" color={platformColor} />
                     );
-                    // แตะรูป = เปิดแผ่นติดตาม (สถานะ + นัดทักอีกครั้ง) — ทางเข้าหลักของระบบติดตาม
-                    // วงแหวนรอบรูปบอกสถานะปัจจุบันโดยไม่ต้องเปิดอะไร
+                    // วงแหวนรอบรูปบอกขั้นการติดตามโดยไม่ต้องเปิดอะไร — ปุ่มเปิดแผ่นอยู่ในแถวไอคอนขวา
+                    // (เจ้าของขอ 19 ก.ย. 2026: แตะรูปแล้วเปิดแผ่นดูไม่ออกว่ากดได้)
                     const leadStage = lead ? leadStages.find(st => st.key === lead.stage) : null;
                     const avatarEl = (
-                      <button
-                        type="button"
-                        onClick={() => setLeadSheetOpen(true)}
-                        aria-label="ติดตามลูกค้า"
-                        title="ติดตามลูกค้า"
-                        className={`relative flex-shrink-0 rounded-full ${leadStage ? `ring-2 ring-offset-1 dark:ring-offset-slate-800 ${STAGE_RING_CLASS[leadStage.color]}` : ''}`}
-                      >
+                      <div className={`relative flex-shrink-0 rounded-full ${leadStage ? `ring-2 ring-offset-1 dark:ring-offset-slate-800 ${STAGE_RING_CLASS[leadStage.color]}` : ''}`}>
                         {avatarInner}
                         <AccountCornerBadge contact={selectedContact} sizeClass="w-[18px] h-[18px]" />
-                      </button>
+                      </div>
                     );
                     return (<>
                       {avatarEl}
@@ -3156,11 +3181,13 @@ function UnifiedChatPageContent() {
                     <>
                       <Tooltip text="ดูประวัติออเดอร์"><button onClick={handleOpenHistory} aria-label="ดูประวัติออเดอร์" className={`p-2 rounded-lg transition-colors ${rightPanel === 'history' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><History className="w-4 h-4" /></button></Tooltip>
                       <Tooltip text={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'}><button onClick={() => { setRightPanel(rightPanel === 'order' ? null : 'order'); }} aria-label={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'} className={`p-2 rounded-lg transition-colors ${rightPanel === 'order' ? 'bg-primary text-white' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}><OrderIcon className="w-4 h-4" /></button></Tooltip>
+                      <Tooltip text={lead?.follow_up_at ? `ติดตามลูกค้า · ${followUpLabel(lead.follow_up_at)?.text}` : 'ติดตามลูกค้า'}><button onClick={() => setLeadSheetOpen(true)} aria-label="ติดตามลูกค้า" className={`p-2 rounded-lg transition-colors ${lead?.follow_up_at ? (followUpLabel(lead.follow_up_at)?.overdue ? 'bg-red-500 text-white' : 'bg-amber-500 text-white') : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><TimeIcon className="w-4 h-4" /></button></Tooltip>
                       <Tooltip text="ดูข้อมูลลูกค้า"><button onClick={handleOpenProfile} aria-label="ดูข้อมูลลูกค้า" className={`p-2 rounded-lg transition-colors ${rightPanel === 'profile' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><UserIcon className="w-4 h-4" /></button></Tooltip>
                     </>
                   ) : (
                     <>
                       <Tooltip text={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'}><button onClick={() => { setRightPanel(rightPanel === 'order' ? null : 'order'); }} aria-label={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'} className={`p-2 rounded-lg transition-colors ${rightPanel === 'order' ? 'bg-primary text-white' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}><OrderIcon className="w-4 h-4" /></button></Tooltip>
+                      <Tooltip text={lead?.follow_up_at ? `ติดตามลูกค้า · ${followUpLabel(lead.follow_up_at)?.text}` : 'ติดตามลูกค้า'}><button onClick={() => setLeadSheetOpen(true)} aria-label="ติดตามลูกค้า" className={`p-2 rounded-lg transition-colors ${lead?.follow_up_at ? (followUpLabel(lead.follow_up_at)?.overdue ? 'bg-red-500 text-white' : 'bg-amber-500 text-white') : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><TimeIcon className="w-4 h-4" /></button></Tooltip>
                       <Tooltip text="แท็ก / โปรไฟล์"><button onClick={handleOpenProfile} aria-label="แท็ก / โปรไฟล์" className={`p-2 rounded-lg transition-colors ${rightPanel === 'profile' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><UserIcon className="w-4 h-4" /></button></Tooltip>
                       <Tooltip text="เชื่อมลูกค้าที่มีอยู่"><button onClick={() => { setShowLinkModal(true); }} aria-label="เชื่อมลูกค้าที่มีอยู่" className="p-2 rounded-lg transition-colors bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600"><LinkIcon className="w-4 h-4" /></button></Tooltip>
                     </>
@@ -3594,8 +3621,11 @@ function UnifiedChatPageContent() {
           contactId={selectedContact.id}
           platform={selectedContact.source || selectedContact.platform}
           contactName={selectedContact.nickname || selectedContact.display_name}
+          initialLead={lead}
+          initialStages={leadStages}
+          initialMembers={leadMembers || undefined}
           onClose={() => setLeadSheetOpen(false)}
-          onChanged={(updated) => setLead(updated)}
+          onChanged={(updated) => { setLead(updated); setLeadNote(updated.follow_up_note || ''); }}
         />
       )}
 

@@ -40,6 +40,8 @@ interface DateRangePickerProps {
    * (เกณฑ์เดียวกับ `portal` ของ FormSelect — พลิกขึ้นเองเมื่อข้างล่างไม่พอ)
    */
   portal?: boolean;
+  /** ขนาดช่อง — 'sm' (32px) เมื่อวางในตารางปุ่มเล็ก · ค่าเริ่ม 'md' (42px = FormSelect/Input) */
+  size?: 'sm' | 'md';
 }
 
 // Helpers
@@ -204,6 +206,7 @@ export default function DateRangePicker({
   popupAlign = 'left',
   minDate,
   portal = false,
+  size = 'md',
 }: DateRangePickerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
@@ -445,7 +448,7 @@ export default function DateRangePicker({
       <button
         type="button"
         onClick={() => { if (!disabled && !readOnly) { setOpen(!open); if (!open) setSelectionPhase('idle'); } }}
-        className={`w-full h-[42px] px-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm font-normal bg-white dark:bg-slate-700 text-left flex items-center gap-2 transition-colors ${
+        className={`w-full ${size === 'sm' ? 'h-8 px-2.5' : 'h-[42px] px-3'} border border-gray-300 dark:border-slate-500 rounded-lg text-sm font-normal bg-white dark:bg-slate-700 text-left flex items-center gap-2 transition-colors ${
           open ? 'ring-2 ring-primary border-transparent' : 'hover:border-gray-400 dark:hover:border-slate-400'
         } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
       >
