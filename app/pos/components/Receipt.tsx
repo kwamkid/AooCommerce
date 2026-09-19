@@ -1,56 +1,13 @@
 // Path: app/pos/components/Receipt.tsx
 'use client';
 
+import { useState } from 'react';
 import { CloseIcon, PrintIcon } from '@/lib/icons';
 import { formatPrice } from '@/lib/utils/format';
 import ProductName from '@/components/ui/ProductName';
-
-interface ReceiptItem {
-  product_name: string;
-  variation_label?: string;
-  quantity: number;
-  unit_price: number;
-  total: number;
-  sku?: string | null;
-  barcode?: string | null;
-}
-
-interface ReceiptPayment {
-  method: string;
-  amount: number;
-  channel_name: string;
-  reference?: string;
-}
-
-interface ReceiptData {
-  company: {
-    name: string;
-    address: string;
-    phone: string;
-    tax_id: string;
-    tax_company_name: string;
-    /** VAT branch label (e.g. "สำนักงานใหญ่", "สาขาที่ 1"). Empty if not VAT-registered. */
-    tax_branch?: string;
-    logo_url?: string;
-    vat_registered?: boolean;
-  };
-  order: {
-    receipt_number: string;
-    order_number: string;
-    subtotal: number;
-    vat_amount: number;
-    discount_amount: number;
-    total_amount: number;
-    created_at: string;
-    customer_name: string;
-    tax_invoice_number?: string | null;
-  };
-  cashier_name: string;
-  branch_name: string;
-  items: ReceiptItem[];
-  payments: ReceiptPayment[];
-  change_amount?: number;
-}
+import { generatePosReceiptPdf, receiptDocTitle, type ReceiptData } from '@/lib/pos-receipt-pdf';
+import { showPdfPreview } from '@/lib/print-pdf';
+import { useToast } from '@/lib/toast-context';
 
 interface ReceiptProps {
   data: ReceiptData;
@@ -59,8 +16,22 @@ interface ReceiptProps {
 }
 
 export default function Receipt({ data, onClose, onNewSale }: ReceiptProps) {
-  const handlePrint = () => {
-    window.print();
+  const { showToast } = useToast();
+  const [printing, setPrinting] = useState(false);
+
+  // PDF กว้าง 80mm ที่ฝังขนาดไว้ในไฟล์ — เครื่องพิมพ์พิมพ์ตามนั้นโดยไม่ต้องตั้งขนาด
+  // กระดาษเอง (เดิม `window.print()` ได้ผลต่างกันตามการตั้งค่า driver ของแต่ละเครื่อง)
+  const handlePrint = async () => {
+    setPrinting(true);
+    try {
+      const blob = await generatePosReceiptPdf(data);
+      showPdfPreview(blob, `${docTitle} ${docNumber}`);
+    } catch (err) {
+      console.error('receipt pdf failed:', err);
+      showToast('สร้างใบเสร็จไม่สำเร็จ', 'error');
+    } finally {
+      setPrinting(false);
+    }
   };
 
   const dateStr = new Date(data.order.created_at).toLocaleString('th-TH', {
@@ -72,9 +43,7 @@ export default function Receipt({ data, onClose, onNewSale }: ReceiptProps) {
   });
 
   const vatRegistered = data.company.vat_registered || false;
-  // Use the exact wording required by Thai Revenue Code Section 86/6 — "ภาษี"
-  // must appear in the document title for ใบกำกับภาษีอย่างย่อ to be valid.
-  const docTitle = vatRegistered ? 'ใบกำกับภาษีอย่างย่อ/ใบเสร็จรับเงิน' : 'ใบเสร็จรับเงิน';
+  const docTitle = receiptDocTitle(vatRegistered);
   const docNumber = data.order.tax_invoice_number || data.order.receipt_number;
   // Prefer the legal/tax-registered name over the brand name for ABB compliance
   const displayName = data.company.tax_company_name?.trim() || data.company.name;
@@ -92,7 +61,8 @@ export default function Receipt({ data, onClose, onNewSale }: ReceiptProps) {
           <div className="flex items-center gap-2">
             <button
               onClick={handlePrint}
-              className="p-2 text-gray-600 hover:text-primary transition-colors"
+              disabled={printing}
+              className="p-2 text-gray-600 hover:text-primary transition-colors disabled:opacity-50"
               title="พิมพ์"
             >
               <PrintIcon className="w-5 h-5" />
