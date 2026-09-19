@@ -2457,40 +2457,32 @@ function UnifiedChatPageContent() {
               {customerType === 'retail' ? 'ลูกค้าปลีก' : customerType === 'wholesale' ? 'ลูกค้าส่ง' : 'ตัวแทนจำหน่าย'}
             </InfoChip>
           )}
-          {!c && <p className="text-sm text-gray-400 mt-1">ยังไม่ได้เชื่อมกับลูกค้า</p>}
+          {!c && (
+            <div className="flex items-center justify-between gap-2 mt-1">
+              <p className="text-sm text-gray-400">ยังไม่ได้เชื่อมกับลูกค้า</p>
+              <Button size="sm" variant="secondary" icon={<LinkIcon />} onClick={() => setShowLinkModal(true)}>เชื่อมต่อลูกค้า</Button>
+            </div>
+          )}
         </div>
 
         {/* ชื่อเล่น — ชื่อที่ระบบใช้ทักลูกค้าก่อนชื่ออื่นทั้งหมด */}
         <div className="pb-3 border-b border-gray-100 dark:border-slate-700">
           <label className="text-base font-medium text-gray-700 dark:text-slate-300 mb-1.5 block">ชื่อเล่น</label>
-          {nicknameEditing ? (
-            <div className="flex items-center gap-2">
-              <input
-                autoFocus
-                value={nicknameDraft}
-                maxLength={40}
-                onChange={e => setNicknameDraft(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') { e.preventDefault(); void saveNickname(); }
-                  if (e.key === 'Escape') { e.preventDefault(); setNicknameEditing(false); }
-                }}
-                placeholder="เช่น เจ๊แดง, คุณเมย์"
-                className="flex-1 min-w-0 h-9 px-2.5 text-sm border border-gray-300 dark:border-slate-600 dark:bg-slate-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-              <Button size="sm" variant="primary" loading={nicknameSaving} onClick={saveNickname}>บันทึก</Button>
-              <Button size="sm" variant="secondary" disabled={nicknameSaving} onClick={() => setNicknameEditing(false)}>ยกเลิก</Button>
-            </div>
-          ) : (
-            <button
-              onClick={() => { setNicknameDraft(selectedContact.nickname || ''); setNicknameEditing(true); }}
-              className="group flex items-center gap-1.5 text-sm text-left rounded-md px-1 -mx-1 py-0.5 hover:bg-gray-50 dark:hover:bg-slate-700/50"
-            >
-              {selectedContact.nickname
-                ? <span className="text-gray-900 dark:text-white">{selectedContact.nickname}</span>
-                : <span className="text-gray-400">ยังไม่ได้ตั้ง — กดเพื่อตั้ง</span>}
-              <EditIcon className="w-3.5 h-3.5 text-gray-400 group-hover:text-primary" />
-            </button>
-          )}
+          {/* ช่องพิมพ์ตรง ๆ — พิมพ์แล้ว Enter หรือคลิกออก = บันทึก (เดิมต้องกดดินสอ → พิมพ์ → กดบันทึก 3 จังหวะ) */}
+          <FormInput
+            size="sm"
+            value={nicknameEditing ? nicknameDraft : (selectedContact.nickname || '')}
+            maxLength={40}
+            placeholder="เช่น เจ๊แดง, คุณเมย์"
+            disabled={nicknameSaving}
+            onFocus={() => { setNicknameDraft(selectedContact.nickname || ''); setNicknameEditing(true); }}
+            onChange={e => setNicknameDraft(e.target.value)}
+            onBlur={() => { if (nicknameEditing) void saveNickname(); }}
+            onKeyDown={e => {
+              if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
+              if (e.key === 'Escape') { e.preventDefault(); setNicknameEditing(false); (e.target as HTMLInputElement).blur(); }
+            }}
+          />
           <p className="helper-text text-gray-500 mt-1">
             Saved Reply จะใช้ชื่อนี้ทักก่อนชื่ออื่นทั้งหมด
           </p>
@@ -3563,9 +3555,7 @@ function UnifiedChatPageContent() {
                       <button onClick={handleDeleteCustomer} className="flex-1 py-2 text-sm text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"><DeleteIcon className="w-3.5 h-3.5" />ลบลูกค้า</button>
                     </div>
                   </>
-                ) : (
-                  <button onClick={() => setShowLinkModal(true)} className="w-full py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"><LinkIcon className="w-4 h-4" />เชื่อมต่อลูกค้า</button>
-                )}
+                ) : null /* ปุ่มเชื่อมต่ออยู่ข้างข้อความ "ยังไม่ได้เชื่อม" ในบล็อกชื่อแล้ว */}
               </div>
             </div>
           </div>
@@ -3679,9 +3669,7 @@ function UnifiedChatPageContent() {
                       <button onClick={handleDeleteCustomer} className="flex-1 py-2 text-sm text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"><DeleteIcon className="w-3.5 h-3.5" />ลบลูกค้า</button>
                     </div>
                   </>
-                ) : (
-                  <button onClick={() => setShowLinkModal(true)} className="w-full py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"><LinkIcon className="w-4 h-4" />เชื่อมต่อลูกค้า</button>
-                )}
+                ) : null /* ปุ่มเชื่อมต่ออยู่ข้างข้อความ "ยังไม่ได้เชื่อม" ในบล็อกชื่อแล้ว */}
               </div>
             </div>
           </div>

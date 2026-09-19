@@ -19,7 +19,7 @@ export default function TagInput({
   onChange,
   allTags,
   onTagCreated,
-  placeholder = 'เพิ่มแท็ก...',
+  placeholder = 'เพิ่มแท็ก หรือพิมพ์ชื่อใหม่เพื่อสร้าง...',
   size = 'md',
 }: TagInputProps) {
   const [open, setOpen] = useState(false);
