@@ -212,6 +212,7 @@ async function loadAccountLinks(accountId: string): Promise<StockLinkRow[]> {
     .select(PREVIEW_LINK_COLUMNS)
     .eq('account_id', accountId)
     .not('variation_id', 'is', null)
+    .order('id')
     .range(from, to));
   return rows as unknown as StockLinkRow[];
 }

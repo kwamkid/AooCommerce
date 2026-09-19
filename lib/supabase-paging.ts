@@ -43,6 +43,28 @@ interface PageResponse<T> {
  * แล้วยิงหน้าที่เหลือ**ขนานกัน** · ถ้าไม่มี count จะไล่ทีละหน้าจนกว่าจะได้ไม่เต็มหน้า
  */
 /**
+ * ⚠️ `.range()` = LIMIT/OFFSET — **ไม่มี ORDER BY ที่ชี้แถวได้ตัวเดียว = หน้าซ้อน/หลุดได้**
+ *
+ * Postgres ไม่รับประกันลำดับแถวระหว่าง query สองครั้งถ้าไม่ได้สั่ง ORDER BY (แผนเปลี่ยนตาม
+ * OFFSET · parallel scan คืนลำดับต่างกันทุกครั้ง · แถวที่ถูก UPDATE ระหว่างหน้าย้ายที่)
+ * และ ORDER BY คอลัมน์ที่ค่าซ้ำได้ (`sort_order` · `name` · `created_at`) ก็ยังสลับกันได้
+ * ที่รอยต่อของหน้า ⇒ ได้แถวเดิมซ้ำและแถวอื่นหาย **ทั้งที่ยิงครบทุกหน้าแล้ว**
+ *
+ * กติกา: ทุก query ที่ส่งเข้ามาต้องปิดท้ายด้วย `.order('id')` (ตารางที่ไม่มี `id` ใช้คีย์
+ * ที่ไม่ซ้ำของมัน) — ตัวนี้เตือนตอน dev เมื่อลืม (ดูจาก URL ของ PostgREST ไม่มี `order=`)
+ */
+function warnIfUnordered(query: unknown): void {
+  if (process.env.NODE_ENV === 'production') return;
+  const url = (query as { url?: URL } | null)?.url;
+  if (!(url instanceof URL) || url.searchParams.has('order')) return;
+  const table = url.pathname.split('/').pop() || '?';
+  if (warnedTables.has(table)) return;
+  warnedTables.add(table);
+  console.warn(`[supabase-paging] ${table}: ไล่หน้าโดยไม่มี .order() — หน้าซ้อน/หลุดได้ ใส่ .order('id') ก่อน .range()`);
+}
+const warnedTables = new Set<string>();
+
+/**
  * แบ่ง id เป็นชุด ๆ สำหรับ `.in()` — ใช้กับ **การเขียน** (update/delete) ที่ไม่ได้อ่านแถวกลับ
  * (การอ่านใช้ `fetchAllRowsByIds` ซึ่งแบ่งให้แล้วและไล่หน้าให้ด้วย)
  */
@@ -91,7 +113,9 @@ export async function fetchAllRows<T>(
   if (to < from) return { rows: [], count: null, error: null };
 
   const firstEnd = Math.min(from + SUPABASE_PAGE_CAP - 1, to);
-  const first = await run(from, firstEnd);
+  const firstQuery = run(from, firstEnd);
+  warnIfUnordered(firstQuery);
+  const first = await firstQuery;
   if (first.error) return { rows: [], count: first.count ?? null, error: first.error };
 
   let rows = first.data || [];

@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
       query = query.lte('order.created_at', `${dateTo}T23:59:59.999`);
     }
 
-      return query.range(rangeFrom, rangeTo);
+      return query.order('id').range(rangeFrom, rangeTo);
     });
 
     if (error) {

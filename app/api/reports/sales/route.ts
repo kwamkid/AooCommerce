@@ -270,7 +270,7 @@ async function legacyReport(companyId: string, startDate: string | null, endDate
       .neq('order_status', 'cancelled');
     if (startDate) query = query.gte('order_date', startDate);
     if (endDate) query = query.lte('order_date', endDate);
-    return query.order('order_date', { ascending: false }).range(rangeFrom, rangeTo);
+    return query.order('order_date', { ascending: false }).order('id').range(rangeFrom, rangeTo);
   });
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

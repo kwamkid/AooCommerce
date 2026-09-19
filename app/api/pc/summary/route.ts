@@ -67,6 +67,7 @@ export async function GET(request: NextRequest) {
         `)
         .eq('company_id', auth.companyId)
         .eq('warehouse_id', counter.warehouse_id)
+        .order('id')
         .range(from, to)),
       supabaseAdmin
         .from('counter_sales')

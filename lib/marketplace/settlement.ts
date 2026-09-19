@@ -49,6 +49,7 @@ export async function computeOrderCogs(
     .from('order_items')
     .select('order_id, variation_id, quantity, unit_cost')
     .in('order_id', idChunk)
+    .order('id')
     .range(from, to));
 
   if (!items?.length) {

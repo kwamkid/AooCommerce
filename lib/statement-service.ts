@@ -277,6 +277,7 @@ export async function recalcStatementTotal(statementId: string): Promise<number>
     .select('total_amount')
     .eq('statement_id', statementId)
     .neq('order_status', 'cancelled')
+    .order('id')
     .range(from, to));
 
   const total = orders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);

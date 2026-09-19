@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
         .select('product_id')
         .eq('company_id', auth.companyId)
         .or(`sku.ilike.%${search}%,barcode.ilike.%${search}%`)
+        .order('id')
         .range(from, to));
       varProductIds = [...new Set(varMatches.map(v => v.product_id).filter(Boolean))];
     }
@@ -56,7 +57,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return q.order('name').range(rangeFrom, rangeTo);
+    return q.order('name').order('id').range(rangeFrom, rangeTo);
     });
     if (error) {
       console.error('basic-info export error:', error);

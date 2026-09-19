@@ -633,6 +633,7 @@ async function assembleCatalog(
         // (ตัวที่ถูกเลือกให้ตอนเปิดหน้าสินค้า + ลำดับ swatch) เปลี่ยนไปมาเองระหว่างรีเฟรช
         // ตารางยังไม่มีคอลัมน์ลำดับที่ร้านตั้งเอง จึงยึดลำดับที่ถูกเพิ่มเข้าระบบ
         .order('created_at', { ascending: true })
+        .order('id')
         .range(from, to)),
       fetchAllRows<{ product_id: string; variation_id: string | null; image_url: string }>((from, to) => supabaseAdmin
         .from('product_images')
@@ -640,6 +641,7 @@ async function assembleCatalog(
         .eq('company_id', companyId)
         .in('product_id', g)
         .order('sort_order', { ascending: true })
+        .order('id')
         .range(from, to)),
     ]);
     return {
@@ -972,6 +974,7 @@ export const getStorefrontBrands = cache(async (companyId: string): Promise<Stor
     .eq('company_id', companyId)
     .eq('is_active', true)
     .eq('storefront_visible', true)
+    .order('id')
     .range(from, to));
   const bySlug = new Map<string, StorefrontBrand>();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1026,6 +1029,7 @@ export const getStorefrontCategories = cache(async (companyId: string): Promise<
     .eq('company_id', companyId)
     .eq('is_active', true)
     .eq('storefront_visible', true)
+    .order('id')
     .range(from, to));
   const byName = new Map<string, string>();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

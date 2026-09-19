@@ -33,6 +33,7 @@ export async function GET(
       .eq('company_id', companyId)
       .in('variation_id', idChunk)
       .gt('quantity', 0)
+      .order('id')
       .range(from, to));
 
     if (inventory.length === 0) {

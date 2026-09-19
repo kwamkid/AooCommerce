@@ -35,6 +35,7 @@ export async function PUT(request: NextRequest) {
         .select('id, product:products!inner(company_id, is_active)')
         .eq('products.company_id', auth.companyId!)
         .eq('products.is_active', true)
+        .order('id')
         .range(from, to));
 
       const ids = allVariations.map(v => v.id);

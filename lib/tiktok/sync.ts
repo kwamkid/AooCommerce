@@ -411,6 +411,7 @@ export async function syncIncompleteOrders(
     .not('external_status', 'in', '("COMPLETED","CANCELLED")')
     .not('external_order_sn', 'is', null)
     .order('created_at', { ascending: true })
+    .order('id')
     .range(from, to));
 
   if (fetchError) {

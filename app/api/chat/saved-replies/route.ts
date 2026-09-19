@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
       .order('sort_order', { ascending: true })
       .order('created_at', { ascending: true });
     if (activeOnly) query = query.eq('is_active', true);
-    return query.range(from, to);
+    return query.order('id').range(from, to);
   });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ replies: data || [] });

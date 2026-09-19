@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
       productQuery = productQuery.in('product.brand_id', brandIds);
     }
 
-    return productQuery.order('product_id').range(rangeFrom, rangeTo);
+    return productQuery.order('product_id').order('id').range(rangeFrom, rangeTo);
     });
 
     if (error) {
@@ -69,6 +69,7 @@ export async function GET(request: NextRequest) {
         .select('variation_id, warehouse_id, quantity')
         .eq('company_id', auth.companyId)
         .in('warehouse_id', warehouseIds)
+        .order('id')
         .range(from, to));
 
     const stockMap = new Map<string, number>();

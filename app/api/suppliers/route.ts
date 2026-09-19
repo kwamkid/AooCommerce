@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
       .eq('company_id', auth.companyId)
       .eq('is_active', true)
       .order('name', { ascending: true })
+      .order('id')
       .range(from, to));
 
     if (error) throw error;

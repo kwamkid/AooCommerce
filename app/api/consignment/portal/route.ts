@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
           .eq('company_id', companyId)
           .eq('warehouse_id', consignWarehouse.id)
           .gt('quantity', 0)
+          .order('id')
           .range(from, to))).rows.map(r => ({
             variation_id: r.variation_id,
             total_remaining: r.quantity,

@@ -1293,7 +1293,7 @@ export async function GET(request: NextRequest) {
         query = query.eq('shipping_carrier', shippingCarrier).neq('fulfillment_status', 'on_hold');
       }
 
-      return query.range(rangeFrom, rangeTo);
+      return query.order('id').range(rangeFrom, rangeTo);
       });
       if (idsError) {
         return NextResponse.json({ error: idsError.message }, { status: 500 });
@@ -1374,7 +1374,7 @@ export async function GET(request: NextRequest) {
             countQuery = countQuery.neq('flow_type', ft.trim());
           }
         }
-        return countQuery.range(rangeFrom, rangeTo);
+        return countQuery.order('id').range(rangeFrom, rangeTo);
         });
         {
           const sc: Record<string, number> = { all: countRows.length, new: 0, ready_to_ship: 0, processing: 0, shipping: 0, completed: 0, cancelled: 0 };
@@ -1400,6 +1400,7 @@ export async function GET(request: NextRequest) {
         .select('id')
         .eq('company_id', auth.companyId)
         .in('customer_type', filterTypes)
+        .order('id')
         .range(rangeFrom, rangeTo));
       const validCustIds = new Set(matchingCustomers.map(c => c.id));
 
@@ -1417,7 +1418,7 @@ export async function GET(request: NextRequest) {
             .eq('company_id', auth.companyId)
             .in('customer_id', idChunk);
           if (flowTypes) countQuery = countQuery.in('flow_type', flowTypes);
-          return countQuery.range(rangeFrom, rangeTo);
+          return countQuery.order('id').range(rangeFrom, rangeTo);
         });
       {
         const counts: Record<string, number> = { all: allStatusRows.length };
@@ -1555,6 +1556,7 @@ export async function PUT(request: NextRequest) {
           .in('id', idChunk)
           .eq('company_id', auth.companyId)
           .in('order_status', ['ready_to_ship', 'new'])
+          .order('id')
           .range(rangeFrom, rangeTo));
 
         // Credit flow orders can skip to processing from 'new'
@@ -1721,6 +1723,7 @@ export async function PUT(request: NextRequest) {
           .in('id', idChunk)
           .eq('company_id', auth.companyId)
           .neq('order_status', 'cancelled')
+          .order('id')
           .range(rangeFrom, rangeTo));
 
         let cancelledCount = 0;
@@ -1822,6 +1825,7 @@ export async function PUT(request: NextRequest) {
           .in('id', idChunk)
           .eq('company_id', auth.companyId)
           .eq('order_status', 'processing')
+          .order('id')
           .range(rangeFrom, rangeTo));
 
         console.log('[BULK_SHIP] validIds:', validIds.length, 'found:', ordersToShip.length, 'fetchErr:', fetchErr?.message);

@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
       .select('id, product_id, variation_id, external_item_id')
       .eq('company_id', companyId)
       .eq('account_id', accountId)
+      .order('id')
       .range(from, to));
 
     if (error) {

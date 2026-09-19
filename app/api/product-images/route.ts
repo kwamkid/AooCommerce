@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
         query = query.eq('variation_id', variationId);
       }
 
-      return query.range(rangeFrom, rangeTo);
+      return query.order('id').range(rangeFrom, rangeTo);
     });
 
     if (error) {

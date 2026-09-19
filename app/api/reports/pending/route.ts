@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
       .eq('payment_status', 'pending')
       .neq('order_status', 'cancelled')
       .order('delivery_date', { ascending: true })
+      .order('id')
       .range(rangeFrom, rangeTo));
 
     if (error) {

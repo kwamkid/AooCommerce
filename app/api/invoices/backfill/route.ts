@@ -36,6 +36,7 @@ export async function POST(request: NextRequest) {
       .in('flow_type', ['r_retail', 'w_cash'])
       .is('tax_invoice_number', null)
       .in('order_status', ['processing', 'shipping', 'completed'])
+      .order('id')
       .range(from, to));
 
     if (error) {

@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
         .eq('company_id', companyId)
         .eq('status', 'active')
         .gt('unread_count', 0)
+        .order('id')
         .range(from, to)),
       fetchAllRows<{ unread_count: number }>((from, to) => supabaseAdmin
         .from('fb_contacts')
@@ -26,6 +27,7 @@ export async function GET(request: NextRequest) {
         .eq('company_id', companyId)
         .eq('status', 'active')
         .gt('unread_count', 0)
+        .order('id')
         .range(from, to)),
       fetchAllRows<{ unread_count: number }>((from, to) => supabaseAdmin
         .from('shopee_contacts')
@@ -33,6 +35,7 @@ export async function GET(request: NextRequest) {
         .eq('company_id', companyId)
         .eq('status', 'active')
         .gt('unread_count', 0)
+        .order('id')
         .range(from, to)),
       fetchAllRows<{ unread_count: number }>((from, to) => supabaseAdmin
         .from('lazada_contacts')
@@ -40,6 +43,7 @@ export async function GET(request: NextRequest) {
         .eq('company_id', companyId)
         .eq('status', 'active')
         .gt('unread_count', 0)
+        .order('id')
         .range(from, to)),
       fetchAllRows<{ unread_count: number }>((from, to) => supabaseAdmin
         .from('tiktok_contacts')
@@ -47,6 +51,7 @@ export async function GET(request: NextRequest) {
         .eq('company_id', companyId)
         .eq('status', 'active')
         .gt('unread_count', 0)
+        .order('id')
         .range(from, to)),
     ]);
 

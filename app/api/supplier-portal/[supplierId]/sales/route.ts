@@ -55,6 +55,7 @@ export async function GET(
       .lt('order.order_date', endDate)
       .eq('order.order_status', 'completed')
       .eq('order.company_id', companyId)
+      .order('id')
       .range(from, to));
 
     if (orderItems.length === 0) {

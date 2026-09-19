@@ -45,6 +45,7 @@ export async function GET(request: NextRequest) {
       .select('id, user_id, roles, permissions, is_active, can_view_cost, pc_all_counters, joined_at, created_at')
       .eq('company_id', auth.companyId)
       .order('joined_at', { ascending: true })
+      .order('id')
       .range(from, to));
 
     if (error) {
@@ -61,6 +62,7 @@ export async function GET(request: NextRequest) {
         .from('user_profiles')
         .select('id, email, name, phone, avatar')
         .in('id', userIds)
+        .order('id')
         .range(from, to));
 
       if (profiles) {

@@ -109,6 +109,7 @@ export async function getSupplierVariationIds(supplierId: string, companyId: str
     .eq('company_id', companyId)
     .eq('is_active', true)
     .in('brand_id', brands.map(b => b.id))
+    .order('id')
     .range(from, to));
 
   if (products.length === 0) return [];
@@ -119,6 +120,7 @@ export async function getSupplierVariationIds(supplierId: string, companyId: str
       .select('id')
       .in('product_id', idChunk)
       .eq('is_active', true)
+      .order('id')
       .range(from, to));
 
   return variations.map(v => v.id);

@@ -54,6 +54,7 @@ export async function GET(request: NextRequest) {
         .eq('company_id', companyId)
         .eq('warehouse_id', warehouse.id)
         .gt('quantity', 0)
+        .order('id')
         .range(from, to));
 
       // Get brand-level GP overrides for this customer

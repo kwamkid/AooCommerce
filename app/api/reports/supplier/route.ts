@@ -145,6 +145,7 @@ export async function POST(request: NextRequest) {
         .eq('company_id', auth.companyId)
         .eq('is_active', true)
         .in('brand_id', brandIds)
+        .order('id')
         .range(from, to));
 
       const productIds = products.map(p => p.id);
@@ -156,6 +157,7 @@ export async function POST(request: NextRequest) {
             .select('id')
             .in('product_id', idChunk)
             .eq('is_active', true)
+            .order('id')
             .range(from, to));
 
         variationIds = variations.map(v => v.id);
@@ -205,6 +207,7 @@ export async function POST(request: NextRequest) {
         .eq('company_id', auth.companyId)
         .in('variation_id', idChunk)
         .gt('quantity', 0)
+        .order('id')
         .range(from, to));
 
       if (inventoryData.length > 0) {
@@ -241,6 +244,7 @@ export async function POST(request: NextRequest) {
           .lt('order.order_date', endDate)
           .eq('order.order_status', 'completed')
           .eq('order.company_id', auth.companyId)
+          .order('id')
           .range(from, to));
 
         if (orderItems.length > 0) {
@@ -315,6 +319,7 @@ export async function POST(request: NextRequest) {
             .from('inventory_receive_items')
             .select('receive_id, variation_id, quantity, unit_cost')
             .in('receive_id', idChunk)
+            .order('id')
             .range(from, to));
           const receiveItems = allReceiveItems.filter(ri => supplierVariations.has(ri.variation_id));
 

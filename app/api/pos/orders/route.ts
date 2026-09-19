@@ -169,7 +169,7 @@ export async function GET(request: NextRequest) {
     }
     // Note: search filter omitted from summary for performance — summary shows totals for the date/warehouse filter
 
-    return summaryQuery.range(rangeFrom, rangeTo);
+    return summaryQuery.order('id').range(rangeFrom, rangeTo);
     });
     const completedRows = (summaryRows || []).filter((r: any) => r.order_status === 'completed');
     const totalDiscount = completedRows.reduce((s: number, r: any) => s + Number(r.discount_amount || 0), 0);

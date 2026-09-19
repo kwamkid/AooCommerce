@@ -602,6 +602,7 @@ export async function GET(request: NextRequest) {
         .select('product_id')
         .eq('company_id', auth.companyId)
         .or(`sku.ilike.%${searchQuery}%,barcode.ilike.%${searchQuery}%`)
+        .order('id')
         .range(from, to));
       varProductIds = [...new Set(varMatches.map(v => v.product_id).filter(Boolean))];
     }
@@ -612,6 +613,7 @@ export async function GET(request: NextRequest) {
         .from('marketplace_product_links')
         .select('product_id')
         .eq('account_id', shopAccountFilter)
+        .order('id')
         .range(from, to));
       linkedProductIds = [...new Set(linkedProducts.map(lp => lp.product_id).filter(Boolean))];
       if (linkedProductIds.length === 0) {
@@ -661,7 +663,7 @@ export async function GET(request: NextRequest) {
     const desiredEnd = paginate ? desiredOffset + limit - 1 : Number.MAX_SAFE_INTEGER;
 
     const paged = await fetchAllRows<{ id: string }>(
-      (from, to) => buildBaseQuery().range(from, to),
+      (from, to) => buildBaseQuery().order('id').range(from, to),
       { from: desiredOffset, to: desiredEnd },
     );
 

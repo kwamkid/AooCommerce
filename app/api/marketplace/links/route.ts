@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
     if (productIds) query = query.in('product_id', productIds.split(','));
     if (platform) query = query.eq('platform', platform);
 
-    return query.order('created_at', { ascending: false }).range(rangeFrom, rangeTo);
+    return query.order('created_at', { ascending: false }).order('id').range(rangeFrom, rangeTo);
     });
 
     if (error) {

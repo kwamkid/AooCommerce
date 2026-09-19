@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
     if (paymentStatus === 'paid') ordersQuery = ordersQuery.eq('payment_status', 'paid');
     else if (paymentStatus === 'unpaid') ordersQuery = ordersQuery.neq('payment_status', 'paid');
 
-      return ordersQuery.order('delivery_date', { ascending: true }).range(rangeFrom, rangeTo);
+      return ordersQuery.order('delivery_date', { ascending: true }).order('id').range(rangeFrom, rangeTo);
     });
 
     if (ordersError) {
@@ -131,6 +131,7 @@ export async function GET(request: NextRequest) {
       `)
       .in('order_id', idChunk)
       .eq('company_id', companyId)
+      .order('id')
       .range(rangeFrom, rangeTo));
 
     if (itemsError) {

@@ -77,6 +77,7 @@ export async function POST(request: NextRequest) {
       .from('product_variations')
       .select('id, product_id, variation_label, sku, barcode, product:products(id, name, company_id, is_composite)')
       .eq('company_id', auth.companyId)
+      .order('id')
       .range(from, to));
 
     type VariationRow = {
@@ -99,6 +100,7 @@ export async function POST(request: NextRequest) {
         .select('variation_id, warehouse_id, quantity')
         .eq('company_id', auth.companyId)
         .in('warehouse_id', requestedWarehouseIds)
+        .order('id')
         .range(from, to));
     const stockMap = new Map<string, number>();
     for (const r of invRows) {
