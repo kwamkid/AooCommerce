@@ -9,7 +9,7 @@ import { Pause, Play, Scissors, ImageIcon } from 'lucide-react';
 import { DeleteIcon, EditIcon, ErrorIcon, LinkIcon, LoadingIcon, MoneyIcon, ParcelIcon, SuccessIcon } from '@/lib/icons';
 import { generatePackingPdf } from '@/lib/orders-packing-pdf';
 import { generateShippingLabelPdf } from '@/lib/order-shipping-label-pdf';
-import { generateOrderInvoicePdf } from '@/lib/order-invoice-pdf';
+import { printAndTrack } from '@/components/ui/OrderPrintButtons';
 import { generateAbbreviatedInvoicePdf } from '@/lib/order-invoice-abbreviated-pdf';
 import { showPdfPreview, mergePdfBlobs } from '@/lib/print-pdf';
 import { markOrdersPrinted, updateLocalPrintStatus } from '@/lib/print-tracking';
@@ -636,12 +636,8 @@ export default function ReadyToShipTab({
   const handlePrintInvoice = async (orderId: string) => {
     setActionLoading(true);
     try {
-      const res = await apiFetch(`/api/orders/${orderId}`);
-      if (!res.ok) throw new Error('Failed to fetch order');
-      const result = await res.json();
-      const blob = await generateOrderInvoicePdf({ data: result.order });
-      showPdfPreview(blob, getInvoiceMenuLabel(result.order.payment_status, vatRegistered));
-      markOrdersPrinted([orderId], 'invoice');
+      // ตัวกลางเลือกฉบับที่มีเลขเอกสารจริง (ใบแจ้งหนี้/ใบเสร็จ/ใบกำกับย่อ) — ห้ามวาดจากเลขออเดอร์เอง
+      await printAndTrack(orderId, 'abbreviated');
       updateLocalPrintStatus(setOrders, [orderId], 'invoice');
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');

@@ -84,7 +84,8 @@ export async function GET(request: NextRequest) {
     const [companyResult, itemsResult, paymentRecordsResult, paymentChannelsResult] = await Promise.all([
       supabaseAdmin
         .from('companies')
-        .select('name, logo_url, vat_registered')
+        // ครบชุดที่หัวเอกสาร PDF ต้องใช้ — หน้าบิลเป็น public ไปดึง /api/companies เองไม่ได้
+        .select('name, logo_url, vat_registered, address, phone, tax_id, tax_company_name, tax_branch')
         .eq('id', order.company_id)
         .single(),
       supabaseAdmin
@@ -388,12 +389,44 @@ export async function GET(request: NextRequest) {
       tax_branch: (customerData.tax_branch as string) || undefined,
     } : null;
 
+    // เลขเอกสารที่ระบบออกจริง (ใบกำกับย่อ / ใบเสร็จ / ใบกำกับเต็ม) — ใบเสร็จที่ลูกค้าพิมพ์จาก
+    // หน้าบิลต้องใช้เลขเดียวกับเล่มใน /invoices ไม่ใช่เลขออเดอร์ · ลำดับเดียวกับ /api/orders/[id]
+    let taxDoc: { type: string; number: string; date: string | null; voided_at: string | null } | null = null;
+    if (order.payment_status === 'paid') {
+      const [abbRes, taxRes, recRes] = await Promise.all([
+        supabaseAdmin.from('abbreviated_invoices')
+          .select('invoice_number, invoice_date, voided_at')
+          .eq('order_id', order.id).eq('company_id', order.company_id)
+          .order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabaseAdmin.from('tax_invoices')
+          .select('invoice_number, invoice_date')
+          .eq('source_type', 'order').eq('source_id', order.id).eq('company_id', order.company_id)
+          .order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabaseAdmin.from('receipts')
+          .select('receipt_number, receipt_date')
+          .eq('source_type', 'order').eq('source_id', order.id).eq('company_id', order.company_id)
+          .order('created_at', { ascending: false }).limit(1).maybeSingle(),
+      ]);
+      if (taxRes.data) taxDoc = { type: 'tax', number: taxRes.data.invoice_number, date: taxRes.data.invoice_date, voided_at: null };
+      else if (abbRes.data) taxDoc = { type: 'abbreviated', number: abbRes.data.invoice_number, date: abbRes.data.invoice_date, voided_at: abbRes.data.voided_at };
+      else if (recRes.data) taxDoc = { type: 'receipt', number: recRes.data.receipt_number, date: recRes.data.receipt_date, voided_at: null };
+    }
+
     return NextResponse.json({
       bill: {
         ...order,
         company_name: company?.name || '',
         company_logo: company?.logo_url || null,
         vat_registered: company?.vat_registered || false,
+        company_address: company?.address || '',
+        company_phone: company?.phone || '',
+        company_tax_id: company?.tax_id || '',
+        company_tax_name: company?.tax_company_name || '',
+        company_tax_branch: company?.tax_branch || null,
+        tax_invoice_doc_type: taxDoc?.type || null,
+        tax_invoice_number: taxDoc?.number || null,
+        tax_invoice_date: taxDoc?.date || null,
+        tax_invoice_voided_at: taxDoc?.voided_at || null,
         items: flatItems,
         branches,
         payment_record: paymentRecord,

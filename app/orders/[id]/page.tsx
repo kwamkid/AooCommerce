@@ -28,15 +28,15 @@ import type { AdEventRow } from '@/lib/ads/meta-ui';
 import { useCompany } from '@/lib/company-context';
 import { getInvoiceMenuLabel } from '@/lib/invoice-utils';
 import { ShieldX, PackageCheck, Repeat } from 'lucide-react';
-import { BackIcon, BroadcastIcon, ChecklistIcon, ChevronDownIcon, ChevronRightIcon, CloseIcon, CopyIcon, DocumentIcon, EditIcon, EmailIcon, ErrorIcon, GiftIcon, LinkIcon, LoadingIcon, MoneyIcon, ParcelIcon, PaymentIcon, PrintIcon, ProductIcon, ReceiptTextIcon, RefreshIcon, ReverseIcon, SecurityIcon, ShippingIcon, SuccessIcon, ViewIcon } from '@/lib/icons';
+import { BackIcon, BroadcastIcon, ChecklistIcon, ChevronDownIcon, ChevronRightIcon, CloseIcon, CopyIcon, EditIcon, EmailIcon, ErrorIcon, GiftIcon, LinkIcon, LoadingIcon, MoneyIcon, ParcelIcon, PaymentIcon, PrintIcon, ProductIcon, ReceiptTextIcon, RefreshIcon, ReverseIcon, SecurityIcon, ShippingIcon, SuccessIcon, ViewIcon } from '@/lib/icons';
 import PaymentModal from '../components/PaymentModal';
 import HandoverPickerPanel from '../components/HandoverPickerPanel';
 import { shopeeResultToHandoverOrder, type HandoverOrder, type HandoverSelection } from '@/lib/marketplace/handover';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
-import { generateOrderInvoicePdf } from '@/lib/order-invoice-pdf';
 import { generatePackingPdf } from '@/lib/orders-packing-pdf';
 import { generateShippingLabelPdf } from '@/lib/order-shipping-label-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
+import { printOrder } from '@/components/ui/OrderPrintButtons';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
 import { MARKETPLACE_PLATFORMS, type QuotaPlatform } from '@/lib/marketplace/platforms';
 import type { MarketplaceBuyer } from '@/lib/marketplace/buyer-adapter';
@@ -583,33 +583,17 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
     }
   };
 
-  // ใบสั่งซื้อ = เอกสารเดียวกับใบแจ้งหนี้ (รายการ+ราคา+ยอด) แค่หัวเอกสารต่าง —
-  // ออกเป็น PDF ตัวเดียวกับเอกสารอื่น (เดิม window.print() หน้าเว็บ = จุดสุดท้ายในระบบ)
-  const handlePrintOrder = async () => {
-    if (!fullOrderData) return;
-    setShowPrintMenu(false);
-    setGeneratingPdf(true);
-    try {
-      const blob = await generateOrderInvoicePdf({ data: fullOrderData, docType: 'order' });
-      showPdfPreview(blob, `ใบสั่งซื้อ ${fullOrderData.order_number || ''}`.trim());
-    } catch (err) {
-      console.error('Error generating order PDF:', err);
-      showToast('สร้าง PDF ไม่สำเร็จ', 'error');
-    } finally {
-      setGeneratingPdf(false);
-    }
-  };
-
+  // ใบแจ้งหนี้/ใบเสร็จ/ใบกำกับย่อ ผ่านตัวกลาง — ตัวกลางเป็นคนเลือกฉบับที่มีเลขเอกสารจริง
+  // (เดิมหน้านี้วาดเองด้วยเลขออเดอร์ เลขไม่ตรงกับเล่มใน /invoices)
   const handlePrintInvoice = async () => {
     if (!fullOrderData) return;
     setShowPrintMenu(false);
     setGeneratingPdf(true);
     try {
-      const blob = await generateOrderInvoicePdf({ data: fullOrderData });
-      showPdfPreview(blob, getInvoiceMenuLabel(fullOrderData.payment_status, vatRegistered));
+      await printOrder(orderId, 'abbreviated', { preloadedData: fullOrderData });
     } catch (err) {
       console.error('Error generating invoice PDF:', err);
-      showToast('สร้าง PDF ไม่สำเร็จ', 'error');
+      showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');
     } finally {
       setGeneratingPdf(false);
     }
@@ -1167,14 +1151,6 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                         {getInvoiceMenuLabel(paymentStatus, vatRegistered)}
                       </button>
                     )}
-                    <button
-                      onClick={handlePrintOrder}
-                      disabled={generatingPdf}
-                      className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5 disabled:opacity-50"
-                    >
-                      <DocumentIcon className="w-4 h-4 text-gray-400" />
-                      ใบสั่งซื้อ
-                    </button>
                     {['processing', 'shipping', 'completed'].includes(orderStatus) && (
                       <button
                         onClick={handlePrintPackingList}

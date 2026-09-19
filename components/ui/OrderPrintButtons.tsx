@@ -127,10 +127,49 @@ export async function printOrder(
     const blob = await generateDocumentEnvelopePdf({ data: orderData });
     showPdfPreview(blob, `ใบปะหน้าซองเอกสาร ${orderNumber}`, win);
   } else if (type === 'abbreviated') {
-    onProgress?.('กำลังสร้างใบเสร็จ...');
-    const { generateOrderInvoicePdf } = await import('@/lib/order-invoice-pdf');
-    const blob = await generateOrderInvoicePdf({ data: orderData });
-    showPdfPreview(blob, `ใบเสร็จ ${orderNumber}`, win);
+    // ใบแจ้งหนี้ / ใบเสร็จ / ใบกำกับอย่างย่อ — **เลขที่บนกระดาษต้องเป็นเลขเอกสารที่ระบบออกจริง**
+    // เดิมวาดจากเลขออเดอร์เสมอ ลูกค้าจึงได้ "ใบเสร็จ" ที่เลขไม่ตรงกับเล่มภาษีในหน้า /invoices
+    // (เจ้าของสั่ง 19 ก.ย. 2026: เลขต้องตรง) · ฝั่งเลือกเอกสารเดินตามหน้า /invoices/* เป๊ะ
+    const paid = orderData.payment_status === 'paid';
+    if (!paid) {
+      // ยังไม่ชำระ = ใบแจ้งหนี้ ไม่ใช่เอกสารภาษี เลขที่ = เลขออเดอร์ ถูกต้องแล้ว
+      onProgress?.('กำลังสร้างใบแจ้งหนี้...');
+      const { generateOrderInvoicePdf } = await import('@/lib/order-invoice-pdf');
+      const blob = await generateOrderInvoicePdf({ data: orderData });
+      showPdfPreview(blob, `ใบแจ้งหนี้ ${orderNumber}`, win);
+    } else {
+      // ข้อมูลที่หน้าส่งมาอาจเก่ากว่าตอนระบบเพิ่งออกเลข (ออกตอน "กดรับ + ชำระแล้ว") — ถามใหม่ก่อน
+      if (!orderData.tax_invoice_number) {
+        onProgress?.('กำลังตรวจเลขที่เอกสาร...');
+        const res = await apiFetch(`/api/orders/${orderId}`);
+        if (res.ok) {
+          const fresh = await res.json();
+          orderData = fresh.order || fresh;
+        }
+      }
+      const docType = orderData.tax_invoice_doc_type as string | null;
+      const docNo = orderData.tax_invoice_number as string | null;
+      if (!docNo) {
+        throw new Error('ยังไม่มีเลขที่เอกสาร — ระบบออกใบเสร็จ/ใบกำกับให้ตอน "รับออเดอร์" หลังชำระเงินแล้ว');
+      }
+      if (docType === 'abbreviated') {
+        onProgress?.('กำลังสร้างใบกำกับภาษีอย่างย่อ...');
+        const { generateAbbreviatedInvoicePdf } = await import('@/lib/order-invoice-abbreviated-pdf');
+        const blob = await generateAbbreviatedInvoicePdf([orderData]);
+        showPdfPreview(blob, `ใบกำกับอย่างย่อ ${docNo}`, win);
+      } else if (docType === 'receipt') {
+        onProgress?.('กำลังสร้างใบเสร็จรับเงิน...');
+        const { generateFullInvoicePdf } = await import('@/lib/order-invoice-full-pdf');
+        const blob = await generateFullInvoicePdf({ ...orderData, tax_invoice_doc_type: 'receipt' });
+        showPdfPreview(blob, `ใบเสร็จรับเงิน ${docNo}`, win);
+      } else {
+        // 'tax' = ใบกำกับเต็มออกแทนใบย่อแล้ว (ใบย่อถูกยกเลิก) — ให้ฉบับที่ใช้ได้จริง
+        onProgress?.('กำลังสร้างใบกำกับภาษี...');
+        const { generateFullInvoicePdf } = await import('@/lib/order-invoice-full-pdf');
+        const blob = await generateFullInvoicePdf(orderData);
+        showPdfPreview(blob, `ใบกำกับภาษี ${docNo}`, win);
+      }
+    }
   } else if (type === 'all') {
     onProgress?.('กำลังสร้างเอกสารทั้งหมด...');
     const { generateFullInvoicePdf } = await import('@/lib/order-invoice-full-pdf');

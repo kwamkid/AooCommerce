@@ -9,7 +9,7 @@ import { Pause, Play } from 'lucide-react';
 import { ChecklistIcon, DeleteIcon, EditIcon, LinkIcon, LoadingIcon, MoneyIcon, ParcelIcon, PaymentIcon, PrintIcon, ProductIcon, SuccessIcon } from '@/lib/icons';
 import { generatePackingPdf } from '@/lib/orders-packing-pdf';
 import { generateShippingLabelPdf } from '@/lib/order-shipping-label-pdf';
-import { generateOrderInvoicePdf } from '@/lib/order-invoice-pdf';
+import { printAndTrack } from '@/components/ui/OrderPrintButtons';
 import { generateAbbreviatedInvoicePdf } from '@/lib/order-invoice-abbreviated-pdf';
 import { showPdfPreview, mergePdfBlobs } from '@/lib/print-pdf';
 import { markOrdersPrinted, updateLocalPrintStatus } from '@/lib/print-tracking';
@@ -657,10 +657,8 @@ export default function ProcessingTab({
     setOverlayProgress(undefined);
     setOverlayMessage(undefined);
     try {
-      const orderData = await fetchOrderForPdf(orderId);
-      const blob = await generateOrderInvoicePdf({ data: orderData });
-      showPdfPreview(blob, label);
-      markOrdersPrinted([orderId], 'invoice');
+      // ตัวกลางเลือกฉบับที่มีเลขเอกสารจริง (ใบแจ้งหนี้/ใบเสร็จ/ใบกำกับย่อ) — ห้ามวาดจากเลขออเดอร์เอง
+      await printAndTrack(orderId, 'abbreviated', { onProgress: (msg) => setOverlayMessage(msg) });
       updateLocalPrintStatus(setOrders, [orderId], 'invoice');
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'สร้าง PDF ไม่สำเร็จ', 'error');

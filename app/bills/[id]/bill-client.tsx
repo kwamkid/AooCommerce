@@ -116,6 +116,16 @@ export interface BillData {
   company_name?: string;
   company_logo?: string | null;
   vat_registered?: boolean;
+  company_address?: string;
+  company_phone?: string;
+  company_tax_id?: string;
+  company_tax_name?: string;
+  company_tax_branch?: string | null;
+  /** เอกสารที่ระบบออกจริงหลังชำระ — ใบเสร็จที่พิมพ์ต้องใช้เลขนี้ */
+  tax_invoice_doc_type?: 'tax' | 'abbreviated' | 'receipt' | null;
+  tax_invoice_number?: string | null;
+  tax_invoice_date?: string | null;
+  tax_invoice_voided_at?: string | null;
   payment_record?: PaymentRecord | null;
   payment_channels?: PaymentChannelData[];
   customer_type?: string;
@@ -313,9 +323,51 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
         customer: bill.customer,
         items: bill.items,
       };
-      const blob = await generateOrderInvoicePdf({ data: invoiceData });
+      // หน้าบิลเป็น public — ตัวสร้าง PDF ไปดึงข้อมูลบริษัทเองไม่ได้ (ต้องล็อกอิน) ส่งจาก API แทน
+      const company = {
+        name: bill.company_name || '',
+        address: bill.company_address || '',
+        phone: bill.company_phone || '',
+        tax_id: bill.company_tax_id || '',
+        tax_company_name: bill.company_tax_name || '',
+        tax_branch: bill.company_tax_branch ?? null,
+        logo_url: bill.company_logo ?? null,
+        vat_registered: bill.vat_registered ?? false,
+      };
       const vatRegistered = bill.vat_registered ?? false;
-      showPdfPreview(blob, getInvoiceMenuLabel(bill.payment_status, vatRegistered));
+      const paid = bill.payment_status === 'paid';
+      const docNo = bill.tax_invoice_number;
+
+      // ชำระแล้ว = ต้องเป็นฉบับที่มีเลขเอกสารจริง (เลขเดียวกับเล่มใน /invoices) ไม่ใช่เลขออเดอร์
+      // ยังไม่ชำระ = ใบแจ้งหนี้ ไม่ใช่เอกสารภาษี ใช้เลขออเดอร์ได้
+      let blob: Blob;
+      let title: string;
+      if (!paid || !docNo) {
+        if (paid) showToast('ร้านยังไม่ออกเลขที่ใบเสร็จ — พิมพ์ได้อีกครั้งเมื่อร้านรับออเดอร์แล้ว', 'error');
+        if (paid) return;
+        blob = await generateOrderInvoicePdf({ data: invoiceData, company });
+        title = getInvoiceMenuLabel(bill.payment_status, vatRegistered);
+      } else if (bill.tax_invoice_doc_type === 'abbreviated') {
+        const { generateAbbreviatedInvoicePdf } = await import('@/lib/order-invoice-abbreviated-pdf');
+        blob = await generateAbbreviatedInvoicePdf([{
+          ...invoiceData,
+          tax_invoice_number: docNo,
+          tax_invoice_date: bill.tax_invoice_date || undefined,
+          tax_invoice_voided_at: bill.tax_invoice_voided_at,
+        }], { company });
+        title = `ใบกำกับอย่างย่อ ${docNo}`;
+      } else {
+        // 'receipt' (ร้านไม่จด VAT) หรือ 'tax' (ออกใบกำกับเต็มแทนใบย่อแล้ว)
+        const { generateFullInvoicePdf } = await import('@/lib/order-invoice-full-pdf');
+        blob = await generateFullInvoicePdf({
+          ...invoiceData,
+          tax_invoice_number: docNo,
+          tax_invoice_date: bill.tax_invoice_date || undefined,
+          tax_invoice_doc_type: bill.tax_invoice_doc_type || 'receipt',
+        }, { company });
+        title = `${bill.tax_invoice_doc_type === 'tax' ? 'ใบกำกับภาษี' : 'ใบเสร็จรับเงิน'} ${docNo}`;
+      }
+      showPdfPreview(blob, title);
     } catch (err) {
       console.error('Error generating invoice PDF:', err);
       showToast('สร้าง PDF ไม่สำเร็จ', 'error');
