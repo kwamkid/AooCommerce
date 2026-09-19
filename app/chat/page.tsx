@@ -135,10 +135,12 @@ function UnifiedChatPageContent() {
   const filterFollowUp = (searchParams.get('followup') || '') as '' | 'due' | 'overdue';
   /** เฉพาะคนที่ทักมาจากโฆษณา (Click-to-Messenger) */
   const filterAds = searchParams.get('ads') === '1';
+  /** รับข่าวสาร (Messenger): 'subscribed' กดรับแล้ว · 'not' ยังไม่ได้กด */
+  const filterOptin = (searchParams.get('optin') || '') as '' | 'subscribed' | 'not';
 
   const setFilterParams = useCallback((updates: Record<string, string>) => {
     const params = new URLSearchParams(searchParams.toString());
-    const defaults: Record<string, string> = { account: '', platform: 'all', tag: '', sort: 'time', linked: 'all', unread: '', followup: '', ads: '' };
+    const defaults: Record<string, string> = { account: '', platform: 'all', tag: '', sort: 'time', linked: 'all', unread: '', followup: '', ads: '', optin: '' };
     for (const [k, v] of Object.entries(updates)) {
       if (v === (defaults[k] ?? '') || v === '') params.delete(k);
       else params.set(k, v);
@@ -275,7 +277,7 @@ function UnifiedChatPageContent() {
 
   // ตัวกรองที่อยู่ "ในกรวย" เท่านั้น — ยังไม่อ่าน/เรียง/ช่องทาง มีปุ่มของตัวเองในแถวหัวอยู่แล้ว
   // (นับรวมแล้วปุ่มกรวยติดสีทั้งที่ในกรวยไม่มีอะไรถูกเลือก — เจ้าของทัก 19 ก.ย. 2026)
-  const hasActiveFilter = filterLinked !== 'all' || filterOrderDaysRange !== null || filterTag !== '' || filterFollowUp !== '' || filterAds;
+  const hasActiveFilter = filterLinked !== 'all' || filterOrderDaysRange !== null || filterTag !== '' || filterFollowUp !== '' || filterAds || filterOptin !== '';
   /** ตัวกรองทุกอย่างรวมปุ่มในแถวหัว — ใช้กับแถบชิป "ล้างตัวกรอง" ใต้ช่องค้นหา */
   const hasAnyFilter = hasActiveFilter || filterUnread || filterAccountId !== '' || sortMode !== 'time';
 
@@ -431,6 +433,7 @@ function UnifiedChatPageContent() {
     if (filterLinked === 'unlinked') params.set('unlinked_only', 'true');
     if (filterFollowUp) params.set('follow_up', filterFollowUp);
     if (filterAds) params.set('ads_only', 'true');
+    if (filterOptin) params.set('optin', filterOptin);
     if (filterOrderDaysRange) {
       params.set('order_days_min', filterOrderDaysRange.min.toString());
       if (filterOrderDaysRange.max !== null) params.set('order_days_max', filterOrderDaysRange.max.toString());
@@ -474,7 +477,7 @@ function UnifiedChatPageContent() {
         }
       })();
     }
-  }, [authLoading, userProfile, debouncedSearch, filterLinked, filterUnread, filterOrderDaysRange, filterAccountId, filterPlatform, filterTag, filterFollowUp, filterAds]);
+  }, [authLoading, userProfile, debouncedSearch, filterLinked, filterUnread, filterOrderDaysRange, filterAccountId, filterPlatform, filterTag, filterFollowUp, filterAds, filterOptin]);
 
   // เปิดห้องจาก URL — `contact_id` (id ของแถวเรา) หรือ `line_user` (id ฝั่ง LINE)
   // `line_user` มีไว้ให้หน้าที่รู้จักแต่ id ของ LINE เรียกใช้ (CRM ติดตามลูกค้า/ติดตามหนี้)
@@ -1033,6 +1036,7 @@ function UnifiedChatPageContent() {
       if (filterTag) params.set('tag', filterTag);
       if (filterFollowUp) params.set('follow_up', filterFollowUp);
       if (filterAds) params.set('ads_only', 'true');
+      if (filterOptin) params.set('optin', filterOptin);
       params.set('limit', '30');
       params.set('offset', loadMore ? contacts.length.toString() : '0');
 
@@ -2866,7 +2870,7 @@ function UnifiedChatPageContent() {
                   <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-50">
                     <div className="p-3 border-b border-gray-100 dark:border-slate-700 flex items-center justify-between">
                       <span className="text-base font-medium text-gray-900 dark:text-white">กรองรายชื่อ</span>
-                      {hasActiveFilter && (<button onClick={() => { setFilterParams({ linked: 'all', tag: '', account: '', platform: 'all', sort: 'time', unread: '', followup: '', ads: '' }); setFilterOrderDaysRange(null); setShowFilterPopover(false); }} className="text-xs text-red-500 hover:text-red-600">ล้างทั้งหมด</button>)}
+                      {hasActiveFilter && (<button onClick={() => { setFilterParams({ linked: 'all', tag: '', account: '', platform: 'all', sort: 'time', unread: '', followup: '', ads: '', optin: '' }); setFilterOrderDaysRange(null); setShowFilterPopover(false); }} className="text-xs text-red-500 hover:text-red-600">ล้างทั้งหมด</button>)}
                     </div>
                     <div className="p-3 space-y-4">
                       {/* การติดตาม — กรองคนที่มีนัดค้าง + ทางไปคิวเต็ม (แถวหัวแน่นแล้ว ปุ่มจึงอยู่ในนี้) */}
@@ -2900,6 +2904,20 @@ function UnifiedChatPageContent() {
                           className={`mt-2 w-full px-3 py-2 text-sm rounded-lg transition-colors flex items-center justify-center gap-1 ${filterAds ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`}>
                           <BroadcastIcon className="w-4 h-4" /><span>ทักมาจากโฆษณา (Ads)</span>
                         </button>
+                      </div>
+                      {/* รับข่าวสาร (Messenger marketing messages) — ใครกดรับการ์ดชวนแล้ว/ยัง (เฉพาะ Facebook) */}
+                      <div>
+                        <label className="text-base font-medium text-gray-600 dark:text-slate-400 mb-2 block">รับข่าวสาร</label>
+                        <div className="flex gap-2">
+                          <button onClick={() => { setFilterParams({ optin: filterOptin === 'subscribed' ? '' : 'subscribed' }); setShowFilterPopover(false); }}
+                            className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors flex items-center justify-center gap-1 ${filterOptin === 'subscribed' ? 'bg-emerald-600 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`}>
+                            <ConfirmIcon className="w-4 h-4" /><span>กดรับแล้ว</span>
+                          </button>
+                          <button onClick={() => { setFilterParams({ optin: filterOptin === 'not' ? '' : 'not' }); setShowFilterPopover(false); }}
+                            className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors flex items-center justify-center gap-1 ${filterOptin === 'not' ? 'bg-gray-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`}>
+                            <span>ยังไม่ได้กด</span>
+                          </button>
+                        </div>
                       </div>
                       {/* Tag filter */}
                       {allTags.length > 0 && (
@@ -3003,7 +3021,7 @@ function UnifiedChatPageContent() {
 
                 {filterOrderDaysRange !== null && (<span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full ${filterOrderDaysRange.min >= 7 ? 'bg-red-100 text-red-700' : filterOrderDaysRange.min >= 5 ? 'bg-orange-100 text-orange-700' : filterOrderDaysRange.min >= 3 ? 'bg-amber-100 text-amber-700' : 'bg-yellow-100 text-yellow-700'}`}><TimeIcon className="w-3 h-3" />ไม่สั่ง {filterOrderDaysRange.max === null ? `${filterOrderDaysRange.min}+ วัน` : `${filterOrderDaysRange.min}-${filterOrderDaysRange.max} วัน`}<button onClick={() => { setFilterOrderDaysRange(null); setFilterParams({ linked: 'all' }); }} className="ml-1 hover:opacity-70"><CloseIcon className="w-3 h-3" /></button></span>)}
                 {filterTag && (() => { const tag = allTags.find(t => t.id === filterTag); return tag ? (<span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full" style={{ backgroundColor: tag.color + '20', color: tag.color }}><span className="w-2 h-2 rounded-full" style={{ backgroundColor: tag.color }} />{tag.name}<button onClick={() => setFilterParams({ tag: '' })} className="ml-1 hover:opacity-70"><CloseIcon className="w-3 h-3" /></button></span>) : null; })()}
-                <button onClick={() => { setFilterParams({ account: '', platform: 'all', tag: '', sort: 'time', linked: 'all', unread: '', followup: '', ads: '' }); setFilterOrderDaysRange(null); setSearchTerm(''); }}
+                <button onClick={() => { setFilterParams({ account: '', platform: 'all', tag: '', sort: 'time', linked: 'all', unread: '', followup: '', ads: '', optin: '' }); setFilterOrderDaysRange(null); setSearchTerm(''); }}
                   className="inline-flex items-center gap-1 px-2 py-0.5 text-xs text-red-500 hover:text-red-600 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
                   <FilterX className="w-3 h-3" />ล้างตัวกรอง
                 </button>
