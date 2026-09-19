@@ -65,3 +65,18 @@ paths:
 
 หน้า public ใหม่ทุกหน้า → ใช้ pattern นี้ตั้งแต่แรก (หน้า gated → metadata อย่างเดียว)
 
+## 🚪 ทางเข้าคนนอก (ไม่มีบัญชี) — 3 กลุ่ม (2026-09-19)
+
+กติกา token/รหัสอยู่ที่เดียว **[lib/portal-access.ts](../../../lib/portal-access.ts)** (`newShareToken` · `newAccessCode` · `accessCodeMatches` เทียบเวลาคงที่) — ⛔ ห้ามเขียนตัวสร้าง token/รหัสเองในไฟล์อื่น (เคยก๊อปกัน 2 ไฟล์ + token 3 แบบ)
+
+| กลุ่ม | ยืนยันด้วย | ที่ใช้ |
+|---|---|---|
+| เปิดสาธารณะ | — | หน้าร้าน · `/legal` · `/install` |
+| **token ในลิงก์** (ได้ลิงก์ = เข้าได้ เห็นใบเดียว) | `share_token`/`receive_token` uuid | บิล `/bills/<orders.share_token>` · `/po/<purchase_orders.share_token>` · รับของ 3 แบบ · `/f/` · `/invite/` |
+| **token + รหัส** (เห็นทุกอย่างของคู่ค้า) | token + access code 12 ตัว | `/portal/consignment/<customers.portal_token>` · `/supplier-portal/<suppliers.portal_token>` |
+
+- **ห้ามเปิดด้วย id ของแถว** (ไล่เดาได้) — บิลกับพอร์ทัลซัพพลายเออร์เคยเป็นแบบนั้น เปลี่ยนเป็น token แล้ว · ฝั่งอ่านยังรับทั้ง id และ token (`.or('id.eq.X,share_token.eq.X')` — ทั้งคู่ unique ไม่ชนกัน) เพื่อให้ลิงก์เก่าที่ส่งไปแล้วใช้ได้ · เลิกรับ id ได้เมื่อไม่มีลิงก์เก่าเหลือ
+- ลิงก์บิล: **`GET /api/bills/link?order_id=`** (ต้องล็อกอิน) ผ่าน helper [lib/bill-link.ts](../../../lib/bill-link.ts) — ⛔ ห้ามประกอบ `/bills/${order.id}` เองในหน้า
+- พอร์ทัลซัพพลายเออร์: `validatePortalAccess(ref)` รับ token/id → **route ข้างในต้องกรองด้วย `result.context.supplierId` ไม่ใช่ค่าจาก URL** · หน้าล็อกอินส่ง `portal_ref` ให้ `/api/supplier-portal/auth` เป็นคนตอบว่ารหัสตรงพอร์ทัลนี้ไหม (ไม่ส่ง id ออกไปให้ client เทียบ)
+- **เพิ่มหน้า public ต้องใส่ 2 ที่ให้ตรงกัน**: `PUBLIC_PREFIXES` ใน [proxy.ts](../../../proxy.ts) และ `PUBLIC_ROUTES` ใน [lib/auth-context.tsx](../../../lib/auth-context.tsx) — ขาดที่ใดที่หนึ่งคนนอกโดนเด้งไป login · prefix ต้องเจาะเฉพาะส่วน public (`/department-orders/receive` ไม่ใช่ `/department-orders`)
+- หน้าพวกนี้คุมธีมเอง → ต้อง `useStandaloneTheme()` (ดู `ui-design-system.md`)

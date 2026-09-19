@@ -40,3 +40,10 @@ paths:
 
 ---
 
+## พิมพ์ = PDF ทางเดียว (2026-09-19)
+
+- ⛔ **ห้าม `window.print()`** — ผลขึ้นกับเบราว์เซอร์/driver ของแต่ละเครื่อง และ print CSS ของหน้าหนึ่งเคยไปซ่อนทั้งหน้าของอีกหน้า (ดู fix-bug.md 2026-09-19) · ทุกเอกสารสร้างด้วย generator ใน `lib/*-pdf.ts` แล้ว `showPdfPreview()`
+- **ใบเสร็จ POS** [lib/pos-receipt-pdf.ts](../../../lib/pos-receipt-pdf.ts) `generatePosReceiptPdf()` — กระดาษ **80mm ฝังในไฟล์** (`pageSize:{width: 80*72/25.4, height}`) เครื่องพิมพ์ไม่ต้องตั้ง custom size · ⚠️ pdfMake ไม่มี height:auto ต้อง **ประมาณความสูงจากจำนวนบรรทัดแล้วเผื่อ** — ประมาณสั้นไป = ใบเสร็จไหลไปหน้า 2 ขาดเป็นสองท่อน · `receiptDocTitle()` (ประโยค ม.86/6) ใช้ร่วมจอ+PDF
+- **กระดาษขนาดเอง** ใช้ `pageSize: { width, height }` เป็น pt (ใบปะหน้า · ใบเสร็จ POS) — ห้ามพึ่ง `@page` ใน CSS
+- **ใบแจ้งหนี้/ใบเสร็จ/ใบกำกับย่อของออเดอร์ → `printOrder(orderId, 'abbreviated', {preloadedData?})`** ใน `components/ui/OrderPrintButtons.tsx` เท่านั้น — ตัวกลางเลือกฉบับตามเลขเอกสารจริง (ลำดับเดียวกับ `/invoices/*`): ยังไม่ชำระ = ใบแจ้งหนี้ (เลขออเดอร์ ถูกแล้ว ไม่ใช่เอกสารภาษี) · `abbreviated` → `generateAbbreviatedInvoicePdf` · `receipt` → `generateFullInvoicePdf({…, tax_invoice_doc_type:'receipt'})` · `tax` → ใบกำกับเต็ม · ชำระแล้วแต่ยังไม่มีเลข → **ไม่พิมพ์** (เลขออกตอน "รับออเดอร์ + ชำระแล้ว") · ⛔ ห้ามเรียก `generateOrderInvoicePdf` ตรงเพื่อทำ "ใบเสร็จ" (มันพิมพ์ `order_number` เสมอ) — ใช้ได้เฉพาะใบแจ้งหนี้ และ `docType:'order'` (ใบยืนยันคำสั่งซื้อ ยังไม่มีปุ่มเรียก)
+- **หน้า public (บิลออนไลน์ · `/po`) ต้องส่ง `company` เข้า generator เอง** — `fetchCompanyInfo()` ยิง `/api/companies` ซึ่งต้องล็อกอิน · API ของหน้านั้นคืนข้อมูลบริษัทมาให้แล้ว

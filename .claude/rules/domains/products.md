@@ -104,3 +104,7 @@ paths:
 - บันทึกใหม่ → replace ไป edit ของ ID ที่สร้าง; บันทึกแก้ไข → โหลด persisted data และ remount ProductForm เพื่อใช้ variation/image IDs จริง แล้วอยู่หน้าเดิม
 - Back/Cancel ใช้ `useProductNavigation`; ฟอร์มหลักและ marketplace แจ้ง dirty เพื่อถามก่อนทิ้ง; save-and-add-next remount ทั้งฟอร์มรวม composite state
 - แท็บ marketplace ทั้ง single/variation ใช้ `components/products/form/MarketplaceListingCard.tsx` ร่วมกับหน้าต้นแบบ; platform-specific fields ผ่าน extra/modelExtras และใช้ StickyActionBar ของหน้าจริง
+
+### ลบตัวเลือกทีละแถว (2026-09-19)
+- ฟอร์มมีปุ่มลบรายแถวแล้ว (`VariantOptionsEditor` `onDeleteRow` → `ProductForm.handleDeleteRow`) — ต้องมีเพราะตัวเลือกจากการนำเข้า marketplace ซ้ำชื่อกันได้ (`normalizeValues` กันเฉพาะทางฟอร์ม) แล้ว TikTok ตีกลับทั้งสินค้า · ค่าที่ไม่มีแถวใช้แล้วถูกถอดออกจากกลุ่มด้วย ไม่งั้น `regenerateRows` งอกกลับ
+- ⛔ **แถวที่ลบ = soft-delete `deleted_at` โดย `is_active` ยังเป็น true** — ทุก query `product_variations` ต้องกรอง `.is('deleted_at', null)` คู่กับ `is_active` (export เคยส่งตัวเลือกที่ลบแล้วขึ้นร้าน)

@@ -78,6 +78,18 @@
 **วิธีแก้**: สี่คีย์นี้ตกไปใช้ค่า `GRANDFATHERED = true` แทน `DEFAULT_FEATURES` — ร้านใหม่ไม่กระทบเพราะ onboarding เขียนค่าจาก `PRESET_DEFAULTS` ครบทุกคีย์ และค่าจะถูกเขียนลง DB เองครั้งแรกที่กดบันทึกหน้า Feature เสริม (commit b9be5916)
 **ป้องกัน regression**: ⛔ **เพิ่มสวิตช์ให้ฟีเจอร์ที่เคยใช้ได้เสมอ ค่าเริ่มต้นของ "ร้านเก่า" ต้องเป็นเปิด ไม่ใช่ปิด** — `?? DEFAULT_FEATURES.x` ถูกเฉพาะกับฟีเจอร์ที่เกิดมาพร้อมสวิตช์ · หลัง deploy ให้ query `settings->'features'->>'<คีย์ใหม่'` เทียบกับร่องรอยการใช้งานจริง (แถวใน `broadcasts` / `audiences` / `settings->'storefront'`) เพื่อยืนยันว่าไม่มีร้านไหนถูกปิดโดยไม่ตั้งใจ
 
+## 2026-09-19 — พิมพ์เอกสาร/ทางเข้าคนนอก: 6 บั๊กที่เจอตอนไล่หน้าบิล·พอร์ทัล·POS
+
+**ที่เกิด**: [app/globals.css](app/globals.css) · [proxy.ts](proxy.ts)+[lib/auth-context.tsx](lib/auth-context.tsx) · หน้า portal 7 หน้า · [components/ui/OrderPrintButtons.tsx](components/ui/OrderPrintButtons.tsx) · [app/api/bills/route.ts](app/api/bills/route.ts) · [lib/marketplace/product-export.ts](lib/marketplace/product-export.ts)
+**อาการ → Root cause → วิธีแก้** (คนละเรื่องกัน แต่เจอในรอบเดียว):
+1. **กดพิมพ์ใบสั่งซื้อ/หน้าอื่นได้กระดาษเปล่า** — CSS print ของใบเสร็จ POS (`@page 80mm` + `body * {visibility:hidden}` เหลือแต่ `#receipt-content`) ทำงานกับ**ทุกหน้า** · แก้: ครอบด้วย `body:has(#receipt-content)` + `@page receipt` แบบตั้งชื่อ · แล้วเลิกใช้ `window.print()` ทั้งระบบ (ทุกเอกสารเป็น PDF — ดู rules/domains/pdf.md)
+2. **ลิงก์ `/po/[token]` และ `/department-orders/receive/[token]` เด้งไป login** — ตกจากรายการเส้นทางสาธารณะทั้งที่ API กันด้วย token อยู่แล้ว · ด่านมี**สองชั้น** (`PUBLIC_PREFIXES` ใน proxy.ts + `PUBLIC_ROUTES` ใน auth-context.tsx) แก้ที่เดียวยังเด้ง
+3. **หน้าบิล/พอร์ทัลอ่านไม่ออกเมื่อธีมแอปกับธีมหน้าไม่ตรงกัน** (ป้าย/ปุ่ม/แถบขั้นตอนขาวบนขาว) — หน้าพวกนี้สลับธีมด้วย state ของตัวเอง แต่ component กลางใช้ `dark:` ที่อ่าน class บน `<html>` · แก้: `useStandaloneTheme(dark)` sync class ให้ตรงกับที่แสดงจริง แล้วกวาด `dark ? A : B` ออก 406 จุด (ไม่ต้องเขียนสีสองชุดเองอีก)
+4. **ใบเสร็จที่พิมพ์ใช้เลขออเดอร์ ไม่ใช่เลข ABB/REC ที่ระบบออก** — 4 ทางพิมพ์ (หน้าออเดอร์ · 2 แท็บ · บิลออนไลน์) เรียก `generateOrderInvoicePdf` ตรง ซึ่งพิมพ์ `order_number` เสมอ · แก้: `printOrder(...,'abbreviated')` เป็นคนเลือกฉบับตามเลขจริง (ลำดับเดียวกับ `/invoices/*`) · บิล API คืนเลขเอกสาร+ข้อมูลบริษัท (public ดึง `/api/companies` เองไม่ได้)
+5. **ปุ่มบันทึกที่อยู่ในบิลกดไม่ได้ทั้งที่กรอกครบ** — บังคับจังหวัด/รหัสไปรษณีย์เสมอ แต่บิลที่ที่อยู่เป็นข้อความเดียวไม่มีสองช่องนั้น (และฟอร์มก็ซ่อนไว้) · แก้: บังคับเฉพาะช่องที่แสดงอยู่ + ฟอร์มโชว์เฉพาะช่องที่ขาด (`missing_delivery_fields`)
+6. **ตัวเลือกที่ลบจากฟอร์มยังถูกส่งขึ้นร้าน** — ฟอร์ม soft-delete ด้วย `deleted_at` โดย `is_active` ยังเป็น true · export กรองแค่ `is_active` · แก้: `.is('deleted_at', null)` ทุก query ตัวเลือก (product-export ทั้งสองชั้น + reference)
+**ป้องกัน regression**: ⛔ `window.print()` ห้ามกลับมา (ESLint ยังไม่บล็อก — เจอให้ย้ายเป็น PDF) · ⛔ เพิ่มหน้า public ต้องใส่ทั้งสองรายการ · ⛔ หน้าที่คุมธีมเองต้องมี `useStandaloneTheme` และห้ามระบายสีเอง · ⛔ ใบเสร็จ/ใบกำกับย่อห้ามเรียก generator ตรง ต้องผ่าน `printOrder` · ⛔ query `product_variations` ต้องกรอง `deleted_at` คู่ `is_active` เสมอ
+
 ## 2026-09-18 — ส่งสินค้าขึ้น TikTok ไม่ได้เลยสักตัว: 3 บั๊กซ้อนกันคนละชั้น
 
 **ที่เกิด**: [app/marketplace/export/page.tsx](app/marketplace/export/page.tsx) · [lib/marketplace/product-export.ts](lib/marketplace/product-export.ts) · [lib/tiktok/product-export-adapter.ts](lib/tiktok/product-export-adapter.ts)
