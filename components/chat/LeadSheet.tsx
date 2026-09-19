@@ -41,6 +41,9 @@ export interface LeadData {
 
 export interface LeadMember { id: string; name: string }
 
+/** หัวข้อบล็อกในแผ่น — สถานะ · ทักอีกทีเมื่อ · ผู้รับผิดชอบ ต้องหน้าตาเดียวกัน */
+const SECTION_LABEL = 'text-xs font-semibold text-gray-500 dark:text-slate-400';
+
 interface Props {
   open: boolean;
   contactId: string;
@@ -98,8 +101,11 @@ export default function LeadSheet({
   const save = useCallback(async (patch: Record<string, unknown>, message: string, closeAfter = false) => {
     const before = lead;
     // เดาผลลัพธ์ตามกติกาของ service: เข้าขั้นจบแล้ว = นัดหาย · ออกจากรอโอน = ตัวนับหาย
+    const stageChanging = typeof patch.stage === 'string' && patch.stage !== (before?.stage || currentKeyRef.current);
     const nextStage = typeof patch.stage === 'string' ? patch.stage : before?.stage || currentKeyRef.current;
-    const closed = CLOSED_STAGE_KEYS.includes(nextStage);
+    // กติกา service ใช้เฉพาะตอน "เปลี่ยน" ขั้น — ตั้งนัดทั้งที่อยู่ขั้นจบแล้ว (ดูแลเสร็จ) ต้องเห็นนัดทันที
+    const closed = stageChanging && CLOSED_STAGE_KEYS.includes(nextStage);
+    const leavingQuoted = stageChanging && before?.stage === 'quoted';
     const optimistic: LeadData = {
       id: before?.id || '',
       stage: nextStage,
@@ -108,8 +114,8 @@ export default function LeadSheet({
       follow_up_at: closed ? null : ('follow_up_at' in patch ? (patch.follow_up_at as string | null) : before?.follow_up_at ?? null),
       follow_up_note: 'follow_up_note' in patch ? (patch.follow_up_note as string | null) : before?.follow_up_note ?? null,
       assigned_to: 'assigned_to' in patch ? (patch.assigned_to as string | null) : before?.assigned_to ?? null,
-      quote_sent_at: nextStage === 'quoted' ? before?.quote_sent_at ?? null : null,
-      reminded_count: nextStage === 'quoted' ? before?.reminded_count ?? 0 : 0,
+      quote_sent_at: leavingQuoted ? null : before?.quote_sent_at ?? null,
+      reminded_count: leavingQuoted ? 0 : before?.reminded_count ?? 0,
     };
     setLead(optimistic);
     onChanged?.(optimistic);
@@ -187,7 +193,7 @@ export default function LeadSheet({
 
       {/* นัด — ป้ายนัดปัจจุบันอยู่ท้ายหัวข้อ ไม่ใช่กล่องแยกด้านล่าง */}
       <div className="flex items-center justify-between mt-3.5 mb-1.5">
-        <span className="text-xs font-semibold text-gray-500 dark:text-slate-400">ทักอีกทีเมื่อ</span>
+        <span className={SECTION_LABEL}>ทักอีกทีเมื่อ</span>
         {lead?.follow_up_at && (
           <Badge
             tone={due?.overdue ? 'red' : 'amber'}
@@ -240,6 +246,7 @@ export default function LeadSheet({
       </div>
 
       <div className="mt-3.5">
+        <div className={`${SECTION_LABEL} mb-1.5`}>ผู้รับผิดชอบ</div>
         <FormSelect
           value={lead?.assigned_to || ''}
           onChange={v => save({ assigned_to: v || null }, v ? 'มอบหมายแล้ว' : 'ปลดผู้รับผิดชอบแล้ว')}
@@ -256,10 +263,9 @@ export default function LeadSheet({
   if (embedded) {
     return (
       <div className="p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-sm text-gray-500 dark:text-slate-400">ตอนนี้</span>
-          {stageBadge}
-          {sourceHint}
+        <div className="flex items-center justify-between gap-2 mb-1.5">
+          <span className={SECTION_LABEL}>สถานะ</span>
+          <span className="flex items-center gap-2">{sourceHint}{stageBadge}</span>
         </div>
         {body}
       </div>
