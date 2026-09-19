@@ -10,6 +10,7 @@ import { FullPageLoading } from '@/components/ui/Loading';
 import StatusBadge from '@/components/ui/StatusBadge';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import ImageLightbox from '@/components/ui/ImageLightbox';
+import { useStandaloneTheme } from '@/lib/use-standalone-theme';
 
 interface StockItem {
   variation_id: string;
@@ -94,6 +95,8 @@ export default function ConsignmentPortalPage() {
 
   // Dark mode — same pattern as supplier portal
   const [dark, setDark] = useState(true);
+  // ธีมที่หน้านี้แสดง = ธีมที่ component กลางต้องใช้ (ดู lib/use-standalone-theme.ts)
+  useStandaloneTheme(dark);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -337,13 +340,13 @@ export default function ConsignmentPortalPage() {
 
   if (!data) {
     return (
-      <div className={`min-h-screen flex items-center justify-center p-4 ${dark ? 'bg-[#1A1A2E]' : 'bg-gray-50'}`}>
+      <div className={`min-h-screen flex items-center justify-center p-4 bg-gray-50 dark:bg-[#1A1A2E]`}>
         <div className="text-center">
-          <AlertIcon className={`w-16 h-16 mx-auto mb-4 ${dark ? 'text-red-400' : 'text-red-400'}`} />
-          <h1 className={`text-xl font-semibold mb-2 ${dark ? 'text-slate-300' : 'text-gray-700'}`}>
+          <AlertIcon className={`w-16 h-16 mx-auto mb-4 text-red-400 dark:text-red-400`} />
+          <h1 className={`text-xl font-semibold mb-2 text-gray-700 dark:text-slate-300`}>
             ไม่พบข้อมูลตัวแทน
           </h1>
-          <p className={dark ? 'text-slate-500' : 'text-gray-500'}>
+          <p className="text-gray-500 dark:text-slate-500">
             {error || 'ลิงก์นี้ไม่ถูกต้องหรือหมดอายุแล้ว'}
           </p>
         </div>
@@ -545,22 +548,22 @@ export default function ConsignmentPortalPage() {
           onClick={handleCloseForm}
         >
           <div
-            className={`w-full max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] flex flex-col ${dark ? 'bg-[#16213E]' : 'bg-white'}`}
+            className={`w-full max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] flex flex-col bg-white dark:bg-[#16213E]`}
             onClick={e => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className={`flex items-center justify-between px-5 py-4 border-b ${dark ? 'border-slate-700' : 'border-gray-200'}`}>
+            <div className={`flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-slate-700`}>
               <div>
-                <h3 className={`font-bold text-base ${dark ? 'text-white' : 'text-gray-900'}`}>
+                <h3 className={`font-bold text-base text-gray-900 dark:text-white`}>
                   กรอกรายงานประจำเดือน
                 </h3>
-                <p className={`text-xs mt-0.5 ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
+                <p className={`text-xs mt-0.5 text-gray-500 dark:text-slate-400`}>
                   {THAI_MONTHS[selectedReport.period_month]} {selectedReport.period_year + 543} — {selectedReport.report_number}
                 </p>
               </div>
               <button
                 onClick={handleCloseForm}
-                className={`p-2 rounded-lg transition-colors ${dark ? 'text-slate-400 hover:text-white hover:bg-white/10' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}
+                className={`p-2 rounded-lg transition-colors text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-white/10`}
               >
                 ✕
               </button>
@@ -569,10 +572,10 @@ export default function ConsignmentPortalPage() {
             {/* Modal Body */}
             <div className="flex-1 overflow-y-auto px-5 py-4">
               {submitSuccess ? (
-                <div className={`text-center py-8 ${dark ? 'text-green-400' : 'text-green-600'}`}>
+                <div className={`text-center py-8 text-green-600 dark:text-green-400`}>
                   <SuccessIcon className="w-12 h-12 mx-auto mb-3" />
                   <p className="font-bold text-lg">ส่งรายงานสำเร็จ</p>
-                  <p className={`text-sm mt-1 ${dark ? 'text-slate-400' : 'text-gray-500'}`}>ขอบคุณที่ส่งรายงานประจำเดือน</p>
+                  <p className={`text-sm mt-1 text-gray-500 dark:text-slate-400`}>ขอบคุณที่ส่งรายงานประจำเดือน</p>
                   <button
                     onClick={handleCloseForm}
                     className="mt-4 px-6 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-colors"
@@ -583,13 +586,13 @@ export default function ConsignmentPortalPage() {
               ) : (
                 <>
                   {submitError && (
-                    <div className={`rounded-lg p-3 mb-4 text-sm ${dark ? 'bg-red-900/30 text-red-400 border border-red-800' : 'bg-red-50 text-red-600 border border-red-200'}`}>
+                    <div className={`rounded-lg p-3 mb-4 text-sm bg-red-50 text-red-600 border border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border dark:border-red-800`}>
                       {submitError}
                     </div>
                   )}
 
                   {reportItems.length === 0 ? (
-                    <p className={`text-sm text-center py-4 ${dark ? 'text-slate-500' : 'text-gray-400'}`}>
+                    <p className={`text-sm text-center py-4 text-gray-400 dark:text-slate-500`}>
                       ไม่มีสินค้าที่ต้องรายงาน
                     </p>
                   ) : (
@@ -597,14 +600,14 @@ export default function ConsignmentPortalPage() {
                       {reportItems.map((item, idx) => (
                         <div
                           key={item.variation_id}
-                          className={`rounded-lg p-3 ${dark ? 'bg-[#1A1A2E]' : 'bg-gray-50'}`}
+                          className={`rounded-lg p-3 bg-gray-50 dark:bg-[#1A1A2E]`}
                         >
                           <div className="mb-2.5">
-                            <div className={`font-medium text-sm ${dark ? 'text-white' : 'text-gray-900'}`}>
+                            <div className={`font-medium text-sm text-gray-900 dark:text-white`}>
                               {item.product_name}
                             </div>
                             {item.variation_label && (
-                              <div className={`text-xs ${dark ? 'text-slate-500' : 'text-gray-400'}`}>
+                              <div className={`text-xs text-gray-400 dark:text-slate-500`}>
                                 {item.variation_label}
                               </div>
                             )}
@@ -612,7 +615,7 @@ export default function ConsignmentPortalPage() {
 
                           <div className="grid grid-cols-1 gap-3">
                             <div>
-                              <label className={`block text-xs font-medium mb-1 ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
+                              <label className={`block text-xs font-medium mb-1 text-gray-500 dark:text-slate-400`}>
                                 จำนวนขาย (ชิ้น)
                               </label>
                               <div className="flex items-center gap-1.5">
@@ -621,7 +624,7 @@ export default function ConsignmentPortalPage() {
                                   onClick={() => setReportItems(prev => prev.map((ri, i) =>
                                     i === idx ? { ...ri, qty_sold: Math.max(0, ri.qty_sold - 1) } : ri
                                   ))}
-                                  className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-base transition-colors ${dark ? 'bg-slate-600 text-white hover:bg-slate-500' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                                  className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-base transition-colors bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-slate-600 dark:text-white dark:hover:bg-slate-500`}
                                 >
                                   -
                                 </button>
@@ -634,14 +637,14 @@ export default function ConsignmentPortalPage() {
                                       i === idx ? { ...ri, qty_sold: v } : ri
                                     ));
                                   }}
-                                  className={`w-16 h-8 text-center rounded-lg text-sm font-bold border focus:outline-none focus:ring-2 focus:ring-amber-400 ${dark ? 'bg-slate-700 border-slate-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                                  className={`w-16 h-8 text-center rounded-lg text-sm font-bold border focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white border-gray-300 text-gray-900 dark:bg-slate-700 dark:border-slate-600 dark:text-white`}
                                 />
                                 <button
                                   type="button"
                                   onClick={() => setReportItems(prev => prev.map((ri, i) =>
                                     i === idx ? { ...ri, qty_sold: ri.qty_sold + 1 } : ri
                                   ))}
-                                  className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-base transition-colors ${dark ? 'bg-slate-600 text-white hover:bg-slate-500' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                                  className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-base transition-colors bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-slate-600 dark:text-white dark:hover:bg-slate-500`}
                                 >
                                   +
                                 </button>
@@ -656,7 +659,7 @@ export default function ConsignmentPortalPage() {
 
                   {/* Notes */}
                   <div className="mb-4">
-                    <label className={`block text-sm font-medium mb-1.5 ${dark ? 'text-slate-400' : 'text-gray-600'}`}>
+                    <label className={`block text-sm font-medium mb-1.5 text-gray-600 dark:text-slate-400`}>
                       หมายเหตุ (ถ้ามี)
                     </label>
                     <textarea
@@ -664,7 +667,7 @@ export default function ConsignmentPortalPage() {
                       onChange={e => setReportNotes(e.target.value)}
                       rows={2}
                       placeholder="เพิ่มหมายเหตุ..."
-                      className={`w-full px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 ${dark ? 'bg-[#1A1A2E] border-slate-600 text-white placeholder-slate-600' : 'bg-white border-gray-300 text-gray-900'}`}
+                      className={`w-full px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white border-gray-300 text-gray-900 dark:bg-[#1A1A2E] dark:border-slate-600 dark:text-white dark:placeholder-slate-600`}
                     />
                   </div>
                 </>
@@ -673,7 +676,7 @@ export default function ConsignmentPortalPage() {
 
             {/* Modal Footer */}
             {!submitSuccess && (
-              <div className={`px-5 py-4 border-t ${dark ? 'border-slate-700' : 'border-gray-200'}`}>
+              <div className={`px-5 py-4 border-t border-gray-200 dark:border-slate-700`}>
                 <button
                   type="button"
                   onClick={handleSubmitReport}

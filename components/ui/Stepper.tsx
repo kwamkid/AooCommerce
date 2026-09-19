@@ -36,7 +36,10 @@ export interface StepItem {
 
 interface Props {
   steps: StepItem[];
-  /** หน้าที่สลับธีมเองด้วยตัวแปร JS (บิลออนไลน์) — ไม่ใช่ class .dark ของ Tailwind */
+  /**
+   * @deprecated หน้าที่สลับธีมเองให้ใช้ `useStandaloneTheme()` แทน แล้วปล่อยให้
+   * `dark:` ของ Tailwind ทำงานตามปกติ — prop นี้เหลือไว้ให้ call site เดิมเท่านั้น
+   */
   dark?: boolean;
   ariaLabel?: string;
   className?: string;
@@ -58,13 +61,14 @@ interface Props {
 }
 
 export default function Stepper({
-  steps, dark = false, ariaLabel = 'ขั้นตอน', className = '', onSelect,
+  steps, dark, ariaLabel = 'ขั้นตอน', className = '', onSelect,
   allowJumpAhead = false,
 }: Props) {
   return (
     <ol
       aria-label={ariaLabel}
-      className={`stepper${dark ? ' stepper-dark' : ''}${className ? ` ${className}` : ''}`}
+      // หน้าที่ส่ง `dark` มา = คุมธีมเอง ต้องตรึงสีทั้งสองโหมด ห้ามตกไปใช้ตัวแปรของแอป
+      className={`stepper${dark === true ? ' stepper-dark' : dark === false ? ' stepper-light' : ''}${className ? ` ${className}` : ''}`}
     >
       {steps.map((s, i) => {
         const prevDone = i > 0 && steps[i - 1].state === 'done';

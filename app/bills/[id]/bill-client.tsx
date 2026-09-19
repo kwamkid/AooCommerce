@@ -28,6 +28,7 @@ import { FullPageLoading } from '@/components/ui/Loading';
 
 import { isValidEmail, EMAIL_INVALID_MESSAGE } from '@/lib/email';
 import { isCompositeLine } from '@/lib/composite-shared';
+import { useStandaloneTheme } from '@/lib/use-standalone-theme';
 interface PromotionComponent {
   variation_id: string;
   product_name: string;
@@ -140,6 +141,8 @@ export interface BillData {
     tax_branch?: string;
   } | null;
   needs_delivery_info?: boolean;
+  /** ช่องที่ยังว่าง — บอกให้ตรงว่าขาดอะไร ดีกว่าสั่งให้กรอกใหม่ทั้งชุด */
+  missing_delivery_fields?: string[];
   customer_id?: string | null;
   is_expired?: boolean;
   is_cancelled?: boolean;
@@ -157,6 +160,8 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
   // Dark mode toggle (independent from admin system)
   const [dark, setDark] = useState(true);
   const [mounted, setMounted] = useState(false);
+  // ธีมที่หน้านี้แสดง = ธีมที่ component กลางต้องใช้ (ดู lib/use-standalone-theme.ts)
+  useStandaloneTheme(dark);
 
   useEffect(() => {
     const stored = localStorage.getItem('bill-theme');
@@ -440,11 +445,11 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
 
   if (error || !bill) {
     return (
-      <div className={`min-h-screen flex items-center justify-center p-4 ${dark ? 'bg-slate-900' : 'bg-gray-50'}`}>
+      <div className={`min-h-screen flex items-center justify-center p-4 bg-gray-50 dark:bg-slate-900`}>
         <div className="text-center">
-          <DocumentIcon className={`w-16 h-16 mx-auto mb-4 ${dark ? 'text-slate-600' : 'text-gray-300'}`} />
-          <h1 className={`text-xl font-semibold mb-2 ${dark ? 'text-slate-300' : 'text-gray-700'}`}>ไม่พบบิล</h1>
-          <p className={dark ? 'text-slate-500' : 'text-gray-500'}>{error || 'บิลนี้ไม่มีอยู่หรือถูกยกเลิกแล้ว'}</p>
+          <DocumentIcon className={`w-16 h-16 mx-auto mb-4 text-gray-300 dark:text-slate-600`} />
+          <h1 className={`text-xl font-semibold mb-2 text-gray-700 dark:text-slate-300`}>ไม่พบบิล</h1>
+          <p className="text-gray-500 dark:text-slate-500">{error || 'บิลนี้ไม่มีอยู่หรือถูกยกเลิกแล้ว'}</p>
         </div>
       </div>
     );
@@ -454,6 +459,10 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
 
   const isExpired = bill.is_expired === true;
   const isCancelled = bill.is_cancelled === true;
+  /** ช่องนี้ยังว่างอยู่ไหม — ฟอร์มโชว์เฉพาะช่องที่ขาด (โหมดแก้ไขโชว์ครบ) */
+  const isMissing = (field: string) => (bill.missing_delivery_fields || []).includes(field);
+  /** ช่องนี้แสดงอยู่บนฟอร์มไหม — ที่ไม่แสดงต้องไม่เอามาบังคับตอนบันทึก */
+  const fieldShown = (field: string) => editingDelivery || isMissing(field);
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr + (dateStr.includes('T') ? '' : 'T00:00:00')).toLocaleDateString('th-TH', {
@@ -473,12 +482,12 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
       {/* Desktop table */}
       <table className="w-full hidden md:table print:hidden">
         <thead>
-          <tr className={`border-b-2 ${dark ? 'border-slate-600' : 'border-gray-200'}`}>
-            <th className={`text-left py-2.5 font-medium text-sm ${dark ? 'text-slate-400' : 'text-gray-500'}`}>#</th>
-            <th className={`text-left py-2.5 font-medium text-sm pl-3 ${dark ? 'text-slate-400' : 'text-gray-500'}`}>สินค้า</th>
-            <th className={`text-right py-2.5 font-medium text-sm pr-4 ${dark ? 'text-slate-400' : 'text-gray-500'}`}>จำนวน</th>
-            <th className={`text-right py-2.5 font-medium text-sm pr-4 ${dark ? 'text-slate-400' : 'text-gray-500'}`}>ส่วนลด</th>
-            <th className={`text-right py-2.5 font-medium text-sm ${dark ? 'text-slate-400' : 'text-gray-500'}`}>รวม</th>
+          <tr className={`border-b-2 border-gray-200 dark:border-slate-600`}>
+            <th className={`text-left py-2.5 font-medium text-sm text-gray-500 dark:text-slate-400`}>#</th>
+            <th className={`text-left py-2.5 font-medium text-sm pl-3 text-gray-500 dark:text-slate-400`}>สินค้า</th>
+            <th className={`text-right py-2.5 font-medium text-sm pr-4 text-gray-500 dark:text-slate-400`}>จำนวน</th>
+            <th className={`text-right py-2.5 font-medium text-sm pr-4 text-gray-500 dark:text-slate-400`}>ส่วนลด</th>
+            <th className={`text-right py-2.5 font-medium text-sm text-gray-500 dark:text-slate-400`}>รวม</th>
           </tr>
         </thead>
         <tbody>
@@ -486,9 +495,9 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
             const hasPromo = item.promotion_components && item.promotion_components.length > 0;
             return (
               <Fragment key={idx}>
-                <tr className={`border-b ${dark ? 'border-slate-700' : 'border-gray-100'}`}>
-                  <td className={`py-3 align-top ${dark ? 'text-slate-500' : 'text-gray-400'}`}>{startIndex + idx + 1}</td>
-                  <td className={`py-3 pl-3 ${dark ? 'text-white' : 'text-gray-900'}`}>
+                <tr className={`border-b border-gray-100 dark:border-slate-700`}>
+                  <td className={`py-3 align-top text-gray-400 dark:text-slate-500`}>{startIndex + idx + 1}</td>
+                  <td className={`py-3 pl-3 text-gray-900 dark:text-white`}>
                     <div className="flex items-center gap-3">
                       <ProductImageThumb src={item.image} alt={item.product_name} size="md" />
                       <div>
@@ -498,41 +507,41 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                             {isCompositeLine(item) ? 'ชุดประกอบ' : 'โปรโมชั่น'} ({item.promotion_components!.length} รายการ)
                           </span>
                         ) : item.product_code ? (
-                          <div className={`text-sm font-mono ${dark ? 'text-slate-500' : 'text-gray-400'}`}>SKU: {item.product_code}</div>
+                          <div className={`text-sm font-mono text-gray-400 dark:text-slate-500`}>SKU: {item.product_code}</div>
                         ) : null}
                         {item.notes && (
-                          <div className={`text-base font-medium whitespace-pre-wrap ${dark ? 'text-amber-400' : 'text-amber-700'}`}>※ {item.notes}</div>
+                          <div className={`text-base font-medium whitespace-pre-wrap text-amber-700 dark:text-amber-400`}>※ {item.notes}</div>
                         )}
                       </div>
                     </div>
                   </td>
-                  <td className={`py-3 text-right align-top text-base whitespace-nowrap pr-4 ${dark ? 'text-slate-300' : 'text-gray-700'}`}>
-                    {item.quantity} <span className={`${dark ? 'text-slate-500' : 'text-gray-400'}`}>x</span> {formatNumber(item.unit_price)}
+                  <td className={`py-3 text-right align-top text-base whitespace-nowrap pr-4 text-gray-700 dark:text-slate-300`}>
+                    {item.quantity} <span className={`text-gray-400 dark:text-slate-500`}>x</span> {formatNumber(item.unit_price)}
                   </td>
-                  <td className={`py-3 text-right align-top text-base pr-4 ${dark ? 'text-slate-500' : 'text-gray-400'}`}>
+                  <td className={`py-3 text-right align-top text-base pr-4 text-gray-400 dark:text-slate-500`}>
                     {item.discount_amount > 0 ? `-${formatPrice(item.discount_amount)}` : ''}
                   </td>
-                  <td className={`py-3 text-right font-semibold align-top text-base ${dark ? 'text-white' : 'text-gray-900'}`}>{formatPrice(item.total)}</td>
+                  <td className={`py-3 text-right font-semibold align-top text-base text-gray-900 dark:text-white`}>{formatPrice(item.total)}</td>
                 </tr>
                 {hasPromo && item.promotion_components!.map((comp, ci) => (
-                  <tr key={`${idx}-c${ci}`} className={dark ? 'bg-slate-800/50' : 'bg-gray-50/50'}>
+                  <tr key={`${idx}-c${ci}`} className="bg-gray-50/50 dark:bg-slate-800/50">
                     <td></td>
                     <td className="py-1.5 pl-6">
                       <div className="flex items-center gap-2">
                         <ProductImageThumb src={comp.image} alt="" size="xs" />
                         <div className="min-w-0">
-                          <div className={`text-sm line-clamp-2 ${dark ? 'text-slate-400' : 'text-gray-500'}`}>{comp.product_name}</div>
+                          <div className={`text-sm line-clamp-2 text-gray-500 dark:text-slate-400`}>{comp.product_name}</div>
                           <div className="flex items-center gap-1.5">
-                            {comp.product_code && <span className={`text-xs font-mono ${dark ? 'text-slate-600' : 'text-gray-400'}`}>{comp.product_code}</span>}
+                            {comp.product_code && <span className={`text-xs font-mono text-gray-400 dark:text-slate-600`}>{comp.product_code}</span>}
                             {comp.role === 'gift' && <span className="text-[10px] px-1 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">แถมฟรี</span>}
                             {comp.role === 'discounted' && <span className="text-[10px] px-1 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">ราคาพิเศษ</span>}
                           </div>
                         </div>
                       </div>
                     </td>
-                    <td className={`py-1.5 text-right text-sm pr-4 ${dark ? 'text-slate-500' : 'text-gray-400'}`}>×{comp.quantity}</td>
+                    <td className={`py-1.5 text-right text-sm pr-4 text-gray-400 dark:text-slate-500`}>×{comp.quantity}</td>
                     <td></td>
-                    <td className={`py-1.5 text-right text-sm ${dark ? 'text-slate-500' : 'text-gray-400'}`}>
+                    <td className={`py-1.5 text-right text-sm text-gray-400 dark:text-slate-500`}>
                       {/* ส่วนประกอบของสินค้าชุดไม่มีราคาแยก — ราคาชุดอยู่ที่แถวหลัก */}
                       {!isCompositeLine(item) && comp.default_price ? `฿${formatNumber(comp.default_price)}` : ''}
                     </td>
@@ -550,40 +559,40 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
           const hasPromo = item.promotion_components && item.promotion_components.length > 0;
           return (
             <div key={idx}>
-              <div className={`flex items-center gap-3 py-3 border-b last:border-0 ${dark ? 'border-slate-700' : 'border-gray-100'}`}>
+              <div className={`flex items-center gap-3 py-3 border-b last:border-0 border-gray-100 dark:border-slate-700`}>
                 <ProductImageThumb src={item.image} alt={item.product_name} size="lg" />
                 <div className="flex-1 min-w-0">
-                  <div className={`font-medium text-base truncate ${dark ? 'text-white' : 'text-gray-900'}`}>{productDisplayName({ product_name: item.product_name, variation_label: item.variation_label })}</div>
+                  <div className={`font-medium text-base truncate text-gray-900 dark:text-white`}>{productDisplayName({ product_name: item.product_name, variation_label: item.variation_label })}</div>
                   {hasPromo ? (
                     <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${isCompositeLine(item) ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'}`}>
                       {isCompositeLine(item) ? 'ชุดประกอบ' : 'โปรโมชั่น'} ({item.promotion_components!.length} รายการ)
                     </span>
                   ) : item.product_code ? (
-                    <div className={`text-sm font-mono ${dark ? 'text-slate-500' : 'text-gray-400'}`}>SKU: {item.product_code}</div>
+                    <div className={`text-sm font-mono text-gray-400 dark:text-slate-500`}>SKU: {item.product_code}</div>
                   ) : null}
                   {item.notes && (
-                    <div className={`text-base font-medium whitespace-pre-wrap ${dark ? 'text-amber-400' : 'text-amber-700'}`}>※ {item.notes}</div>
+                    <div className={`text-base font-medium whitespace-pre-wrap text-amber-700 dark:text-amber-400`}>※ {item.notes}</div>
                   )}
-                  <div className={`text-sm mt-0.5 ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
+                  <div className={`text-sm mt-0.5 text-gray-500 dark:text-slate-400`}>
                     {item.quantity} x ฿{formatNumber(item.unit_price)}
                     {item.discount_amount > 0 && <span className="text-red-400 ml-1">-฿{formatPrice(item.discount_amount)}</span>}
                   </div>
                 </div>
-                <div className={`text-base font-bold flex-shrink-0 ${dark ? 'text-white' : 'text-gray-900'}`}>฿{formatPrice(item.total)}</div>
+                <div className={`text-base font-bold flex-shrink-0 text-gray-900 dark:text-white`}>฿{formatPrice(item.total)}</div>
               </div>
               {hasPromo && (
-                <div className={`ml-6 pl-3 border-l-2 ${dark ? 'border-purple-800' : 'border-purple-200'} py-1 space-y-1`}>
+                <div className={`ml-6 pl-3 border-l-2 border-purple-200 dark:border-purple-800 py-1 space-y-1`}>
                   {item.promotion_components!.map((comp, ci) => (
                     <div key={ci} className="flex items-center gap-2">
                       <ProductImageThumb src={comp.image} alt="" size="xs" />
                       <div className="flex-1 min-w-0">
-                        <div className={`text-sm line-clamp-2 ${dark ? 'text-slate-400' : 'text-gray-500'}`}>{comp.product_name}</div>
+                        <div className={`text-sm line-clamp-2 text-gray-500 dark:text-slate-400`}>{comp.product_name}</div>
                         <div className="flex items-center gap-1">
                           {comp.role === 'gift' && <span className="text-[10px] px-1 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">แถมฟรี</span>}
                           {comp.role === 'discounted' && <span className="text-[10px] px-1 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">ราคาพิเศษ</span>}
                         </div>
                       </div>
-                      <span className={`text-sm flex-shrink-0 ${dark ? 'text-slate-500' : 'text-gray-400'}`}>×{comp.quantity}</span>
+                      <span className={`text-sm flex-shrink-0 text-gray-400 dark:text-slate-500`}>×{comp.quantity}</span>
                     </div>
                   ))}
                 </div>
@@ -631,15 +640,13 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
   );
 
   return (
-    <div className={`min-h-screen print:bg-white transition-colors ${dark ? 'bg-slate-900' : 'bg-gray-100'}`} suppressHydrationWarning>
+    <div className={`min-h-screen print:bg-white transition-colors bg-gray-100 dark:bg-slate-900`} suppressHydrationWarning>
       {/* Top bar — hidden in print */}
-      <div className={`print:hidden sticky top-0 px-4 py-3 flex items-center justify-between z-10 border-b transition-colors ${
-        dark ? 'bg-slate-900 border-slate-700' : 'bg-white border-gray-200'
-      }`}>
+      <div className={`print:hidden sticky top-0 px-4 py-3 flex items-center justify-between z-10 border-b transition-colors bg-white border-gray-200 dark:bg-slate-900 dark:border-slate-700`}>
         <div className="flex items-center gap-2">
-          <Image src="/logo.svg" alt="Logo" width={80} height={52} className={`h-8 w-auto ${dark ? 'brightness-0 invert' : ''}`} priority />
+          <Image src="/logo.svg" alt="Logo" width={80} height={52} className={`h-8 w-auto dark:brightness-0 dark:invert`} priority />
           <span
-            className={`id-text-clickable ml-2 ${dark ? 'text-slate-300 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`}
+            className={`id-text-clickable ml-2 text-gray-500 hover:text-gray-900 dark:text-slate-300 dark:hover:text-white`}
             onClick={() => copy(bill.order_number, 'เลขคำสั่งซื้อ')}
             title="คัดลอก"
           >#{bill.order_number}</span>
@@ -647,9 +654,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
         <div className="flex items-center gap-2">
           <button
             onClick={toggleDark}
-            className={`p-2 rounded-lg transition-colors ${
-              dark ? 'text-slate-300 hover:text-white hover:bg-white/10' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
-            }`}
+            className={`p-2 rounded-lg transition-colors text-gray-500 hover:text-gray-900 hover:bg-gray-100 dark:text-slate-300 dark:hover:text-white dark:hover:bg-white/10`}
             title={dark ? 'สลับเป็น Light Mode' : 'สลับเป็น Dark Mode'}
           >
             {dark ? <LightThemeIcon className="w-4 h-4" /> : <DarkThemeIcon className="w-4 h-4" />}
@@ -686,7 +691,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
       {/* Bill Content */}
       <div className="max-w-2xl lg:max-w-5xl mx-auto my-4 md:my-6 print:my-0 print:max-w-none px-3 md:px-0">
         <div className="lg:grid lg:grid-cols-[1fr,440px] lg:gap-6 print:block">
-        <div className={`rounded-xl shadow-sm print:shadow-none print:rounded-none p-5 md:p-8 transition-colors ${dark ? 'bg-[#16213E] shadow-black/20' : 'bg-white'}`}>
+        <div className={`rounded-xl shadow-sm print:shadow-none print:rounded-none p-5 md:p-8 transition-colors bg-white dark:bg-[#16213E] dark:shadow-black/20`}>
 
           {/* Header — Company logo + Order details right */}
           <div className="flex items-start justify-between mb-5 print:mb-4">
@@ -694,21 +699,21 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
               {bill.company_logo ? (
                 <img src={bill.company_logo} alt={bill.company_name || ''} className="w-14 h-14 rounded-full object-cover print:w-16 print:h-16 flex-shrink-0" />
               ) : (
-                <div className={`w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold flex-shrink-0 ${dark ? 'bg-slate-700 text-white' : 'bg-gray-200 text-gray-600'}`}>
+                <div className={`w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold flex-shrink-0 bg-gray-200 text-gray-600 dark:bg-slate-700 dark:text-white`}>
                   {(bill.company_name || '?').charAt(0)}
                 </div>
               )}
               <div>
-                <div className={`text-lg font-bold ${dark ? 'text-white' : 'text-gray-900'}`}>{bill.company_name || ''}</div>
-                <p className={`text-sm ${dark ? 'text-slate-500' : 'text-gray-400'}`}>{billTitle}</p>
+                <div className={`text-lg font-bold text-gray-900 dark:text-white`}>{bill.company_name || ''}</div>
+                <p className={`text-sm text-gray-400 dark:text-slate-500`}>{billTitle}</p>
               </div>
             </div>
             <div className="text-right space-y-0.5">
-              <div className={`font-bold font-mono text-base ${dark ? 'text-white' : 'text-gray-900'} cursor-pointer hover:text-primary transition-colors print:cursor-default print:hover:text-inherit`} onClick={() => copy(bill.order_number, 'เลขคำสั่งซื้อ')} title="คัดลอก">{bill.order_number}</div>
-              <div className={`text-sm ${dark ? 'text-slate-400' : 'text-gray-600'}`} suppressHydrationWarning>{formatDate(bill.order_date)}</div>
+              <div className={`font-bold font-mono text-base text-gray-900 dark:text-white cursor-pointer hover:text-primary transition-colors print:cursor-default print:hover:text-inherit`} onClick={() => copy(bill.order_number, 'เลขคำสั่งซื้อ')} title="คัดลอก">{bill.order_number}</div>
+              <div className={`text-sm text-gray-600 dark:text-slate-400`} suppressHydrationWarning>{formatDate(bill.order_date)}</div>
               {/* หน้านี้มีสวิตช์ธีมของตัวเอง ไม่ได้ใช้คลาส .dark ของ Tailwind — `st-dark`
                   สลับชุดสีของ badge ให้ (ดูตัวแปร --st-* ใน globals.css) */}
-              <div className={`flex items-center justify-end gap-1.5 mt-1 print:hidden ${dark ? 'st-dark' : ''}`}>
+              <div className={`flex items-center justify-end gap-1.5 mt-1 print:hidden dark:st-dark`}>
                 {isExpired || isCancelled ? (
                   <OrderStatusBadge audience="customer" status="cancelled" expired={isExpired} />
                 ) : (
@@ -725,40 +730,49 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
               บอกแค่ "คืออะไร" ไม่ได้บอก "ถึงไหน" · ใช้แถบเดียวกับหน้าร้าน
               (lib/order-progress) สองหน้าจะได้ไม่พูดคนละเรื่อง */}
           {!isExpired && !isCancelled && (
-            <div className={`rounded-lg border p-4 mb-5 print:hidden ${dark ? 'border-slate-700 bg-slate-800/40' : 'border-gray-200 bg-white'}`}>
+            <div className={`rounded-lg border p-4 mb-5 print:hidden border-gray-200 bg-white dark:border-slate-700 dark:bg-slate-800/40`}>
               <OrderProgress order={bill} dark={dark} />
             </div>
           )}
 
           {/* Expired banner */}
           {isExpired && (
-            <div className={`rounded-lg p-4 mb-5 flex items-start gap-3 ${dark ? 'bg-red-900/20 border border-red-800' : 'bg-red-50 border border-red-200'}`}>
-              <WarningIcon className={`w-5 h-5 flex-shrink-0 mt-0.5 ${dark ? 'text-red-400' : 'text-red-500'}`} />
+            <div className={`rounded-lg p-4 mb-5 flex items-start gap-3 bg-red-50 border border-red-200 dark:bg-red-900/20 dark:border dark:border-red-800`}>
+              <WarningIcon className={`w-5 h-5 flex-shrink-0 mt-0.5 text-red-500 dark:text-red-400`} />
               <div>
-                <div className={`font-semibold text-base ${dark ? 'text-red-400' : 'text-red-700'}`}>บิลนี้หมดอายุแล้ว</div>
-                <p className={`text-sm mt-0.5 ${dark ? 'text-red-500/80' : 'text-red-600/80'}`}>กรุณาติดต่อร้านค้าเพื่อสร้างบิลใหม่</p>
+                <div className={`font-semibold text-base text-red-700 dark:text-red-400`}>บิลนี้หมดอายุแล้ว</div>
+                <p className={`text-sm mt-0.5 text-red-600/80 dark:text-red-500/80`}>กรุณาติดต่อร้านค้าเพื่อสร้างบิลใหม่</p>
               </div>
             </div>
           )}
 
           {/* Cancelled banner */}
           {isCancelled && (
-            <div className={`rounded-lg p-4 mb-5 flex items-start gap-3 ${dark ? 'bg-gray-800/50 border border-gray-700' : 'bg-gray-100 border border-gray-300'}`}>
-              <WarningIcon className={`w-5 h-5 flex-shrink-0 mt-0.5 ${dark ? 'text-gray-400' : 'text-gray-500'}`} />
+            <div className={`rounded-lg p-4 mb-5 flex items-start gap-3 bg-gray-100 border border-gray-300 dark:bg-gray-800/50 dark:border dark:border-gray-700`}>
+              <WarningIcon className={`w-5 h-5 flex-shrink-0 mt-0.5 text-gray-500 dark:text-gray-400`} />
               <div>
-                <div className={`font-semibold text-base ${dark ? 'text-gray-300' : 'text-gray-700'}`}>บิลนี้ถูกยกเลิกแล้ว</div>
-                <p className={`text-sm mt-0.5 ${dark ? 'text-gray-500' : 'text-gray-500'}`}>กรุณาติดต่อร้านค้าหากมีข้อสงสัย</p>
+                <div className={`font-semibold text-base text-gray-700 dark:text-gray-300`}>บิลนี้ถูกยกเลิกแล้ว</div>
+                <p className={`text-sm mt-0.5 text-gray-500 dark:text-gray-500`}>กรุณาติดต่อร้านค้าหากมีข้อสงสัย</p>
               </div>
             </div>
           )}
 
           {/* Delivery Info Form — shown when no customer and no delivery info yet, or when editing (hidden for cancelled/expired) */}
           {!isCancelled && !isExpired && (bill.needs_delivery_info || editingDelivery) && (
-            <div className={`rounded-lg p-4 mb-5 border-2 border-dashed ${dark ? 'border-orange-500/50 bg-orange-900/10' : 'border-orange-300 bg-orange-50'}`}>
-              <div className={`text-sm font-medium mb-3 ${dark ? 'text-orange-400' : 'text-orange-700'}`}>
-                {editingDelivery ? 'แก้ไขข้อมูลจัดส่ง' : 'กรุณากรอกข้อมูลจัดส่ง'}
+            <div className={`rounded-lg p-4 mb-5 border-2 border-dashed border-orange-300 bg-orange-50 dark:border-orange-500/50 dark:bg-orange-900/10`}>
+              <div className={`text-sm font-medium mb-3 text-orange-700 dark:text-orange-400`}>
+                {/* ขาดบางช่อง = บอกเฉพาะช่องที่ขาด · ของเดิมขึ้น "กรุณากรอกข้อมูลจัดส่ง"
+                    ทั้งที่ชื่อ/ที่อยู่เติมไว้ให้แล้ว ลูกค้าเลยไม่รู้ว่าต้องกรอกใหม่หมดหรือเปล่า */}
+                {editingDelivery
+                  ? 'แก้ไขข้อมูลจัดส่ง'
+                  : (bill.missing_delivery_fields || []).length > 0
+                    ? `กรุณากรอก${(bill.missing_delivery_fields || []).join(' · ')}`
+                    : 'กรุณากรอกข้อมูลจัดส่ง'}
               </div>
               <div className="space-y-3">
+                {/* กด "แก้ไข" = เห็นครบทุกช่อง · เข้ามาแล้วข้อมูลขาด = เห็นเฉพาะช่องที่ขาด
+                    ไม่ต้องเลื่อนผ่านช่องที่กรอกไว้แล้ว (เจ้าของท้วง 18 ก.ย. 2026) */}
+                {(editingDelivery || isMissing('ชื่อผู้รับ')) && (
                 <div>
                   <label className="block text-sm mb-1" style={{ color: dark ? '#cbd5e1' : '#4b5563' }}>ชื่อผู้รับ *</label>
                   <input type="text" value={deliveryName} onChange={(e) => { setDeliveryName(e.target.value); setDeliveryErrors(prev => { const { name, ...rest } = prev; return rest; }); }}
@@ -767,6 +781,8 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                     className="w-full px-3 py-2.5 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-orange-400" />
                   {deliveryErrors.name && <p className="text-red-500 text-xs mt-1">{deliveryErrors.name}</p>}
                 </div>
+                )}
+                {(editingDelivery || isMissing('เบอร์โทรศัพท์')) && (
                 <div>
                   <label className="block text-sm mb-1" style={{ color: dark ? '#cbd5e1' : '#4b5563' }}>เบอร์โทรศัพท์ *</label>
                   <input {...PHONE_INPUT_PROPS} value={deliveryPhone} onChange={onPhoneChange(v => { setDeliveryPhone(v); setDeliveryErrors(prev => { const { phone, ...rest } = prev; return rest; }); })}
@@ -775,6 +791,8 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                     className="w-full px-3 py-2.5 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-orange-400" />
                   {deliveryErrors.phone && <p className="text-red-500 text-xs mt-1">{deliveryErrors.phone}</p>}
                 </div>
+                )}
+                {(editingDelivery || isMissing('ที่อยู่จัดส่ง')) && (
                 <div>
                   <label className="block text-sm mb-1" style={{ color: dark ? '#cbd5e1' : '#4b5563' }}>อีเมล</label>
                   <input type="email" inputMode="email" autoComplete="email" value={deliveryEmail} onChange={(e) => { setDeliveryEmail(e.target.value); setDeliveryErrors(prev => { const { email, ...rest } = prev; return rest; }); }}
@@ -784,6 +802,8 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                     className="w-full px-3 py-2.5 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-orange-400" />
                   {deliveryErrors.email && <p className="text-red-500 text-xs mt-1">{deliveryErrors.email}</p>}
                 </div>
+                )}
+                {(editingDelivery || isMissing('ที่อยู่จัดส่ง')) && (
                 <div>
                   <label className="block text-sm mb-1" style={{ color: dark ? '#cbd5e1' : '#4b5563' }}>ที่อยู่จัดส่ง *</label>
                   <textarea value={deliveryAddress} onChange={(e) => { setDeliveryAddress(e.target.value); setDeliveryErrors(prev => { const { address, ...rest } = prev; return rest; }); }}
@@ -793,6 +813,8 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                     className="w-full px-3 py-2.5 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-orange-400" />
                   {deliveryErrors.address && <p className="text-red-500 text-xs mt-1">{deliveryErrors.address}</p>}
                 </div>
+                )}
+                {(editingDelivery || isMissing('ที่อยู่จัดส่ง')) && (<>
                 {/* ช่องเดียวจบแบบเดียวกับหน้าร้านออนไลน์ — ลูกค้าเป็นคนกรอกเองทั้งคู่
                     (เดิมเป็นสี่ช่องเปล่าไม่มี label ต้องเดาว่าช่องไหนคืออะไร) */}
                 <ThaiAddressInput
@@ -810,20 +832,27 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                   labelClassName="block text-sm mb-1"
                   inputClassName="w-full px-3 py-2.5 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-orange-400"
                   inputStyle={dark ? { backgroundColor: '#1e293b', borderColor: '#475569', color: '#fff' } : { backgroundColor: '#fff', borderColor: '#d1d5db', color: '#111827' }}
-                  dropdownClassName={`absolute z-50 border rounded-lg shadow-lg max-h-[70vh] overflow-y-auto overflow-x-hidden ${dark ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'}`}
+                  dropdownClassName={`absolute z-50 border rounded-lg shadow-lg max-h-[70vh] overflow-y-auto overflow-x-hidden bg-white border-gray-200 dark:bg-slate-800 dark:border-slate-600`}
                   dropdownStyle={dark ? { color: '#e2e8f0', borderColor: '#475569' } : { color: '#111827', borderColor: '#e5e7eb' }}
                 />
                 {(deliveryErrors.province || deliveryErrors.postal_code) && (
                   <p className="text-red-500 text-xs -mt-1 mb-2">{deliveryErrors.province || deliveryErrors.postal_code}</p>
                 )}
+                </>)}
                 <Button
                   variant="primary"
                   fullWidth
                   loading={savingDelivery}
-                  disabled={!deliveryName || !deliveryPhone || !deliveryAddress || !deliveryProvince || !deliveryPostalCode}
+                  // ⛔ บังคับเฉพาะช่องที่โชว์อยู่ — ของเดิมบังคับจังหวัด/รหัสไปรษณีย์เสมอ
+                  // บิลที่ที่อยู่เป็นข้อความเดียว (ไม่มีจังหวัดแยก) จึงกดบันทึกไม่ได้เลย
+                  disabled={
+                    (fieldShown('ชื่อผู้รับ') && !deliveryName)
+                    || (fieldShown('เบอร์โทรศัพท์') && !deliveryPhone)
+                    || (fieldShown('ที่อยู่จัดส่ง') && (!deliveryAddress || !deliveryProvince || !deliveryPostalCode))
+                  }
                   onClick={async () => {
                     const errors: Record<string, string> = {};
-                    if (!deliveryName.trim()) errors.name = 'กรุณากรอกชื่อผู้รับ';
+                    if (fieldShown('ชื่อผู้รับ') && !deliveryName.trim()) errors.name = 'กรุณากรอกชื่อผู้รับ';
                     const cleanPhone = deliveryPhone.replace(/[-\s]/g, '');
                     if (!deliveryPhone.trim()) {
                       errors.phone = 'กรุณากรอกเบอร์โทรศัพท์';
@@ -833,12 +862,14 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                     if (!isValidEmail(deliveryEmail)) {
                       errors.email = EMAIL_INVALID_MESSAGE;
                     }
-                    if (!deliveryAddress.trim()) errors.address = 'กรุณากรอกที่อยู่จัดส่ง';
-                    if (!deliveryProvince.trim()) errors.province = 'กรุณากรอกจังหวัด';
-                    if (!deliveryPostalCode.trim()) {
-                      errors.postal_code = 'กรุณากรอกรหัสไปรษณีย์';
-                    } else if (!/^\d{5}$/.test(deliveryPostalCode.trim())) {
-                      errors.postal_code = 'รหัสไปรษณีย์ต้องเป็นตัวเลข 5 หลัก';
+                    if (fieldShown('ที่อยู่จัดส่ง')) {
+                      if (!deliveryAddress.trim()) errors.address = 'กรุณากรอกที่อยู่จัดส่ง';
+                      if (!deliveryProvince.trim()) errors.province = 'กรุณากรอกจังหวัด';
+                      if (!deliveryPostalCode.trim()) {
+                        errors.postal_code = 'กรุณากรอกรหัสไปรษณีย์';
+                      } else if (!/^\d{5}$/.test(deliveryPostalCode.trim())) {
+                        errors.postal_code = 'รหัสไปรษณีย์ต้องเป็นตัวเลข 5 หลัก';
+                      }
                     }
                     if (Object.keys(errors).length > 0) {
                       setDeliveryErrors(errors);
@@ -888,26 +919,27 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
           )}
 
           {/* Customer Info + Delivery/Notes — 2 column (hide when form is shown) */}
-          {(!bill.needs_delivery_info && !editingDelivery || bill.customer?.name || bill.delivery_date || bill.notes) && !editingDelivery && (
+          {/* ฟอร์มกรอกที่อยู่เปิดอยู่ = ไม่ต้องโชว์กล่องสรุปซ้ำอีกกล่อง (ข้อมูลชุดเดียวกัน) */}
+          {(!bill.needs_delivery_info || bill.delivery_date || bill.notes) && !editingDelivery && (
           <div className="grid grid-cols-1 gap-4 mb-5 print:grid-cols-2 print:gap-4">
             {/* Left: Customer / Delivery info */}
             {bill.customer?.name && (
-            <div className={`print:bg-transparent rounded-lg p-4 print:p-0 ${dark ? 'bg-slate-900' : 'bg-gray-50'}`}>
+            <div className={`print:bg-transparent rounded-lg p-4 print:p-0 bg-gray-50 dark:bg-slate-900`}>
               <div className="flex items-center justify-between mb-1">
-                <div className={`text-sm font-medium ${dark ? 'text-slate-500' : 'text-gray-400'}`}>
+                <div className={`text-sm font-medium text-gray-400 dark:text-slate-500`}>
                   ข้อมูลจัดส่ง
                 </div>
                 <button
                   type="button"
                   onClick={handleEditDelivery}
-                  className={`text-xs flex items-center gap-1 px-2 py-0.5 rounded-md transition-colors ${dark ? 'text-slate-400 hover:text-white hover:bg-slate-700' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-200'}`}
+                  className={`text-xs flex items-center gap-1 px-2 py-0.5 rounded-md transition-colors text-gray-400 hover:text-gray-700 hover:bg-gray-200 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-700`}
                 >
                   <EditIcon className="w-3 h-3" />
                   แก้ไข
                 </button>
               </div>
-              <div className={`text-lg font-bold ${dark ? 'text-white' : 'text-gray-900'}`}>{bill.customer.name}</div>
-              <div className={`text-sm space-y-0.5 mt-1 ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
+              <div className={`text-lg font-bold text-gray-900 dark:text-white`}>{bill.customer.name}</div>
+              <div className={`text-sm space-y-0.5 mt-1 text-gray-500 dark:text-slate-400`}>
                 {bill.customer.contact_person && <div>ผู้ติดต่อ: {bill.customer.contact_person}</div>}
                 {bill.customer.phone && <div>โทร: {bill.customer.phone}</div>}
                 {bill.customer.email && <div>อีเมล: {bill.customer.email}</div>}
@@ -928,26 +960,26 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
 
             {/* Right: Delivery date + Notes — only show when data exists */}
             {(bill.delivery_date || bill.delivery_slot_label || bill.notes) && (
-            <div className={`print:bg-transparent rounded-lg p-4 print:p-0 ${dark ? 'bg-slate-900' : 'bg-gray-50'}`}>
+            <div className={`print:bg-transparent rounded-lg p-4 print:p-0 bg-gray-50 dark:bg-slate-900`}>
               {(bill.delivery_date || bill.delivery_slot_label) && (
                 <div className="mb-2">
-                  <div className={`text-sm font-medium mb-1 ${dark ? 'text-slate-500' : 'text-gray-400'}`}>กำหนดส่ง</div>
+                  <div className={`text-sm font-medium mb-1 text-gray-400 dark:text-slate-500`}>กำหนดส่ง</div>
                   {bill.delivery_date && (
-                    <div className={`text-base font-semibold ${dark ? 'text-white' : 'text-gray-900'}`} suppressHydrationWarning>{formatDate(bill.delivery_date)}</div>
+                    <div className={`text-base font-semibold text-gray-900 dark:text-white`} suppressHydrationWarning>{formatDate(bill.delivery_date)}</div>
                   )}
                   {/* รอบเวลาที่ลูกค้าเลือก = คำสัญญาที่ให้ไว้ตอนกดสั่ง ต้องเห็นบนบิลด้วย */}
                   {bill.delivery_slot_label && (
-                    <div className={`text-base font-semibold ${dark ? 'text-white' : 'text-gray-900'}`}>{bill.delivery_slot_label}</div>
+                    <div className={`text-base font-semibold text-gray-900 dark:text-white`}>{bill.delivery_slot_label}</div>
                   )}
                   {bill.delivery_zone_label && (
-                    <div className={`text-sm ${dark ? 'text-slate-400' : 'text-gray-500'}`}>{bill.delivery_zone_label}</div>
+                    <div className={`text-sm text-gray-500 dark:text-slate-400`}>{bill.delivery_zone_label}</div>
                   )}
                 </div>
               )}
               {bill.notes && (
                 <div>
-                  <div className={`text-sm font-medium mb-1 ${dark ? 'text-slate-500' : 'text-gray-400'}`}>หมายเหตุ</div>
-                  <div className={`text-base ${dark ? 'text-slate-300' : 'text-gray-700'}`}>{bill.notes}</div>
+                  <div className={`text-sm font-medium mb-1 text-gray-400 dark:text-slate-500`}>หมายเหตุ</div>
+                  <div className={`text-base text-gray-700 dark:text-slate-300`}>{bill.notes}</div>
                 </div>
               )}
             </div>
@@ -965,17 +997,17 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                   .reduce((sum, b) => sum + b.items.length, 0);
 
                 return (
-                  <div key={branchIdx} className={`border rounded-lg overflow-hidden print:border-gray-300 print:rounded-none ${dark ? 'border-slate-600' : 'border-gray-200'}`}>
+                  <div key={branchIdx} className={`border rounded-lg overflow-hidden print:border-gray-300 print:rounded-none border-gray-200 dark:border-slate-600`}>
                     {/* Branch header */}
-                    <div className={`print:bg-transparent px-4 py-3 border-b print:border-gray-300 ${dark ? 'bg-slate-900 border-slate-600' : 'bg-gray-50 border-gray-200'}`}>
+                    <div className={`print:bg-transparent px-4 py-3 border-b print:border-gray-300 bg-gray-50 border-gray-200 dark:bg-slate-900 dark:border-slate-600`}>
                       <div className="flex items-start gap-2">
                         <LocationIcon className="w-4 h-4 text-primary print:text-black flex-shrink-0 mt-0.5" />
-                        <div className={`text-sm ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
-                          <span className={`font-bold text-base ${dark ? 'text-slate-200' : 'text-gray-800'}`}>{branch.address_name}</span>
+                        <div className={`text-sm text-gray-500 dark:text-slate-400`}>
+                          <span className={`font-bold text-base text-gray-800 dark:text-slate-200`}>{branch.address_name}</span>
                           {' — '}
                           {[branch.address_line1, branch.district, branch.amphoe, branch.province].filter(Boolean).join(', ')}
                           {branch.contact_person && (
-                            <span className={dark ? 'text-slate-500' : 'text-gray-400'}> (ผู้รับ: {branch.contact_person}{branch.phone && `, ${branch.phone}`})</span>
+                            <span className="text-gray-400 dark:text-slate-500"> (ผู้รับ: {branch.contact_person}{branch.phone && `, ${branch.phone}`})</span>
                           )}
                         </div>
                       </div>
@@ -988,14 +1020,14 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                     </div>
 
                     {/* Branch subtotal */}
-                    <div className={`px-4 py-2.5 print:bg-transparent border-t print:border-gray-300 flex justify-between items-center ${dark ? 'bg-slate-900 border-slate-600' : 'bg-gray-50 border-gray-200'}`}>
-                      <span className={`text-sm ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
+                    <div className={`px-4 py-2.5 print:bg-transparent border-t print:border-gray-300 flex justify-between items-center bg-gray-50 border-gray-200 dark:bg-slate-900 dark:border-slate-600`}>
+                      <span className={`text-sm text-gray-500 dark:text-slate-400`}>
                         รวมสาขา {branch.address_name}
                         {branch.shipping_fee > 0 && (
-                          <span className={`ml-1 ${dark ? 'text-slate-500' : 'text-gray-300'}`}>(ค่าส่ง ฿{formatPrice(branch.shipping_fee)})</span>
+                          <span className={`ml-1 text-gray-300 dark:text-slate-500`}>(ค่าส่ง ฿{formatPrice(branch.shipping_fee)})</span>
                         )}
                       </span>
-                      <span className={`font-bold text-base ${dark ? 'text-white' : 'text-gray-900'}`}>
+                      <span className={`font-bold text-base text-gray-900 dark:text-white`}>
                         ฿{formatPrice(branchTotal + (branch.shipping_fee || 0))}
                       </span>
                     </div>
@@ -1007,17 +1039,17 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
             <div className="mb-5">
               {/* Single branch address — only show if NO delivery info section above (guest order) */}
               {bill.branches && bill.branches.length === 1 && !bill.customer?.name && (
-                <div className={`print:bg-transparent rounded-lg p-4 mb-4 print:p-0 print:mb-2 ${dark ? 'bg-slate-900' : 'bg-gray-50'}`}>
-                  <div className={`flex items-center gap-2 text-base font-medium mb-0.5 ${dark ? 'text-slate-300' : 'text-gray-700'}`}>
+                <div className={`print:bg-transparent rounded-lg p-4 mb-4 print:p-0 print:mb-2 bg-gray-50 dark:bg-slate-900`}>
+                  <div className={`flex items-center gap-2 text-base font-medium mb-0.5 text-gray-700 dark:text-slate-300`}>
                     <LocationIcon className="w-4 h-4 text-primary print:text-black" />
                     ที่อยู่จัดส่ง
                   </div>
-                  <div className={`text-sm ml-6 ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
-                    <span className={`font-medium ${dark ? 'text-slate-300' : 'text-gray-700'}`}>{bill.branches[0].address_name}</span>
+                  <div className={`text-sm ml-6 text-gray-500 dark:text-slate-400`}>
+                    <span className={`font-medium text-gray-700 dark:text-slate-300`}>{bill.branches[0].address_name}</span>
                     {' — '}
                     {[bill.branches[0].address_line1, bill.branches[0].district, bill.branches[0].amphoe, bill.branches[0].province].filter(Boolean).join(', ')}
                     {bill.branches[0].contact_person && (
-                      <span className={dark ? 'text-slate-500' : 'text-gray-400'}> (ผู้รับ: {bill.branches[0].contact_person}{bill.branches[0].phone && `, ${bill.branches[0].phone}`})</span>
+                      <span className="text-gray-400 dark:text-slate-500"> (ผู้รับ: {bill.branches[0].contact_person}{bill.branches[0].phone && `, ${bill.branches[0].phone}`})</span>
                     )}
                   </div>
                 </div>
@@ -1028,20 +1060,20 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
           )}
 
           {/* Totals — right-aligned for print */}
-          <div className={`border-t-2 pt-3 ${dark ? 'border-slate-600' : 'border-gray-200'}`}>
+          <div className={`border-t-2 pt-3 border-gray-200 dark:border-slate-600`}>
             <div className="md:ml-auto md:w-72 print:ml-auto print:w-64 space-y-1.5">
-              <div className={`flex justify-between text-sm ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
+              <div className={`flex justify-between text-sm text-gray-500 dark:text-slate-400`}>
                 <span>ยอดรวมสินค้า</span>
                 <span>{formatPrice(bill.items.reduce((sum, i) => sum + i.total, 0))}</span>
               </div>
               {bill.shipping_fee > 0 && (
-                <div className={`flex justify-between text-sm ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
+                <div className={`flex justify-between text-sm text-gray-500 dark:text-slate-400`}>
                   <span>ค่าจัดส่ง</span>
                   <span>{formatPrice(bill.shipping_fee)}</span>
                 </div>
               )}
               {bill.discount_amount > 0 && (
-                <div className={`flex justify-between text-sm ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
+                <div className={`flex justify-between text-sm text-gray-500 dark:text-slate-400`}>
                   <span>ส่วนลดรวม{appliedCoupon ? ` (${appliedCoupon})` : ''}</span>
                   <span>-{formatPrice(bill.discount_amount)}</span>
                 </div>
@@ -1055,7 +1087,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                       type="button"
                       onClick={handleRemoveCoupon}
                       disabled={couponBusy}
-                      className={`text-sm underline disabled:opacity-50 ${dark ? 'text-slate-400' : 'text-gray-500'}`}
+                      className={`text-sm underline disabled:opacity-50 text-gray-500 dark:text-slate-400`}
                     >
                       ถอดโค้ดส่วนลด
                     </button>
@@ -1067,7 +1099,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                         onKeyDown={(e) => { if (e.key === 'Enter') handleApplyCoupon(); }}
                         placeholder="โค้ดส่วนลด"
                         aria-label="โค้ดส่วนลด"
-                        className={`flex-1 min-w-0 rounded-lg border px-3 py-2 text-sm ${dark ? 'bg-slate-800 border-slate-600 text-white placeholder-slate-500' : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'}`}
+                        className={`flex-1 min-w-0 rounded-lg border px-3 py-2 text-sm bg-white border-gray-300 text-gray-900 placeholder-gray-400 dark:bg-slate-800 dark:border-slate-600 dark:text-white dark:placeholder-slate-500`}
                       />
                       <button
                         type="button"
@@ -1083,18 +1115,18 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
               )}
               {bill.vat_registered && (
                 <>
-                  <div className={`flex justify-between text-sm pt-1.5 border-t ${dark ? 'text-slate-400 border-slate-700' : 'text-gray-500 border-gray-100'}`}>
+                  <div className={`flex justify-between text-sm pt-1.5 border-t text-gray-500 border-gray-100 dark:text-slate-400 dark:border-slate-700`}>
                     <span>ยอดก่อน VAT</span>
                     <span>{formatPrice(bill.subtotal)}</span>
                   </div>
-                  <div className={`flex justify-between text-sm ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
+                  <div className={`flex justify-between text-sm text-gray-500 dark:text-slate-400`}>
                     <span>VAT 7%</span>
                     <span>{formatPrice(bill.vat_amount)}</span>
                   </div>
                 </>
               )}
-              <div className={`flex justify-between text-lg font-bold pt-2 border-t-2 ${dark ? 'border-slate-600' : 'border-gray-200'}`}>
-                <span className={dark ? 'text-white' : 'text-gray-900'}>ยอดรวมสุทธิ</span>
+              <div className={`flex justify-between text-lg font-bold pt-2 border-t-2 border-gray-200 dark:border-slate-600`}>
+                <span className="text-gray-900 dark:text-white">ยอดรวมสุทธิ</span>
                 <span className="text-primary print:text-black">฿{formatPrice(bill.total_amount)}</span>
               </div>
             </div>
@@ -1105,8 +1137,8 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
           {/* Right column: Payment — sticky on desktop, hidden when expired/cancelled */}
           {!isExpired && !isCancelled && (
           <div className="print:hidden mt-4 lg:mt-0 lg:sticky lg:top-20 lg:self-start">
-          <div className={`rounded-xl shadow-sm p-5 md:p-6 transition-colors space-y-4 ${dark ? 'bg-[#16213E] shadow-black/20' : 'bg-white'}`}>
-            <h3 className={`font-bold text-lg flex items-center gap-2 ${dark ? 'text-white' : 'text-gray-900'}`}>
+          <div className={`rounded-xl shadow-sm p-5 md:p-6 transition-colors space-y-4 bg-white dark:bg-[#16213E] dark:shadow-black/20`}>
+            <h3 className={`font-bold text-lg flex items-center gap-2 text-gray-900 dark:text-white`}>
               <PaymentIcon className="w-5 h-5 text-primary" />
               การชำระเงิน
             </h3>
@@ -1135,7 +1167,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                 ) : (
                   <div className={`border-2 border-primary rounded-xl p-5 space-y-4`}>
                     {/* Single shared file input — outside conditional sections */}
-                    <h3 className={`font-bold text-lg flex items-center gap-2 ${dark ? 'text-white' : 'text-gray-900'}`}>
+                    <h3 className={`font-bold text-lg flex items-center gap-2 text-gray-900 dark:text-white`}>
                       <UploadIcon className="w-5 h-5 text-primary" />
                       ชำระเงิน
                     </h3>
@@ -1211,8 +1243,8 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                             try { qrValue = generatePayload(ppId, { amount: bill.total_amount }); } catch { /* ignore */ }
                             if (!qrValue) return null;
                             return (
-                              <div key={`pp-${idx}`} className={`rounded-xl p-4 flex flex-col items-center gap-3 border ${dark ? 'bg-slate-900 border-slate-600' : 'bg-white border-gray-200'}`}>
-                                <div className={`text-base font-medium ${dark ? 'text-white' : 'text-gray-900'}`}>สแกน QR PromptPay</div>
+                              <div key={`pp-${idx}`} className={`rounded-xl p-4 flex flex-col items-center gap-3 border bg-white border-gray-200 dark:bg-slate-900 dark:border-slate-600`}>
+                                <div className={`text-base font-medium text-gray-900 dark:text-white`}>สแกน QR PromptPay</div>
                                 <div className="bg-white rounded-lg p-3 relative">
                                   <QRCodeSVG
                                     value={qrValue}
@@ -1236,8 +1268,8 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                                     </div>
                                   )}
                                 </div>
-                                <div className={`text-2xl font-bold ${dark ? 'text-white' : 'text-gray-900'}`}>{formatPrice(bill.total_amount)} บาท</div>
-                                <div className={`text-sm ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
+                                <div className={`text-2xl font-bold text-gray-900 dark:text-white`}>{formatPrice(bill.total_amount)} บาท</div>
+                                <div className={`text-sm text-gray-500 dark:text-slate-400`}>
                                   PromptPay: {ppId.length === 13 ? ppId.replace(/(\d{1})(\d{4})(\d{5})(\d{2})(\d{1})/, '$1-$2-$3-$4-$5') : ppId.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3')}
                                 </div>
                                 <button
@@ -1246,7 +1278,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                                     const svg = document.getElementById(`pp-qr-${idx}`) as unknown as SVGSVGElement;
                                     if (svg) saveQrImage(svg, bill.total_amount, ppId, undefined, bill.company_logo || undefined);
                                   }}
-                                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${dark ? 'bg-slate-600 hover:bg-slate-500 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+                                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-slate-600 dark:hover:bg-slate-500 dark:text-white`}
                                 >
                                   <DownloadIcon className="w-4 h-4" />
                                   บันทึก QR เป็นรูป
@@ -1268,9 +1300,9 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                             label="เลือกรูป / ถ่ายรูปสลิป"
                             alt="สลิป"
                             classNames={{
-                              root: `w-full flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-lg py-8 text-base hover:border-primary hover:text-primary transition-colors ${dark ? 'border-slate-600 text-slate-500' : 'border-gray-300 text-gray-400'}`,
+                              root: `w-full flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-lg py-8 text-base hover:border-primary hover:text-primary transition-colors border-gray-300 text-gray-400 dark:border-slate-600 dark:text-slate-500`,
                               preview: 'relative block',
-                              previewImg: `w-full max-h-64 object-contain rounded-lg border ${dark ? 'border-slate-600' : 'border-gray-200'}`,
+                              previewImg: `w-full max-h-64 object-contain rounded-lg border border-gray-200 dark:border-slate-600`,
                               clear: 'absolute top-2 right-2 bg-black/50 text-white rounded-full w-7 h-7 flex items-center justify-center',
                             }}
                           />
@@ -1321,7 +1353,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                               .map((ch, idx) => {
                                 const bank = getBankByCode(ch.config?.bank_code || '');
                                 return (
-                                  <div key={idx} className={`flex items-center gap-3 p-3 rounded-lg border ${dark ? 'bg-slate-900 border-slate-600' : 'bg-gray-50 border-gray-200'}`}>
+                                  <div key={idx} className={`flex items-center gap-3 p-3 rounded-lg border bg-gray-50 border-gray-200 dark:bg-slate-900 dark:border-slate-600`}>
                                     {bank?.logo ? (
                                       <img
                                         src={bank.logo}
@@ -1337,14 +1369,14 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                                       </div>
                                     )}
                                     <div className="flex-1 min-w-0">
-                                      <div className={`font-medium text-base ${dark ? 'text-white' : 'text-gray-900'}`}>{bank?.name_th || ch.config?.bank_code}</div>
+                                      <div className={`font-medium text-base text-gray-900 dark:text-white`}>{bank?.name_th || ch.config?.bank_code}</div>
                                       <div className="flex items-center gap-2">
-                                        <span className={`text-sm font-mono ${dark ? 'text-slate-300' : 'text-gray-600'}`}>{ch.config?.account_number}</span>
+                                        <span className={`text-sm font-mono text-gray-600 dark:text-slate-300`}>{ch.config?.account_number}</span>
                                         {ch.config?.account_number && (
                                           <button
                                             type="button"
                                             onClick={() => handleCopyAccount(ch.config!.account_number!)}
-                                            className={`flex items-center gap-1 px-2 py-0.5 text-xs rounded-md transition-colors ${dark ? 'bg-slate-600 hover:bg-slate-500 text-slate-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-600'}`}
+                                            className={`flex items-center gap-1 px-2 py-0.5 text-xs rounded-md transition-colors bg-gray-200 hover:bg-gray-300 text-gray-600 dark:bg-slate-600 dark:hover:bg-slate-500 dark:text-slate-300`}
                                           >
                                             {copiedAccount === ch.config.account_number ? (
                                               <><ConfirmIcon className="w-3 h-3 text-green-500" /><span className="text-green-500">คัดลอกแล้ว</span></>
@@ -1354,7 +1386,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                                           </button>
                                         )}
                                       </div>
-                                      <div className={`text-sm ${dark ? 'text-slate-500' : 'text-gray-500'}`}>{ch.config?.account_name}</div>
+                                      <div className={`text-sm text-gray-500 dark:text-slate-500`}>{ch.config?.account_name}</div>
                                     </div>
                                   </div>
                                 );
@@ -1363,7 +1395,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                         )}
 
                         {/* ยอดรวมสุทธิ with copy */}
-                        <div className={`flex items-center justify-between p-3 rounded-lg border ${dark ? 'bg-slate-900 border-slate-600' : 'bg-orange-50 border-orange-200'}`}>
+                        <div className={`flex items-center justify-between p-3 rounded-lg border bg-orange-50 border-orange-200 dark:bg-slate-900 dark:border-slate-600`}>
                           <span className="text-sm font-medium" style={{ color: dark ? '#94a3b8' : '#6b7280' }}>ยอดที่ต้องโอน</span>
                           <div className="flex items-center gap-2">
                             <span className="text-lg font-bold text-primary">฿{formatPrice(bill.total_amount)}</span>
@@ -1374,7 +1406,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                                 setCopiedAmount(true);
                                 setTimeout(() => setCopiedAmount(false), 2000);
                               }}
-                              className={`flex items-center gap-1 px-2 py-1 text-xs rounded-md transition-colors ${dark ? 'bg-slate-600 hover:bg-slate-500 text-slate-300' : 'bg-orange-100 hover:bg-orange-200 text-orange-700'}`}
+                              className={`flex items-center gap-1 px-2 py-1 text-xs rounded-md transition-colors bg-orange-100 hover:bg-orange-200 text-orange-700 dark:bg-slate-600 dark:hover:bg-slate-500 dark:text-slate-300`}
                             >
                               {copiedAmount ? <><ConfirmIcon className="w-3 h-3 text-green-500" /><span className="text-green-500">คัดลอกแล้ว</span></> : <><CopyIcon className="w-3 h-3" /><span>คัดลอก</span></>}
                             </button>
@@ -1394,9 +1426,9 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                             label="เลือกรูป / ถ่ายรูปสลิป"
                             alt="สลิป"
                             classNames={{
-                              root: `w-full flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-lg py-8 text-base hover:border-primary hover:text-primary transition-colors ${dark ? 'border-slate-600 text-slate-500' : 'border-gray-300 text-gray-400'}`,
+                              root: `w-full flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-lg py-8 text-base hover:border-primary hover:text-primary transition-colors border-gray-300 text-gray-400 dark:border-slate-600 dark:text-slate-500`,
                               preview: 'relative block',
-                              previewImg: `w-full max-h-64 object-contain rounded-lg border ${dark ? 'border-slate-600' : 'border-gray-200'}`,
+                              previewImg: `w-full max-h-64 object-contain rounded-lg border border-gray-200 dark:border-slate-600`,
                               clear: 'absolute top-2 right-2 bg-black/50 text-white rounded-full w-7 h-7 flex items-center justify-center',
                             }}
                           />
@@ -1438,15 +1470,15 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                     {/* Payment Gateway section */}
                     {paymentMethod === 'payment_gateway' && (
                       <div className="space-y-3">
-                        <div className={`border rounded-lg p-4 ${dark ? 'bg-blue-900/20 border-blue-800' : 'bg-blue-50 border-blue-200'}`}>
-                          <p className={`text-sm mb-2 ${dark ? 'text-blue-400' : 'text-blue-700'}`}>
+                        <div className={`border rounded-lg p-4 bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800`}>
+                          <p className={`text-sm mb-2 text-blue-700 dark:text-blue-400`}>
                             คุณจะถูกนำไปยังหน้าชำระเงินออนไลน์ รองรับช่องทาง:
                           </p>
                           <div className="flex flex-wrap gap-1.5">
                             {bill.payment_channels
                               ?.find(ch => ch.type === 'payment_gateway')
                               ?.available_channels?.map(ac => (
-                                <span key={ac.code} className={`px-2 py-1 rounded text-sm inline-flex items-center gap-1.5 border ${dark ? 'bg-slate-700 text-slate-300 border-slate-600' : 'bg-white text-gray-700 border-blue-100'}`}>
+                                <span key={ac.code} className={`px-2 py-1 rounded text-sm inline-flex items-center gap-1.5 border bg-white text-gray-700 border-blue-100 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600`}>
                                   {getBeamChannelLogo(ac.code) && (
                                     <img src={getBeamChannelLogo(ac.code)} alt="" className="w-5 h-5 object-contain" />
                                   )}
@@ -1479,7 +1511,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
 
                     {/* ยอดรวมสุทธิ for cash mode */}
                     {paymentMethod === 'cash' && (
-                      <div className={`flex items-center justify-between p-3 rounded-lg border ${dark ? 'bg-slate-900 border-slate-600' : 'bg-orange-50 border-orange-200'}`}>
+                      <div className={`flex items-center justify-between p-3 rounded-lg border bg-orange-50 border-orange-200 dark:bg-slate-900 dark:border-slate-600`}>
                         <span className="text-sm font-medium" style={{ color: dark ? '#94a3b8' : '#6b7280' }}>ยอดรวมสุทธิ</span>
                         <span className="text-lg font-bold text-primary">฿{formatPrice(bill.total_amount)}</span>
                       </div>
@@ -1506,7 +1538,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                         <button
                           type="button"
                           onClick={() => setShowPaymentForm(false)}
-                          className={`flex-1 py-3 border rounded-lg text-base transition-colors ${dark ? 'border-slate-600 text-slate-400 hover:bg-slate-700/50' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+                          className={`flex-1 py-3 border rounded-lg text-base transition-colors border-gray-300 text-gray-600 hover:bg-gray-50 dark:border-slate-600 dark:text-slate-400 dark:hover:bg-slate-700/50`}
                         >
                           ยกเลิก
                         </button>
@@ -1533,7 +1565,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                       <button
                         type="button"
                         onClick={() => setShowPaymentForm(false)}
-                        className={`w-full py-3 border rounded-lg text-base transition-colors ${dark ? 'border-slate-600 text-slate-400 hover:bg-slate-700/50' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+                        className={`w-full py-3 border rounded-lg text-base transition-colors border-gray-300 text-gray-600 hover:bg-gray-50 dark:border-slate-600 dark:text-slate-400 dark:hover:bg-slate-700/50`}
                       >
                         ยกเลิก
                       </button>
@@ -1545,23 +1577,28 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
 
             {/* Status: verifying (from bank transfer / cash submission) */}
             {(bill.payment_status === 'verifying' || submitSuccess) && (
-              <div className={`border-2 rounded-xl p-5 text-center ${dark ? 'bg-purple-900/20 border-purple-800' : 'bg-purple-50 border-purple-200'}`}>
-                <TimeIcon className={`w-10 h-10 mx-auto mb-2 ${dark ? 'text-purple-400' : 'text-purple-500'}`} />
-                <div className={`font-bold text-lg ${dark ? 'text-purple-400' : 'text-purple-700'}`}>อยู่ระหว่างตรวจสอบการชำระเงิน</div>
-                <p className={`text-base mt-1 ${dark ? 'text-purple-500' : 'text-purple-500'}`}>กรุณารอการยืนยันจากทางร้าน</p>
+              <div className={`border-2 rounded-xl p-5 text-center bg-purple-50 border-purple-200 dark:bg-purple-900/20 dark:border-purple-800`}>
+                <TimeIcon className={`w-10 h-10 mx-auto mb-2 text-purple-500 dark:text-purple-400`} />
+                <div className={`font-bold text-lg text-purple-700 dark:text-purple-400`}>อยู่ระหว่างตรวจสอบการชำระเงิน</div>
+                <p className={`text-base mt-1 text-purple-500 dark:text-purple-500`}>กรุณารอการยืนยันจากทางร้าน</p>
               </div>
             )}
 
             {/* Status: paid */}
             {bill.payment_status === 'paid' && (
-              <div className={`border-2 rounded-xl p-5 text-center ${dark ? 'bg-green-900/20 border-green-800' : 'bg-green-50 border-green-200'}`}>
-                <SuccessIcon className={`w-10 h-10 mx-auto mb-2 ${dark ? 'text-green-400' : 'text-green-500'}`} />
-                <div className={`font-bold text-lg ${dark ? 'text-green-400' : 'text-green-700'}`}>ชำระเงินเรียบร้อยแล้ว</div>
+              <div className={`border-2 rounded-xl p-5 text-center bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800`}>
+                <SuccessIcon className={`w-10 h-10 mx-auto mb-2 text-green-500 dark:text-green-400`} />
+                <div className={`font-bold text-lg text-green-700 dark:text-green-400`}>ชำระเงินเรียบร้อยแล้ว</div>
               </div>
             )}
           </div>
           </div>
           )}
+        </div>
+
+        {/* ปิดท้ายหน้า — เดิมเนื้อหาชนขอบล่างพอดีจนดูเหมือนหน้าถูกตัด */}
+        <div className={`print:hidden text-center text-xs pt-8 pb-10 text-gray-400 dark:text-slate-500`}>
+          {bill.company_name || ''}
         </div>
       </div>
     </div>

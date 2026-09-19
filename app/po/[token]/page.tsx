@@ -9,6 +9,9 @@ import { FullPageLoading } from '@/components/ui/Loading';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { getImageUrl } from '@/lib/utils/image';
 import { cleanVariationLabel } from '@/lib/product-display';
+import { useStandaloneTheme } from '@/lib/use-standalone-theme';
+import { generatePOPdf } from '@/lib/supplier-pdf';
+import { showPdfPreview } from '@/lib/print-pdf';
 
 interface POItem {
   product_name: string;
@@ -57,6 +60,9 @@ export default function PublicPOPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [dark, setDark] = useState(true);
+  const [printing, setPrinting] = useState(false);
+  // ธีมที่หน้านี้แสดง = ธีมที่ component กลางต้องใช้ (ดู lib/use-standalone-theme.ts)
+  useStandaloneTheme(dark);
 
   useEffect(() => {
     if (!token) return;
@@ -69,6 +75,59 @@ export default function PublicPOPage() {
       .catch(() => setError('ไม่พบใบสั่งซื้อ หรือลิงก์ไม่ถูกต้อง'))
       .finally(() => setLoading(false));
   }, [token]);
+
+  /**
+   * พิมพ์เป็น **เอกสาร PDF ตัวเดียวกับฝั่งแอดมิน** ไม่ใช่ `window.print()` ของหน้าเว็บ
+   * (เดิมพิมพ์แล้วได้หน้าเว็บโหมดมืด ตัดหน้ามั่ว ไม่ใช่รูปเอกสาร)
+   */
+  const printPdf = async () => {
+    if (!data) return;
+    setPrinting(true);
+    try {
+      const blob = await generatePOPdf(
+        {
+          po_number: data.po.po_number,
+          status: data.po.status,
+          order_date: data.po.order_date,
+          expected_date: data.po.expected_date,
+          total_amount: data.po.total_amount,
+          notes: data.po.notes,
+          supplier: data.supplier
+            ? { name: data.supplier.name, contact_name: data.supplier.contact_name, phone: data.supplier.phone }
+            : null,
+          warehouse: data.warehouse ? { name: data.warehouse } : null,
+          created_by_user: null,
+          items: data.items.map((item, i) => ({
+            variation_id: String(i),
+            quantity: item.quantity,
+            unit_cost: item.unit_cost,
+            notes: item.notes,
+            variation: {
+              id: String(i),
+              variation_label: item.variation_label,
+              sku: item.sku,
+              product: { id: String(i), code: '', name: item.product_name, image: item.image },
+            },
+          })),
+        },
+        // ข้อมูลบริษัทมากับ API แล้ว — ห้ามให้ตัวสร้างไปดึงเอง (ต้องล็อกอิน ซัพพลายเออร์ไม่มีบัญชี)
+        data.company
+          ? {
+              name: data.company.name,
+              address: data.company.address || undefined,
+              phone: data.company.phone || undefined,
+              tax_id: data.company.tax_id || undefined,
+              logo_url: data.company.logo,
+            }
+          : undefined,
+      );
+      showPdfPreview(blob, `ใบสั่งซื้อ ${data.po.po_number}`);
+    } catch (e) {
+      console.error('print PO failed:', e);
+    } finally {
+      setPrinting(false);
+    }
+  };
 
   const formatDate = (d: string) => {
     return new Date(d).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -86,11 +145,11 @@ export default function PublicPOPage() {
 
   if (error || !data) {
     return (
-      <div className={`min-h-screen flex items-center justify-center ${dark ? 'bg-[#1A1A2E]' : 'bg-gray-50'}`}>
+      <div className={`min-h-screen flex items-center justify-center bg-gray-50 dark:bg-[#1A1A2E]`}>
         <div className="text-center">
-          <DocumentIcon className={`w-16 h-16 mx-auto mb-4 ${dark ? 'text-slate-600' : 'text-gray-300'}`} />
-          <p className={`text-xl mb-2 ${dark ? 'text-white' : 'text-gray-700'}`}>ไม่พบใบสั่งซื้อ</p>
-          <p className={`text-sm ${dark ? 'text-gray-400' : 'text-gray-500'}`}>{error || 'ลิงก์ไม่ถูกต้องหรือหมดอายุ'}</p>
+          <DocumentIcon className={`w-16 h-16 mx-auto mb-4 text-gray-300 dark:text-slate-600`} />
+          <p className={`text-xl mb-2 text-gray-700 dark:text-white`}>ไม่พบใบสั่งซื้อ</p>
+          <p className={`text-sm text-gray-500 dark:text-gray-400`}>{error || 'ลิงก์ไม่ถูกต้องหรือหมดอายุ'}</p>
         </div>
       </div>
     );
@@ -100,27 +159,28 @@ export default function PublicPOPage() {
   const totalQty = items.reduce((s, i) => s + i.quantity, 0);
 
   return (
-    <div className={`min-h-screen transition-colors ${dark ? 'bg-[#1A1A2E] text-white' : 'bg-gray-100 text-gray-900'}`}>
+    <div className={`min-h-screen transition-colors bg-gray-100 text-gray-900 dark:bg-[#1A1A2E] dark:text-white print:bg-white print:text-black`}>
       {/* Top Bar */}
-      <div className={`sticky top-0 z-30 border-b ${dark ? 'bg-[#1A1A2E]/95 border-white/10 backdrop-blur-md' : 'bg-white border-gray-200'}`}>
+      <div className={`print:hidden sticky top-0 z-30 border-b bg-white border-gray-200 dark:bg-[#1A1A2E]/95 dark:border-white/10 dark:backdrop-blur-md`}>
         <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
             {company?.logo && (
               <Image src={company.logo} alt="" width={32} height={32} className="rounded-lg object-cover" />
             )}
-            <span className={`text-sm font-medium ${dark ? 'text-white/80' : 'text-gray-700'}`}>ใบสั่งซื้อ</span>
+            <span className={`text-sm font-medium text-gray-700 dark:text-white/80`}>ใบสั่งซื้อ</span>
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => window.print()}
-              className={`p-2 rounded-lg transition-colors ${dark ? 'hover:bg-white/10 text-white/70' : 'hover:bg-gray-100 text-gray-600'}`}
+              onClick={printPdf}
+              disabled={printing}
+              className={`p-2 rounded-lg transition-colors hover:bg-gray-100 text-gray-600 dark:hover:bg-white/10 dark:text-white/70`}
               title="พิมพ์"
             >
               <PrintIcon className="w-4 h-4" />
             </button>
             <button
               onClick={() => setDark(!dark)}
-              className={`p-2 rounded-lg transition-colors ${dark ? 'hover:bg-white/10 text-white/70' : 'hover:bg-gray-100 text-gray-600'}`}
+              className={`p-2 rounded-lg transition-colors hover:bg-gray-100 text-gray-600 dark:hover:bg-white/10 dark:text-white/70`}
             >
               {dark ? <LightThemeIcon className="w-4 h-4" /> : <DarkThemeIcon className="w-4 h-4" />}
             </button>
@@ -140,47 +200,47 @@ export default function PublicPOPage() {
         )}
 
         {/* Header: Company + PO Info */}
-        <div className={`rounded-xl border p-5 ${dark ? 'bg-white/5 border-white/10' : 'bg-white border-gray-200'}`}>
+        <div className={`rounded-xl border p-5 bg-white border-gray-200 dark:bg-white/5 dark:border-white/10`}>
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
             {/* Company */}
             <div className="flex items-start gap-3">
               {company?.logo ? (
                 <Image src={company.logo} alt="" width={48} height={48} className="rounded-xl object-cover flex-shrink-0" />
               ) : (
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${dark ? 'bg-white/10' : 'bg-gray-100'}`}>
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 bg-gray-100 dark:bg-white/10`}>
                   <DocumentIcon className="w-6 h-6 text-gray-400" />
                 </div>
               )}
               <div>
-                <h2 className={`text-lg font-bold ${dark ? 'text-white' : 'text-gray-900'}`}>{company?.name || '-'}</h2>
-                {company?.address && <p className={`text-xs mt-0.5 ${dark ? 'text-white/50' : 'text-gray-500'}`}>{company.address}</p>}
+                <h2 className={`text-lg font-bold text-gray-900 dark:text-white`}>{company?.name || '-'}</h2>
+                {company?.address && <p className={`text-xs mt-0.5 text-gray-500 dark:text-white/50`}>{company.address}</p>}
                 <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1">
-                  {company?.phone && <p className={`text-xs ${dark ? 'text-white/50' : 'text-gray-500'}`}>โทร: {company.phone}</p>}
-                  {company?.tax_id && <p className={`text-xs ${dark ? 'text-white/50' : 'text-gray-500'}`}>เลขประจำตัวผู้เสียภาษี: {company.tax_id}</p>}
+                  {company?.phone && <p className={`text-xs text-gray-500 dark:text-white/50`}>โทร: {company.phone}</p>}
+                  {company?.tax_id && <p className={`text-xs text-gray-500 dark:text-white/50`}>เลขประจำตัวผู้เสียภาษี: {company.tax_id}</p>}
                 </div>
               </div>
             </div>
 
             {/* PO Info */}
-            <div className={`sm:text-right flex-shrink-0 ${dark ? '' : ''}`}>
+            <div className={`sm:text-right flex-shrink-0 `}>
               <h1 className="text-xl font-bold text-primary">ใบสั่งซื้อ</h1>
               <div className="mt-2 space-y-1 text-sm">
                 <div className="flex sm:justify-end items-center gap-2">
-                  <span className={dark ? 'text-white/50' : 'text-gray-500'}>เลขที่:</span>
+                  <span className="text-gray-500 dark:text-white/50">เลขที่:</span>
                   <span className="font-medium">{po.po_number}</span>
                 </div>
                 <div className="flex sm:justify-end items-center gap-2">
-                  <span className={dark ? 'text-white/50' : 'text-gray-500'}>วันที่:</span>
+                  <span className="text-gray-500 dark:text-white/50">วันที่:</span>
                   <span>{formatDate(po.order_date)}</span>
                 </div>
                 {po.expected_date && (
                   <div className="flex sm:justify-end items-center gap-2">
-                    <span className={dark ? 'text-white/50' : 'text-gray-500'}>คาดว่าจะได้รับ:</span>
+                    <span className="text-gray-500 dark:text-white/50">คาดว่าจะได้รับ:</span>
                     <span>{formatDate(po.expected_date)}</span>
                   </div>
                 )}
                 <div className="flex sm:justify-end items-center gap-2">
-                  <span className={dark ? 'text-white/50' : 'text-gray-500'}>สถานะ:</span>
+                  <span className="text-gray-500 dark:text-white/50">สถานะ:</span>
                   <StatusBadge domain="purchaseOrderSupplier" status={po.status} />
                 </div>
               </div>
@@ -190,31 +250,31 @@ export default function PublicPOPage() {
 
         {/* Supplier Info */}
         {supplier && (
-          <div className={`rounded-xl border p-4 ${dark ? 'bg-white/5 border-white/10' : 'bg-white border-gray-200'}`}>
+          <div className={`rounded-xl border p-4 bg-white border-gray-200 dark:bg-white/5 dark:border-white/10`}>
             <div className="flex items-center gap-2 mb-3">
               <SupplierIcon className="w-4 h-4 text-primary" />
-              <h3 className={`text-sm font-semibold ${dark ? 'text-white' : 'text-gray-900'}`}>ข้อมูล Supplier</h3>
+              <h3 className={`text-sm font-semibold text-gray-900 dark:text-white`}>ข้อมูล Supplier</h3>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
               <div>
-                <span className={dark ? 'text-white/50' : 'text-gray-500'}>ชื่อ: </span>
+                <span className="text-gray-500 dark:text-white/50">ชื่อ: </span>
                 <span className="font-medium">{supplier.name}</span>
               </div>
               {supplier.contact_name && (
                 <div>
-                  <span className={dark ? 'text-white/50' : 'text-gray-500'}>ผู้ติดต่อ: </span>
+                  <span className="text-gray-500 dark:text-white/50">ผู้ติดต่อ: </span>
                   <span>{supplier.contact_name}</span>
                 </div>
               )}
               {supplier.phone && (
                 <div>
-                  <span className={dark ? 'text-white/50' : 'text-gray-500'}>โทร: </span>
+                  <span className="text-gray-500 dark:text-white/50">โทร: </span>
                   <span>{supplier.phone}</span>
                 </div>
               )}
               {supplier.email && (
                 <div>
-                  <span className={dark ? 'text-white/50' : 'text-gray-500'}>อีเมล: </span>
+                  <span className="text-gray-500 dark:text-white/50">อีเมล: </span>
                   <span>{supplier.email}</span>
                 </div>
               )}
@@ -223,9 +283,9 @@ export default function PublicPOPage() {
         )}
 
         {/* Items Table */}
-        <div className={`rounded-xl border overflow-hidden ${dark ? 'bg-white/5 border-white/10' : 'bg-white border-gray-200'}`}>
-          <div className={`px-4 py-3 border-b ${dark ? 'border-white/10' : 'border-gray-200'}`}>
-            <h3 className={`text-sm font-semibold ${dark ? 'text-white' : 'text-gray-900'}`}>
+        <div className={`rounded-xl border overflow-hidden bg-white border-gray-200 dark:bg-white/5 dark:border-white/10`}>
+          <div className={`px-4 py-3 border-b border-gray-200 dark:border-white/10`}>
+            <h3 className={`text-sm font-semibold text-gray-900 dark:text-white`}>
               รายการสินค้า ({items.length} รายการ)
             </h3>
           </div>
@@ -234,7 +294,7 @@ export default function PublicPOPage() {
           <div className="hidden sm:block overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className={`text-xs font-medium ${dark ? 'text-white/50 border-b border-white/10' : 'text-gray-500 border-b border-gray-200'}`}>
+                <tr className={`text-xs font-medium text-gray-500 border-b border-gray-200 dark:text-white/50 dark:border-b dark:border-white/10`}>
                   <th className="text-center px-3 py-2.5 w-10">#</th>
                   <th className="text-left px-3 py-2.5">สินค้า</th>
                   <th className="text-left px-3 py-2.5 w-[100px]">SKU</th>
@@ -245,24 +305,24 @@ export default function PublicPOPage() {
               </thead>
               <tbody>
                 {items.map((item, idx) => (
-                  <tr key={idx} className={`border-b ${dark ? 'border-white/5' : 'border-gray-100'}`}>
+                  <tr key={idx} className={`border-b border-gray-100 dark:border-white/5`}>
                     <td className="text-center px-3 py-3 text-sm text-gray-400">{idx + 1}</td>
                     <td className="px-3 py-3">
                       <div className="flex items-center gap-3">
                         <ProductImageThumb src={item.image ? getImageUrl(item.image) : null} alt={item.product_name} size="sm" />
                         <div className="min-w-0">
-                          <div className={`text-sm font-medium truncate ${dark ? 'text-white' : 'text-gray-900'}`}>
+                          <div className={`text-sm font-medium truncate text-gray-900 dark:text-white`}>
                             {item.product_name}
                           </div>
                           {cleanVariationLabel(item) && (
-                            <div className={`text-xs ${dark ? 'text-white/40' : 'text-gray-500'}`}>{cleanVariationLabel(item)}</div>
+                            <div className={`text-xs text-gray-500 dark:text-white/40`}>{cleanVariationLabel(item)}</div>
                           )}
                         </div>
                       </div>
                     </td>
-                    <td className={`px-3 py-3 text-xs ${dark ? 'text-white/50' : 'text-gray-500'}`}>{item.sku || '-'}</td>
+                    <td className={`px-3 py-3 text-xs text-gray-500 dark:text-white/50`}>{item.sku || '-'}</td>
                     <td className="text-center px-3 py-3 text-sm font-medium">{item.quantity}</td>
-                    <td className={`text-right px-3 py-3 text-sm ${dark ? 'text-white/70' : 'text-gray-700'}`}>฿{formatCurrency(item.unit_cost)}</td>
+                    <td className={`text-right px-3 py-3 text-sm text-gray-700 dark:text-white/70`}>฿{formatCurrency(item.unit_cost)}</td>
                     <td className="text-right px-3 py-3 text-sm font-medium">฿{formatCurrency(item.total)}</td>
                   </tr>
                 ))}
@@ -271,23 +331,23 @@ export default function PublicPOPage() {
           </div>
 
           {/* Mobile Cards */}
-          <div className={`sm:hidden divide-y ${dark ? 'divide-white/5' : 'divide-gray-100'}`}>
+          <div className={`sm:hidden divide-y divide-gray-100 dark:divide-white/5`}>
             {items.map((item, idx) => (
               <div key={idx} className="p-4">
                 <div className="flex items-start gap-3 mb-2">
                   <ProductImageThumb src={getImageUrl(item.image)} alt="" size="sm" />
                   <div className="flex-1 min-w-0">
-                    <div className={`text-sm font-medium truncate ${dark ? 'text-white' : 'text-gray-900'}`}>
+                    <div className={`text-sm font-medium truncate text-gray-900 dark:text-white`}>
                       {item.product_name}
                     </div>
                     {cleanVariationLabel(item) && (
-                      <div className={`text-xs ${dark ? 'text-white/40' : 'text-gray-500'}`}>{cleanVariationLabel(item)}</div>
+                      <div className={`text-xs text-gray-500 dark:text-white/40`}>{cleanVariationLabel(item)}</div>
                     )}
-                    {item.sku && <div className={`text-xs ${dark ? 'text-white/40' : 'text-gray-500'}`}>SKU: {item.sku}</div>}
+                    {item.sku && <div className={`text-xs text-gray-500 dark:text-white/40`}>SKU: {item.sku}</div>}
                   </div>
                 </div>
                 <div className="flex items-center justify-between text-sm">
-                  <span className={dark ? 'text-white/50' : 'text-gray-500'}>
+                  <span className="text-gray-500 dark:text-white/50">
                     {item.quantity} x ฿{formatCurrency(item.unit_cost)}
                   </span>
                   <span className="font-medium">฿{formatCurrency(item.total)}</span>
@@ -297,14 +357,14 @@ export default function PublicPOPage() {
           </div>
 
           {/* Summary */}
-          <div className={`px-4 py-3 border-t ${dark ? 'border-white/10' : 'border-gray-200'}`}>
+          <div className={`px-4 py-3 border-t border-gray-200 dark:border-white/10`}>
             <div className="flex flex-col items-end gap-1">
               <div className="flex items-center gap-4 text-sm">
-                <span className={dark ? 'text-white/50' : 'text-gray-500'}>จำนวนรายการ</span>
+                <span className="text-gray-500 dark:text-white/50">จำนวนรายการ</span>
                 <span className="font-medium">{items.length} รายการ ({totalQty} ชิ้น)</span>
               </div>
               <div className="flex items-center gap-4">
-                <span className={`text-sm ${dark ? 'text-white/50' : 'text-gray-500'}`}>มูลค่ารวม</span>
+                <span className={`text-sm text-gray-500 dark:text-white/50`}>มูลค่ารวม</span>
                 <span className="text-xl font-bold text-primary">฿{formatCurrency(po.total_amount)}</span>
               </div>
             </div>
@@ -313,15 +373,15 @@ export default function PublicPOPage() {
 
         {/* Notes */}
         {po.notes && (
-          <div className={`rounded-xl border p-4 ${dark ? 'bg-amber-900/10 border-amber-800/20' : 'bg-amber-50 border-amber-200'}`}>
-            <p className={`text-sm ${dark ? 'text-amber-300' : 'text-amber-800'}`}>
+          <div className={`rounded-xl border p-4 bg-amber-50 border-amber-200 dark:bg-amber-900/10 dark:border-amber-800/20`}>
+            <p className={`text-sm text-amber-800 dark:text-amber-300`}>
               <span className="font-medium">หมายเหตุ: </span>{po.notes}
             </p>
           </div>
         )}
 
         {/* Footer */}
-        <div className={`text-center text-xs py-4 ${dark ? 'text-white/30' : 'text-gray-400'}`}>
+        <div className={`text-center text-xs py-4 text-gray-400 dark:text-white/30`}>
           Powered by AooCommerce
         </div>
       </div>

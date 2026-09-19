@@ -11,6 +11,7 @@ import StatusBadge from '@/components/ui/StatusBadge';
 import { productDisplayName } from '@/lib/product-display';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import ImageLightbox from '@/components/ui/ImageLightbox';
+import { useStandaloneTheme } from '@/lib/use-standalone-theme';
 
 interface VariationInfo {
   id: string;
@@ -102,6 +103,8 @@ export default function SupplierPortalPage() {
 
   // Dark mode (independent from admin system)
   const [dark, setDark] = useState(true);
+  // ธีมที่หน้านี้แสดง = ธีมที่ component กลางต้องใช้ (ดู lib/use-standalone-theme.ts)
+  useStandaloneTheme(dark);
   const [mounted, setMounted] = useState(false);
 
   const [tab, setTab] = useState<Tab>('stock');

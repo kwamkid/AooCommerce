@@ -101,11 +101,14 @@ html, body {
     --scrollbar-thumb: #9ca3af;
 
     /* สีแถบขั้นตอน — ใช้ทั้งแถบตอนสั่งซื้อ (CheckoutSteps) และแถบติดตามออเดอร์
-       (OrderProgress) · ตั้งใจให้เป็นสีเดียวกันทุกร้าน ไม่ผูกกับสีแบรนด์ของร้าน
-       เพราะมันคือ "ภาษาบอกความคืบหน้า" ของระบบ ไม่ใช่งานตกแต่งของร้าน */
-    --step-color: #e2725b;
-    /* ตัวเลขบนวงขอบ (พื้นขาว) ต้องเข้มกว่าเส้นขอบถึงจะอ่านออก 5.7:1 */
-    --step-ink: #a64b2a;
+       (OrderProgress) · เป็นสีเดียวกันทุกร้าน ไม่ผูกกับสีแบรนด์ที่ร้านตั้งเอง
+       เพราะมันคือ "ภาษาบอกความคืบหน้า" ของระบบ ไม่ใช่งานตกแต่งของร้าน
+       ใช้สีหลักของ AOO (#F4511E) — เดิมเป็น #e2725b ซึ่งเพี้ยนจากปุ่มในหน้าเดียวกัน
+       นิดเดียวจนดูเหมือนสีผิด ทั้งที่ไม่ได้ทำหน้าที่ "สีกลางของร้าน" จริง
+       (เจ้าของเลือก 19 ก.ย. 2026) */
+    --step-color: #F4511E;
+    /* ตัวเลขบนวงขอบ (พื้นขาว) ต้องเข้มกว่าเส้นขอบถึงจะอ่านออก — #9A3412 = 6.4:1 */
+    --step-ink: #9A3412;
   }
 
   .dark {
@@ -1271,9 +1274,16 @@ input[type="number"] {
   }
 }
 
-/* ── Print: show only receipt content ── */
+/* ── Print ────────────────────────────────────────────────────────────────────
+   ⛔ กฎชุด "ซ่อนทุกอย่างเหลือแต่ใบเสร็จ" ต้องครอบด้วย `body:has(#receipt-content)`
+      เสมอ — เดิมมันทำงานกับ **ทุกหน้า** ทั้งที่ `#receipt-content` มีอยู่ที่เดียว
+      (ใบเสร็จ POS) หน้าอื่นที่มีปุ่มพิมพ์ (บิลออนไลน์ · ใบสั่งซื้อของซัพพลายเออร์)
+      จึงพิมพ์ออกมาเป็นกระดาษเปล่า (เจ้าของเจอ 19 ก.ย. 2026)
+   ⛔ `@page { size: 80mm }` ก็เช่นกัน — เป็นกระดาษใบเสร็จ ไม่ใช่ขนาดของทั้งระบบ
+      ใช้ named page ให้เฉพาะใบเสร็จ ที่เหลือปล่อยตามค่าของเครื่องพิมพ์ (A4) */
 @media print {
-  @page {
+  /* กระดาษใบเสร็จ 80mm — ผูกกับ `#receipt-content` เท่านั้น */
+  @page receipt {
     size: 80mm auto;
     margin: 2mm;
   }
@@ -1285,19 +1295,18 @@ input[type="number"] {
     font-family: 'IBM Plex Sans Thai', 'Sarabun', sans-serif !important;
   }
 
-  /* Hide everything */
-  body * {
+  /* หน้าที่มีใบเสร็จ POS เท่านั้น: ซ่อนทุกอย่างแล้วโชว์เฉพาะใบเสร็จ */
+  body:has(#receipt-content) * {
     visibility: hidden;
   }
 
-  /* Show only #receipt-content and its children */
-  #receipt-content,
-  #receipt-content * {
+  body:has(#receipt-content) #receipt-content,
+  body:has(#receipt-content) #receipt-content * {
     visibility: visible;
   }
 
-  /* Position receipt at top-left, full width */
   #receipt-content {
+    page: receipt;
     position: absolute;
     left: 0;
     top: 0;
@@ -1583,6 +1592,19 @@ button.stepper-in { width: 100%; background: none; border: 0; padding: 0; font: 
 .stepper-current .stepper-label { color: var(--foreground); font-weight: 600; }
 a.stepper-in:hover .stepper-label,
 button.stepper-in:hover .stepper-label { color: var(--step-color); }
+
+/* ── หน้าที่สลับธีมเอง (บิลออนไลน์ · พอร์ทัลคู่ค้า) ────────────────────────────
+   ⚠️ หน้าพวกนี้ไม่ได้ใช้ class `.dark` ของแอป จึงห้ามพึ่ง `var(--foreground)` /
+   `var(--card)` — ถ้าธีมที่หน้านั้นแสดงไม่ตรงกับธีมของแอป (แอดมินตั้งแอปเป็นมืด
+   แต่เปิดบิลโหมดสว่าง) ตัวอักษรจะกลายเป็นขาวบนขาว อ่านไม่ออกทั้งแถบ
+   (เจ้าของท้วง 18 ก.ย. 2026) — ทั้งสองโหมดจึงตรึงค่าสีไว้ตรง ๆ */
+.stepper-light .stepper-dot { background: #fff; border-color: #e5e7eb; color: #6b7280; }
+.stepper-light .stepper-label, .stepper-light .stepper-note { color: #6b7280; }
+.stepper-light .stepper-done .stepper-dot { background: var(--step-color); border-color: var(--step-color); color: #fff; }
+.stepper-light .stepper-done .stepper-label,
+.stepper-light .stepper-current .stepper-label { color: #111827; }
+.stepper-light .stepper-step::before, .stepper-light .stepper-step::after { background: #e5e7eb; }
+.stepper-light .stepper-after-done::before, .stepper-light .stepper-done::after { background: var(--step-color); }
 
 /* บิลออนไลน์สลับธีมด้วยตัวแปร JS เอง ไม่ได้ใช้ class .dark */
 .stepper-dark .stepper-dot { background: transparent; border-color: #334155; color: #94a3b8; }
