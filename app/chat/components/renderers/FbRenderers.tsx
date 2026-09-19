@@ -430,3 +430,69 @@ function FbCouponTemplate({ msg, isIncoming }: { msg: ChatMessage; isIncoming: b
     </div>
   );
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// REEL / POST ที่แชร์มา — ดูได้ในห้องแชทเลย
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * webhook ให้แค่ `linkUrl` ของรีล (ไม่มีรูปปก/ไฟล์) — ทางเดียวที่โชว์ในห้องได้โดยไม่ต้องขอ oEmbed
+ * (ต้องมี app token + สิทธิ์ `oembed_read`) คือ **iframe embed ของแพลตฟอร์มเอง** ซึ่งเบราว์เซอร์
+ * ของผู้ใช้โหลดตรงจาก Facebook/Instagram · ไม่ผ่าน server เรา · โหลดเฉพาะเมื่อกด "ดูรีล"
+ * (ไม่งั้นห้องที่มีรีล 20 ใบจะโหลด iframe 20 ตัวทันที) · รีลที่ตั้งเป็นส่วนตัวจะขึ้นเปล่า — ลิงก์ต้นทางจึงยังอยู่
+ */
+function embedUrlFor(linkUrl: string): string | null {
+  const ig = linkUrl.match(/instagram\.com\/(?:reel|reels|p)\/([A-Za-z0-9_-]+)/);
+  if (ig) return `https://www.instagram.com/p/${ig[1]}/embed/`;
+  if (/facebook\.com\/(?:reel|share\/r|watch|[^/]+\/videos)\//.test(linkUrl)) {
+    return `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(linkUrl)}&show_text=false&width=270`;
+  }
+  return null;
+}
+
+export function ReelBubble({ msg, direction }: RendererProps) {
+  const [open, setOpen] = useState(false);
+  const linkUrl = msg.raw_message?.linkUrl as string | undefined;
+  const embed = linkUrl ? embedUrlFor(linkUrl) : null;
+  const isIncoming = direction === 'incoming';
+
+  if (!linkUrl || !embed) {
+    return (
+      <a href={linkUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 underline break-all">
+        <span className="text-xl">🎬</span>{msg.content}
+      </a>
+    );
+  }
+
+  return (
+    <div className="w-[270px] max-w-full">
+      {open ? (
+        <iframe
+          src={embed}
+          title={msg.content}
+          className="w-[270px] h-[480px] rounded-lg bg-black"
+          allow="autoplay; encrypted-media; picture-in-picture"
+          allowFullScreen
+          loading="lazy"
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className={`w-full rounded-lg border px-3 py-6 flex flex-col items-center gap-1.5 transition-colors ${
+            isIncoming
+              ? 'border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700/60'
+              : 'border-white/30 hover:bg-white/10'
+          }`}
+        >
+          <span className="text-3xl leading-none">▶</span>
+          <span className="text-sm font-medium">{msg.content}</span>
+          <span className="text-xs opacity-70">แตะเพื่อดูในห้องนี้</span>
+        </button>
+      )}
+      <a href={linkUrl} target="_blank" rel="noopener noreferrer" className="block mt-1 text-xs underline opacity-80 break-all">
+        เปิดที่ต้นทาง
+      </a>
+    </div>
+  );
+}

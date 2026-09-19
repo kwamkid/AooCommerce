@@ -116,6 +116,8 @@ export async function GET(request: NextRequest) {
     // ติดตามลูกค้า: due = ถึงกำหนดวันนี้หรือเลยมาแล้ว · overdue = เลยกำหนดอย่างเดียว · stage = ขั้นในกรวยขาย
     const followUp = searchParams.get('follow_up');
     const stageKey = searchParams.get('stage');
+    // เฉพาะคนที่ทักมาจากโฆษณา (fb_contacts.referral_source='ADS') — แพลตฟอร์มอื่นไม่มีข้อมูลนี้
+    const adsOnly = searchParams.get('ads_only') === 'true';
     const orderDaysMin = searchParams.get('order_days_min');
     const orderDaysMax = searchParams.get('order_days_max');
     const limit = parseInt(searchParams.get('limit') || '30', 10);
@@ -132,6 +134,8 @@ export async function GET(request: NextRequest) {
     let queryPlatforms: ChatPlatform[] = platform
       ? PLATFORM_KEYS.filter(p => p === platform)
       : [...PLATFORM_KEYS];
+    // โฆษณามีแต่ฝั่ง Meta — กรองแล้วไม่ต้องยิงตารางอื่นเปล่า ๆ
+    if (adsOnly) queryPlatforms = queryPlatforms.filter(p => p === 'facebook');
 
     if (tagId || accountId) {
       const [custTagRes, contTagRes, accRes] = await Promise.all([
@@ -202,7 +206,7 @@ export async function GET(request: NextRequest) {
     // ── ดึงมาแค่ "หัวตาราง" ของแต่ละแพลตฟอร์มพอ ──
     // ข้ามการจำกัดเมื่อมีตัวกรองที่ทำในหน่วยความจำหลังดึงข้อมูล (ค้นหา · แท็ก · ช่วงวันสั่งซื้อ)
     // เพราะการตัดแถวก่อนกรองจะทำให้ผลลัพธ์ขาด — เคสพวกนั้นชุดข้อมูลเล็กอยู่แล้ว
-    const canLimit = !search && !tagId && !orderDaysMin && !leadContactIds;
+    const canLimit = !search && !tagId && !orderDaysMin && !leadContactIds && !adsOnly;
     const fetchLimit = canLimit ? offset + limit + 1 : undefined;
 
     // Only force linkedOnly when tag filter matches customers only (no contact-level tags)
@@ -219,6 +223,7 @@ export async function GET(request: NextRequest) {
         accountId,
         includeNullAccountId,
         customerIds: tagCustomerIds,
+        adsOnly,
         contactIds: intersectContactIds(
           tagContactIds?.filter(t => t.platform === p).map(t => t.id) || null,
           leadContactIds?.filter(t => t.platform === p || (p === 'facebook' && t.platform === 'instagram')).map(t => t.id) || null,
@@ -602,6 +607,8 @@ type ContactFilters = {
   includeNullAccountId?: boolean;
   customerIds?: string[] | null;
   contactIds?: string[] | null;
+  /** เฉพาะห้องที่ทักมาจากโฆษณา (referral_source='ADS') */
+  adsOnly?: boolean;
   /** ดึงมาแค่กี่แถวพอ — ดูเหตุผลที่ PLATFORMS ด้านบน */
   fetchLimit?: number;
 };
@@ -634,6 +641,7 @@ async function fetchPlatformContacts(
       );
     }
     if (filters.unreadOnly) contacts = contacts.filter(c => (c.unread_count || 0) > 0);
+    if (filters.adsOnly) contacts = contacts.filter(c => c.referral_source === 'ADS');
     if (filters.linkedOnly) contacts = contacts.filter(c => c.customer_id);
     if (filters.unlinkedOnly) contacts = contacts.filter(c => !c.customer_id);
     // Tag filter
@@ -662,6 +670,7 @@ async function fetchPlatformContacts(
       }
     }
     if (filters.unreadOnly) query = query.gt('unread_count', 0);
+    if (filters.adsOnly) query = query.eq('referral_source', 'ADS');
     if (filters.customerIds && filters.contactIds && filters.contactIds.length > 0) {
       const custFilter = filters.customerIds.length > 0
         ? `customer_id.in.(${filters.customerIds.join(',')})`

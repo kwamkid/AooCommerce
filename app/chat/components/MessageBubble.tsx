@@ -26,6 +26,7 @@ const ImagemapBubble = dynamic(() => import('./renderers/LineRenderers').then(m 
 const FbTemplateRenderer = dynamic(() => import('./renderers/FbRenderers').then(m => m.FbTemplateRenderer), { ssr: false, loading: RENDERER_FALLBACK });
 const StoryMentionBubble = dynamic(() => import('./renderers/FbRenderers').then(m => m.StoryMentionBubble), { ssr: false, loading: RENDERER_FALLBACK });
 const StoryReplyBubble = dynamic(() => import('./renderers/FbRenderers').then(m => m.StoryReplyBubble), { ssr: false, loading: RENDERER_FALLBACK });
+const ReelBubble = dynamic(() => import('./renderers/FbRenderers').then(m => m.ReelBubble), { ssr: false, loading: RENDERER_FALLBACK });
 const ProductCardBubble = dynamic(() => import('./renderers/ShopeeRenderers').then(m => m.ProductCardBubble), { ssr: false, loading: RENDERER_FALLBACK });
 const OrderCardBubble = dynamic(() => import('./renderers/ShopeeRenderers').then(m => m.OrderCardBubble), { ssr: false, loading: RENDERER_FALLBACK });
 const SystemEventChip = dynamic(() => import('./renderers/ShopeeRenderers').then(m => m.SystemEventChip), { ssr: false, loading: RENDERER_FALLBACK });
@@ -155,9 +156,12 @@ function renderBody({
 
     // โพสต์/รีล/สตอรี่/ลิงก์ที่แชร์มาจาก Facebook & Instagram — ป้ายอย่างเดียวเปิดอะไร
     // ไม่ได้เลย (ของเดิมตกมาที่ TextBubble) ทั้งที่ webhook เก็บ linkUrl ไว้ให้แล้ว
-    case 'ig_post':
+    // รีล/โพสต์ IG — ดูได้ในห้องเลย (iframe ของแพลตฟอร์ม โหลดเมื่อกด) ไม่ต้องเด้งออกไปเปิดแอปอื่น
     case 'ig_reel':
     case 'reel':
+    case 'ig_post':
+      if (msg.raw_message?.linkUrl) return <ReelBubble {...props} />;
+      break;
     case 'share':
     case 'post':
     case 'ig_story':
