@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { fetchAllRows } from '@/lib/supabase-paging';
 import { guardFeature } from '@/lib/package-gates-server';
 
 // GET - Fetch brand detail with products
@@ -32,13 +33,16 @@ export async function GET(
     }
 
     // Fetch products in this brand
-    const { data: products, error: productsError } = await supabaseAdmin
+    // ⚠️ แบรนด์ใหญ่มีสินค้าเกิน 1,000 ตัวได้ — ตัดเงียบแล้วหน้าแบรนด์โชว์ไม่ครบ
+    const { rows: products, error: productsError } = await fetchAllRows((from, to) => supabaseAdmin
       .from('products')
       .select('id, code, name, image, created_at')
       .eq('brand_id', id)
       .eq('company_id', auth.companyId)
       .eq('is_active', true)
-      .order('name', { ascending: true });
+      .order('name', { ascending: true })
+      .order('id')
+      .range(from, to));
 
     if (productsError) throw productsError;
 

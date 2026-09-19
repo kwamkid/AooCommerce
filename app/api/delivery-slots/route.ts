@@ -3,6 +3,7 @@
 // excluding cancelled) so callers can compute availability via lib/delivery.ts.
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
+import { fetchAllRows } from '@/lib/supabase-paging';
 
 interface SlotBody {
   id?: string;
@@ -48,15 +49,18 @@ export async function GET(request: NextRequest) {
 
   let bookedBySlot: Map<string, number> | null = null;
   if (date && /^\d{4}-\d{2}-\d{2}$/.test(date) && (slots || []).length > 0) {
-    const { data: booked } = await supabaseAdmin
+    // ⚠️ ตัวนับความจุต่อรอบ — วันที่ยอดสั่งเกิน 1,000 บิล จะนับได้ต่ำกว่าจริงแล้วรับเกินความจุ
+    const { rows: booked } = await fetchAllRows<{ delivery_slot_id: string }>((from, to) => supabaseAdmin
       .from('orders')
       .select('delivery_slot_id')
       .eq('company_id', auth.companyId)
       .eq('delivery_date', date)
       .neq('order_status', 'cancelled')
-      .not('delivery_slot_id', 'is', null);
+      .not('delivery_slot_id', 'is', null)
+      .order('id')
+      .range(from, to));
     bookedBySlot = new Map();
-    for (const o of booked || []) {
+    for (const o of booked) {
       bookedBySlot.set(o.delivery_slot_id, (bookedBySlot.get(o.delivery_slot_id) || 0) + 1);
     }
   }

@@ -1,6 +1,7 @@
 // Path: app/api/pos/sessions/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
+import { fetchAllRows, fetchAllRowsByIds } from '@/lib/supabase-paging';
 import { guardFeature } from '@/lib/package-gates-server';
 
 // GET — Find open session for current user or list sessions
@@ -209,22 +210,29 @@ export async function PUT(request: NextRequest) {
     }
 
     // Calculate payment summary from orders in this session
-    const { data: sessionOrders } = await supabaseAdmin
+    // ⚠️ ยอดปิดกะ — กะที่ขายเกิน 1,000 บิลจะสรุปเงินสดขาดโดยไม่มีอะไรบอก
+    const { rows: sessionOrders } = await fetchAllRows<{
+      id: string; total_amount: number | null; payment_method: string | null; order_status: string;
+    }>((from, to) => supabaseAdmin
       .from('orders')
       .select('id, total_amount, payment_method, order_status')
       .eq('pos_session_id', id)
-      .eq('company_id', auth.companyId);
+      .eq('company_id', auth.companyId)
+      .order('id')
+      .range(from, to));
 
-    const completedOrders = (sessionOrders || []).filter(o => o.order_status === 'completed');
+    const completedOrders = sessionOrders.filter(o => o.order_status === 'completed');
 
     // Get all payment records for completed orders
     const orderIds = completedOrders.map(o => o.id);
-    const { data: allPayments } = orderIds.length > 0
-      ? await supabaseAdmin
-          .from('payment_records')
-          .select('amount, payment_method, payment_channel_id')
-          .in('order_id', orderIds)
-      : { data: [] };
+    const { rows: allPayments } = await fetchAllRowsByIds<{
+      amount: number | null; payment_method: string | null; payment_channel_id: string | null;
+    }>(orderIds, (idChunk, from, to) => supabaseAdmin
+      .from('payment_records')
+      .select('amount, payment_method, payment_channel_id')
+      .in('order_id', idChunk)
+      .order('id')
+      .range(from, to));
 
     // Build payment summary
     const paymentSummary: Record<string, number> = {};

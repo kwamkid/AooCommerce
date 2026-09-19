@@ -721,11 +721,14 @@ export async function GET(request: NextRequest) {
           .order('sort_order', { ascending: true })
       ),
       // Shop options: fetch links + accounts in parallel with product data
+      // ⚠️ ร้านที่ผูกเกิน 1,000 link — ร้านที่ link ทั้งหมดอยู่หลังแถวที่ 1,000 จะไม่โผล่ในตัวกรอง
       includeShopOptions
-        ? supabaseAdmin
+        ? fetchAllRows<{ account_id: string; account_name: string | null; platform: string | null }>((from, to) => supabaseAdmin
             .from('marketplace_product_links')
             .select('account_id, account_name, platform')
             .eq('company_id', auth.companyId)
+            .order('id')
+            .range(from, to)).then(r => ({ data: r.rows }))
         : Promise.resolve({ data: null }),
       includeShopOptions
         ? supabaseAdmin

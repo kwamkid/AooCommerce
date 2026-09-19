@@ -4,6 +4,7 @@
 // no internal ids beyond what the checkout must post back).
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { fetchAllRows } from '@/lib/supabase-paging';
 import { getStorefrontCompany } from '@/lib/storefront-server';
 import {
   resolveZone, resolveDeliveryFee, getSlotAvailability,
@@ -61,15 +62,18 @@ export async function GET(request: NextRequest) {
   // capacity ต่อวัน — นับเฉพาะตอนมีวันที่ส่ง
   let booked = new Map<string, number>();
   if (wantSlot && date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    const { data } = await supabaseAdmin
+    // ⚠️ ตัวนับความจุต่อรอบ (ตัวเดียวกับ /api/delivery-slots) — ต้องนับให้ครบ
+    const { rows: data } = await fetchAllRows<{ delivery_slot_id: string }>((from, to) => supabaseAdmin
       .from('orders')
       .select('delivery_slot_id')
       .eq('company_id', company.id)
       .eq('delivery_date', date)
       .neq('order_status', 'cancelled')
-      .not('delivery_slot_id', 'is', null);
+      .not('delivery_slot_id', 'is', null)
+      .order('id')
+      .range(from, to));
     booked = new Map();
-    for (const o of data || []) {
+    for (const o of data) {
       booked.set(o.delivery_slot_id, (booked.get(o.delivery_slot_id) || 0) + 1);
     }
   }
