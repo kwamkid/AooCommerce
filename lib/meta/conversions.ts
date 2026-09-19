@@ -874,6 +874,7 @@ export async function sweepUnsentPurchaseEvents(
           .eq('source', 'facebook')
           .not('chat_account_id', 'is', null)
           .not('customer_id', 'is', null)
+          .order('id')
           .range(from, to),
       { to: LINKED_CUSTOMER_CAP - 1 },
     );

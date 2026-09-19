@@ -373,6 +373,7 @@ export async function resolveChatRecipients(
         .from('customer_tag_links')
         .select('customer_id', { count: 'exact' })
         .in('tag_id', ownTagIds)
+        .order('customer_id').order('tag_id')
         .range(from, to),
     );
     allowedCustomerIds = new Set(links.map(l => l.customer_id));
@@ -385,6 +386,7 @@ export async function resolveChatRecipients(
         .select('contact_id', { count: 'exact' })
         .eq('platform', platform)
         .in('tag_id', ownTagIds)
+        .order('contact_id').order('tag_id')
         .range(from, to),
     );
     allowedContactIds = new Set(contactLinks.map(l => l.contact_id));
@@ -421,6 +423,7 @@ export async function resolveChatRecipients(
         .select('contact_id', { count: 'exact' })
         .eq('company_id', companyId)
         .in('lead_id', leads.map(l => l.id))
+        .order('contact_id').order('platform')
         .range(from, to),
     );
     allowedContactIds = new Set(leadLinks.map(l => l.contact_id));

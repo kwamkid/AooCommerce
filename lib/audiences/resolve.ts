@@ -301,6 +301,7 @@ async function customerIdsWithTags(companyId: string, tagIds: string[]): Promise
       .from('customer_tag_links')
       .select('customer_id', { count: 'exact' })
       .in('tag_id', ownTagIds)
+      .order('customer_id').order('tag_id')
       .range(from, to),
   );
   return new Set(rows.map(r => r.customer_id));

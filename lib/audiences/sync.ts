@@ -333,6 +333,7 @@ export async function runAudienceSync(
         .from('audience_sync_members')
         .select('member_key', { count: 'exact' })
         .eq('audience_sync_id', syncId)
+        .order('member_key')
         .range(from, to),
     );
     const existing = new Set(existingRows.map(r => r.member_key));

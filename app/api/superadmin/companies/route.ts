@@ -362,6 +362,7 @@ async function collectStorageRefs(companyId: string): Promise<Map<string, Set<st
             .select('raw_message', { count: 'exact' })
             .eq('company_id', companyId)
             .in('message_type', ['image', 'video', 'audio', 'file'])
+            .order('id')
             .range(from, to),
         { to: SCAN_ROW_CAP - 1 },
       );

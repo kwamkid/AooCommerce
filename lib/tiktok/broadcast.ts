@@ -87,6 +87,7 @@ export async function resolveTikTokRecipients(
         .from('customer_tag_links')
         .select('customer_id', { count: 'exact' })
         .in('tag_id', ownTagIds)
+        .order('customer_id').order('tag_id')
         .range(from, to),
     );
     allowedCustomerIds = new Set(links.map(l => l.customer_id));
@@ -105,6 +106,7 @@ export async function resolveTikTokRecipients(
         .eq('company_id', companyId)
         .eq('marketplace_account_id', marketplaceAccountId)
         .gte('created_at', since)
+        .order('id')
         .range(from, to),
   );
 

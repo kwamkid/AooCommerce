@@ -118,6 +118,7 @@ async function sweepAccount(account: AccountRow, deadline: number, out: OptinSwe
       .eq('unread_count', 0)
       .lt('optin_invite_count', cfg.max_asks)
       .or(`optin_invited_at.is.null,optin_invited_at.lt.${reaskBefore}`)
+      .order('id')
       .range(from, to) as never,
   );
 

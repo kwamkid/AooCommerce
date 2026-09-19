@@ -54,6 +54,7 @@ export async function GET(request: NextRequest) {
             .select('variation_id, quantity, reserved_quantity')
             .eq('company_id', companyId)
             .eq('warehouse_id', defaultWarehouseId)
+            .order('id')
             .range(from, to))
       : Promise.resolve({ rows: [] as InventoryRow[], count: null, error: null });
 

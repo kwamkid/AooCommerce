@@ -132,6 +132,7 @@ export async function resolvePaidAt(orderIds: string[]): Promise<Map<string, num
         .from('payment_records')
         .select('order_id, payment_date, status', { count: 'exact' })
         .in('order_id', orderIds)
+        .order('id')
         .range(from, to),
     );
 
