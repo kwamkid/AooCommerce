@@ -21,8 +21,9 @@ import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import DateRangePicker, { type DateValueType } from '@/components/ui/DateRangePicker';
 import LeadStageIcon from './LeadStageIcon';
+import LeadFunnel from './LeadFunnel';
 import { MemberIcon } from '@/lib/icons';
-import { DEFAULT_LEAD_STAGES, STAGE_ACTIVE_CLASS, STAGE_CHIP_CLASS, CLOSED_STAGE_KEYS, type LeadStage } from '@/lib/leads/stages';
+import { DEFAULT_LEAD_STAGES, STAGE_CHIP_CLASS, CLOSED_STAGE_KEYS, type LeadStage } from '@/lib/leads/stages';
 import {
   followUpPresets, formatShortThaiDate, followUpLabel, waitingDays, FOLLOW_UP_HOUR,
 } from '@/lib/leads/followup-presets';
@@ -171,25 +172,14 @@ export default function LeadSheet({
         </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5">
-        {stages.map(s => {
-          const active = s.key === currentKey;
-          return (
-            <Button
-              key={s.key}
-              size="sm"
-              fullWidth
-              variant="secondary"
-              className={active ? STAGE_ACTIVE_CLASS[s.color] : undefined}
-              icon={<LeadStageIcon stageKey={s.key} />}
-              title={s.auto_managed ? 'ระบบติดให้เองเมื่อส่งบิล/ลูกค้าจ่ายเงิน' : undefined}
-              onClick={() => save({ stage: s.key }, `เปลี่ยนเป็น “${s.name}”`)}
-            >
-              {s.name}
-            </Button>
-          );
-        })}
-      </div>
+      <LeadFunnel
+        stages={stages}
+        currentKey={currentKey}
+        onSelect={key => {
+          const st = stages.find(x => x.key === key);
+          save({ stage: key }, `เปลี่ยนเป็น “${st?.name || key}”`);
+        }}
+      />
 
       {/* นัด — ป้ายนัดปัจจุบันอยู่ท้ายหัวข้อ ไม่ใช่กล่องแยกด้านล่าง */}
       <div className="flex items-center justify-between mt-3.5 mb-1.5">

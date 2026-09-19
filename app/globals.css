@@ -1620,3 +1620,30 @@ button.stepper-in:hover .stepper-label { color: var(--step-color); }
   .stepper-label { font-size: 12.5px; line-height: 1.4; padding: 0 2px; }
   .stepper-note { font-size: 11.5px; }
 }
+
+/* ── กรวยขาย (แผงติดตามลูกค้า) — ขั้นเรียงเป็นลูกศรต่อกันแถวเดียว ──────────────
+   ผ่านแล้ว = เขียวจาง · ขั้นปัจจุบัน = สีประจำขั้น (ใส่ทาง inline class จาก STAGE_ACTIVE_CLASS)
+   ยังไม่ถึง = พื้นเทา · ทุกช่องกดได้ (ถอยขั้นได้) · ปลายลูกศรซ้อนทับช่องถัดไป 6px */
+.lead-funnel { display: flex; width: 100%; }
+.lead-funnel-step {
+  flex: 1; min-width: 0; position: relative; height: 34px; margin-right: -6px;
+  border: 0; font: inherit; font-size: 12.5px; line-height: 1.2; cursor: pointer;
+  padding: 0 6px 0 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: var(--muted); color: var(--muted-foreground);
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 0 100%, 10px 50%);
+  transition: filter .12s;
+}
+.lead-funnel-step:hover { filter: brightness(0.95); }
+.dark .lead-funnel-step:hover { filter: brightness(1.15); }
+.lead-funnel-step:first-child {
+  padding-left: 10px; border-radius: 8px 0 0 8px;
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 0 100%);
+}
+.lead-funnel-step:last-child {
+  margin-right: 0; border-radius: 0 8px 8px 0;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 10px 50%);
+}
+.lead-funnel-done { background: var(--st-done-bg); color: var(--st-done-fg); }  /* token "เสร็จแล้ว" ชุดเดียวกับ StatusBadge (มีชุดมืดใน .dark แล้ว) */
+.lead-funnel-current { color: #fff; font-weight: 700; }
+/* บนธีมมืดใช้ token ของ .dark อยู่แล้วผ่าน --muted/--muted-foreground */
+
