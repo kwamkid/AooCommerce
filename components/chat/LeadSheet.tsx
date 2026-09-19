@@ -53,13 +53,18 @@ interface Props {
   initialLead?: LeadData | null;
   initialStages?: LeadStage[];
   initialMembers?: LeadMember[];
+  /**
+   * วาดเป็นเนื้อในแผงข้าง (หน้าแชทเป็นคนวาดหัวแผงเอง) แทนโมดัล —
+   * โมดัลบังห้องแชทที่กำลังคุย แผงข้างวางคู่กับห้องได้เหมือนแผงเปิดบิล
+   */
+  embedded?: boolean;
   onClose: () => void;
   /** แจ้งหน้าที่เรียกให้ patch แถวของตัวเอง — หน้าแชทไม่ต้องดึงรายชื่อใหม่ทั้งก้อน */
   onChanged?: (lead: LeadData) => void;
 }
 
 export default function LeadSheet({
-  open, contactId, platform, contactName, initialLead, initialStages, initialMembers, onClose, onChanged,
+  open, contactId, platform, contactName, initialLead, initialStages, initialMembers, embedded = false, onClose, onChanged,
 }: Props) {
   const { showToast } = useToast();
   const [stages, setStages] = useState<LeadStage[]>(initialStages?.length ? initialStages : DEFAULT_LEAD_STAGES);
@@ -116,24 +121,19 @@ export default function LeadSheet({
   /** นัดที่ตั้งจากปฏิทินเอง (ไม่ตรงปุ่มไหน) — ให้ช่องปฏิทินเป็นตัวแสดงวันแทน */
   const customPicked = !!lead?.follow_up_at && !presets.some(p => matchesPreset(lead.follow_up_at!, p.date));
 
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      size="md"
-      title={
-        <span className="flex items-center gap-2 min-w-0">
-          <span className="truncate">{contactName}</span>
-          <span className={`text-xs font-semibold px-2 py-0.5 rounded flex-shrink-0 inline-flex items-center gap-1 ${STAGE_CHIP_CLASS[current?.color || 'gray']}`}>
-            <LeadStageIcon stageKey={currentKey} className="w-3.5 h-3.5" />
-            {current?.name || currentKey}
-          </span>
-          {lead?.stage_source === 'system' && (
-            <span className="text-[11px] font-normal text-gray-400 flex-shrink-0">ระบบติดให้</span>
-          )}
-        </span>
-      }
-    >
+  // ป้ายสถานะปัจจุบัน — โมดัลวางไว้ที่หัว · แผงข้างวางเป็นบรรทัดแรกของเนื้อ
+  const stageBadge = (
+    <span className={`text-xs font-semibold px-2 py-0.5 rounded flex-shrink-0 inline-flex items-center gap-1 ${STAGE_CHIP_CLASS[current?.color || 'gray']}`}>
+      <LeadStageIcon stageKey={currentKey} className="w-3.5 h-3.5" />
+      {current?.name || currentKey}
+    </span>
+  );
+  const sourceHint = lead?.stage_source === 'system'
+    ? <span className="text-[11px] font-normal text-gray-400 flex-shrink-0">ระบบติดให้</span>
+    : null;
+
+  const body = (
+    <>
       {/* รอโอนมากี่วัน — บรรทัดเดียว โผล่เฉพาะตอนที่มีบิลค้างจริง */}
       {waiting !== null && (
         <div className="mb-3 text-sm font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-1.5">
@@ -229,6 +229,36 @@ export default function LeadSheet({
           disabled={saving}
         />
       </div>
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <div className="p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-sm text-gray-500 dark:text-slate-400">ตอนนี้</span>
+          {stageBadge}
+          {sourceHint}
+        </div>
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      size="md"
+      title={
+        <span className="flex items-center gap-2 min-w-0">
+          <span className="truncate">{contactName}</span>
+          {stageBadge}
+          {sourceHint}
+        </span>
+      }
+    >
+      {body}
     </Modal>
   );
 }

@@ -147,7 +147,6 @@ function UnifiedChatPageContent() {
   // Selected contact state
   const [selectedContact, setSelectedContact] = useState<UnifiedContact | null>(null);
   // ติดตามลูกค้า — โหลดเฉพาะห้องที่เปิดอยู่ (ไม่ดึงทั้งรายชื่อ)
-  const [leadSheetOpen, setLeadSheetOpen] = useState(false);
   const [lead, setLead] = useState<LeadData | null>(null);
   const [leadStages, setLeadStages] = useState<LeadStage[]>(DEFAULT_LEAD_STAGES);
   /** คนที่ตั้งเป็นผู้รับผิดชอบได้ — มากับ /api/leads ครั้งแรก ใช้ซ้ำทุกห้อง */
@@ -225,11 +224,11 @@ function UnifiedChatPageContent() {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   // Right panel (split view) - desktop only
-  const [rightPanel, setRightPanel] = useState<'order' | 'history' | 'profile' | 'edit-customer' | 'order-detail' | null>(null);
+  const [rightPanel, setRightPanel] = useState<'order' | 'history' | 'profile' | 'edit-customer' | 'order-detail' | 'lead' | null>(null);
   const [orderFormKey, setOrderFormKey] = useState(0);
 
   // Mobile view mode
-  const [mobileView, setMobileView] = useState<'contacts' | 'chat' | 'history' | 'profile' | 'edit-customer' | 'order-detail'>('contacts');
+  const [mobileView, setMobileView] = useState<'contacts' | 'chat' | 'history' | 'profile' | 'edit-customer' | 'order-detail' | 'lead'>('contacts');
   // ปัดขวาในหน้าคุย = กลับไปรายชื่อแชท (ท่าเดียวกับแอปแชททั่วไป — หน้านี้ไม่เปลี่ยน URL
   // เบราว์เซอร์จึงไม่มีท่าย้อนกลับให้เอง)
   const mobileViewRef = useRef(mobileView);
@@ -2252,6 +2251,13 @@ function UnifiedChatPageContent() {
     fetchOrderHistory(selectedContact.customer.id);
   };
 
+  // แผงติดตาม — วางคู่ห้องแชทเหมือนแผงเปิดบิล (โมดัลบังข้อความที่กำลังคุย)
+  const handleOpenLead = () => {
+    if (!selectedContact) return;
+    if (window.innerWidth < 768) setMobileView('lead');
+    else setRightPanel(rightPanel === 'lead' ? null : 'lead');
+  };
+
   const handleOpenProfile = () => {
     if (!selectedContact) return;
     if (window.innerWidth < 768) setMobileView('profile');
@@ -3124,7 +3130,7 @@ function UnifiedChatPageContent() {
                       const st = leadStages.find(x => x.key === lead.stage);
                       const dueLabel = followUpLabel(lead.follow_up_at);
                       return (
-                        <button type="button" onClick={() => setLeadSheetOpen(true)} className="flex items-center gap-1.5 mt-0.5">
+                        <button type="button" onClick={() => handleOpenLead()} className="flex items-center gap-1.5 mt-0.5">
                           {st && (
                             <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded ${STAGE_CHIP_CLASS[st.color]}`}>{st.name}</span>
                           )}
@@ -3181,15 +3187,16 @@ function UnifiedChatPageContent() {
                     <>
                       <Tooltip text="ดูประวัติออเดอร์"><button onClick={handleOpenHistory} aria-label="ดูประวัติออเดอร์" className={`p-2 rounded-lg transition-colors ${rightPanel === 'history' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><History className="w-4 h-4" /></button></Tooltip>
                       <Tooltip text={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'}><button onClick={() => { setRightPanel(rightPanel === 'order' ? null : 'order'); }} aria-label={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'} className={`p-2 rounded-lg transition-colors ${rightPanel === 'order' ? 'bg-primary text-white' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}><OrderIcon className="w-4 h-4" /></button></Tooltip>
-                      <Tooltip text={lead?.follow_up_at ? `ติดตามลูกค้า · ${followUpLabel(lead.follow_up_at)?.text}` : 'ติดตามลูกค้า'}><button onClick={() => setLeadSheetOpen(true)} aria-label="ติดตามลูกค้า" className={`p-2 rounded-lg transition-colors ${lead?.follow_up_at ? (followUpLabel(lead.follow_up_at)?.overdue ? 'bg-red-500 text-white' : 'bg-amber-500 text-white') : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><TimeIcon className="w-4 h-4" /></button></Tooltip>
+                      <Tooltip text={lead?.follow_up_at ? `ติดตามลูกค้า · ${followUpLabel(lead.follow_up_at)?.text}` : 'ติดตามลูกค้า'}><button onClick={handleOpenLead} aria-label="ติดตามลูกค้า" className={`p-2 rounded-lg transition-colors ${rightPanel === 'lead' ? 'bg-blue-500 text-white' : lead?.follow_up_at ? (followUpLabel(lead.follow_up_at)?.overdue ? 'bg-red-500 text-white' : 'bg-amber-500 text-white') : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><TimeIcon className="w-4 h-4" /></button></Tooltip>
                       <Tooltip text="ดูข้อมูลลูกค้า"><button onClick={handleOpenProfile} aria-label="ดูข้อมูลลูกค้า" className={`p-2 rounded-lg transition-colors ${rightPanel === 'profile' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><UserIcon className="w-4 h-4" /></button></Tooltip>
                     </>
                   ) : (
                     <>
                       <Tooltip text={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'}><button onClick={() => { setRightPanel(rightPanel === 'order' ? null : 'order'); }} aria-label={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'} className={`p-2 rounded-lg transition-colors ${rightPanel === 'order' ? 'bg-primary text-white' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}><OrderIcon className="w-4 h-4" /></button></Tooltip>
-                      <Tooltip text={lead?.follow_up_at ? `ติดตามลูกค้า · ${followUpLabel(lead.follow_up_at)?.text}` : 'ติดตามลูกค้า'}><button onClick={() => setLeadSheetOpen(true)} aria-label="ติดตามลูกค้า" className={`p-2 rounded-lg transition-colors ${lead?.follow_up_at ? (followUpLabel(lead.follow_up_at)?.overdue ? 'bg-red-500 text-white' : 'bg-amber-500 text-white') : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><TimeIcon className="w-4 h-4" /></button></Tooltip>
+                      <Tooltip text={lead?.follow_up_at ? `ติดตามลูกค้า · ${followUpLabel(lead.follow_up_at)?.text}` : 'ติดตามลูกค้า'}><button onClick={handleOpenLead} aria-label="ติดตามลูกค้า" className={`p-2 rounded-lg transition-colors ${rightPanel === 'lead' ? 'bg-blue-500 text-white' : lead?.follow_up_at ? (followUpLabel(lead.follow_up_at)?.overdue ? 'bg-red-500 text-white' : 'bg-amber-500 text-white') : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><TimeIcon className="w-4 h-4" /></button></Tooltip>
                       <Tooltip text="แท็ก / โปรไฟล์"><button onClick={handleOpenProfile} aria-label="แท็ก / โปรไฟล์" className={`p-2 rounded-lg transition-colors ${rightPanel === 'profile' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><UserIcon className="w-4 h-4" /></button></Tooltip>
-                      <Tooltip text="เชื่อมลูกค้าที่มีอยู่"><button onClick={() => { setShowLinkModal(true); }} aria-label="เชื่อมลูกค้าที่มีอยู่" className="p-2 rounded-lg transition-colors bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600"><LinkIcon className="w-4 h-4" /></button></Tooltip>
+                      {/* ปุ่ม "เชื่อมลูกค้าที่มีอยู่" ยุบออกจากแถวนี้ก่อน (เจ้าของสั่ง 19 ก.ย. 2026 — แถวเริ่มแน่น)
+                          ยังเชื่อมได้จากแผงโปรไฟล์ · LinkCustomerModal + setShowLinkModal ยังอยู่ */}
                     </>
                   )}
                 </div>
@@ -3459,6 +3466,29 @@ function UnifiedChatPageContent() {
         {/* Mobile Order View — unified with desktop panel above */}
 
         {/* Mobile History View */}
+        {mobileView === 'lead' && selectedContact && (
+          <div className="flex md:hidden w-full flex-col bg-gray-50 dark:bg-slate-900">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+              <div className="flex items-center gap-3"><button onClick={() => setMobileView('chat')} className="p-1 -ml-1 text-gray-500 hover:text-gray-700"><ChevronLeftIcon className="w-6 h-6" /></button><TimeIcon className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">ติดตามลูกค้า</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.nickname || selectedContact.display_name}</p></div></div>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <LeadSheet
+                key={selectedContact.id}
+                embedded
+                open
+                contactId={selectedContact.id}
+                platform={selectedContact.source || selectedContact.platform}
+                contactName={selectedContact.nickname || selectedContact.display_name}
+                initialLead={lead}
+                initialStages={leadStages}
+                initialMembers={leadMembers || undefined}
+                onClose={() => setMobileView('chat')}
+                onChanged={(updated) => { setLead(updated); setLeadNote(updated.follow_up_note || ''); setMobileView('chat'); }}
+              />
+            </div>
+          </div>
+        )}
+
         {mobileView === 'history' && selectedContact?.customer && (
           <div className="flex md:hidden w-full flex-col bg-gray-50 dark:bg-slate-900">
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
@@ -3548,6 +3578,30 @@ function UnifiedChatPageContent() {
           />
         )}
 
+        {rightPanel === 'lead' && selectedContact && (
+          <div className="hidden md:flex flex-1 flex-col border-l border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 min-h-[81px]">
+              <div className="flex items-center gap-3"><TimeIcon className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">ติดตามลูกค้า</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.nickname || selectedContact.display_name}</p></div></div>
+              <Tooltip text="ปิด"><button onClick={() => setRightPanel(null)} aria-label="ปิด" className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"><CloseIcon className="w-5 h-5" /></button></Tooltip>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <LeadSheet
+                key={selectedContact.id}
+                embedded
+                open
+                contactId={selectedContact.id}
+                platform={selectedContact.source || selectedContact.platform}
+                contactName={selectedContact.nickname || selectedContact.display_name}
+                initialLead={lead}
+                initialStages={leadStages}
+                initialMembers={leadMembers || undefined}
+                onClose={() => setRightPanel(null)}
+                onChanged={(updated) => { setLead(updated); setLeadNote(updated.follow_up_note || ''); }}
+              />
+            </div>
+          </div>
+        )}
+
         {rightPanel === 'history' && selectedContact?.customer && (
           <div className="hidden md:flex flex-1 flex-col border-l border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 min-h-[81px]">
@@ -3613,21 +3667,6 @@ function UnifiedChatPageContent() {
           </div>
         )}
       </div>
-
-      {/* แผ่นติดตามลูกค้า — เปิดจากรูปโปรไฟล์ในหัวห้อง */}
-      {leadSheetOpen && selectedContact && (
-        <LeadSheet
-          open={leadSheetOpen}
-          contactId={selectedContact.id}
-          platform={selectedContact.source || selectedContact.platform}
-          contactName={selectedContact.nickname || selectedContact.display_name}
-          initialLead={lead}
-          initialStages={leadStages}
-          initialMembers={leadMembers || undefined}
-          onClose={() => setLeadSheetOpen(false)}
-          onChanged={(updated) => { setLead(updated); setLeadNote(updated.follow_up_note || ''); }}
-        />
-      )}
 
       {/* Link Customer Modal */}
       {showLinkModal && selectedContact && (
