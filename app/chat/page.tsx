@@ -131,7 +131,7 @@ function UnifiedChatPageContent() {
   const sortMode = (searchParams.get('sort') || 'time') as 'time' | 'unread';
   const filterLinked = (searchParams.get('linked') || 'all') as 'all' | 'linked' | 'unlinked';
   const filterUnread = searchParams.get('unread') === '1';
-  /** ตัวกรองการติดตาม — '' ทั้งหมด · 'due' ถึงกำหนดวันนี้(รวมที่เลยมาแล้ว) · 'overdue' เฉพาะที่เลยกำหนด */
+  /** ตัวกรองการติดตาม — '' ทั้งหมด · 'due' นัดตรงกับวันนี้ · 'overdue' นัดผ่านไปแล้วยังไม่ได้ทัก (สองอย่างไม่ซ้อนกัน) */
   const filterFollowUp = (searchParams.get('followup') || '') as '' | 'due' | 'overdue';
   /** เฉพาะคนที่ทักมาจากโฆษณา (Click-to-Messenger) */
   const filterAds = searchParams.get('ads') === '1';
@@ -2876,25 +2876,25 @@ function UnifiedChatPageContent() {
                         </div>
                         <div className="flex gap-2">
                           <button onClick={() => { setFilterParams({ followup: filterFollowUp === 'due' ? '' : 'due' }); setShowFilterPopover(false); }}
-                            className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors flex items-center justify-center gap-1 ${filterFollowUp === 'due' ? 'bg-amber-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`}>
-                            <TimeIcon className="w-4 h-4" /><span>ถึงกำหนด</span>
+                            className={`opt-btn flex-1 ${filterFollowUp === 'due' ? 'opt-btn-active bg-amber-500 text-white' : ''}`}>
+                            <TimeIcon /><span>นัดวันนี้</span>
                           </button>
                           <button onClick={() => { setFilterParams({ followup: filterFollowUp === 'overdue' ? '' : 'overdue' }); setShowFilterPopover(false); }}
-                            className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors flex items-center justify-center gap-1 ${filterFollowUp === 'overdue' ? 'bg-red-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`}>
-                            <AlertIcon className="w-4 h-4" /><span>เลยกำหนด</span>
+                            className={`opt-btn flex-1 ${filterFollowUp === 'overdue' ? 'opt-btn-active bg-red-500 text-white' : ''}`}>
+                            <AlertIcon /><span>เลยนัดแล้ว</span>
                           </button>
                         </div>
                       </div>
                       <div>
                         <label className="text-base font-medium text-gray-600 dark:text-slate-400 mb-2 block">สถานะลูกค้า</label>
                         <div className="flex gap-2">
-                          <button onClick={() => { setFilterParams({ linked: filterLinked === 'linked' ? 'all' : 'linked' }); setShowFilterPopover(false); }} className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors flex items-center justify-center gap-1 ${filterLinked === 'linked' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><UserCheck className="w-4 h-4" /><span>ซื้อแล้ว</span></button>
-                          <button onClick={() => { const next = filterLinked === 'unlinked' ? 'all' : 'unlinked'; setFilterParams({ linked: next }); if (next === 'unlinked') setFilterOrderDaysRange(null); setShowFilterPopover(false); }} className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors flex items-center justify-center gap-1 ${filterLinked === 'unlinked' ? 'bg-orange-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><UserX className="w-4 h-4" /><span>ยังไม่ซื้อ</span></button>
+                          <button onClick={() => { setFilterParams({ linked: filterLinked === 'linked' ? 'all' : 'linked' }); setShowFilterPopover(false); }} className={`opt-btn flex-1 ${filterLinked === 'linked' ? 'opt-btn-active bg-blue-500 text-white' : ''}`}><UserCheck className="w-4 h-4" /><span>ซื้อแล้ว</span></button>
+                          <button onClick={() => { const next = filterLinked === 'unlinked' ? 'all' : 'unlinked'; setFilterParams({ linked: next }); if (next === 'unlinked') setFilterOrderDaysRange(null); setShowFilterPopover(false); }} className={`opt-btn flex-1 ${filterLinked === 'unlinked' ? 'opt-btn-active bg-orange-500 text-white' : ''}`}><UserX className="w-4 h-4" /><span>ยังไม่ซื้อ</span></button>
                         </div>
                         {/* ทักมาจากโฆษณา — คนที่จ่ายเงินพามา ควรตามปิดการขายก่อนใคร (เฉพาะ Facebook/IG) */}
                         <button onClick={() => { setFilterParams({ ads: filterAds ? '' : '1' }); setShowFilterPopover(false); }}
-                          className={`mt-2 w-full px-3 py-2 text-sm rounded-lg transition-colors flex items-center justify-center gap-1 ${filterAds ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`}>
-                          <BroadcastIcon className="w-4 h-4" /><span>ทักมาจากโฆษณา (Ads)</span>
+                          className={`opt-btn mt-2 w-full ${filterAds ? 'opt-btn-active' : ''}`}>
+                          <BroadcastIcon /><span>ทักมาจากโฆษณา (Ads)</span>
                         </button>
                       </div>
                       {/* รับข่าวสาร (Messenger marketing messages) — ใครกดรับการ์ดชวนแล้ว/ยัง (เฉพาะ Facebook) */}
@@ -2902,36 +2902,16 @@ function UnifiedChatPageContent() {
                         <label className="text-base font-medium text-gray-600 dark:text-slate-400 mb-2 block">รับข่าวสาร</label>
                         <div className="flex gap-2">
                           <button onClick={() => { setFilterParams({ optin: filterOptin === 'subscribed' ? '' : 'subscribed' }); setShowFilterPopover(false); }}
-                            className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors flex items-center justify-center gap-1 ${filterOptin === 'subscribed' ? 'bg-emerald-600 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`}>
+                            className={`opt-btn flex-1 ${filterOptin === 'subscribed' ? 'opt-btn-active bg-emerald-600 text-white' : ''}`}>
                             <ConfirmIcon className="w-4 h-4" /><span>กดรับแล้ว</span>
                           </button>
                           <button onClick={() => { setFilterParams({ optin: filterOptin === 'not' ? '' : 'not' }); setShowFilterPopover(false); }}
-                            className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors flex items-center justify-center gap-1 ${filterOptin === 'not' ? 'bg-gray-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`}>
+                            className={`opt-btn flex-1 ${filterOptin === 'not' ? 'opt-btn-active bg-gray-500 text-white' : ''}`}>
                             <span>ยังไม่ได้กด</span>
                           </button>
                         </div>
                       </div>
-                      {/* Tag filter */}
-                      {allTags.length > 0 && (
-                        <div>
-                          <label className="text-base font-medium text-gray-600 dark:text-slate-400 mb-2 block">แท็ก</label>
-                          <div className="flex flex-wrap gap-1">
-                            <button onClick={() => { setFilterParams({ tag: '' }); setShowFilterPopover(false); }}
-                              className={`px-2 py-1 text-sm rounded-lg transition-colors ${filterTag === '' ? 'bg-gray-900 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`}>ทั้งหมด</button>
-                            {allTags.map(tag => {
-                              const isActive = filterTag === tag.id;
-                              return (
-                                <button key={tag.id} onClick={() => { setFilterParams({ tag: isActive ? '' : tag.id }); setShowFilterPopover(false); }}
-                                  className={`px-2 py-1 text-sm rounded-lg transition-colors flex items-center gap-1 ${isActive ? 'text-white' : 'hover:opacity-80'}`}
-                                  style={isActive ? { backgroundColor: tag.color } : { backgroundColor: tag.color + '20', color: tag.color }}>
-                                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: isActive ? 'white' : tag.color }} />
-                                  {tag.name}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
+                      {/* แท็กไม่อยู่ในกรวย — พิมพ์ชื่อแท็กในช่องค้นหาแล้วเลือกได้ (ร้านที่แท็กเยอะกรวยจะยาวเป็นหน้า) */}
                     </div>
                     {/* บางแพลตฟอร์มบอกเราไม่ได้ว่าแอดมินไปตอบจากแอปของมันเอง (LINE ไม่มี event ทั้งขาส่ง
                         และขาอ่าน) ตัวเลขยังไม่อ่านจึงค้างได้ — ที่นี่คือที่เดียวที่ล้างเองได้แล้ว จึงต้องโชว์ทุกจอ */}

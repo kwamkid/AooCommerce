@@ -232,6 +232,25 @@ html, body {
 .dark .btn-ghost { color: rgb(148 163 184); }
 .dark .btn-ghost:hover { background-color: rgb(51 65 85); }
 
+/* ── ปุ่มตัวเลือกแบบกดเลือก (กล่องกรองรายชื่อ · แผงติดตาม: ผลลัพธ์ · ทักอีกทีเมื่อ) ──
+   .opt-btn          พื้นเทา ตัวหนังสือเทาเข้ม · hover เข้มขึ้น · เลือกแล้ว = .opt-btn-active (ทึบ)
+   สีของตัวที่เลือกใส่เพิ่มเอง (เช่น bg-amber-500 / STAGE_ACTIVE_CLASS) — ไม่ใส่ = ฟ้า
+   ไอคอนข้างใน 16px · วางเรียงใน grid/flex gap-1.5 ให้ผู้เรียกจัด */
+.opt-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.25rem;
+  padding: 0.5rem 0.75rem; border-radius: 0.5rem; border: 0; font: inherit; font-size: 0.875rem;
+  line-height: 1.25; cursor: pointer; white-space: nowrap;
+  background-color: rgb(243 244 246); color: rgb(75 85 99);
+  transition: background-color .15s, color .15s;
+}
+.opt-btn > svg { width: 1rem; height: 1rem; flex-shrink: 0; }
+.opt-btn:hover { background-color: rgb(229 231 235); }
+.dark .opt-btn { background-color: rgb(51 65 85); color: rgb(148 163 184); }
+.dark .opt-btn:hover { background-color: rgb(71 85 105); }
+.opt-btn-active, .dark .opt-btn-active { background-color: rgb(59 130 246); color: #fff; font-weight: 500; }
+.opt-btn-active:hover, .dark .opt-btn-active:hover { filter: brightness(0.95); }
+.opt-btn-sm { padding: 0.375rem 0.5rem; font-size: 0.8125rem; }
+
 /* ── ปุ่มไอคอนสี่เหลี่ยม (แถวเครื่องมือหัวห้องแชท: เปิดบิล · ติดตาม · โปรไฟล์ · ประวัติ) ──
    .icon-btn            พื้นเทา ไอคอนเทาเข้ม · hover เข้มขึ้น
    .icon-btn-active     แผง/โหมดนั้นเปิดอยู่ = พื้นฟ้า ไอคอนขาว

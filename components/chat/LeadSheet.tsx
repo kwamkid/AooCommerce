@@ -17,7 +17,6 @@ import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import Modal from '@/components/ui/Modal';
 import FormSelect from '@/components/ui/FormSelect';
-import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import DateRangePicker, { type DateValueType } from '@/components/ui/DateRangePicker';
 import LeadStageIcon from './LeadStageIcon';
@@ -200,16 +199,16 @@ export default function LeadSheet({
         {presets.map(p => {
           const picked = !!lead?.follow_up_at && matchesPreset(lead.follow_up_at, p.date);
           return (
-            <Button
+            <button
               key={p.key}
-              size="sm"
-              fullWidth
-              variant={picked ? 'primary' : 'secondary'}
+              type="button"
+              aria-pressed={picked}
               onClick={() => save({ follow_up_at: p.date.toISOString() }, `ทักอีกที ${formatShortThaiDate(p.date)}`, true)}
+              className={`opt-btn ${picked ? 'opt-btn-active !bg-primary' : ''}`}
             >
               {p.label}
-              <span className="opacity-60 ml-1">{formatShortThaiDate(p.date).replace(/^\S+\s/, '')}</span>
-            </Button>
+              <span className="opacity-60 text-xs">{formatShortThaiDate(p.date).replace(/^\S+\s/, '')}</span>
+            </button>
           );
         })}
 

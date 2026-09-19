@@ -189,8 +189,10 @@ export async function GET(request: NextRequest) {
       if (followUp === 'overdue') {
         leadQuery = leadQuery.not('follow_up_at', 'is', null).lt('follow_up_at', new Date().toISOString());
       } else if (followUp === 'due') {
+        // "นัดวันนี้" = เฉพาะวันนี้ ไม่รวมที่เลยมาแล้ว (ตัวนั้นคือ overdue) — สองตัวกรองไม่ซ้อนกัน
+        const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
         const endOfToday = new Date(); endOfToday.setHours(23, 59, 59, 999);
-        leadQuery = leadQuery.not('follow_up_at', 'is', null).lte('follow_up_at', endOfToday.toISOString());
+        leadQuery = leadQuery.gte('follow_up_at', startOfToday.toISOString()).lte('follow_up_at', endOfToday.toISOString());
       }
 
       const { data: leadRows } = await leadQuery;

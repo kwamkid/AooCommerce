@@ -10,7 +10,6 @@
 // เพิ่ม/แก้ขั้นเองยังวาดได้ถูก ไม่ผูกกับชื่อ key · สไตล์อยู่ globals.css (.lead-funnel*)
 // เลือกแบบนี้แทนกรวยแนวตั้ง/ชิปกรอง เพราะใช้ที่น้อยสุด (เจ้าของเคาะ 19 ก.ย. 2026)
 
-import Button from '@/components/ui/Button';
 import LeadStageIcon from './LeadStageIcon';
 import { STAGE_ACTIVE_CLASS, type LeadStage } from '@/lib/leads/stages';
 
@@ -59,17 +58,16 @@ export default function LeadFunnel({ stages, currentKey, onSelect }: Props) {
           {outcomes.map(s => {
             const current = s.key === currentKey;
             return (
-              <Button
+              <button
                 key={s.key}
-                size="sm"
-                fullWidth
-                variant="secondary"
-                className={current ? STAGE_ACTIVE_CLASS[s.color] : undefined}
-                icon={<LeadStageIcon stageKey={s.key} />}
+                type="button"
+                aria-pressed={current}
                 onClick={() => onSelect(s.key)}
+                className={`opt-btn flex-1 ${current ? `opt-btn-active ${STAGE_ACTIVE_CLASS[s.color]}` : ''}`}
               >
+                <LeadStageIcon stageKey={s.key} />
                 {s.name}
-              </Button>
+              </button>
             );
           })}
         </div>
