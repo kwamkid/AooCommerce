@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, supabaseAdmin } from '@/lib/supabase-admin';
+import { fetchAllRows } from '@/lib/supabase-paging';
 import { countUnreadChatForUser } from '@/lib/push/badge';
 import { getBlockedPlatforms } from '@/lib/marketplace/quota';
 import { collectWatchdogIssuesCached } from '@/lib/marketplace/watchdog';
@@ -48,36 +49,41 @@ export async function GET(request: NextRequest) {
       lowStockResult,
       followUpDueResult,
     ] = await Promise.all([
-      supabaseAdmin
+      fetchAllRows<{ unread_count: number }>((from, to) => supabaseAdmin
         .from('line_contacts')
         .select('unread_count')
         .eq('company_id', companyId)
         .eq('status', 'active')
-        .gt('unread_count', 0),
-      supabaseAdmin
+        .gt('unread_count', 0)
+        .range(from, to)),
+      fetchAllRows<{ unread_count: number }>((from, to) => supabaseAdmin
         .from('fb_contacts')
         .select('unread_count')
         .eq('company_id', companyId)
         .eq('status', 'active')
-        .gt('unread_count', 0),
-      supabaseAdmin
+        .gt('unread_count', 0)
+        .range(from, to)),
+      fetchAllRows<{ unread_count: number }>((from, to) => supabaseAdmin
         .from('shopee_contacts')
         .select('unread_count')
         .eq('company_id', companyId)
         .eq('status', 'active')
-        .gt('unread_count', 0),
-      supabaseAdmin
+        .gt('unread_count', 0)
+        .range(from, to)),
+      fetchAllRows<{ unread_count: number }>((from, to) => supabaseAdmin
         .from('lazada_contacts')
         .select('unread_count')
         .eq('company_id', companyId)
         .eq('status', 'active')
-        .gt('unread_count', 0),
-      supabaseAdmin
+        .gt('unread_count', 0)
+        .range(from, to)),
+      fetchAllRows<{ unread_count: number }>((from, to) => supabaseAdmin
         .from('tiktok_contacts')
         .select('unread_count')
         .eq('company_id', companyId)
         .eq('status', 'active')
-        .gt('unread_count', 0),
+        .gt('unread_count', 0)
+        .range(from, to)),
       supabaseAdmin
         .from('orders')
         .select('id', { count: 'exact', head: true })
@@ -105,11 +111,11 @@ export async function GET(request: NextRequest) {
     ]);
 
     let chatUnread = 0;
-    (lineUnreadResult.data || []).forEach(c => { chatUnread += c.unread_count || 0; });
-    (fbUnreadResult.data || []).forEach(c => { chatUnread += c.unread_count || 0; });
-    (shopeeUnreadResult.data || []).forEach(c => { chatUnread += c.unread_count || 0; });
-    (lazadaUnreadResult.data || []).forEach(c => { chatUnread += c.unread_count || 0; });
-    (tiktokUnreadResult.data || []).forEach(c => { chatUnread += c.unread_count || 0; });
+    lineUnreadResult.rows.forEach(c => { chatUnread += c.unread_count || 0; });
+    fbUnreadResult.rows.forEach(c => { chatUnread += c.unread_count || 0; });
+    shopeeUnreadResult.rows.forEach(c => { chatUnread += c.unread_count || 0; });
+    lazadaUnreadResult.rows.forEach(c => { chatUnread += c.unread_count || 0; });
+    tiktokUnreadResult.rows.forEach(c => { chatUnread += c.unread_count || 0; });
 
     // รายการปัญหามาจากตัวเฝ้าตัวเดียวกับที่ใช้เด้ง push และหน้า superadmin
     // (lib/marketplace/watchdog.ts) — กระดิ่ง · การ์ดใน dashboard · แจ้งเตือน

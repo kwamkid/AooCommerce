@@ -1,6 +1,7 @@
 // Path: app/api/pos/orders/route.ts
 import { NextRequest, NextResponse, after } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
+import { fetchAllRows } from '@/lib/supabase-paging';
 import { getStockConfig } from '@/lib/stock-utils';
 import { fetchCostMap } from '@/lib/cost-utils';
 import { soldUnitPriceMap } from '@/lib/consignment-cost';
@@ -142,6 +143,12 @@ export async function GET(request: NextRequest) {
     const orders = data || [];
 
     // Build a separate summary query with same filters (but no pagination)
+    // ⚠️ ยอดสรุปบวกเองจากแถวที่ดึงมา — ดูหลายวัน/ทั้งกะแล้วเกิน 1,000 บิลเมื่อไหร่
+    //    ยอดขายรวมกับยอดแยกตามวิธีจ่ายก็ต่ำกว่าจริงโดยไม่มีอะไรเตือน
+    const { rows: summaryRows } = await fetchAllRows<{
+      total_amount: number | null; discount_amount: number | null;
+      order_status: string; payment_method: string | null;
+    }>((rangeFrom, rangeTo) => {
     let summaryQuery = supabaseAdmin
       .from('orders')
       .select('total_amount, discount_amount, order_status, payment_method')
@@ -162,7 +169,8 @@ export async function GET(request: NextRequest) {
     }
     // Note: search filter omitted from summary for performance — summary shows totals for the date/warehouse filter
 
-    const { data: summaryRows } = await summaryQuery;
+    return summaryQuery.range(rangeFrom, rangeTo);
+    });
     const completedRows = (summaryRows || []).filter((r: any) => r.order_status === 'completed');
     const totalDiscount = completedRows.reduce((s: number, r: any) => s + Number(r.discount_amount || 0), 0);
 

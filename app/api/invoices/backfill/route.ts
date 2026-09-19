@@ -10,6 +10,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, can, supabaseAdmin } from '@/lib/supabase-admin';
+import { fetchAllRows } from '@/lib/supabase-paging';
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,19 +25,24 @@ export async function POST(request: NextRequest) {
     }
 
     // Find orders that need backfill
-    const { data: orders, error } = await supabaseAdmin
+    // ⚠️ เดิมได้ทีละ 1,000 ใบแต่ตอบเหมือนทำครบ — ผู้ใช้ไม่มีทางรู้ว่าต้องกดซ้ำอีกกี่รอบ
+    const { rows: orders, error } = await fetchAllRows<{
+      id: string; order_number: string; flow_type: string | null;
+      order_status: string; tax_invoice_number: string | null;
+    }>((from, to) => supabaseAdmin
       .from('orders')
       .select('id, order_number, flow_type, order_status, tax_invoice_number')
       .eq('company_id', auth.companyId)
       .in('flow_type', ['r_retail', 'w_cash'])
       .is('tax_invoice_number', null)
-      .in('order_status', ['processing', 'shipping', 'completed']);
+      .in('order_status', ['processing', 'shipping', 'completed'])
+      .range(from, to));
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    if (!orders || orders.length === 0) {
+    if (orders.length === 0) {
       return NextResponse.json({ success: true, message: 'ไม่มี orders ที่ต้อง backfill', count: 0 });
     }
 

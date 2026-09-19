@@ -2,6 +2,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { getCustomerConsignmentWarehouse } from '@/lib/consignment-warehouse';
+import { fetchAllRows } from '@/lib/supabase-paging';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -50,13 +51,15 @@ export async function GET(request: NextRequest) {
     );
 
     // Fetch stock from inventory (consignment warehouse)
+    // ⚠️ คลังฝากขายที่ถือของเกิน 1,000 SKU จะมีของหายจากหน้าที่ตัวแทนเปิดดู
     const stockRows = consignWarehouse
-      ? (await supabaseAdmin
+      ? (await fetchAllRows<{ variation_id: string; quantity: number }>((from, to) => supabaseAdmin
           .from('inventory')
           .select('variation_id, quantity')
           .eq('company_id', companyId)
           .eq('warehouse_id', consignWarehouse.id)
-          .gt('quantity', 0)).data?.map(r => ({
+          .gt('quantity', 0)
+          .range(from, to))).rows.map(r => ({
             variation_id: r.variation_id,
             total_remaining: r.quantity,
             total_sent: r.quantity,

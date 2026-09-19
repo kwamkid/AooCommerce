@@ -3,6 +3,7 @@
 // monthly totals) — 1 call per tab switch instead of several.
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
+import { fetchAllRows } from '@/lib/supabase-paging';
 import { getCustomerConsignmentWarehouse } from '@/lib/consignment-warehouse';
 import { canAccessCounter } from '@/lib/counter-access';
 import { guardFeature } from '@/lib/package-gates-server';
@@ -57,14 +58,16 @@ export async function GET(request: NextRequest) {
     const isAdoptedCounter = oldest?.id === counter.warehouse_id;
 
     const [invRes, unsettledRes, monthSalesRes, replenRes, deptRes] = await Promise.all([
-      supabaseAdmin
+      // ⚠️ เคาน์เตอร์ที่ถือของเกิน 1,000 SKU จะเห็นสต็อกไม่ครบบนหน้าสรุป
+      fetchAllRows((from, to) => supabaseAdmin
         .from('inventory')
         .select(`
           variation_id, quantity, reserved_quantity,
           variation:product_variations(id, variation_label, sku, product:products(id, name, image))
         `)
         .eq('company_id', auth.companyId)
-        .eq('warehouse_id', counter.warehouse_id),
+        .eq('warehouse_id', counter.warehouse_id)
+        .range(from, to)),
       supabaseAdmin
         .from('counter_sales')
         .select('variation_id, quantity')
@@ -101,7 +104,7 @@ export async function GET(request: NextRequest) {
     for (const row of unsettledRes.data || []) {
       unsettledMap.set(row.variation_id, (unsettledMap.get(row.variation_id) || 0) + Number(row.quantity || 0));
     }
-    const stock = (invRes.data || []).map(inv => {
+    const stock = invRes.rows.map(inv => {
       const v = inv.variation as any;
       const onHand = Number(inv.quantity || 0);
       const unsettled = unsettledMap.get(inv.variation_id) || 0;

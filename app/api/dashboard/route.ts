@@ -45,22 +45,20 @@ export async function GET(request: NextRequest) {
       console.error('Deliveries error:', deliveriesError);
     }
 
-    // Low stock items (stock feature - best effort, table may not exist)
+    // สต็อกต่ำ — ใช้ RPC ตัวเดียวกับ badge ใน Sidebar และแท็บ "ต่ำ" ของหน้า /inventory
+    // (นิยาม: min_stock > 0 และพร้อมขายรวมทุกคลัง ≤ min)
+    //
+    // ⛔ ของเดิมดึงแถว `inventory` ทั้งบริษัทมานับเองด้วยเกณฑ์ `available <= 5` ซึ่งผิดสองชั้น:
+    //    เลข 5 เป็นค่าที่ hard-code ไว้ (ไม่ใช่ขั้นต่ำที่ร้านตั้ง) ⇒ หน้าแรกกับเมนูข้างบอก
+    //    คนละตัวเลขมาตลอด · และร้านที่มีแถวสต็อกเกิน 1,000 ก็ถูกตัดเงียบ นับได้ไม่ครบอยู่ดี
     let lowStockCount = 0;
     try {
-      const { data: inventoryItems, error: invError } = await supabaseAdmin
-        .from('inventory')
-        .select('id, quantity, reserved_quantity')
-        .eq('company_id', auth.companyId);
-
-      if (!invError && inventoryItems) {
-        lowStockCount = inventoryItems.filter(item => {
-          const available = (item.quantity || 0) - (item.reserved_quantity || 0);
-          return available <= 5 && available >= 0;
-        }).length;
-      }
+      const { data: lowStock } = await supabaseAdmin.rpc('get_low_stock_count', {
+        p_company_id: auth.companyId,
+      });
+      lowStockCount = Number(lowStock) || 0;
     } catch {
-      // Stock feature might not be enabled or table doesn't exist, ignore
+      // Stock feature might not be enabled or RPC doesn't exist, ignore
     }
 
     // Format the data

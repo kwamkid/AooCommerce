@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
+import { fetchAllRows } from '@/lib/supabase-paging';
 
 // GET - Fetch images for a product or variation
 // Supports: ?product_id=X (product images only)
@@ -77,25 +78,29 @@ export async function GET(request: NextRequest) {
     }
 
     // Single query mode (original behavior)
-    let query = supabaseAdmin
-      .from('product_images')
-      .select('*')
-      .eq('company_id', auth.companyId)
-      .order('sort_order', { ascending: true });
+    // ⚠️ ไม่ส่ง product_id/variation_id มาเลย = ขอรูปทั้งบริษัท (ตารางนี้โตตามสินค้า ×
+    //    ตัวเลือก) เดิมจึงถูกตัดที่ 1,000 เงียบ ๆ
+    const { rows: images, error } = await fetchAllRows((rangeFrom, rangeTo) => {
+      let query = supabaseAdmin
+        .from('product_images')
+        .select('*')
+        .eq('company_id', auth.companyId)
+        .order('sort_order', { ascending: true });
 
-    if (productId) {
-      query = query.eq('product_id', productId);
-    } else if (variationId) {
-      query = query.eq('variation_id', variationId);
-    }
+      if (productId) {
+        query = query.eq('product_id', productId);
+      } else if (variationId) {
+        query = query.eq('variation_id', variationId);
+      }
 
-    const { data: images, error } = await query;
+      return query.range(rangeFrom, rangeTo);
+    });
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ images: images || [] });
+    return NextResponse.json({ images });
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

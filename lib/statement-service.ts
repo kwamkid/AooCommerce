@@ -4,6 +4,7 @@
  */
 
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { fetchAllRows } from '@/lib/supabase-paging';
 import { billingTermsFor, billingPeriodFor, openBillingPeriodFor } from '@/lib/statements/billing-cycle';
 
 interface CreateStatementResult {
@@ -269,13 +270,16 @@ export async function attachOrderToCycleStatement(
  * ต้องสะท้อนสิ่งที่ผูกอยู่ ณ ตอนนี้เสมอ
  */
 export async function recalcStatementTotal(statementId: string): Promise<number> {
-  const { data: orders } = await supabaseAdmin
+  // ⚠️ ใบวางบิลรวบออเดอร์ทั้งรอบของลูกค้ารายนั้น — ร้านที่ส่งของทุกวันมีเกินพันใบต่อรอบได้
+  //    ยอดที่ขาดไปคือยอดที่เรียกเก็บลูกค้าน้อยกว่าที่ขายจริง
+  const { rows: orders } = await fetchAllRows<{ total_amount: number | null }>((from, to) => supabaseAdmin
     .from('orders')
     .select('total_amount')
     .eq('statement_id', statementId)
-    .neq('order_status', 'cancelled');
+    .neq('order_status', 'cancelled')
+    .range(from, to));
 
-  const total = (orders || []).reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
+  const total = orders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
 
   await supabaseAdmin.from('statements')
     .update({ total_amount: total, updated_at: new Date().toISOString() })

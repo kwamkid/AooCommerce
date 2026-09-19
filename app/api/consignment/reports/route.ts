@@ -1,6 +1,7 @@
 // Admin API for consignment reports — requires authentication
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
+import { fetchAllRows } from '@/lib/supabase-paging';
 import { deductStock } from '@/lib/stock-service';
 import { getCustomerConsignmentWarehouse } from '@/lib/consignment-warehouse';
 import { guardFeature } from '@/lib/package-gates-server';
@@ -40,7 +41,8 @@ export async function GET(request: NextRequest) {
       const defaultGpRate = customer?.consignment_gp_rate ?? 0;
 
       // Get inventory with product info
-      const { data: inventory } = await supabaseAdmin
+      // ⚠️ รายงานฝากขายคิดเงิน GP จากของที่อยู่ในคลังตัวแทน — ขาดแถวไหนคือยอดหาย
+      const { rows: inventory } = await fetchAllRows((from, to) => supabaseAdmin
         .from('inventory')
         .select(`
           variation_id, quantity,
@@ -51,7 +53,8 @@ export async function GET(request: NextRequest) {
         `)
         .eq('company_id', companyId)
         .eq('warehouse_id', warehouse.id)
-        .gt('quantity', 0);
+        .gt('quantity', 0)
+        .range(from, to));
 
       // Get brand-level GP overrides for this customer
       const { data: brandCommissions } = await supabaseAdmin
@@ -64,7 +67,7 @@ export async function GET(request: NextRequest) {
         brandGpMap.set(bc.brand_id, bc.gp_rate);
       }
 
-      const stock = (inventory || []).map((inv: any) => {
+      const stock = inventory.map((inv: any) => {
         const v = inv.variation;
         const p = v?.product;
         return {
