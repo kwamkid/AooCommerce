@@ -14,6 +14,7 @@ import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
 import { LoadingCard } from '@/components/ui/StateCard';
 import { useAuthGuard } from '@/lib/useAuthGuard';
+import SupplierPortalCard from '@/components/suppliers/SupplierPortalCard';
 
 export default function EditSupplierPage() {
   const params = useParams();
@@ -165,6 +166,16 @@ export default function EditSupplierPage() {
           title="แก้ไขซัพพลายเออร์"
           subtitle={(s.name as string) || undefined}
           backHref="/settings/suppliers"
+        />
+
+        {/* พอร์ทัลของซัพพลายเออร์ — ลิงก์ + รหัส อยู่ในหน้านี้ด้วย
+            (เดิมมีแต่ในเมนู ⋮ ของหน้ารายการ ซึ่งหาไม่เจอ) */}
+        <SupplierPortalCard
+          supplierId={supplierId}
+          portalToken={(s.portal_token as string) || null}
+          accessCode={(s.access_code as string) || null}
+          portalEnabled={s.portal_enabled === true}
+          onChange={(next) => setSupplier(prev => (prev ? { ...prev, ...next } : prev))}
         />
 
         {/* Form */}

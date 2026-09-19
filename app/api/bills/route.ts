@@ -401,6 +401,12 @@ export async function GET(request: NextRequest) {
         customer_type: customerType,
         customer: billCustomer,
         needs_delivery_info: !order.delivery_name || !order.delivery_phone || !order.delivery_address,
+        // ขาดช่องไหนบ้าง — หน้าบิลเอาไปบอกให้ตรงว่า "ขาดเบอร์โทร" ไม่ใช่สั่งให้กรอกใหม่ทั้งชุด
+        missing_delivery_fields: [
+          !order.delivery_name ? 'ชื่อผู้รับ' : null,
+          !order.delivery_phone ? 'เบอร์โทรศัพท์' : null,
+          !order.delivery_address ? 'ที่อยู่จัดส่ง' : null,
+        ].filter(Boolean) as string[],
         is_expired: isExpired,
         is_cancelled: isCancelled,
         shipping_addresses: branches.map(b => ({
