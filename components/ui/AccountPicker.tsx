@@ -13,6 +13,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import ChannelBadge from './ChannelBadge';
+import PlatformIcon from './PlatformIcon';
+import Tooltip from './Tooltip';
 import { WebIcon } from '@/lib/icons';
 import { Layers } from 'lucide-react';
 import { ChevronDownIcon, ConfirmIcon, SearchIcon } from '@/lib/icons';
@@ -51,6 +53,13 @@ interface AccountPickerProps {
    * รายการเปิดชิดขวาของปุ่มและกว้างพอให้อ่านชื่อ · ใช้กับ `multiple={false}` เท่านั้น
    */
   iconOnly?: boolean;
+  /**
+   * แถวไอคอนแพลตฟอร์มในป๊อปอัป (FB · IG · LINE · Shopee …) กดแล้วกรอง "ทั้งแพลตฟอร์ม" โดยไม่ต้อง
+   * เลือกทีละบัญชี — ส่งทั้งคู่ถึงจะโชว์ · แพลตฟอร์มที่ขึ้นมาจากบัญชีที่มีจริงเท่านั้น
+   * เลือกแพลตฟอร์มแล้วรายการบัญชีข้างล่างกรองตามด้วย · `null` = ทุกแพลตฟอร์ม
+   */
+  platformFilter?: string | null;
+  onPlatformFilterChange?: (platform: string | null) => void;
 }
 
 export default function AccountPicker({
@@ -64,6 +73,8 @@ export default function AccountPicker({
   emptyMessage = 'ยังไม่มีช่องทางที่ใช้ได้',
   triggerClassName = '',
   iconOnly = false,
+  platformFilter = null,
+  onPlatformFilterChange,
 }: AccountPickerProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -85,9 +96,12 @@ export default function AccountPicker({
   }, [open]);
 
   const selected = accounts.filter(a => value.includes(a.id));
+  const platforms = [...new Set(accounts.map(a => a.platform))];
+  const showPlatformRow = !!onPlatformFilterChange && platforms.length > 1;
+  const byPlatform = platformFilter ? accounts.filter(a => a.platform === platformFilter) : accounts;
   const shown = search
-    ? accounts.filter(a => a.name.toLowerCase().includes(search.toLowerCase()))
-    : accounts;
+    ? byPlatform.filter(a => a.name.toLowerCase().includes(search.toLowerCase()))
+    : byPlatform;
 
   const toggle = (id: string) => {
     if (!multiple) {
@@ -109,14 +123,16 @@ export default function AccountPicker({
           aria-label={selected[0]?.name || placeholder}
           title={selected[0]?.name || placeholder}
           className={`h-[42px] w-[42px] flex items-center justify-center border rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-            selected.length > 0
+            selected.length > 0 || platformFilter
               ? 'border-primary bg-orange-50/60 dark:bg-orange-950/20'
               : 'border-gray-300 dark:border-slate-500 bg-white dark:bg-slate-700 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-600'
           } ${triggerClassName}`}
         >
           {selected.length > 0
             ? <ChannelBadge channel={{ platform: selected[0].platform, picture_url: selected[0].picture_url }} size="sm" />
-            : <WebIcon className="w-4 h-4" />}
+            : platformFilter
+              ? <PlatformIcon id={platformFilter} size={20} />
+              : <WebIcon className="w-4 h-4" />}
         </button>
       ) : (
       <button
@@ -148,6 +164,30 @@ export default function AccountPicker({
 
       {open && (
         <div className={`absolute top-full mt-1 z-50 ${iconOnly ? 'right-0 w-[280px]' : 'left-0 right-0'} bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg max-h-72 overflow-hidden flex flex-col`}>
+          {showPlatformRow && (
+            <div className="px-2 pt-2 pb-1.5 border-b border-gray-100 dark:border-slate-700 flex items-center gap-1">
+              {platforms.map(p => {
+                const active = platformFilter === p;
+                return (
+                  <Tooltip key={p} text={active ? 'ยกเลิกกรองแพลตฟอร์มนี้' : 'เฉพาะแพลตฟอร์มนี้'} box="inline-flex">
+                    <button
+                      type="button"
+                      aria-label={p}
+                      aria-pressed={active}
+                      onClick={() => { onPlatformFilterChange?.(active ? null : p); if (!multiple) { setOpen(false); setSearch(''); } }}
+                      className={`w-9 h-9 rounded-lg flex items-center justify-center border transition-colors ${
+                        active
+                          ? 'border-primary bg-orange-50/60 dark:bg-orange-950/20'
+                          : 'border-transparent hover:bg-gray-100 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      <PlatformIcon id={p} size={20} />
+                    </button>
+                  </Tooltip>
+                );
+              })}
+            </div>
+          )}
           {accounts.length > 5 && (
             <div className="p-2 border-b border-gray-100 dark:border-slate-700 relative">
               <SearchIcon className="w-4 h-4 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -165,14 +205,14 @@ export default function AccountPicker({
             {allOption && !search && (
               <button
                 type="button"
-                onClick={() => { onChange([]); if (!multiple) { setOpen(false); setSearch(''); } }}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${value.length === 0 ? 'bg-orange-50/60 dark:bg-orange-950/20' : ''}`}
+                onClick={() => { onChange([]); onPlatformFilterChange?.(null); if (!multiple) { setOpen(false); setSearch(''); } }}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${value.length === 0 && !platformFilter ? 'bg-orange-50/60 dark:bg-orange-950/20' : ''}`}
               >
                 <span className="w-6 h-6 rounded-full bg-gray-100 dark:bg-slate-600 flex items-center justify-center flex-shrink-0">
                   <Layers className="w-3.5 h-3.5 text-gray-400" />
                 </span>
                 <span className="flex-1 text-gray-900 dark:text-white">{allOption}</span>
-                {value.length === 0 && <ConfirmIcon className="w-4 h-4 text-primary flex-shrink-0" />}
+                {value.length === 0 && !platformFilter && <ConfirmIcon className="w-4 h-4 text-primary flex-shrink-0" />}
               </button>
             )}
             {shown.length === 0 ? (

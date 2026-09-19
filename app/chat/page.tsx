@@ -2954,6 +2954,8 @@ function UnifiedChatPageContent() {
                   allOption="ทุกช่องทาง"
                   placeholder="ทุกช่องทาง"
                   iconOnly
+                  platformFilter={filterAccountId ? null : filterPlatform === 'all' ? null : filterPlatform}
+                  onPlatformFilterChange={(p) => setFilterParams({ platform: p || 'all', account: '' })}
                 />
               </div>
             </div>
