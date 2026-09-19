@@ -3011,22 +3011,21 @@ function UnifiedChatPageContent() {
                     <div className="flex-1 min-w-0 text-left">
                       <div className="flex items-start justify-between">
                         <span className="font-medium text-gray-900 dark:text-white truncate">{contact.nickname || contact.display_name}</span>
-                        {/* คอลัมน์ขวา: บรรทัดบน เวลา + ยังไม่อ่าน · บรรทัดล่าง ป้าย Ads (เจ้าของขอให้อยู่ใต้เวลา 10 ก.ย. 2026) */}
-                        <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs text-gray-400 dark:text-slate-500">{formatLastMessage(contact.last_message_at)}</span>
-                            {contact.unread_count > 0 && (<span className="bg-red-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center">{contact.unread_count > 99 ? '99+' : contact.unread_count}</span>)}
-                          </div>
-                          {/* มาจากโฆษณา — เห็นตั้งแต่รายชื่อว่าห้องไหนมาจากเงินที่จ่ายไป
-                              (InfoChip ไม่ใช่ Badge เพราะแถวนี้เตี้ย ต้องไม่ดันความสูง) */}
-                          {contact.referral_source === 'ADS' && (
-                            <InfoChip size="sm" colors="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" icon={<BroadcastIcon className="w-3 h-3" />}>Ads</InfoChip>
-                          )}
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <span className="text-xs text-gray-400 dark:text-slate-500">{formatLastMessage(contact.last_message_at)}</span>
+                          {contact.unread_count > 0 && (<span className="bg-red-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center">{contact.unread_count > 99 ? '99+' : contact.unread_count}</span>)}
                         </div>
                       </div>
                       <div className="flex items-center gap-1 mt-0.5">
                         <PlatformIcon contact={contact} size={12} />
                         {contact.account_name && (<span className="text-xs text-gray-400 dark:text-slate-300 truncate">{contact.account_name}</span>)}
+                        {/* มาจากโฆษณา — อยู่ท้ายบรรทัดชื่อเพจ (ใต้เวลา) ไม่ใช่คอลัมน์ขวาสองชั้น
+                            ซึ่งเคยดันบรรทัดชื่อให้สูงขึ้นจนมีช่องว่างระหว่างชื่อกับชื่อเพจ */}
+                        {contact.referral_source === 'ADS' && (
+                          <span className="ml-auto flex-shrink-0">
+                            <InfoChip size="sm" colors="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" icon={<BroadcastIcon className="w-3 h-3" />}>Ads</InfoChip>
+                          </span>
+                        )}
                       </div>
                       {contact.last_message ? (
                         <div className="text-sm font-sarabun text-gray-500 dark:text-slate-400 truncate mt-0.5">{contact.last_message}</div>
@@ -3086,7 +3085,7 @@ function UnifiedChatPageContent() {
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
-          className={`flex-col relative ${mobileView === 'chat' ? 'flex' : 'hidden md:flex'} ${rightPanel ? 'w-full md:w-[340px] xl:w-[420px]' : 'flex-1'}`}
+          className={`flex-col relative ${mobileView === 'chat' ? 'flex' : 'hidden md:flex'} ${rightPanel ? 'w-full md:w-[440px] xl:w-[550px]' : 'flex-1'}`}
         >
           {/* overlay ต้อง pointer-events-none ไม่งั้นมันกินอีเวนต์ของแผงข้างล่าง
               แล้ว dragleave จะยิงทันทีที่ overlay โผล่ = กะพริบไม่หยุด */}
@@ -3100,7 +3099,8 @@ function UnifiedChatPageContent() {
           {selectedContact ? (
             <>
               {/* Chat Header */}
-              <div className="px-2 py-2 md:p-4 border-b border-gray-200 dark:border-slate-700 flex items-center gap-2 md:gap-3">
+              {/* md:min-h-[81px] = สูงเท่าหัวแผงขวา (เปิดบิล/ติดตาม/โปรไฟล์) ให้เส้นใต้หัวตรงกันทั้งแถว */}
+              <div className="px-2 py-2 md:p-4 md:min-h-[81px] border-b border-gray-200 dark:border-slate-700 flex items-center gap-2 md:gap-3">
                 <button onClick={handleBackTap} aria-label="กลับไปรายชื่อแชท" className="md:hidden p-1 text-gray-500 hover:text-gray-700 flex-shrink-0"><ChevronLeftIcon className="w-5 h-5" /></button>
                   {(() => {
                     // รูปลูกค้า + **โลโก้ช่องทางที่คุยอยู่** ซ้อนมุมล่างซ้าย — ชุดเดียวกับในรายชื่อแชท
@@ -3148,28 +3148,8 @@ function UnifiedChatPageContent() {
                         {[selectedContact.nickname ? selectedContact.display_name : null, selectedContact.account_name].filter(Boolean).join(' · ')}
                       </p>
                     )}
-                    {selectedContact.referral_ad_title && (() => {
-                      const adData = selectedContact.referral_data?.ads_context_data;
-                      const adUrl = referralPostUrl(adData?.post_id);
-                      const mediaUrl = selectedContact.referral_media_url ?? adData?.photo_url ?? adData?.video_url ?? null;
-                      const mediaKind = selectedContact.referral_media_kind ?? (adData?.photo_url ? 'photo' : adData?.video_url ? 'video' : null);
-                      const sourceLabel = referralSourceLabel(selectedContact.referral_source);
-                      return (
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <AdMediaThumb url={mediaUrl} kind={mediaKind} sizeClass="w-7 h-7" />
-                          {adUrl ? (
-                            <a href={adUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 dark:text-blue-400 hover:underline truncate max-w-[220px] flex items-center gap-0.5">
-                              {sourceLabel}: {selectedContact.referral_ad_title}
-                              <ExternalLinkIcon className="w-2.5 h-2.5 flex-shrink-0" />
-                            </a>
-                          ) : (
-                            <p className="text-xs text-blue-500 dark:text-blue-400 truncate max-w-[220px]">
-                              {sourceLabel}: {selectedContact.referral_ad_title}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    })()}
+                    {/* ที่มาจากโฆษณาไม่ต้องขึ้นที่หัวห้อง — การ์ด "ลูกค้าทักมาจากโฆษณา" ในห้องกับ
+                        ประวัติในแผงโปรไฟล์บอกอยู่แล้ว (ซ้ำสามที่ เจ้าของสั่งถอด 19 ก.ย. 2026) */}
                     {selectedContact.customer && lastOrderLabel(selectedContact, true) && (() => {
                       const label = lastOrderLabel(selectedContact, true);
                       const neverOrdered = !selectedContact.last_order_date && !selectedContact.last_order_created_at;
@@ -3483,7 +3463,7 @@ function UnifiedChatPageContent() {
                 initialStages={leadStages}
                 initialMembers={leadMembers || undefined}
                 onClose={() => setMobileView('chat')}
-                onChanged={(updated) => { setLead(updated); setLeadNote(updated.follow_up_note || ''); setMobileView('chat'); }}
+                onChanged={(updated) => { setLead(updated); setLeadNote(updated.follow_up_note || ''); }}
               />
             </div>
           </div>

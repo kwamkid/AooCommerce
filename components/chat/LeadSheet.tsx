@@ -102,13 +102,14 @@ export default function LeadSheet({
       setLead(data.lead);
       onChanged?.(data.lead);
       showToast(message);
-      if (closeAfter) setTimeout(onClose, 300);
+      // โมดัลปิดเองหลังตั้งนัด (งานจบ) · แผงข้างเปิดค้างไว้เหมือนแผงเปิดบิล — ผู้ใช้ปิดเองเมื่อพอ
+      if (closeAfter && !embedded) setTimeout(onClose, 300);
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ', 'error');
     } finally {
       setSaving(false);
     }
-  }, [contactId, platform, onChanged, onClose, showToast]);
+  }, [contactId, platform, embedded, onChanged, onClose, showToast]);
 
   if (!open) return null;
 
