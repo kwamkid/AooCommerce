@@ -232,6 +232,27 @@ html, body {
 .dark .btn-ghost { color: rgb(148 163 184); }
 .dark .btn-ghost:hover { background-color: rgb(51 65 85); }
 
+/* ── ปุ่มไอคอนสี่เหลี่ยม (แถวเครื่องมือหัวห้องแชท: เปิดบิล · ติดตาม · โปรไฟล์ · ประวัติ) ──
+   .icon-btn            พื้นเทา ไอคอนเทาเข้ม · hover เข้มขึ้น
+   .icon-btn-active     แผง/โหมดนั้นเปิดอยู่ = พื้นฟ้า ไอคอนขาว
+   .icon-btn-primary    ปุ่มเด่นของแถว (เปิดบิล) = พื้นส้มจาง ไอคอนส้ม · active = ส้มทึบ
+   ไอคอนข้างใน 16px คุมที่นี่ ไม่ต้องใส่ w-4 h-4 เอง · ใช้คู่ <Tooltip> + aria-label เสมอ */
+.icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0.5rem; border-radius: 0.5rem; border: 0; cursor: pointer; font: inherit;
+  background-color: rgb(243 244 246); color: rgb(55 65 81);
+  transition: background-color .15s, color .15s;
+}
+.icon-btn > svg { width: 1rem; height: 1rem; }
+.icon-btn:hover { background-color: rgb(229 231 235); }
+.dark .icon-btn { background-color: rgb(51 65 85); color: rgb(203 213 225); }
+.dark .icon-btn:hover { background-color: rgb(71 85 105); }
+.icon-btn-active, .dark .icon-btn-active { background-color: rgb(59 130 246); color: #fff; }
+.icon-btn-active:hover, .dark .icon-btn-active:hover { background-color: rgb(37 99 235); }
+.icon-btn-primary, .dark .icon-btn-primary { background-color: rgb(244 81 30 / 0.1); color: #F4511E; }
+.icon-btn-primary:hover, .dark .icon-btn-primary:hover { background-color: rgb(244 81 30 / 0.2); }
+.icon-btn-primary.icon-btn-active, .dark .icon-btn-primary.icon-btn-active { background-color: #F4511E; color: #fff; }
+
 .btn-danger {
   background-color: rgb(220 38 38);
   color: #fff;

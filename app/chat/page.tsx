@@ -24,7 +24,7 @@ import { isConsignmentFlow, isDepartmentFlow } from '@/lib/flow-types';
 import { supabase } from '@/lib/supabase';
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { CheckCheck, History, Smile, ArrowDown, UserCheck, UserX, ArrowUpDown, Unlink, FilterX } from 'lucide-react';
-import { AlertIcon, BroadcastIcon, ChatIcon, ChevronLeftIcon, CloseIcon, ConfirmIcon, DeleteIcon, DocumentIcon, EditIcon, EmailIcon, ExternalLinkIcon, FilterIcon, ImageAddIcon, LinkIcon, LoadingIcon, LocationIcon, MessageIcon, OrderIcon, PhoneIcon, ResetIcon, SendIcon, TimeIcon, UserIcon, ChecklistIcon, ProductIcon } from '@/lib/icons';
+import { AlertIcon, BroadcastIcon, ChatIcon, ChevronLeftIcon, CloseIcon, ConfirmIcon, DeleteIcon, DocumentIcon, EditIcon, EmailIcon, ExternalLinkIcon, FilterIcon, ImageAddIcon, LinkIcon, LoadingIcon, LocationIcon, MessageIcon, OrderIcon, PhoneIcon, ResetIcon, SendIcon, TimeIcon, UserIcon, ChecklistIcon, ProductIcon, LeadIcon } from '@/lib/icons';
 import Image from 'next/image';
 import type { CustomerFormData } from '@/components/customers/customer-payload';
 import { buildCustomerPayload } from '@/components/customers/customer-payload';
@@ -3226,16 +3226,16 @@ function UnifiedChatPageContent() {
                 <div className="flex items-center gap-1 flex-shrink-0">
                   {selectedContact.customer ? (
                     <>
-                      <Tooltip text="ดูประวัติออเดอร์"><button onClick={handleOpenHistory} aria-label="ดูประวัติออเดอร์" className={`p-2 rounded-lg transition-colors ${rightPanel === 'history' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><History className="w-4 h-4" /></button></Tooltip>
-                      <Tooltip text={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'}><button onClick={() => { setRightPanel(rightPanel === 'order' ? null : 'order'); }} aria-label={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'} className={`p-2 rounded-lg transition-colors ${rightPanel === 'order' ? 'bg-primary text-white' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}><OrderIcon className="w-4 h-4" /></button></Tooltip>
-                      <Tooltip text={lead?.follow_up_at ? `ติดตามลูกค้า · ${followUpLabel(lead.follow_up_at)?.text}` : 'ติดตามลูกค้า'}><button onClick={handleOpenLead} aria-label="ติดตามลูกค้า" className={`p-2 rounded-lg transition-colors ${rightPanel === 'lead' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><TimeIcon className="w-4 h-4" /></button></Tooltip>
-                      <Tooltip text="ดูข้อมูลลูกค้า"><button onClick={handleOpenProfile} aria-label="ดูข้อมูลลูกค้า" className={`p-2 rounded-lg transition-colors ${rightPanel === 'profile' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><UserIcon className="w-4 h-4" /></button></Tooltip>
+                      <Tooltip text="ดูประวัติออเดอร์"><button onClick={handleOpenHistory} aria-label="ดูประวัติออเดอร์" className={`icon-btn ${rightPanel === 'history' ? 'icon-btn-active' : ''}`}><History /></button></Tooltip>
+                      <Tooltip text={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'}><button onClick={() => { setRightPanel(rightPanel === 'order' ? null : 'order'); }} aria-label={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'} className={`icon-btn icon-btn-primary ${rightPanel === 'order' ? 'icon-btn-active' : ''}`}><OrderIcon /></button></Tooltip>
+                      <Tooltip text={lead?.follow_up_at ? `ติดตามลูกค้า · ${followUpLabel(lead.follow_up_at)?.text}` : 'ติดตามลูกค้า'}><button onClick={handleOpenLead} aria-label="ติดตามลูกค้า" className={`icon-btn ${rightPanel === 'lead' ? 'icon-btn-active' : ''}`}><LeadIcon /></button></Tooltip>
+                      <Tooltip text="ดูข้อมูลลูกค้า"><button onClick={handleOpenProfile} aria-label="ดูข้อมูลลูกค้า" className={`icon-btn ${rightPanel === 'profile' ? 'icon-btn-active' : ''}`}><UserIcon /></button></Tooltip>
                     </>
                   ) : (
                     <>
-                      <Tooltip text={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'}><button onClick={() => { setRightPanel(rightPanel === 'order' ? null : 'order'); }} aria-label={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'} className={`p-2 rounded-lg transition-colors ${rightPanel === 'order' ? 'bg-primary text-white' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}><OrderIcon className="w-4 h-4" /></button></Tooltip>
-                      <Tooltip text={lead?.follow_up_at ? `ติดตามลูกค้า · ${followUpLabel(lead.follow_up_at)?.text}` : 'ติดตามลูกค้า'}><button onClick={handleOpenLead} aria-label="ติดตามลูกค้า" className={`p-2 rounded-lg transition-colors ${rightPanel === 'lead' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><TimeIcon className="w-4 h-4" /></button></Tooltip>
-                      <Tooltip text="แท็ก / โปรไฟล์"><button onClick={handleOpenProfile} aria-label="แท็ก / โปรไฟล์" className={`p-2 rounded-lg transition-colors ${rightPanel === 'profile' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><UserIcon className="w-4 h-4" /></button></Tooltip>
+                      <Tooltip text={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'}><button onClick={() => { setRightPanel(rightPanel === 'order' ? null : 'order'); }} aria-label={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'} className={`icon-btn icon-btn-primary ${rightPanel === 'order' ? 'icon-btn-active' : ''}`}><OrderIcon /></button></Tooltip>
+                      <Tooltip text={lead?.follow_up_at ? `ติดตามลูกค้า · ${followUpLabel(lead.follow_up_at)?.text}` : 'ติดตามลูกค้า'}><button onClick={handleOpenLead} aria-label="ติดตามลูกค้า" className={`icon-btn ${rightPanel === 'lead' ? 'icon-btn-active' : ''}`}><LeadIcon /></button></Tooltip>
+                      <Tooltip text="แท็ก / โปรไฟล์"><button onClick={handleOpenProfile} aria-label="แท็ก / โปรไฟล์" className={`icon-btn ${rightPanel === 'profile' ? 'icon-btn-active' : ''}`}><UserIcon /></button></Tooltip>
                       {/* ปุ่ม "เชื่อมลูกค้าที่มีอยู่" ยุบออกจากแถวนี้ก่อน (เจ้าของสั่ง 19 ก.ย. 2026 — แถวเริ่มแน่น)
                           ยังเชื่อมได้จากแผงโปรไฟล์ · LinkCustomerModal + setShowLinkModal ยังอยู่ */}
                     </>
@@ -3510,7 +3510,7 @@ function UnifiedChatPageContent() {
         {mobileView === 'lead' && selectedContact && (
           <div className="flex md:hidden w-full flex-col bg-gray-50 dark:bg-slate-900">
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-              <div className="flex items-center gap-3"><button onClick={() => setMobileView('chat')} className="p-1 -ml-1 text-gray-500 hover:text-gray-700"><ChevronLeftIcon className="w-6 h-6" /></button><TimeIcon className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">ติดตามลูกค้า</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.nickname || selectedContact.display_name}</p></div></div>
+              <div className="flex items-center gap-3"><button onClick={() => setMobileView('chat')} className="p-1 -ml-1 text-gray-500 hover:text-gray-700"><ChevronLeftIcon className="w-6 h-6" /></button><LeadIcon className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">ติดตามลูกค้า</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.nickname || selectedContact.display_name}</p></div></div>
             </div>
             <div className="flex-1 overflow-y-auto">
               <LeadSheet
@@ -3622,7 +3622,7 @@ function UnifiedChatPageContent() {
         {rightPanel === 'lead' && selectedContact && (
           <div className="hidden md:flex flex-1 flex-col border-l border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 min-h-[81px]">
-              <div className="flex items-center gap-3"><TimeIcon className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">ติดตามลูกค้า</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.nickname || selectedContact.display_name}</p></div></div>
+              <div className="flex items-center gap-3"><LeadIcon className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">ติดตามลูกค้า</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.nickname || selectedContact.display_name}</p></div></div>
               <Tooltip text="ปิด"><button onClick={() => setRightPanel(null)} aria-label="ปิด" className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"><CloseIcon className="w-5 h-5" /></button></Tooltip>
             </div>
             <div className="flex-1 overflow-y-auto">

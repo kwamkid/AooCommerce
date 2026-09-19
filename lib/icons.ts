@@ -54,6 +54,7 @@ import {
   FileSpreadsheet,
   FileText,
   Filter,
+  Funnel,
   Gift,
   Globe,
   Handshake,
@@ -238,6 +239,8 @@ export const DeleteIcon = Trash2;
 export const SaveIcon = Save;
 export const SearchIcon = Search;
 export const FilterIcon = Filter;
+/** ติดตามลูกค้า (กรวยขาย · นัดทักอีกครั้ง) — คนละความหมายกับ FilterIcon (กรองรายการ) */
+export const LeadIcon = Funnel;
 export const RefreshIcon = RefreshCw;
 export const CloseIcon = X;
 export const ConfirmIcon = Check;
