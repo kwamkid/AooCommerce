@@ -24,7 +24,7 @@ import { isConsignmentFlow, isDepartmentFlow } from '@/lib/flow-types';
 import { supabase } from '@/lib/supabase';
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { CheckCheck, History, Smile, ArrowDown, UserCheck, UserX, ArrowUpDown, Unlink, FilterX } from 'lucide-react';
-import { AlertIcon, BroadcastIcon, ChatIcon, ChevronLeftIcon, CloseIcon, ConfirmIcon, DeleteIcon, DocumentIcon, EditIcon, EmailIcon, ExternalLinkIcon, FilterIcon, ImageAddIcon, LinkIcon, LoadingIcon, LocationIcon, MessageIcon, OrderIcon, PhoneIcon, ResetIcon, SendIcon, TimeIcon, UserIcon, ChecklistIcon, ProductIcon, LeadIcon } from '@/lib/icons';
+import { AlertIcon, BroadcastIcon, ChatIcon, ChevronLeftIcon, CloseIcon, ConfirmIcon, DeleteIcon, DocumentIcon, EmailIcon, ExternalLinkIcon, FilterIcon, ImageAddIcon, LinkIcon, LoadingIcon, LocationIcon, MessageIcon, OrderIcon, PhoneIcon, ResetIcon, SendIcon, TimeIcon, UserIcon, ChecklistIcon, ProductIcon, LeadIcon } from '@/lib/icons';
 import Image from 'next/image';
 import type { CustomerFormData } from '@/components/customers/customer-payload';
 import { buildCustomerPayload } from '@/components/customers/customer-payload';
