@@ -24,7 +24,7 @@ import { isConsignmentFlow, isDepartmentFlow } from '@/lib/flow-types';
 import { supabase } from '@/lib/supabase';
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { CheckCheck, History, Smile, ArrowDown, UserCheck, UserX, ArrowUpDown, Unlink, FilterX } from 'lucide-react';
-import { AlertIcon, BroadcastIcon, ChatIcon, ChevronLeftIcon, CloseIcon, ConfirmIcon, DeleteIcon, DocumentIcon, EditIcon, EmailIcon, ExternalLinkIcon, FilterIcon, ImageAddIcon, LinkIcon, LoadingIcon, LocationIcon, MessageIcon, OrderIcon, PhoneIcon, ResetIcon, SendIcon, TimeIcon, UserIcon, ChecklistIcon } from '@/lib/icons';
+import { AlertIcon, BroadcastIcon, ChatIcon, ChevronLeftIcon, CloseIcon, ConfirmIcon, DeleteIcon, DocumentIcon, EditIcon, EmailIcon, ExternalLinkIcon, FilterIcon, ImageAddIcon, LinkIcon, LoadingIcon, LocationIcon, MessageIcon, OrderIcon, PhoneIcon, ResetIcon, SendIcon, TimeIcon, UserIcon, ChecklistIcon, ProductIcon } from '@/lib/icons';
 import Image from 'next/image';
 import type { CustomerFormData } from '@/components/customers/customer-payload';
 import { buildCustomerPayload } from '@/components/customers/customer-payload';
@@ -2909,29 +2909,8 @@ function UnifiedChatPageContent() {
             </div>
           </div>
           <div className="p-3 md:px-4 md:py-3 border-b border-gray-200 dark:border-slate-700">
-            {/* ช่องทาง | ค้นหา — อยู่แถวเดียวกันตามที่ผู้ใช้ขอ (ประหยัดที่แนวตั้งบนมือถือ) */}
+            {/* ค้นหา | ช่องทาง (ปุ่มไอคอน) — แถวเดียวกัน ค้นหาขึ้นก่อนเพราะใช้บ่อยกว่า */}
             <div className="flex gap-2">
-              {/* ตัวเลือกช่องทาง — ใช้ AccountPicker ตัวเดียวกับหน้าสร้างบรอดแคสต์
-                  (โหมดเลือกอันเดียว + แถว "ทุกช่องทาง") · รูปแพลตฟอร์มอยู่มุมล่างของ
-                  avatar ใน ChannelBadge อยู่แล้ว จึงไม่ต้องมีไอคอนซ้ำท้ายแถวเหมือนเดิม */}
-              <div className="flex-1 min-w-0">
-                <AccountPicker
-                  accounts={chatAccounts.map(acc => ({
-                    id: acc.id,
-                    platform: acc.platform,
-                    name: acc.account_name,
-                    picture_url: getAccountPicture(acc),
-                  }))}
-                  value={filterAccountId ? [filterAccountId] : []}
-                  onChange={(ids) => setFilterParams(
-                    ids.length > 0 ? { account: ids[0], platform: '' } : { platform: 'all', account: '' },
-                  )}
-                  multiple={false}
-                  allOption="ทุกช่องทาง"
-                  placeholder="ทุกช่องทาง"
-                  triggerClassName="!min-h-0 h-[42px] text-sm"
-                />
-              </div>
               <div className="relative flex-1 min-w-0">
                 {/* ⚠️ ห้ามส่ง h-[..] มา override — SearchInput สูง 42px อยู่แล้ว และการส่ง
                     ความสูงคนละค่ามาทับทำให้ "ค่าไหนชนะ" ขึ้นกับลำดับที่ Tailwind สร้าง CSS
@@ -2956,6 +2935,26 @@ function UnifiedChatPageContent() {
                     </div>
                   );
                 })()}
+              </div>
+              {/* ตัวเลือกช่องทาง — AccountPicker ตัวเดียวกับหน้าสร้างบรอดแคสต์ในโหมดปุ่มไอคอน
+                  (ปุ่มโชว์รูปช่องทางที่เลือก · ไม่เลือก = ลูกโลก "ทุกช่องทาง") */}
+              <div className="flex-shrink-0">
+                <AccountPicker
+                  accounts={chatAccounts.map(acc => ({
+                    id: acc.id,
+                    platform: acc.platform,
+                    name: acc.account_name,
+                    picture_url: getAccountPicture(acc),
+                  }))}
+                  value={filterAccountId ? [filterAccountId] : []}
+                  onChange={(ids) => setFilterParams(
+                    ids.length > 0 ? { account: ids[0], platform: '' } : { platform: 'all', account: '' },
+                  )}
+                  multiple={false}
+                  allOption="ทุกช่องทาง"
+                  placeholder="ทุกช่องทาง"
+                  iconOnly
+                />
               </div>
             </div>
             {/* Active filters display */}
@@ -3171,13 +3170,13 @@ function UnifiedChatPageContent() {
                     <>
                       <Tooltip text="ดูประวัติออเดอร์"><button onClick={handleOpenHistory} aria-label="ดูประวัติออเดอร์" className={`p-2 rounded-lg transition-colors ${rightPanel === 'history' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><History className="w-4 h-4" /></button></Tooltip>
                       <Tooltip text={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'}><button onClick={() => { setRightPanel(rightPanel === 'order' ? null : 'order'); }} aria-label={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'} className={`p-2 rounded-lg transition-colors ${rightPanel === 'order' ? 'bg-primary text-white' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}><OrderIcon className="w-4 h-4" /></button></Tooltip>
-                      <Tooltip text={lead?.follow_up_at ? `ติดตามลูกค้า · ${followUpLabel(lead.follow_up_at)?.text}` : 'ติดตามลูกค้า'}><button onClick={handleOpenLead} aria-label="ติดตามลูกค้า" className={`p-2 rounded-lg transition-colors ${rightPanel === 'lead' ? 'bg-blue-500 text-white' : lead?.follow_up_at ? (followUpLabel(lead.follow_up_at)?.overdue ? 'bg-red-500 text-white' : 'bg-amber-500 text-white') : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><TimeIcon className="w-4 h-4" /></button></Tooltip>
+                      <Tooltip text={lead?.follow_up_at ? `ติดตามลูกค้า · ${followUpLabel(lead.follow_up_at)?.text}` : 'ติดตามลูกค้า'}><button onClick={handleOpenLead} aria-label="ติดตามลูกค้า" className={`p-2 rounded-lg transition-colors ${rightPanel === 'lead' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><TimeIcon className="w-4 h-4" /></button></Tooltip>
                       <Tooltip text="ดูข้อมูลลูกค้า"><button onClick={handleOpenProfile} aria-label="ดูข้อมูลลูกค้า" className={`p-2 rounded-lg transition-colors ${rightPanel === 'profile' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><UserIcon className="w-4 h-4" /></button></Tooltip>
                     </>
                   ) : (
                     <>
                       <Tooltip text={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'}><button onClick={() => { setRightPanel(rightPanel === 'order' ? null : 'order'); }} aria-label={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'} className={`p-2 rounded-lg transition-colors ${rightPanel === 'order' ? 'bg-primary text-white' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}><OrderIcon className="w-4 h-4" /></button></Tooltip>
-                      <Tooltip text={lead?.follow_up_at ? `ติดตามลูกค้า · ${followUpLabel(lead.follow_up_at)?.text}` : 'ติดตามลูกค้า'}><button onClick={handleOpenLead} aria-label="ติดตามลูกค้า" className={`p-2 rounded-lg transition-colors ${rightPanel === 'lead' ? 'bg-blue-500 text-white' : lead?.follow_up_at ? (followUpLabel(lead.follow_up_at)?.overdue ? 'bg-red-500 text-white' : 'bg-amber-500 text-white') : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><TimeIcon className="w-4 h-4" /></button></Tooltip>
+                      <Tooltip text={lead?.follow_up_at ? `ติดตามลูกค้า · ${followUpLabel(lead.follow_up_at)?.text}` : 'ติดตามลูกค้า'}><button onClick={handleOpenLead} aria-label="ติดตามลูกค้า" className={`p-2 rounded-lg transition-colors ${rightPanel === 'lead' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><TimeIcon className="w-4 h-4" /></button></Tooltip>
                       <Tooltip text="แท็ก / โปรไฟล์"><button onClick={handleOpenProfile} aria-label="แท็ก / โปรไฟล์" className={`p-2 rounded-lg transition-colors ${rightPanel === 'profile' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><UserIcon className="w-4 h-4" /></button></Tooltip>
                       {/* ปุ่ม "เชื่อมลูกค้าที่มีอยู่" ยุบออกจากแถวนี้ก่อน (เจ้าของสั่ง 19 ก.ย. 2026 — แถวเริ่มแน่น)
                           ยังเชื่อมได้จากแผงโปรไฟล์ · LinkCustomerModal + setShowLinkModal ยังอยู่ */}
@@ -3412,7 +3411,7 @@ function UnifiedChatPageContent() {
                     <Tooltip text="แทรกลิงก์สินค้า/หมวดหมู่/หน้าร้าน">
                       <button onClick={() => setStoreLinkOpen(true)} aria-label="แทรกลิงก์หน้าร้าน"
                         className="p-2 rounded-full text-gray-500 hover:text-primary hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
-                        <LinkIcon className="w-5 h-5" />
+                        <ProductIcon className="w-5 h-5" />
                       </button>
                     </Tooltip>
                   )}

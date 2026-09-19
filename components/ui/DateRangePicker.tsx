@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
+import { useRef, useState, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useDropUp } from '@/lib/useDropUp';
 import { DayPicker, DateRange } from 'react-day-picker';
@@ -287,6 +287,21 @@ export default function DateRangePicker({
   const portalStyle = portal && rect
     ? { position: 'fixed' as const, top: dropUp ? rect.top - popupH - 4 : rect.bottom + 4, left: rect.left }
     : undefined;
+
+  // portal: ปฏิทินกว้างกว่าช่อง (โดยเฉพาะช่อง size sm) จึงล้นขอบขวาจอได้เมื่อช่องอยู่ชิดขวา —
+  // วัดหลัง render (ก่อน paint) ถ้าล้นให้ชิดขอบขวาของช่องแทน · แก้ที่ DOM ตรง ๆ ไม่ใช่ state
+  // (กฎ react-hooks/set-state-in-effect ของโปรเจกต์ · แบบเดียวกับ FormSelect)
+  useLayoutEffect(() => {
+    if (!open || !portal) return;
+    const pop = popupRef.current;
+    const trigger = containerRef.current;
+    if (!pop || !trigger) return;
+    const tr = trigger.getBoundingClientRect();
+    const w = pop.offsetWidth;
+    const edge = 8;
+    const overflowsRight = tr.left + w > window.innerWidth - edge;
+    pop.style.left = overflowsRight ? `${Math.max(edge, tr.right - w)}px` : `${tr.left}px`;
+  }, [open, portal, rect, viewMode, displayMonth]);
 
   // Close on ESC
   useEffect(() => {

@@ -13,6 +13,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import ChannelBadge from './ChannelBadge';
+import { WebIcon } from '@/lib/icons';
 import { Layers } from 'lucide-react';
 import { ChevronDownIcon, ConfirmIcon, SearchIcon } from '@/lib/icons';
 
@@ -45,6 +46,11 @@ interface AccountPickerProps {
   emptyMessage?: string;
   /** ปรับความสูง/กรอบของปุ่มให้เข้ากับแถวเครื่องมือของหน้านั้น */
   triggerClassName?: string;
+  /**
+   * ปุ่มสี่เหลี่ยม 42px โชว์แค่รูปช่องทางที่เลือก (ไม่เลือก = ไอคอนลูกโลก) — สำหรับแถบกรองที่แคบ
+   * รายการเปิดชิดขวาของปุ่มและกว้างพอให้อ่านชื่อ · ใช้กับ `multiple={false}` เท่านั้น
+   */
+  iconOnly?: boolean;
 }
 
 export default function AccountPicker({
@@ -57,6 +63,7 @@ export default function AccountPicker({
   disabled,
   emptyMessage = 'ยังไม่มีช่องทางที่ใช้ได้',
   triggerClassName = '',
+  iconOnly = false,
 }: AccountPickerProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -94,6 +101,24 @@ export default function AccountPicker({
 
   return (
     <div className="relative" ref={rootRef}>
+      {iconOnly ? (
+        <button
+          type="button"
+          disabled={disabled || accounts.length === 0}
+          onClick={() => { setOpen(o => !o); setSearch(''); }}
+          aria-label={selected[0]?.name || placeholder}
+          title={selected[0]?.name || placeholder}
+          className={`h-[42px] w-[42px] flex items-center justify-center border rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+            selected.length > 0
+              ? 'border-primary bg-orange-50/60 dark:bg-orange-950/20'
+              : 'border-gray-300 dark:border-slate-500 bg-white dark:bg-slate-700 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-600'
+          } ${triggerClassName}`}
+        >
+          {selected.length > 0
+            ? <ChannelBadge channel={{ platform: selected[0].platform, picture_url: selected[0].picture_url }} size="sm" />
+            : <WebIcon className="w-4 h-4" />}
+        </button>
+      ) : (
       <button
         type="button"
         disabled={disabled || accounts.length === 0}
@@ -119,9 +144,10 @@ export default function AccountPicker({
         )}
         <ChevronDownIcon className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
+      )}
 
       {open && (
-        <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg max-h-72 overflow-hidden flex flex-col">
+        <div className={`absolute top-full mt-1 z-50 ${iconOnly ? 'right-0 w-[280px]' : 'left-0 right-0'} bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg max-h-72 overflow-hidden flex flex-col`}>
           {accounts.length > 5 && (
             <div className="p-2 border-b border-gray-100 dark:border-slate-700 relative">
               <SearchIcon className="w-4 h-4 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
