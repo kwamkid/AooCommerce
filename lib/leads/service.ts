@@ -8,6 +8,7 @@
 //
 // ⚠️ ใช้ supabaseAdmin (service role ข้าม RLS) ⇒ ทุก query ต้อง filter `company_id` เอง
 
+import { after } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import {
   DEFAULT_LEAD_STAGES, DEFAULT_STAGE_KEY, CLOSED_STAGE_KEYS,
@@ -322,7 +323,10 @@ export async function updateLead(params: {
     .select(LEAD_COLUMNS).single();
   if (error) throw error;
 
-  for (const e of events) await logLeadEvent(e);
+  // ประวัติไม่ต้องให้ผู้ใช้รอ — ลงหลังตอบกลับ (after() ไม่ใช่ปล่อยลอย: Vercel freeze ทิ้งหลัง response)
+  after(async () => {
+    for (const e of events) await logLeadEvent(e).catch(err => console.error('lead event failed:', err));
+  });
   return data as unknown as LeadRow;
 }
 

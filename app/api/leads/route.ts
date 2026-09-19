@@ -89,10 +89,13 @@ export async function PATCH(request: NextRequest) {
     if (!contactId || !platform) {
       return NextResponse.json({ error: 'ต้องระบุ contact_id และ platform' }, { status: 400 });
     }
-    const contact = await loadContact(contactId, platform, companyId);
+    // สองอย่างนี้ไม่ขึ้นต่อกัน — ยิงพร้อมกัน (ทุก round trip ที่ต่อคิว = เวลาที่ผู้ใช้เห็นปุ่มค้าง)
+    const [contact, stages] = await Promise.all([
+      loadContact(contactId, platform, companyId),
+      getCompanyStages(companyId),
+    ]);
     if (!contact) return NextResponse.json({ error: 'ไม่พบผู้ติดต่อนี้' }, { status: 404 });
 
-    const stages = await getCompanyStages(companyId);
     if (stage !== undefined && !stages.some(s => s.key === stage)) {
       return NextResponse.json({ error: 'ไม่รู้จักสถานะนี้' }, { status: 400 });
     }

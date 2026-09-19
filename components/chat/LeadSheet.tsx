@@ -12,7 +12,7 @@
 //    คือข้อความที่เขามองไม่เห็น · อะไรที่ "ยังไม่มี" (นัด · ตัวนับรอโอน) ไม่ต้องวาดที่ว่างไว้รอ
 // ⚠️ ห้ามแยกเป็นแผ่นของ "ห้องแชท" — นัดผูกกับคน (lead) คนเดียวทักหลายช่องทางต้องได้นัดเดียว
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import Modal from '@/components/ui/Modal';
@@ -22,7 +22,7 @@ import Badge from '@/components/ui/Badge';
 import DateRangePicker, { type DateValueType } from '@/components/ui/DateRangePicker';
 import LeadStageIcon from './LeadStageIcon';
 import { MemberIcon } from '@/lib/icons';
-import { DEFAULT_LEAD_STAGES, STAGE_ACTIVE_CLASS, STAGE_CHIP_CLASS, type LeadStage } from '@/lib/leads/stages';
+import { DEFAULT_LEAD_STAGES, STAGE_ACTIVE_CLASS, STAGE_CHIP_CLASS, CLOSED_STAGE_KEYS, type LeadStage } from '@/lib/leads/stages';
 import {
   followUpPresets, formatShortThaiDate, followUpLabel, waitingDays, FOLLOW_UP_HOUR,
 } from '@/lib/leads/followup-presets';
@@ -70,7 +70,8 @@ export default function LeadSheet({
   const [stages, setStages] = useState<LeadStage[]>(initialStages?.length ? initialStages : DEFAULT_LEAD_STAGES);
   const [members, setMembers] = useState<LeadMember[]>(initialMembers || []);
   const [lead, setLead] = useState<LeadData | null>(initialLead ?? null);
-  const [saving, setSaving] = useState(false);
+  /** ขั้นเริ่มต้นเมื่อยังไม่มี lead — ให้ callback อ่านได้โดยไม่ต้องรอค่าที่คำนวณหลัง early return */
+  const currentKeyRef = useRef(initialStages?.find(s => s.is_default)?.key || 'new');
 
   // หน้าแชทส่งค่าล่าสุดมาให้อยู่แล้ว — ยิง API เฉพาะเมื่อยังไม่มีอะไรเลย (เปิดจากที่ที่ไม่ได้โหลดไว้)
   useEffect(() => {
@@ -89,8 +90,32 @@ export default function LeadSheet({
     return () => { cancelled = true; };
   }, [open, contactId, platform, initialLead, initialStages, initialMembers, showToast]);
 
+  /**
+   * บันทึกแบบ "จอเปลี่ยนก่อน หลังบ้านตามหลัง" — กดปุ่มแล้วเห็นผลทันที ไม่ต้องรอ round trip
+   * (เจ้าของทักว่าค้าง 19 ก.ย. 2026) · ล้มค่อยถอยกลับค่าเดิม + toast แดง
+   * ปุ่มไม่ล็อกระหว่างรอ — กดต่อได้ คำขอเรียงตามลำดับที่กดอยู่แล้ว (PATCH ตัวเดียวกัน)
+   */
   const save = useCallback(async (patch: Record<string, unknown>, message: string, closeAfter = false) => {
-    setSaving(true);
+    const before = lead;
+    // เดาผลลัพธ์ตามกติกาของ service: เข้าขั้นจบแล้ว = นัดหาย · ออกจากรอโอน = ตัวนับหาย
+    const nextStage = typeof patch.stage === 'string' ? patch.stage : before?.stage || currentKeyRef.current;
+    const closed = CLOSED_STAGE_KEYS.includes(nextStage);
+    const optimistic: LeadData = {
+      id: before?.id || '',
+      stage: nextStage,
+      stage_source: typeof patch.stage === 'string' ? 'manual' : (before?.stage_source || 'manual'),
+      stage_changed_at: typeof patch.stage === 'string' ? new Date().toISOString() : (before?.stage_changed_at || new Date().toISOString()),
+      follow_up_at: closed ? null : ('follow_up_at' in patch ? (patch.follow_up_at as string | null) : before?.follow_up_at ?? null),
+      follow_up_note: 'follow_up_note' in patch ? (patch.follow_up_note as string | null) : before?.follow_up_note ?? null,
+      assigned_to: 'assigned_to' in patch ? (patch.assigned_to as string | null) : before?.assigned_to ?? null,
+      quote_sent_at: nextStage === 'quoted' ? before?.quote_sent_at ?? null : null,
+      reminded_count: nextStage === 'quoted' ? before?.reminded_count ?? 0 : 0,
+    };
+    setLead(optimistic);
+    onChanged?.(optimistic);
+    showToast(message);
+    if (closeAfter && !embedded) setTimeout(onClose, 300);
+
     try {
       const res = await apiFetch('/api/leads', {
         method: 'PATCH',
@@ -99,17 +124,15 @@ export default function LeadSheet({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'บันทึกไม่สำเร็จ');
+      // ค่าจริงจากหลังบ้าน (id ของ lead ที่เพิ่งสร้าง · เวลาจริง) ทับของที่เดาไว้
       setLead(data.lead);
       onChanged?.(data.lead);
-      showToast(message);
-      // โมดัลปิดเองหลังตั้งนัด (งานจบ) · แผงข้างเปิดค้างไว้เหมือนแผงเปิดบิล — ผู้ใช้ปิดเองเมื่อพอ
-      if (closeAfter && !embedded) setTimeout(onClose, 300);
     } catch (e) {
-      showToast(e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ', 'error');
-    } finally {
-      setSaving(false);
+      setLead(before);
+      if (before) onChanged?.(before);
+      showToast(e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ — ค่าถูกคืนเป็นของเดิม', 'error');
     }
-  }, [contactId, platform, embedded, onChanged, onClose, showToast]);
+  }, [lead, contactId, platform, embedded, onChanged, onClose, showToast]);
 
   if (!open) return null;
 
@@ -152,7 +175,6 @@ export default function LeadSheet({
               fullWidth
               variant="secondary"
               className={active ? STAGE_ACTIVE_CLASS[s.color] : undefined}
-              disabled={saving}
               icon={<LeadStageIcon stageKey={s.key} />}
               title={s.auto_managed ? 'ระบบติดให้เองเมื่อส่งบิล/ลูกค้าจ่ายเงิน' : undefined}
               onClick={() => save({ stage: s.key }, `เปลี่ยนเป็น “${s.name}”`)}
@@ -170,7 +192,7 @@ export default function LeadSheet({
           <Badge
             tone={due?.overdue ? 'red' : 'amber'}
             size="sm"
-            onRemove={saving ? undefined : () => save({ follow_up_at: null }, 'ยกเลิกนัดแล้ว')}
+            onRemove={() => save({ follow_up_at: null }, 'ยกเลิกนัดแล้ว')}
             removeLabel="ยกเลิกนัด"
           >
             {formatShortThaiDate(lead.follow_up_at)} {FOLLOW_UP_HOUR}:00
@@ -187,7 +209,6 @@ export default function LeadSheet({
               size="sm"
               fullWidth
               variant={picked ? 'primary' : 'secondary'}
-              disabled={saving}
               title={formatShortThaiDate(p.date)}
               onClick={() => save({ follow_up_at: p.date.toISOString() }, `ทักอีกที ${formatShortThaiDate(p.date)}`, true)}
             >
@@ -204,9 +225,9 @@ export default function LeadSheet({
           useRange={false}
           size="sm"
           portal
-          disabled={saving}
           minDate={new Date()}
           placeholder="เลือกวัน"
+          displayFormat="d MMM"
           value={customPicked ? { startDate: lead!.follow_up_at, endDate: lead!.follow_up_at } : null}
           onChange={(v: DateValueType) => {
             const raw = v?.startDate;
@@ -227,7 +248,6 @@ export default function LeadSheet({
           placeholder="ผู้รับผิดชอบ"
           icon={<MemberIcon className="w-4 h-4" />}
           portal
-          disabled={saving}
         />
       </div>
     </>
